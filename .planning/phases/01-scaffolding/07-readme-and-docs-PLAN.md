@@ -1,7 +1,7 @@
 ---
 plan: "07"
 name: "readme-and-docs"
-wave: 3
+wave: 4
 depends_on: ["01", "06"]
 files_modified:
   - "README.md"
@@ -131,8 +131,8 @@ Write the project's `README.md` (with badges + quickstart) and `docs/ARCHITECTUR
     # Android debug APK
     flutter build apk --debug
 
-    # iOS (unsigned — same as CI)
-    flutter build ios --release --no-codesign
+    # iOS unsigned .ipa (same as CI)
+    flutter build ipa --no-codesign
     ```
 
     ## Architecture
@@ -266,3 +266,4 @@ After pushing to `main`, badges should render on the GitHub repo page.
 <must_haves>
 Delivers FND-06 (README with project description, architecture summary, build/test/CI badges). Part of the Phase 1 quality bar — no direct Success Criterion, but required for FND-06 completeness in traceability.
 </must_haves>
+</output>

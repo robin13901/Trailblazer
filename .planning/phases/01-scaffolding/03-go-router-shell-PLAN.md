@@ -12,6 +12,7 @@ files_modified:
   - "lib/features/map/presentation/placeholder_home_screen.dart"
   - "test/core/routing/app_router_test.dart"
   - "test/features/onboarding/onboarding_flag_repository_test.dart"
+  - "test/widget_test.dart"
 autonomous: true
 requirements: ["FND-09"]
 must_haves:
