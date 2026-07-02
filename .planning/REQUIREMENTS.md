@@ -235,13 +235,135 @@ Explicitly excluded. Documented to prevent scope creep.
 
 ## Traceability
 
-Populated during roadmap creation.
-
 **Coverage:**
-- v1 requirements: 118 total
-- Mapped to phases: (pending roadmap)
-- Unmapped: (pending roadmap) ⚠️
+- v1 requirements: 119 total
+- Mapped to phases: 119 / 119 (100 %)
+- Unmapped: 0
+
+Every requirement maps to exactly one phase. Phase Gates in ROADMAP.md carry two open decisions (G1 = UI-05 fallback; G2 = REN-05 fallback) that will resolve when their spike phase runs.
+
+| Requirement | Phase | Status |
+|-------------|-------|--------|
+| FND-01 | Phase 1: Scaffolding | Pending |
+| FND-02 | Phase 1: Scaffolding | Pending |
+| FND-03 | Phase 1: Scaffolding | Pending |
+| FND-04 | Phase 1: Scaffolding | Pending |
+| FND-05 | Phase 1: Scaffolding | Pending |
+| FND-06 | Phase 1: Scaffolding | Pending |
+| FND-07 | Phase 1: Scaffolding | Pending |
+| FND-08 | Phase 1: Scaffolding | Pending |
+| FND-09 | Phase 1: Scaffolding | Pending |
+| FND-10 | Phase 1: Scaffolding | Pending |
+| FND-11 | Phase 1: Scaffolding | Pending |
+| MAP-01 | Phase 2: Map + Glass Shell | Pending |
+| MAP-02 | Phase 2: Map + Glass Shell | Pending |
+| MAP-03 | Phase 2: Map + Glass Shell | Pending |
+| MAP-04 | Phase 2: Map + Glass Shell | Pending |
+| MAP-05 | Phase 2: Map + Glass Shell | Pending |
+| MAP-06 | Phase 2: Map + Glass Shell | Pending |
+| MAP-07 | Phase 2: Map + Glass Shell | Pending |
+| UI-01 | Phase 2: Map + Glass Shell | Pending |
+| UI-02 | Phase 2: Map + Glass Shell | Pending |
+| UI-03 | Phase 2: Map + Glass Shell | Pending |
+| UI-04 | Phase 2: Map + Glass Shell | Pending |
+| UI-05 | Phase 2: Map + Glass Shell (Gate G1) | Pending |
+| UI-06 | Phase 2: Map + Glass Shell | Pending |
+| UI-07 | Phase 2: Map + Glass Shell | Pending |
+| TRK-01 | Phase 3: Tracking MVP | Pending |
+| TRK-02 | Phase 3: Tracking MVP | Pending |
+| TRK-03 | Phase 3: Tracking MVP | Pending |
+| TRK-04 | Phase 3: Tracking MVP | Pending |
+| TRK-05 | Phase 3: Tracking MVP | Pending |
+| TRK-06 | Phase 3: Tracking MVP | Pending |
+| TRK-07 | Phase 3: Tracking MVP | Pending |
+| TRK-08 | Phase 3: Tracking MVP | Pending |
+| TRK-09 | Phase 3: Tracking MVP | Pending |
+| TRK-10 | Phase 3: Tracking MVP | Pending |
+| TRK-11 | Phase 3: Tracking MVP | Pending |
+| OSM-01 | Phase 4: OSM Pipeline | Pending |
+| OSM-02 | Phase 4: OSM Pipeline | Pending |
+| OSM-03 | Phase 4: OSM Pipeline | Pending |
+| OSM-04 | Phase 4: OSM Pipeline | Pending |
+| OSM-05 | Phase 4: OSM Pipeline | Pending |
+| OSM-06 | Phase 4: OSM Pipeline | Pending |
+| OSM-07 | Phase 4: OSM Pipeline | Pending |
+| OSM-08 | Phase 4: OSM Pipeline | Pending |
+| OSMDB-01 | Phase 5: OSM DB + Matcher | Pending |
+| OSMDB-02 | Phase 5: OSM DB + Matcher | Pending |
+| OSMDB-03 | Phase 5: OSM DB + Matcher | Pending |
+| OSMDB-04 | Phase 5: OSM DB + Matcher | Pending |
+| OSMDB-05 | Phase 5: OSM DB + Matcher | Pending |
+| OSMDB-06 | Phase 5: OSM DB + Matcher | Pending |
+| OSMDB-07 | Phase 5: OSM DB + Matcher | Pending |
+| MMT-01 | Phase 5: OSM DB + Matcher | Pending |
+| MMT-02 | Phase 5: OSM DB + Matcher | Pending |
+| MMT-03 | Phase 5: OSM DB + Matcher | Pending |
+| MMT-04 | Phase 5: OSM DB + Matcher | Pending |
+| MMT-05 | Phase 5: OSM DB + Matcher | Pending |
+| MMT-06 | Phase 5: OSM DB + Matcher | Pending |
+| MMT-07 | Phase 5: OSM DB + Matcher | Pending |
+| MMT-08 | Phase 5: OSM DB + Matcher | Pending |
+| MMT-09 | Phase 5: OSM DB + Matcher | Pending |
+| MMT-10 | Phase 5: OSM DB + Matcher | Pending |
+| INB-01 | Phase 6: Inbox + Match Wire-Up | Pending |
+| INB-02 | Phase 6: Inbox + Match Wire-Up | Pending |
+| INB-03 | Phase 6: Inbox + Match Wire-Up | Pending |
+| INB-04 | Phase 6: Inbox + Match Wire-Up | Pending |
+| INB-05 | Phase 6: Inbox + Match Wire-Up | Pending |
+| INB-06 | Phase 6: Inbox + Match Wire-Up | Pending |
+| INB-07 | Phase 6: Inbox + Match Wire-Up | Pending |
+| INB-08 | Phase 6: Inbox + Match Wire-Up | Pending |
+| COV-01 | Phase 6: Inbox + Match Wire-Up | Pending |
+| COV-05 | Phase 6: Inbox + Match Wire-Up | Pending |
+| COV-06 | Phase 6: Inbox + Match Wire-Up | Pending |
+| REN-01 | Phase 7: Coverage Rendering | Pending |
+| REN-02 | Phase 7: Coverage Rendering | Pending |
+| REN-03 | Phase 7: Coverage Rendering | Pending |
+| REN-04 | Phase 7: Coverage Rendering | Pending |
+| REN-05 | Phase 7: Coverage Rendering (Gate G2) | Pending |
+| REN-06 | Phase 7: Coverage Rendering | Pending |
+| COV-02 | Phase 7: Coverage Rendering | Pending |
+| COV-03 | Phase 7: Coverage Rendering | Pending |
+| FOC-01 | Phase 8: Regions + Focus-Area | Pending |
+| FOC-02 | Phase 8: Regions + Focus-Area | Pending |
+| FOC-03 | Phase 8: Regions + Focus-Area | Pending |
+| FOC-04 | Phase 8: Regions + Focus-Area | Pending |
+| FOC-05 | Phase 8: Regions + Focus-Area | Pending |
+| FOC-06 | Phase 8: Regions + Focus-Area | Pending |
+| FOC-07 | Phase 8: Regions + Focus-Area | Pending |
+| REG-01 | Phase 8: Regions + Focus-Area | Pending |
+| REG-02 | Phase 8: Regions + Focus-Area | Pending |
+| REG-03 | Phase 8: Regions + Focus-Area | Pending |
+| REG-04 | Phase 8: Regions + Focus-Area | Pending |
+| REG-05 | Phase 8: Regions + Focus-Area | Pending |
+| REG-06 | Phase 8: Regions + Focus-Area | Pending |
+| REG-07 | Phase 8: Regions + Focus-Area | Pending |
+| COV-04 | Phase 8: Regions + Focus-Area | Pending |
+| COV-07 | Phase 8: Regions + Focus-Area | Pending |
+| COV-08 | Phase 8: Regions + Focus-Area | Pending |
+| VEH-01 | Phase 9: Vehicles + Bluetooth | Pending |
+| VEH-02 | Phase 9: Vehicles + Bluetooth | Pending |
+| VEH-03 | Phase 9: Vehicles + Bluetooth | Pending |
+| VEH-04 | Phase 9: Vehicles + Bluetooth | Pending |
+| VEH-05 | Phase 9: Vehicles + Bluetooth | Pending |
+| VEH-06 | Phase 9: Vehicles + Bluetooth | Pending |
+| SET-01 | Phase 10: Settings + Backup | Pending |
+| SET-02 | Phase 10: Settings + Backup | Pending |
+| SET-03 | Phase 10: Settings + Backup | Pending |
+| SET-04 | Phase 10: Settings + Backup | Pending |
+| SET-05 | Phase 10: Settings + Backup | Pending |
+| SET-06 | Phase 10: Settings + Backup | Pending |
+| SET-07 | Phase 10: Settings + Backup | Pending |
+| SET-08 | Phase 10: Settings + Backup | Pending |
+| SET-09 | Phase 10: Settings + Backup | Pending |
+| QUA-01 | Phase 11: Hardening | Pending |
+| QUA-02 | Phase 5: OSM DB + Matcher | Pending |
+| QUA-03 | Phase 1: Scaffolding | Pending |
+| QUA-04 | Phase 11: Hardening | Pending |
+| QUA-05 | Phase 1: Scaffolding | Pending |
+| QUA-06 | Phase 3: Tracking MVP | Pending |
+| QUA-07 | Phase 11: Hardening | Pending |
 
 ---
 *Requirements defined: 2026-07-02*
-*Last updated: 2026-07-02 after initial definition*
+*Last updated: 2026-07-02 — Traceability populated; 119 v1 requirements mapped 1:1 to 11 phases*
