@@ -54,7 +54,14 @@ Additional research-recommended spikes: HMM parameter tuning + golden corpus rec
   3. iOS unsigned `.ipa` and Android debug `.apk` build green in CI on the main branch.
   4. App DB opens with Drift migration infrastructure intact and SchemaVerifier tests pass for every defined migration step.
   5. Empty app launches on iOS + Android using declared Info.plist purpose strings and Android manifest `foregroundServiceType="location"` without crashing.
-**Plans:** TBD (5–8)
+**Plans:** 7 plans
+  - [ ] 01-flutter-project-bootstrap-PLAN.md — flutter create, pubspec, analysis_options, ProviderScope entry point
+  - [ ] 02-drift-app-db-schema-PLAN.md — full v1 Drift schema (7 tables) + MigrationStrategy + SchemaVerifier tests
+  - [ ] 03-go-router-shell-PLAN.md — go_router config + splash/onboarding/placeholder-home flow (first-launch flag)
+  - [ ] 04-error-logging-infra-PLAN.md — AppLogger + FlutterError/PlatformDispatcher hooks + sealed DomainError + Result<T>
+  - [ ] 05-platform-permissions-manifest-PLAN.md — iOS Info.plist purpose strings + Android manifest permissions + FGS skeleton
+  - [ ] 06-github-actions-ci-PLAN.md — ci.yml + ios-build.yml + codecov.yml (autonomous: false — Codecov token human-action)
+  - [ ] 07-readme-and-docs-PLAN.md — README with badges + docs/ARCHITECTURE.md
 
 ### Phase 2: Map + Glass Shell
 **Goal:** A map screen with Liquid Glass chrome renders fluidly on both platforms; the rendering spike gate (G1) has been resolved.
@@ -183,7 +190,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Scaffolding | 0/TBD | Not started | - |
+| 1. Scaffolding | 0/7 | Not started | - |
 | 2. Map + Glass Shell | 0/TBD | Not started | - |
 | 3. Tracking MVP | 0/TBD | Not started | - |
 | 4. OSM Pipeline | 0/TBD | Not started | - |
