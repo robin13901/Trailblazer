@@ -10,28 +10,28 @@ See: .planning/PROJECT.md (updated 2026-07-02)
 ## Current Position
 
 Phase: 1 of 11 (Scaffolding)
-Plan: 1 of 7 in current phase
-Status: In progress (Plan 01 complete, Plan 02 ready)
-Last activity: 2026-07-03 — Completed 01-01 flutter-project-bootstrap; analyzer + format + tests all green on Flutter 3.44.4
+Plan: 5 of 7 in current phase (Wave 2 parallel; other Wave 2 plans still in flight)
+Status: In progress (Plans 01 + 05 complete; Plans 02/03/04 running in parallel)
+Last activity: 2026-07-03 — Completed 01-05 platform-permissions-manifest; iOS Info.plist + Android manifest declared, analyzer green
 
-Progress: [█░░░░░░░░░] ~1.3% (1/77 est. plans overall — Phase 1 sizing: 7 plans; other phases TBD)
+Progress: [█░░░░░░░░░] ~2.6% (2/77 est. plans overall — Phase 1 sizing: 7 plans; other phases TBD)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 1
-- Average duration: ~18 min (excl. one-time SDK upgrade)
-- Total execution time: 0.3 hours
+- Total plans completed: 2
+- Average duration: ~10 min (excl. one-time SDK upgrade)
+- Total execution time: 0.35 hours
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| 01-scaffolding | 1 | ~18 min | 18 min |
+| 01-scaffolding | 2 | ~20 min | 10 min |
 
 **Recent Trend:**
-- Last 5 plans: 01-01 (18 min)
-- Trend: baseline established
+- Last 5 plans: 01-01 (18 min), 01-05 (~2 min)
+- Trend: manifest-only plan trivial as expected
 
 *Updated after each plan completion*
 
@@ -49,6 +49,9 @@ Key locked-in decisions affecting current work:
 - **Plan 01-01 (2026-07-03):** Dropped `custom_lint ^0.8.1` and `riverpod_lint ^3.1.4` from pubspec — irresolvable analyzer conflict with `drift_dev 2.34` (analyzer ^13 vs ^8). Re-introduce once upstream custom_lint releases analyzer 13-compatible build.
 - **Plan 01-01 (2026-07-03):** Local Flutter toolchain upgraded 3.38.1 → 3.44.4 (stable channel) to satisfy pubspec constraint `>=3.44.0`.
 - **Plan 01-01 (2026-07-03):** All imports use `package:auto_explore/…` prefix (very_good_analysis `always_use_package_imports`). Pubspec deps alphabetized (`sort_pub_dependencies`).
+- **Plan 01-05 (2026-07-03):** Foreground-service class in AndroidManifest is `.LocationRecordingService` (placeholder). Phase 3 must rebind `android:name` to `flutter_background_geolocation`'s real service class before the FGS starts.
+- **Plan 01-05 (2026-07-03):** Skipped `NSBluetoothPeripheralUsageDescription` — deprecated; app is central-only.
+- **Plan 01-05 (2026-07-03):** No `minSdkVersion` bump — permissions are gated via `maxSdkVersion` attributes + runtime prompts (Phase 3).
 
 ### Pending Todos
 
@@ -64,6 +67,6 @@ Key locked-in decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-07-03 08:01 UTC
-Stopped at: Completed .planning/phases/01-scaffolding/01-flutter-project-bootstrap-PLAN.md
-Resume file: None (ready for `/gsd:execute-phase` on Plan 02 or the next Wave 2 plan)
+Last session: 2026-07-03 08:08 UTC
+Stopped at: Completed .planning/phases/01-scaffolding/05-platform-permissions-manifest-PLAN.md
+Resume file: None (Wave 2 sibling agents 02/03/04 still running in parallel)
