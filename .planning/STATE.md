@@ -10,28 +10,28 @@ See: .planning/PROJECT.md (updated 2026-07-02)
 ## Current Position
 
 Phase: 1 of 11 (Scaffolding)
-Plan: Plans 01, 02, 03, 04, 05 committed (5 of 7 in current phase)
-Status: In progress (Wave 2 largely landed; Plans 06 & 07 remaining)
-Last activity: 2026-07-03 — Completed 01-04 error-logging-infra; analyzer + format + full test suite (14 tests) green on Flutter 3.44.4
+Plan: Plans 01, 02, 03, 04, 05, 06 committed (6 of 7 in current phase)
+Status: In progress (Plan 07 remaining in phase)
+Last activity: 2026-07-03 — Completed 01-06 github-actions-ci; CI run 28650295975 green (1m 47s); Codecov upload accepted
 
-Progress: [█░░░░░░░░░] ~6.5% (5/77 est. plans overall — Phase 1 sizing: 7 plans; other phases TBD)
+Progress: [█░░░░░░░░░] ~7.8% (6/77 est. plans overall — Phase 1 sizing: 7 plans; other phases TBD)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 5 (01-01, 01-02, 01-03, 01-04, 01-05)
-- Average duration: ~22 min
-- Total execution time: ~1.8 hours (est.)
+- Total plans completed: 6 (01-01, 01-02, 01-03, 01-04, 01-05, 01-06)
+- Average duration: ~21 min
+- Total execution time: ~2.1 hours (est.)
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| 01-scaffolding | 5 | ~110 min | 22 min |
+| 01-scaffolding | 6 | ~127 min | ~21 min |
 
 **Recent Trend:**
-- Last 5 plans: 01-01 (18 min), 01-05 (~2 min), 01-02, 01-03 (parallel Wave 2), 01-04 (25 min)
-- Trend: infra plans on target; permissions plan under estimate
+- Last 6 plans: 01-01 (18 min), 01-05 (~2 min), 01-02, 01-03 (parallel Wave 2), 01-04 (25 min), 01-06 (~17 min: 7 min exec + ~10 min interactive checkpoint)
+- Trend: infra plans on target; checkpoint-heavy plans still land under 20 min
 
 *Updated after each plan completion*
 
@@ -66,11 +66,16 @@ Key locked-in decisions affecting current work:
 - **Plan 01-03 (2026-07-03):** Onboarding gating implemented inside `SplashScreen` (microtask reads `SharedPreferencesAsync`, then `context.go`), NOT a top-level `GoRouter.redirect`. Rationale: keeps the router synchronous, prevents re-reads on every navigation.
 - **Plan 01-03 (2026-07-03):** Added `shared_preferences_platform_interface: ^2.4.2` as `dev_dependency` so tests can install `InMemorySharedPreferencesAsync` without hitting a platform channel.
 - **Plan 01-03 (2026-07-03):** `onboarding_done` prefs key exposed as public `OnboardingFlagRepository.prefsKey` for future test/debug parity.
+- **Plan 01-06 (2026-07-03):** CI codegen (build_runner + drift_dev schema generate) runs BEFORE `dart format` and `flutter analyze` — analyzer needs `.g.dart` and migration helpers, which are gitignored and don't exist on fresh CI checkouts.
+- **Plan 01-06 (2026-07-03):** iOS build (`flutter build ipa --no-codesign`) is manual-trigger only (`workflow_dispatch`) — saves macOS runner minutes. Android debug builds happen locally on the dev machine, not in CI.
+- **Plan 01-06 (2026-07-03):** iOS artifact is `build/ios/archive/*.xcarchive`, not `.ipa` — unsigned builds don't produce a real .ipa.
 
 ### Pending Todos
 
 - **Chore (post-Phase 1):** Re-add `custom_lint` + `riverpod_lint` when a `custom_lint` release supports `analyzer ^13.0.0`. Also restore `analyzer.plugins: - custom_lint` in `analysis_options.yaml`.
-- **Optional:** Confirm `flutter build apk --debug` on a Windows box that has `cmdline-tools` + Android SDK licenses accepted (CI in Plan 06 will do this).
+- **Optional:** Confirm `flutter build apk --debug` on a Windows box that has `cmdline-tools` + Android SDK licenses accepted (Plan 06 chose to leave Android build local rather than CI-gated; developer validates locally).
+- **Post-01-06 follow-up:** Consider adding an on-demand Android CI job (`workflow_dispatch`) later if solo-dev workflow changes.
+- **Post-01-06 follow-up:** Watch the first real PR — the `dart format` file-exclusion glob has never been exercised on a `pull_request` ref.
 - **Phase 2 handoff (from Plan 01-03):** Replace `/` (`PlaceholderHomeScreen`) with a `StatefulShellRoute` + real map view; keep splash/onboarding untouched.
 
 ### Blockers/Concerns
@@ -83,6 +88,6 @@ Key locked-in decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-07-03 (Wave 2 execution)
-Stopped at: Completed .planning/phases/01-scaffolding/04-error-logging-infra-PLAN.md
-Resume file: None (Wave 2 done for 01-04; Plans 06 & 07 remain in phase)
+Last session: 2026-07-03 (Plan 01-06 execution + checkpoint resolution)
+Stopped at: Completed .planning/phases/01-scaffolding/06-github-actions-ci-PLAN.md
+Resume file: None (Plan 07 is the last remaining plan in Phase 1)
