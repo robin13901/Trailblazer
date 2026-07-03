@@ -1,6 +1,7 @@
 import 'package:auto_explore/app.dart';
 import 'package:auto_explore/core/errors/domain_error.dart';
 import 'package:auto_explore/core/logging/app_logger.dart';
+import 'package:auto_explore/core/theme/liquid_glass_settings.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -11,6 +12,12 @@ final _log = Logger('main');
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
   setupLogging();
+
+  // G1 gate result — see docs/G1_SPIKE.md.
+  // Enabled on both Android (SM S921B, Impeller — device-verified) and iOS
+  // (not device-tested; liquid_glass_renderer is iOS-designed, low risk).
+  // Full over-platform-view re-verification pending at end of Plan 02-02.
+  LiquidGlassSettings.platformBlurEnabled = true;
 
   // Framework errors — build/layout/paint.
   FlutterError.onError = (details) {
