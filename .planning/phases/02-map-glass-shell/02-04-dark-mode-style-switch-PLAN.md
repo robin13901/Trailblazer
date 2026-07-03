@@ -3,8 +3,8 @@ plan: "02-04"
 title: "Dark-mode style switching with fade crossfade"
 phase: "02-map-glass-shell"
 type: execute
-wave: 2
-depends_on: ["02-02"]
+wave: 4
+depends_on: ["02-02", "02-03"]
 files_modified:
   - lib/core/theme/app_theme.dart
   - lib/app.dart

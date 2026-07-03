@@ -3,7 +3,7 @@ plan: "02-07"
 title: "Phase 2 verification — real-device smoke test + docs + STATE.md close-out"
 phase: "02-map-glass-shell"
 type: execute
-wave: 5
+wave: 7
 depends_on: ["02-01", "02-02", "02-03", "02-04", "02-05", "02-06"]
 files_modified:
   - docs/G1_SPIKE.md                     # extend with post-integration observations
@@ -81,7 +81,7 @@ Output: Verification records + STATE.md/ROADMAP.md updates.
     flutter pub get
     flutter analyze
     dart format --set-exit-if-changed .
-    dart run drift_dev schema generate drift_schemas/ test/generated_migrations/
+    # Phase 2 adds no Drift schema changes — skip codegen
     flutter test --coverage
     flutter build apk --debug
     ```
@@ -277,6 +277,10 @@ Output: Verification records + STATE.md/ROADMAP.md updates.
        - Flip `- [ ] **Phase 2: Map + Glass Shell**` to `- [x] **Phase 2: Map + Glass Shell**` in the phases list.
        - Update `## Progress` table row for Phase 2: `Plans Complete: 7/7`, `Status: ✓ Complete`, `Completed: {today}`.
        - Under `## Coverage`, update the traceability table: flip all MAP-01..07 and UI-01..07 rows from `Pending` to `Complete` (or `Complete (fallback)` for UI-05 if G1 fell back).
+       - **Reword Phase 2 Success Criteria** in ROADMAP.md to match CONTEXT.md-locked scope:
+         - **SC1:** currently reads *"pans, zooms, rotates, and tilts"* — remove tilt. Rewrite as: *"pans, zooms, rotates ~~and tilts~~ (tilt deferred — flat 2D only per 02-CONTEXT.md)"*, or simply *"pans, zooms, and rotates (flat 2D only — no tilt)"*.
+         - **SC3:** currently reads *"camera position (last lat/lng/zoom) persists across app restarts"* — persistence is disabled per CONTEXT.md. Rewrite as: *"camera opens at current location on every launch (persistence intentionally disabled per 02-CONTEXT.md; MAP-07 marked PARTIAL with documented override)"*.
+         - Do NOT drop the SCs — the checker uses them to validate coverage. Only reword them to match the scope actually shipped.
   </action>
   <verify>
     ```

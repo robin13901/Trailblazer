@@ -150,9 +150,11 @@ Output: A committed decision + fallback scaffolding + a spike screen that can be
     Create `lib/features/map/presentation/spike_g1_screen.dart` — a standalone screen that renders `MapLibreMap` (remote MapLibre demo style, no PMTiles yet) with THREE overlaid glass-candidate widgets side by side, so the human tester can compare on real hardware:
 
     Layout (top-to-bottom overlays, all centered horizontally over the map):
-      1. `LiquidGlass` pill (from `liquid_glass_renderer`) with label "LiquidGlass"
+      1. `lg.LiquidGlass` pill (from `liquid_glass_renderer`) with label "LiquidGlass"
       2. `BackdropFilter(ImageFilter.blur(12, 12))` inside `ClipRRect` with a semi-transparent white tint, label "BackdropFilter"
       3. Semi-transparent tinted `Container` with white border, NO blur, label "Fallback (no blur)"
+
+    IMPORTANT — name collision: our own `lib/core/theme/liquid_glass_settings.dart` exports `class LiquidGlassSettings`, and `package:liquid_glass_renderer` also exports its own `LiquidGlassSettings` type. Alias the renderer import with `as lg` and prefix every renderer type (`lg.LiquidGlass`, `lg.LiquidGlassLayer`, `lg.LiquidGlassSettings`, `lg.LiquidRoundedSuperellipse`, …) — matches the pattern 02-05 uses.
 
     Full sketch:
     ```dart
@@ -160,7 +162,7 @@ Output: A committed decision + fallback scaffolding + a spike screen that can be
 
     import 'package:auto_explore/core/theme/liquid_glass_settings.dart';
     import 'package:flutter/material.dart';
-    import 'package:liquid_glass_renderer/liquid_glass_renderer.dart';
+    import 'package:liquid_glass_renderer/liquid_glass_renderer.dart' as lg;
     import 'package:maplibre_gl/maplibre_gl.dart';
 
     /// One-off spike screen for Gate G1. NOT wired into the router.
@@ -223,10 +225,13 @@ Output: A committed decision + fallback scaffolding + a spike screen that can be
       Widget build(BuildContext context) {
         // Use liquid_glass_renderer's LiquidGlass widget with sensible defaults.
         // Reference: pub.dev/packages/liquid_glass_renderer 0.2.0-dev.4 README.
-        return LiquidGlassLayer(
-          settings: LiquidGlassSettings(thickness: 20, blur: 12),
-          child: const LiquidGlass(
-            shape: LiquidRoundedSuperellipse(borderRadius: Radius.circular(28)),
+        // NOTE: All renderer types are prefixed `lg.` to avoid colliding with
+        // our own `LiquidGlassSettings` class from
+        // `package:auto_explore/core/theme/liquid_glass_settings.dart`.
+        return lg.LiquidGlassLayer(
+          settings: lg.LiquidGlassSettings(thickness: 20, blur: 12),
+          child: const lg.LiquidGlass(
+            shape: lg.LiquidRoundedSuperellipse(borderRadius: Radius.circular(28)),
             child: Padding(
               padding: EdgeInsets.symmetric(vertical: 16, horizontal: 20),
               child: Center(child: Text('LiquidGlass',
@@ -279,7 +284,7 @@ Output: A committed decision + fallback scaffolding + a spike screen that can be
     ```
 
     Constraints:
-    - Import the actual `LiquidGlass` / `LiquidGlassSettings` types from `liquid_glass_renderer` — check the package's exports before hard-coding class names; if the API surface differs from the sketch above, adapt (real API > the sketch). Use `flutter pub deps` + reading `.pub-cache/hosted/pub.dev/liquid_glass_renderer-0.2.0-dev.4/lib/` if unsure.
+    - Import the actual `LiquidGlass` / `LiquidGlassSettings` types from `liquid_glass_renderer` (via the `lg` alias) — check the package's exports before hard-coding class names; if the API surface differs from the sketch above, adapt (real API > the sketch). Use `flutter pub deps` + reading `.pub-cache/hosted/pub.dev/liquid_glass_renderer-0.2.0-dev.4/lib/` if unsure.
     - Do NOT wire this into `app_router.dart`. This is a throwaway screen. Instead, in Task 3, temporarily bypass the router for the checkpoint.
     - Do NOT use `MapLibreMap.useHybridComposition = true` — 02-RESEARCH.md Pitfall 2 confirms it's broken.
     - Do NOT enable `myLocationEnabled` here — we're not testing location yet (that's 02-03), and it would prompt permission on first launch and pollute the spike.
@@ -450,4 +455,5 @@ After completion, create `.planning/phases/02-map-glass-shell/02-01-SUMMARY.md` 
 - `docs/G1_SPIKE.md` path
 - Any deviations from the plan sketch (e.g. LiquidGlass API adjustments)
 - Frontmatter: `subsystem: rendering`, `affects: [02-05, 02-07]`, `tech-stack.added: [maplibre_gl 0.26.2, liquid_glass_renderer 0.2.0-dev.4]`
+</output>
 </output>

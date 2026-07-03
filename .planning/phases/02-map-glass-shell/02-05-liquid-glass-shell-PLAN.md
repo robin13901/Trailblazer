@@ -3,10 +3,9 @@ plan: "02-05"
 title: "Liquid Glass shell — bottom pill nav, FAB stub, focus pill stub, settings button"
 phase: "02-map-glass-shell"
 type: execute
-wave: 3
+wave: 5
 depends_on: ["02-01", "02-02", "02-03", "02-04"]
 files_modified:
-  - pubspec.yaml
   - lib/features/map/presentation/widgets/glass_pill.dart
   - lib/features/map/presentation/widgets/glass_circle.dart
   - lib/features/map/presentation/widgets/focus_area_pill.dart
@@ -90,7 +89,6 @@ Output: A set of reusable glass widgets + a laid-out `MapScreen` with all four c
 <task type="auto">
   <name>Task 1: Base glass primitives (GlassPill + GlassCircle) branching on G1 flag</name>
   <files>
-    - pubspec.yaml
     - lib/features/map/presentation/widgets/glass_pill.dart
     - lib/features/map/presentation/widgets/glass_circle.dart
     - test/features/map/glass_pill_test.dart

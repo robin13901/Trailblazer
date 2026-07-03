@@ -3,7 +3,7 @@ plan: "02-03"
 title: "Location permission + blue dot + camera state (Phase 3-ready)"
 phase: "02-map-glass-shell"
 type: execute
-wave: 2
+wave: 3
 depends_on: ["02-02"]
 files_modified:
   - pubspec.yaml

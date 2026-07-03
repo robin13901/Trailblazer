@@ -3,7 +3,7 @@ plan: "02-06"
 title: "Router refactor — StatefulShellRoute with 3 tabs + Settings stub"
 phase: "02-map-glass-shell"
 type: execute
-wave: 4
+wave: 6
 depends_on: ["02-05"]
 files_modified:
   - lib/core/routing/app_router.dart
