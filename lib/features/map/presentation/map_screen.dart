@@ -5,65 +5,93 @@ import 'package:auto_explore/features/map/presentation/widgets/settings_glass_bu
 import 'package:auto_explore/features/map/presentation/widgets/trip_fab.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 /// Phase-2 Map screen — chrome overlays on top of the base [MapWidget].
 ///
-/// This widget accepts an optional [bottomNav] override so that Plan 02-06 can
-/// inject a `StatefulNavigationShell`-driven pill. When `null` (Phase 2
-/// pre-06), a self-managed [_LocalBottomNav] is used so the screen is
-/// testable standalone.
+/// When [navigationShell] is provided (production: wired via
+/// StatefulShellRoute), this screen reads the active tab index and drives
+/// [BottomNavShell] via the shell's `goBranch` method. Chrome overlays
+/// (focus pill, settings button, FAB, recenter) are hidden on non-map tabs
+/// so that the Trips and Regions screens can own the full viewport.
 ///
-/// Layout (Stack, top → bottom):
-///   1. [MapWidget] fills the entire screen (includes location dot + RecenterButton).
-///   2. Top-left [SettingsGlassButton] (gear icon, glass circle).
-///   3. Top-center [FocusAreaPill] (placeholder stub).
-///   4. Bottom-right [TripFab] (Phase 3 stub).
-///   5. Bottom glass pill nav ([BottomNavShell] or injected [bottomNav]).
+/// When [navigationShell] is null (isolated widget tests), a self-managed
+/// [_LocalBottomNav] is used so the screen remains testable standalone.
+///
+/// Layout (Stack, back → front):
+///   1. [MapWidget] fills the entire screen.
+///   2. Non-map tab content (full-screen, opaque, masks the map).
+///   3. Map-tab-only chrome: settings button, focus pill, FAB.
+///   4. Bottom glass pill nav (always visible).
 ///
 /// UI-06: deliberately has NO [AppBar].
 class MapScreen extends ConsumerWidget {
-  const MapScreen({this.bottomNav, super.key});
+  const MapScreen({this.navigationShell, super.key});
 
-  /// Optional pre-wired bottom nav (from `StatefulNavigationShell` in 02-06).
-  final Widget? bottomNav;
+  /// Shell from [StatefulShellRoute.indexedStack].
+  ///
+  /// When non-null, [BottomNavShell] is driven by the shell's
+  /// `currentIndex` and `goBranch` method.
+  final StatefulNavigationShell? navigationShell;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final currentIndex = navigationShell?.currentIndex ?? 0;
+    final isMapTab = currentIndex == 0;
+
     return Scaffold(
       // UI-06: no AppBar.
       body: Stack(
         children: [
-          // Full-screen map (includes RecenterButton overlay inside MapWidget).
+          // Full-screen map — always in the tree so MapLibre keeps its state
+          // across tab switches (indexedStack semantics preserve it).
           const Positioned.fill(child: MapWidget()),
 
-          // Top-left settings button — floats 44pt below top (clears status bar).
-          const Positioned(
-            top: 44,
-            left: 16,
-            child: SafeArea(child: SettingsGlassButton()),
-          ),
+          // Non-map tabs render their Scaffold (opaque background) over the
+          // map when the shell index is > 0.
+          if (navigationShell != null && !isMapTab)
+            Positioned.fill(child: navigationShell!),
 
-          // Top-center focus-area pill stub.
-          const Positioned(
-            top: 44,
-            left: 0,
-            right: 0,
-            child: SafeArea(child: Center(child: FocusAreaPill())),
-          ),
+          // Map-tab-only chrome (hidden on Trips / Regions).
+          if (isMapTab) ...[
+            // Top-left settings button — floats 44pt below top (clears status bar).
+            Positioned(
+              top: 44,
+              left: 16,
+              child: SafeArea(
+                child: SettingsGlassButton(
+                  onTap: () => context.go('/settings'),
+                ),
+              ),
+            ),
 
-          // Bottom-right FAB stub.
-          const Positioned(
-            right: 16,
-            bottom: 100,
-            child: TripFab(),
-          ),
+            // Top-center focus-area pill stub.
+            const Positioned(
+              top: 44,
+              left: 0,
+              right: 0,
+              child: SafeArea(child: Center(child: FocusAreaPill())),
+            ),
 
-          // Bottom nav pill — injectable for 02-06.
+            // Bottom-right FAB stub.
+            const Positioned(
+              right: 16,
+              bottom: 100,
+              child: TripFab(),
+            ),
+          ],
+
+          // Bottom nav pill — always visible regardless of active tab.
           Positioned(
             left: 16,
             right: 16,
             bottom: 0,
-            child: bottomNav ?? const _LocalBottomNav(),
+            child: navigationShell != null
+                ? BottomNavShell(
+                    currentIndex: currentIndex,
+                    onTap: navigationShell!.goBranch,
+                  )
+                : const _LocalBottomNav(),
           ),
         ],
       ),
@@ -73,8 +101,9 @@ class MapScreen extends ConsumerWidget {
 
 /// Phase-2 self-managed 3-tab pill.
 ///
-/// In Plan 02-06 this is replaced by a pill wired to
-/// `StatefulNavigationShell.currentIndex + goBranch()`.
+/// Used when [MapScreen.navigationShell] is null — i.e., in isolated widget
+/// tests that pump [MapScreen] directly without a [GoRouter] shell. In
+/// production, the shell-driven path replaces this entirely.
 class _LocalBottomNav extends StatefulWidget {
   const _LocalBottomNav();
 

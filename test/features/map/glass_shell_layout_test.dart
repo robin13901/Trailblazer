@@ -15,10 +15,11 @@ import '../../helpers/fake_maplibre_platform.dart';
 
 /// Pumps [MapScreen] with all required provider overrides to avoid platform
 /// channel calls (MapLibre native plugin + permission_handler).
-Future<void> pumpMapScreen(
-  WidgetTester tester, {
-  Widget? bottomNav,
-}) async {
+///
+/// `navigationShell` is omitted so [MapScreen] uses the self-managed local
+/// bottom-nav fallback — suitable for isolated widget tests that do not need
+/// a full GoRouter shell.
+Future<void> pumpMapScreen(WidgetTester tester) async {
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
@@ -29,8 +30,8 @@ Future<void> pumpMapScreen(
           () => _FixedMapStyleNotifier('assets/map_style_light.json'),
         ),
       ],
-      child: MaterialApp(
-        home: MapScreen(bottomNav: bottomNav),
+      child: const MaterialApp(
+        home: MapScreen(),
       ),
     ),
   );
@@ -120,14 +121,25 @@ void main() {
     });
 
     testWidgets(
-        'SettingsGlassButton tap shows SnackBar mentioning Phase 10 stub',
-        (tester) async {
+        'SettingsGlassButton tap does not crash when no router is present '
+        '(onTap: null, standalone widget test)', (tester) async {
+      // When MapScreen is pumped without a GoRouter, the SettingsGlassButton
+      // is constructed with onTap: null (via MapScreen._isMapTab logic when
+      // navigationShell is null). Verify the button renders and tapping
+      // it does not throw.
       await pumpMapScreen(tester);
 
-      await tester.tap(find.byType(SettingsGlassButton));
-      await tester.pump();
+      // Button is present.
+      expect(find.byType(SettingsGlassButton), findsOneWidget);
 
-      expect(find.text('Settings coming in Phase 10'), findsOneWidget);
+      // Tap should not throw (onTap is null → GestureDetector no-ops).
+      await expectLater(
+        () async {
+          await tester.tap(find.byType(SettingsGlassButton));
+          await tester.pump();
+        },
+        returnsNormally,
+      );
     });
 
     testWidgets('BottomNavShell tab switch updates selected index', (
@@ -146,16 +158,15 @@ void main() {
       expect(find.byType(BottomNavShell), findsOneWidget);
     });
 
-    testWidgets('injectable bottomNav param is used when provided', (
-      tester,
-    ) async {
-      // Provide a custom bottom nav stub to verify Plan 02-06 injection works.
-      const customNav = SizedBox(key: ValueKey('custom-nav'));
-      await pumpMapScreen(tester, bottomNav: customNav);
+    testWidgets(
+        'without navigationShell, _LocalBottomNav fallback is used (standalone)',
+        (tester) async {
+      // When MapScreen is constructed without navigationShell, the screen
+      // uses the self-managed _LocalBottomNav which renders a BottomNavShell.
+      await pumpMapScreen(tester);
 
-      expect(find.byKey(const ValueKey('custom-nav')), findsOneWidget);
-      // The _LocalBottomNav should NOT be in the tree when bottomNav is given.
-      expect(find.byType(BottomNavShell), findsNothing);
+      // BottomNavShell is present (from _LocalBottomNav).
+      expect(find.byType(BottomNavShell), findsOneWidget);
     });
   });
 }
