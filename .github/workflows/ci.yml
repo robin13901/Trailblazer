@@ -25,13 +25,10 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
-      - name: Verify formatting
-        run: dart format --set-exit-if-changed .
-
-      - name: Analyze
-        run: flutter analyze --fatal-infos
-
-      # Codegen (drift + riverpod parts) — must exist before tests import them.
+      # Codegen must run BEFORE analyze/format because the analyzer needs
+      # the generated *.g.dart, *.drift.dart, and migration helpers to resolve
+      # imports and type references. Locally these files persist across runs;
+      # on a fresh CI checkout they don't yet exist.
       - name: Run build_runner
         run: dart run build_runner build --delete-conflicting-outputs
 
@@ -40,6 +37,19 @@ jobs:
         run: |
           mkdir -p test/generated_migrations
           dart run drift_dev schema generate drift_schemas/ test/generated_migrations/
+
+      - name: Verify formatting
+        # Exclude generated files (they're gitignored but exist on disk after codegen).
+        run: |
+          dart format --set-exit-if-changed \
+            $(find lib test -type f -name '*.dart' \
+              ! -name '*.g.dart' \
+              ! -name '*.freezed.dart' \
+              ! -name '*.drift.dart' \
+              ! -path '*/generated_migrations/*')
+
+      - name: Analyze
+        run: flutter analyze --fatal-infos
 
       - name: Run tests with coverage
         run: flutter test --coverage
