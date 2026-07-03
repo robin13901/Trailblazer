@@ -1,5 +1,5 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-    <!-- ==== Auto-Explore permissions (Phase 1 scaffolding) ==== -->
+    <!-- ==== Trailblazer permissions (Phase 1 scaffolding) ==== -->
 
     <!-- Location -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
@@ -30,10 +30,10 @@
     <!-- Wake lock — required by flutter_background_geolocation in Phase 3 -->
     <uses-permission android:name="android.permission.WAKE_LOCK" />
 
-    <!-- ==== end Auto-Explore permissions ==== -->
+    <!-- ==== end Trailblazer permissions ==== -->
 
     <application
-        android:label="auto_explore"
+        android:label="Trailblazer"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity
