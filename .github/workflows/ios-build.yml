@@ -1,0 +1,51 @@
+name: Builds
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  ios-build:
+    name: iOS (unsigned .ipa)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.44.4
+          cache: true
+      - run: flutter pub get
+      - name: Codegen (build_runner)
+        run: dart run build_runner build --delete-conflicting-outputs
+      - name: Build iOS (unsigned .ipa)
+        run: flutter build ipa --no-codesign
+      - name: Upload iOS .ipa artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-unsigned-ipa
+          path: build/ios/ipa/*.ipa
+          if-no-files-found: error
+
+  android-build:
+    name: Android (debug APK)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.44.4
+          cache: true
+      - run: flutter pub get
+      - name: Codegen (build_runner)
+        run: dart run build_runner build --delete-conflicting-outputs
+      - name: Build Android debug APK
+        run: flutter build apk --debug
+      - name: Upload Android debug APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-debug-apk
+          path: build/app/outputs/flutter-apk/app-debug.apk
+          if-no-files-found: error
