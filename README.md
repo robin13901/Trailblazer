@@ -85,6 +85,17 @@ flutter run
 
 > **Why codegen runs first:** `.g.dart` (Drift/Riverpod) files and `test/generated_migrations/` are gitignored to keep diffs clean. A fresh checkout will fail `flutter analyze` and `flutter test` until steps 2 + 3 have been run. CI runs both before analyze/test — see [`.github/workflows/ci.yml`](./.github/workflows/ci.yml).
 
+## Git hooks
+
+The repo ships a tracked `pre-push` hook that runs `flutter analyze --fatal-infos && flutter test` before every push and blocks the push on failure. Wire it once per clone:
+
+```bash
+git config core.hooksPath .githooks
+chmod +x .githooks/*   # macOS/Linux only
+```
+
+Bypass in an emergency with `git push --no-verify` or `TRAILBLAZER_SKIP_PREPUSH=1 git push`. See [`.githooks/README.md`](./.githooks/README.md) for details and the Ralph Loop tiering rationale.
+
 ## Build
 
 ```bash

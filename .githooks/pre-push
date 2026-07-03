@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+# Trailblazer — pre-push hook
+# Ralph Loop tier: full test suite runs here, not on every commit.
+# Configured via `git config core.hooksPath .githooks` (see .githooks/README.md).
+#
+# Bypass in an emergency with `git push --no-verify`.
+# Skip entirely by setting the env var `TRAILBLAZER_SKIP_PREPUSH=1`.
+
+set -euo pipefail
+
+if [[ "${TRAILBLAZER_SKIP_PREPUSH:-}" == "1" ]]; then
+  echo "▶ pre-push: skipped (TRAILBLAZER_SKIP_PREPUSH=1)"
+  exit 0
+fi
+
+# Repo root — the hook can be invoked from anywhere in the worktree
+ROOT="$(git rev-parse --show-toplevel)"
+cd "$ROOT"
+
+echo "▶ pre-push: flutter analyze --fatal-infos"
+if ! flutter analyze --fatal-infos; then
+  echo ""
+  echo "✗ pre-push: flutter analyze failed — push blocked."
+  echo "  Fix the issues above, or bypass with: git push --no-verify"
+  exit 1
+fi
+
+echo ""
+echo "▶ pre-push: flutter test"
+if ! flutter test; then
+  echo ""
+  echo "✗ pre-push: flutter test failed — push blocked."
+  echo "  Fix the failing tests above, or bypass with: git push --no-verify"
+  exit 1
+fi
+
+echo ""
+echo "✓ pre-push: analyze + test green — push allowed."
