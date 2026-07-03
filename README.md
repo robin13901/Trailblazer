@@ -1,11 +1,16 @@
-# Trailblazer
+<h1 align="center">
+  <img src="assets/icons/app_icon.jpg" alt="Trailblazer app icon" width="128" height="128" style="border-radius:24px" /><br />
+  Trailblazer
+</h1>
 
-[![CI](https://github.com/robin13901/Trailblazer/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/robin13901/Trailblazer/actions/workflows/ci.yml)
-[![iOS Build](https://github.com/robin13901/Trailblazer/actions/workflows/ios-build.yml/badge.svg?branch=main)](https://github.com/robin13901/Trailblazer/actions/workflows/ios-build.yml)
-[![codecov](https://codecov.io/gh/robin13901/Trailblazer/branch/main/graph/badge.svg)](https://app.codecov.io/github/robin13901/trailblazer)
-[![Flutter](https://img.shields.io/badge/Flutter-3.44%2B-02569B?logo=flutter&logoColor=white)](https://flutter.dev)
-[![Dart](https://img.shields.io/badge/Dart-3.10%2B-0175C2?logo=dart&logoColor=white)](https://dart.dev)
-[![Lints: very_good_analysis](https://img.shields.io/badge/lints-very__good__analysis-8B00FF)](https://pub.dev/packages/very_good_analysis)
+<p align="center">
+  <a href="https://github.com/robin13901/Trailblazer/actions/workflows/ci.yml"><img src="https://github.com/robin13901/Trailblazer/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI" /></a>
+  <a href="https://github.com/robin13901/Trailblazer/actions/workflows/ios-build.yml"><img src="https://github.com/robin13901/Trailblazer/actions/workflows/ios-build.yml/badge.svg?branch=main" alt="iOS Build" /></a>
+  <a href="https://app.codecov.io/github/robin13901/trailblazer"><img src="https://codecov.io/gh/robin13901/Trailblazer/branch/main/graph/badge.svg" alt="codecov" /></a>
+  <a href="https://flutter.dev"><img src="https://img.shields.io/badge/Flutter-3.44%2B-02569B?logo=flutter&logoColor=white" alt="Flutter" /></a>
+  <a href="https://dart.dev"><img src="https://img.shields.io/badge/Dart-3.10%2B-0175C2?logo=dart&logoColor=white" alt="Dart" /></a>
+  <a href="https://pub.dev/packages/very_good_analysis"><img src="https://img.shields.io/badge/lints-very__good__analysis-8B00FF" alt="Lints: very_good_analysis" /></a>
+</p>
 
 > **When I open the map, I immediately see the roads I've already driven, painted onto the world — and that view keeps pulling me back to explore more.**
 
@@ -16,6 +21,17 @@ The Dart package name in `pubspec.yaml` remains `auto_explore` (legacy working t
 ## Status
 
 Phase 1 (Scaffolding) — CI, App DB, routing, permissions, error/logging, docs. See [`.planning/ROADMAP.md`](./.planning/ROADMAP.md) for the full 11-phase plan.
+
+## App Icon
+
+The launcher icon lives at [`assets/icons/app_icon.jpg`](./assets/icons/app_icon.jpg) — a 1024×1024 Liquid Glass rendering of a cartoon map with an orange driven-road trail (a visual preview of the app's core value). Platform icon sets are generated from it with [`flutter_launcher_icons`](https://pub.dev/packages/flutter_launcher_icons):
+
+```bash
+# Regenerate after editing assets/icons/app_icon.jpg
+dart run flutter_launcher_icons
+```
+
+Outputs land in `android/app/src/main/res/mipmap-*/ic_launcher.png` (all densities) and `ios/Runner/Assets.xcassets/AppIcon.appiconset/` (all sizes 20×20 → 1024×1024, alpha stripped for App Store compliance). See the `flutter_launcher_icons:` block in [`pubspec.yaml`](./pubspec.yaml) for config.
 
 ## Tech Stack
 
