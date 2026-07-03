@@ -10,11 +10,11 @@ See: .planning/PROJECT.md (updated 2026-07-02)
 ## Current Position
 
 Phase: 2 of 11 (Map + Glass Shell) — **IN PROGRESS**
-Plan: 3/7 plans in Phase 2 done (02-03 location + camera — COMPLETE)
-Status: Location permission + CameraState + FollowMode + RecenterButton + onboarding wiring all green
-Last activity: 2026-07-03 — Completed Plan 02-03 (location + camera state); ready for Plan 02-04 (dark mode)
+Plan: 4/7 plans in Phase 2 done (02-04 dark mode — COMPLETE)
+Status: Dark mode style switching + AppTheme + mapStyleAssetProvider + MapStyleFade all green
+Last activity: 2026-07-03 — Completed Plan 02-04 (dark mode style switch); ready for Plan 02-05 (glass shell)
 
-Progress: [█░░░░░░░░░] ~13% (10/77 est. plans overall — Phase 1: 7/7; Phase 2: 3/7)
+Progress: [█░░░░░░░░░] ~14% (11/77 est. plans overall — Phase 1: 7/7; Phase 2: 4/7)
 
 ## Performance Metrics
 
@@ -89,6 +89,10 @@ Key locked-in decisions affecting current work:
 - **Plan 02-03 (2026-07-03):** `FakeLocationPermissionNotifier` pattern: `AsyncNotifier` stub injected via `ProviderScope.overrides` for all tests that use `OnboardingScreen` or `MapWidget`. Prevents `MissingPluginException` from `permission_handler` platform channel. Used in `app_router_test` and `map_widget_test`.
 - **Plan 02-03 (2026-07-03):** `Logger('onboarding')` used directly — no `AppLogger.instance` class. Phase 1 logging API is `setupLogging()` + standard `logging.Logger` usage.
 - **Plan 02-03 (2026-07-03):** `FollowMode.locationAndHeading` slot reserved for Phase 3 heading-lock. Phase 3 wires it to `MyLocationTrackingMode.trackingCompass`; no changes to `CameraState` or `CameraStateNotifier.setFollowMode` needed.
+- **Plan 02-04 (2026-07-03):** `MapWidget.styleAsset` constructor param removed — `mapStyleAssetProvider` is the single source of truth for active style. Tests fix the style via `mapStyleAssetProvider.overrideWith` + `_FixedMapStyleNotifier` stub.
+- **Plan 02-04 (2026-07-03):** Fade duration: 180 ms easeInOut for both the `AnimatedOpacity` and the pre-`setStyle` delay. `onStyleLoadedCallback` is the fade-back-in trigger — not a fixed timer.
+- **Plan 02-04 (2026-07-03):** `themeMode: ThemeMode.system` omitted from `MaterialApp.router` (it is the default; `avoid_redundant_argument_values` lint). Intent documented in inline comment.
+- **Plan 02-04 (2026-07-03):** `unawaited()` wrapper required for `Future`-returning call in `void` override (`didChangePlatformBrightness`) to satisfy `discarded_futures` lint.
 
 ### Pending Todos
 
@@ -113,6 +117,6 @@ Key locked-in decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-07-03 (Plan 02-03 location + camera — COMPLETE)
-Stopped at: Completed 02-03-PLAN.md (location permission + CameraState + providers + RecenterButton; flutter analyze clean, all tests green)
-Resume file: None — next step is Plan 02-04 (dark mode)
+Last session: 2026-07-03 (Plan 02-04 dark mode style switch — COMPLETE)
+Stopped at: Completed 02-04-PLAN.md (AppTheme + mapStyleAssetProvider + MapStyleFade + MapWidget WidgetsBindingObserver; flutter analyze 0 issues, 40/40 tests green)
+Resume file: None — next step is Plan 02-05 (glass shell)
