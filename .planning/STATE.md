@@ -10,28 +10,28 @@ See: .planning/PROJECT.md (updated 2026-07-02)
 ## Current Position
 
 Phase: 1 of 11 (Scaffolding)
-Plan: 5 of 7 in current phase (Wave 2 parallel; other Wave 2 plans still in flight)
-Status: In progress (Plans 01 + 05 complete; Plans 02/03/04 running in parallel)
-Last activity: 2026-07-03 — Completed 01-05 platform-permissions-manifest; iOS Info.plist + Android manifest declared, analyzer green
+Plan: Plans 01, 02, 03, 04, 05 committed (5 of 7 in current phase)
+Status: In progress (Wave 2 largely landed; Plans 06 & 07 remaining)
+Last activity: 2026-07-03 — Completed 01-04 error-logging-infra; analyzer + format + full test suite (14 tests) green on Flutter 3.44.4
 
-Progress: [█░░░░░░░░░] ~2.6% (2/77 est. plans overall — Phase 1 sizing: 7 plans; other phases TBD)
+Progress: [█░░░░░░░░░] ~6.5% (5/77 est. plans overall — Phase 1 sizing: 7 plans; other phases TBD)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 2
-- Average duration: ~10 min (excl. one-time SDK upgrade)
-- Total execution time: 0.35 hours
+- Total plans completed: 5 (01-01, 01-02, 01-03, 01-04, 01-05)
+- Average duration: ~22 min
+- Total execution time: ~1.8 hours (est.)
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| 01-scaffolding | 2 | ~20 min | 10 min |
+| 01-scaffolding | 5 | ~110 min | 22 min |
 
 **Recent Trend:**
-- Last 5 plans: 01-01 (18 min), 01-05 (~2 min)
-- Trend: manifest-only plan trivial as expected
+- Last 5 plans: 01-01 (18 min), 01-05 (~2 min), 01-02, 01-03 (parallel Wave 2), 01-04 (25 min)
+- Trend: infra plans on target; permissions plan under estimate
 
 *Updated after each plan completion*
 
@@ -52,11 +52,21 @@ Key locked-in decisions affecting current work:
 - **Plan 01-05 (2026-07-03):** Foreground-service class in AndroidManifest is `.LocationRecordingService` (placeholder). Phase 3 must rebind `android:name` to `flutter_background_geolocation`'s real service class before the FGS starts.
 - **Plan 01-05 (2026-07-03):** Skipped `NSBluetoothPeripheralUsageDescription` — deprecated; app is central-only.
 - **Plan 01-05 (2026-07-03):** No `minSdkVersion` bump — permissions are gated via `maxSdkVersion` attributes + runtime prompts (Phase 3).
+- **Plan 01-04 (2026-07-03):** `FlutterError.onError` + `PlatformDispatcher.instance.onError` both funnel through `DomainError.wrap` and log `severe`. `PlatformDispatcher` returns `true` to prevent OS-level crash (dev-only; matches CONTEXT.md "no remote crash reporting").
+- **Plan 01-04 (2026-07-03):** Sealed `DomainError` covers four required categories (DB / Storage / Permission / Network) + `UnknownError` catch-all. Downstream phases must wrap non-DomainError throwables at boundaries via `DomainError.wrap()`.
+- **Plan 01-04 (2026-07-03):** `Result<T>` (Ok/Err) is the return type for repositories/use-cases where failure is data, not an exception. Use `when()` fold for exhaustive pattern matching.
+- **Plan 01-04 (2026-07-03):** Logger level gate: `Level.ALL` in debug via `dart:developer.log()`, `Level.WARNING` in release via `debugPrint`. Plain-text format. No remote sink (dev-only per CONTEXT.md).
+- **Plan 01-04 (2026-07-03):** `DomainError.toString()` retains `runtimeType` for diagnostic clarity in logs; the required `no_runtimetype_tostring` ignore is documented inline.
+- **Plan 01-03 (2026-07-03):** `appRouterProvider` and `onboardingFlagRepositoryProvider` shipped as plain `Provider<T>` — no `@Riverpod` codegen. Consistent with the Plan 01-01 codegen-off decision.
+- **Plan 01-03 (2026-07-03):** Onboarding gating implemented inside `SplashScreen` (microtask reads `SharedPreferencesAsync`, then `context.go`), NOT a top-level `GoRouter.redirect`. Rationale: keeps the router synchronous, prevents re-reads on every navigation.
+- **Plan 01-03 (2026-07-03):** Added `shared_preferences_platform_interface: ^2.4.2` as `dev_dependency` so tests can install `InMemorySharedPreferencesAsync` without hitting a platform channel.
+- **Plan 01-03 (2026-07-03):** `onboarding_done` prefs key exposed as public `OnboardingFlagRepository.prefsKey` for future test/debug parity.
 
 ### Pending Todos
 
 - **Chore (post-Phase 1):** Re-add `custom_lint` + `riverpod_lint` when a `custom_lint` release supports `analyzer ^13.0.0`. Also restore `analyzer.plugins: - custom_lint` in `analysis_options.yaml`.
 - **Optional:** Confirm `flutter build apk --debug` on a Windows box that has `cmdline-tools` + Android SDK licenses accepted (CI in Plan 06 will do this).
+- **Phase 2 handoff (from Plan 01-03):** Replace `/` (`PlaceholderHomeScreen`) with a `StatefulShellRoute` + real map view; keep splash/onboarding untouched.
 
 ### Blockers/Concerns
 
@@ -67,6 +77,6 @@ Key locked-in decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-07-03 08:08 UTC
-Stopped at: Completed .planning/phases/01-scaffolding/05-platform-permissions-manifest-PLAN.md
-Resume file: None (Wave 2 sibling agents 02/03/04 still running in parallel)
+Last session: 2026-07-03 (Wave 2 execution)
+Stopped at: Completed .planning/phases/01-scaffolding/04-error-logging-infra-PLAN.md
+Resume file: None (Wave 2 done for 01-04; Plans 06 & 07 remain in phase)
