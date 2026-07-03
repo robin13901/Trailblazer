@@ -10,11 +10,11 @@ See: .planning/PROJECT.md (updated 2026-07-02)
 ## Current Position
 
 Phase: 2 of 11 (Map + Glass Shell) — **IN PROGRESS**
-Plan: 4/7 plans in Phase 2 done (02-04 dark mode — COMPLETE)
-Status: Dark mode style switching + AppTheme + mapStyleAssetProvider + MapStyleFade all green
-Last activity: 2026-07-03 — Completed Plan 02-04 (dark mode style switch); ready for Plan 02-05 (glass shell)
+Plan: 5/7 plans in Phase 2 done (02-05 glass shell — COMPLETE)
+Status: Liquid Glass chrome shell built; all chrome widgets + MapScreen Stack composition green
+Last activity: 2026-07-03 — Completed Plan 02-05 (glass shell); ready for Plan 02-06 (router wiring)
 
-Progress: [█░░░░░░░░░] ~14% (11/77 est. plans overall — Phase 1: 7/7; Phase 2: 4/7)
+Progress: [█░░░░░░░░░] ~15% (12/77 est. plans overall — Phase 1: 7/7; Phase 2: 5/7)
 
 ## Performance Metrics
 
@@ -93,6 +93,12 @@ Key locked-in decisions affecting current work:
 - **Plan 02-04 (2026-07-03):** Fade duration: 180 ms easeInOut for both the `AnimatedOpacity` and the pre-`setStyle` delay. `onStyleLoadedCallback` is the fade-back-in trigger — not a fixed timer.
 - **Plan 02-04 (2026-07-03):** `themeMode: ThemeMode.system` omitted from `MaterialApp.router` (it is the default; `avoid_redundant_argument_values` lint). Intent documented in inline comment.
 - **Plan 02-04 (2026-07-03):** `unawaited()` wrapper required for `Future`-returning call in `void` override (`didChangePlatformBrightness`) to satisfy `discarded_futures` lint.
+- **Plan 02-05 (2026-07-03):** `GlassPillFallback` and `GlassCircleFallback` exposed as public types (not private `_Fallback*`) so widget tests can use `find.byType()` without private-type reflection workarounds.
+- **Plan 02-05 (2026-07-03):** `LiquidGlass` must be wrapped in `LiquidGlassLayer` — confirmed from reading `liquid_glass_renderer-0.2.0-dev.4` pub-cache source. Each `GlassPill` / `GlassCircle` creates its own layer (simpler; performance acceptable for Phase 2; shared-layer optimization deferred to Phase 7 if needed).
+- **Plan 02-05 (2026-07-03):** `MapScreen.bottomNav: Widget?` param allows Plan 02-06 to inject a `StatefulNavigationShell`-driven pill without API changes. `_LocalBottomNav` handles standalone/test operation.
+- **Plan 02-05 (2026-07-03):** `SettingsGlassButton` tap uses SnackBar stub ("Settings coming in Phase 10") — matches `TripFab` pattern; avoids premature `/settings` route dependency before Plan 02-06.
+- **Plan 02-05 (2026-07-03):** `RecenterButton` stays inside `MapWidget` (reads `mapControllerProvider` + `cameraStateProvider`); not duplicated in `MapScreen` Stack.
+- **Plan 02-05 (2026-07-03):** `BottomNavShell` is a pure presentation widget (no state, no providers); `currentIndex + onTap` API; Plan 02-06 wires it to `StatefulNavigationShell.currentIndex` + `goBranch(i)`.
 
 ### Pending Todos
 
@@ -117,6 +123,6 @@ Key locked-in decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-07-03 (Plan 02-04 dark mode style switch — COMPLETE)
-Stopped at: Completed 02-04-PLAN.md (AppTheme + mapStyleAssetProvider + MapStyleFade + MapWidget WidgetsBindingObserver; flutter analyze 0 issues, 40/40 tests green)
-Resume file: None — next step is Plan 02-05 (glass shell)
+Last session: 2026-07-03 (Plan 02-05 Liquid Glass shell — COMPLETE)
+Stopped at: Completed 02-05-PLAN.md (GlassPill + GlassCircle + FocusAreaPill + SettingsGlassButton + TripFab + BottomNavShell + MapScreen Stack; flutter analyze 0 issues, 58/58 tests green)
+Resume file: None — next step is Plan 02-06 (router wiring)
