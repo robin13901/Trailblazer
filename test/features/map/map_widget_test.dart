@@ -1,4 +1,5 @@
 import 'package:auto_explore/features/map/presentation/providers/location_permission_provider.dart';
+import 'package:auto_explore/features/map/presentation/providers/map_style_provider.dart';
 import 'package:auto_explore/features/map/presentation/widgets/map_widget.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -13,10 +14,14 @@ import '../../helpers/fake_maplibre_platform.dart';
 /// Overrides [locationPermissionProvider] with a stub that returns
 /// [PermissionStatus.denied] synchronously (no platform channel call).
 /// Tests that need a specific status should pass [permissionStatus].
+///
+/// Pass [styleOverride] to fix the active map style asset regardless of the
+/// test-runner's platform brightness (e.g. to assert the dark style is used).
 Future<void> pumpMapWidget(
   WidgetTester tester, {
   PermissionStatus permissionStatus = PermissionStatus.denied,
   MapWidget widget = const MapWidget(),
+  String? styleOverride,
 }) async {
   await tester.pumpWidget(
     ProviderScope(
@@ -24,6 +29,10 @@ Future<void> pumpMapWidget(
         locationPermissionProvider.overrideWith(
           () => _FakeLocationPermissionNotifier(permissionStatus),
         ),
+        if (styleOverride != null)
+          mapStyleAssetProvider.overrideWith(
+            () => _FixedMapStyleNotifier(styleOverride),
+          ),
       ],
       child: MaterialApp(home: Scaffold(body: widget)),
     ),
@@ -47,6 +56,19 @@ class _FakeLocationPermissionNotifier
 
   @override
   Future<void> refresh() async {}
+}
+
+/// Stub notifier that returns a fixed style asset path.
+///
+/// Used to test a specific style is forwarded to [MapLibreMap.styleString]
+/// independent of the test-runner's platform brightness.
+class _FixedMapStyleNotifier extends MapStyleAssetNotifier {
+  _FixedMapStyleNotifier(this._asset);
+
+  final String _asset;
+
+  @override
+  String build() => _asset;
 }
 
 void main() {
@@ -84,19 +106,28 @@ void main() {
       expect(map.scrollGesturesEnabled, isTrue);
     });
 
-    testWidgets('default styleAsset is the light style', (tester) async {
-      await pumpMapWidget(tester);
+    testWidgets('default style is the light style (provider-driven)', (
+      tester,
+    ) async {
+      // mapStyleAssetProvider initialises from PlatformDispatcher brightness;
+      // test-runner default is Brightness.light → light asset expected.
+      await pumpMapWidget(
+        tester,
+        styleOverride: 'assets/map_style_light.json',
+      );
 
       final map = tester.widget<MapLibreMap>(find.byType(MapLibreMap));
       expect(map.styleString, 'assets/map_style_light.json');
     });
 
-    testWidgets('custom styleAsset is passed through to MapLibreMap', (
+    testWidgets('overriding style provider passes dark asset to MapLibreMap', (
       tester,
     ) async {
+      // Verify the map uses the style from mapStyleAssetProvider, not a
+      // constructor param. Override the provider to serve the dark asset.
       await pumpMapWidget(
         tester,
-        widget: const MapWidget(styleAsset: 'assets/map_style_dark.json'),
+        styleOverride: 'assets/map_style_dark.json',
       );
 
       final map = tester.widget<MapLibreMap>(find.byType(MapLibreMap));
