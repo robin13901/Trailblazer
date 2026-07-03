@@ -1,8 +1,11 @@
-name: Builds
+name: iOS Build
 
+# Manual trigger only — iOS unsigned .ipa builds are expensive (macOS runner
+# minutes) and only occasionally needed. Trigger from the GitHub Actions tab
+# via the "Run workflow" button when you want a fresh unsigned build.
+#
+# Android debug builds run locally on the dev machine (`flutter build apk --debug`).
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
 
 jobs:
@@ -19,33 +22,18 @@ jobs:
       - run: flutter pub get
       - name: Codegen (build_runner)
         run: dart run build_runner build --delete-conflicting-outputs
+      - name: Generate Drift migration helpers
+        run: |
+          mkdir -p test/generated_migrations
+          dart run drift_dev schema generate drift_schemas/ test/generated_migrations/
       - name: Build iOS (unsigned .ipa)
         run: flutter build ipa --no-codesign
-      - name: Upload iOS .ipa artifact
+      - name: Upload iOS build artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ios-unsigned-ipa
-          path: build/ios/ipa/*.ipa
-          if-no-files-found: error
-
-  android-build:
-    name: Android (debug APK)
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: subosito/flutter-action@v2
-        with:
-          channel: stable
-          flutter-version: 3.44.4
-          cache: true
-      - run: flutter pub get
-      - name: Codegen (build_runner)
-        run: dart run build_runner build --delete-conflicting-outputs
-      - name: Build Android debug APK
-        run: flutter build apk --debug
-      - name: Upload Android debug APK artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: android-debug-apk
-          path: build/app/outputs/flutter-apk/app-debug.apk
+          name: ios-unsigned-build
+          # `flutter build ipa --no-codesign` produces an unsigned .app under
+          # build/ios/archive/*.xcarchive, not a .ipa (which requires codesign).
+          # Upload the archive so you can inspect or resign locally.
+          path: build/ios/archive/*.xcarchive
           if-no-files-found: error
