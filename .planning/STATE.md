@@ -10,11 +10,11 @@ See: .planning/PROJECT.md (updated 2026-07-02)
 ## Current Position
 
 Phase: 2 of 11 (Map + Glass Shell) — **IN PROGRESS**
-Plan: 5/7 plans in Phase 2 done (02-05 glass shell — COMPLETE)
-Status: Liquid Glass chrome shell built; all chrome widgets + MapScreen Stack composition green
-Last activity: 2026-07-03 — Completed Plan 02-05 (glass shell); ready for Plan 02-06 (router wiring)
+Plan: 6/7 plans in Phase 2 done (02-06 router shell refactor — COMPLETE)
+Status: StatefulShellRoute wired; 3-tab shell + /settings route + chrome hiding on non-map tabs; 63/63 tests green
+Last activity: 2026-07-03 — Completed Plan 02-06 (router shell); ready for Plan 02-07 (G1 docs + phase verification)
 
-Progress: [█░░░░░░░░░] ~15% (12/77 est. plans overall — Phase 1: 7/7; Phase 2: 5/7)
+Progress: [█░░░░░░░░░] ~16% (13/77 est. plans overall — Phase 1: 7/7; Phase 2: 6/7)
 
 ## Performance Metrics
 
@@ -99,6 +99,10 @@ Key locked-in decisions affecting current work:
 - **Plan 02-05 (2026-07-03):** `SettingsGlassButton` tap uses SnackBar stub ("Settings coming in Phase 10") — matches `TripFab` pattern; avoids premature `/settings` route dependency before Plan 02-06.
 - **Plan 02-05 (2026-07-03):** `RecenterButton` stays inside `MapWidget` (reads `mapControllerProvider` + `cameraStateProvider`); not duplicated in `MapScreen` Stack.
 - **Plan 02-05 (2026-07-03):** `BottomNavShell` is a pure presentation widget (no state, no providers); `currentIndex + onTap` API; Plan 02-06 wires it to `StatefulNavigationShell.currentIndex` + `goBranch(i)`.
+- **Plan 02-06 (2026-07-03):** `context.push('/settings')` used (not `context.go`) so the StatefulShellRoute stays alive when Settings is open. `context.go` dismounts MapWidget mid-frame triggering a Riverpod dispose-while-building assertion from `MapControllerNotifier`.
+- **Plan 02-06 (2026-07-03):** `SettingsGlassButton` accepts `VoidCallback? onTap` (router-agnostic). `MapScreen` passes `() => context.push('/settings')` when shell is present; null when `navigationShell == null` (standalone widget tests — no-op, no crash).
+- **Plan 02-06 (2026-07-03):** `_MapTabContent` sentinel class used for the Map branch (not SizedBox.shrink inline) — explicit named class signals to Phase 3+ that sub-routes under `/` belong as children of the Map branch.
+- **Plan 02-06 (2026-07-03):** Chrome (FocusAreaPill, SettingsGlassButton, TripFab) hidden when `currentIndex > 0` (non-map tabs). BottomNavShell always visible.
 
 ### Pending Todos
 
@@ -106,7 +110,7 @@ Key locked-in decisions affecting current work:
 - **Optional:** Confirm `flutter build apk --debug` on a Windows box that has `cmdline-tools` + Android SDK licenses accepted (Plan 06 chose to leave Android build local rather than CI-gated; developer validates locally).
 - **Post-01-06 follow-up:** Consider adding an on-demand Android CI job (`workflow_dispatch`) later if solo-dev workflow changes.
 - **Post-01-06 follow-up:** Watch the first real PR — the `dart format` file-exclusion glob has never been exercised on a `pull_request` ref.
-- **Phase 2 handoff (from Plan 01-03):** Replace `/` (`PlaceholderHomeScreen`) with a `StatefulShellRoute` + real map view; keep splash/onboarding untouched.
+- **Phase 2 handoff (from Plan 01-03):** Replace `/` (`PlaceholderHomeScreen`) with a `StatefulShellRoute` + real map view; keep splash/onboarding untouched. **DONE in Plan 02-06.**
 - **Phase 2 handoff (post-close-out):** When we bump AGP to 9.0+, remove `kotlin-android` plugin + `kotlinOptions{}` block from `android/app/build.gradle.kts` and add top-level `kotlin { compilerOptions { jvmTarget = JvmTarget.JVM_17 } }`. Then flip both flags in `android/gradle.properties` to `true` (or delete them). Recipe is inline in the file.
 - **Phase 2 handoff (post-close-out):** One-time manual `workflow_dispatch` trigger of `iOS Build` from GitHub Actions UI to observe a green macOS run.
 - **Plan 02-02 (G1 re-verify):** At end of 02-02, visually verify LiquidGlass renders correctly over the real bundled-PMTiles MapLibre map on Android (SM S921B). If it fails, flip `LiquidGlassSettings.platformBlurEnabled` to `false` and document in `docs/G1_SPIKE.md` as a full G1 fallback.
@@ -123,6 +127,6 @@ Key locked-in decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-07-03 (Plan 02-05 Liquid Glass shell — COMPLETE)
-Stopped at: Completed 02-05-PLAN.md (GlassPill + GlassCircle + FocusAreaPill + SettingsGlassButton + TripFab + BottomNavShell + MapScreen Stack; flutter analyze 0 issues, 58/58 tests green)
-Resume file: None — next step is Plan 02-06 (router wiring)
+Last session: 2026-07-03 (Plan 02-06 router shell refactor — COMPLETE)
+Stopped at: Completed 02-06-PLAN.md (StatefulShellRoute + /settings + chrome hiding; 63/63 tests green)
+Resume file: None — next step is Plan 02-07 (G1 docs + phase verification)
