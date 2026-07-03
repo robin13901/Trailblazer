@@ -10,11 +10,11 @@ See: .planning/PROJECT.md (updated 2026-07-02)
 ## Current Position
 
 Phase: 2 of 11 (Map + Glass Shell) — **IN PROGRESS**
-Plan: 1/7 plans in Phase 2 done (02-01 G1 spike — conditional PASS)
-Status: G1 gate resolved (`platformBlurEnabled = true`), ready for Plan 02-02 (PMTiles integration)
-Last activity: 2026-07-03 — Completed Plan 02-01 G1 rendering spike; user confirmed Android LiquidGlass render on SM S921B; re-verification pending in 02-02
+Plan: 2/7 plans in Phase 2 done (02-02 PMTiles base map — COMPLETE)
+Status: MapWidget + MapScreen + bundled PMTiles + style JSONs + tests all green
+Last activity: 2026-07-03 — Completed Plan 02-02 PMTiles base map; ready for Plan 02-03 (location)
 
-Progress: [█░░░░░░░░░] ~10.4% (8/77 est. plans overall — Phase 1: 7/7; Phase 2: 1/7)
+Progress: [█░░░░░░░░░] ~11.7% (9/77 est. plans overall — Phase 1: 7/7; Phase 2: 2/7)
 
 ## Performance Metrics
 
@@ -78,6 +78,10 @@ Key locked-in decisions affecting current work:
 - **Plan 02-01 (2026-07-03):** G1 gate resolved — `LiquidGlassSettings.platformSupportsBlurOverMap = true` on both platforms. Android (SM S921B, Impeller) confirmed via SpikeG1Screen: `liquid_glass_renderer` shaders compile and render correctly; refraction visible in top pill. iOS: not device-tested, defaulted to `true` (`liquid_glass_renderer` is iOS-designed). BackdropFilter over PlatformView remains broken on Android (issue #185497) — confirmed via spike; unused going forward. Conditional PASS: full over-platform-view verification deferred to end of Plan 02-02 (real PMTiles-backed map). Fallback path in `LiquidGlassSettings` retained as defensive code. Full record: `docs/G1_SPIKE.md`. Downstream glass shell (02-05) branches on this flag.
 - **Plan 02-01 (2026-07-03):** `LiquidGlassSettings` API deviated from plan sketch — the proposed `setPlatformSupportsBlurOverMap(value: ...)` method refactored to a public static field/getter pair `platformBlurEnabled` to satisfy the `very_good_analysis` `use_setters_to_change_properties` / `unnecessary_getters_setters` lint pair. Wire-up in `main.dart` is `LiquidGlassSettings.platformBlurEnabled = true;`. Instance reads still go through `LiquidGlassSettings.instance.platformSupportsBlurOverMap` (unchanged public surface for downstream widgets).
 - **Plan 02-01 (2026-07-03):** `LiquidRoundedSuperellipse.borderRadius` is a plain `double` in `liquid_glass_renderer` 0.2.0-dev.4, not a `Radius`. Corrected in `spike_g1_screen.dart`; downstream 02-05 code must use the same signature.
+  - **Plan 02-02 (2026-07-03):** `FakeMapLibrePlatform` pattern adopted for maplibre widget tests — replaces `MapLibrePlatform.createInstance` in test `setUp()` to avoid `MissingPluginException` on PlatformView. Helper lives at `test/helpers/fake_maplibre_platform.dart`; all future map widget tests reuse it.
+- **Plan 02-02 (2026-07-03):** `maplibre_gl_platform_interface: ^0.26.2` added as `dev_dependency` so tests can subclass `MapLibrePlatform` directly (re-export from `maplibre_gl` is too limited); `depend_on_referenced_packages` lint satisfied.
+- **Plan 02-02 (2026-07-03):** `MapWidget` states only `tiltGesturesEnabled: false` explicitly — all other `MapLibreMap` gesture flags are defaults and omitted per `avoid_redundant_argument_values`. `_controller` field removed from `_MapWidgetState` (unused in Phase 2); `onMapCreated` still forwarded inline via `widget.onMapCreated?.call(c)`.
+- **Plan 02-02 (2026-07-03):** PMTiles style referenced via bare asset path string in `MapLibreMap.styleString` (e.g. `'assets/map_style_light.json'`) — NOT `asset://...`. PMTiles source declared in style JSON via `"pmtiles://assets/tiles/dev_berlin.pmtiles"` URL, NOT at runtime via `controller.addSource()` (Pitfall 1 avoided).
 
 ### Pending Todos
 
@@ -89,7 +93,8 @@ Key locked-in decisions affecting current work:
 - **Phase 2 handoff (post-close-out):** When we bump AGP to 9.0+, remove `kotlin-android` plugin + `kotlinOptions{}` block from `android/app/build.gradle.kts` and add top-level `kotlin { compilerOptions { jvmTarget = JvmTarget.JVM_17 } }`. Then flip both flags in `android/gradle.properties` to `true` (or delete them). Recipe is inline in the file.
 - **Phase 2 handoff (post-close-out):** One-time manual `workflow_dispatch` trigger of `iOS Build` from GitHub Actions UI to observe a green macOS run.
 - **Plan 02-02 (G1 re-verify):** At end of 02-02, visually verify LiquidGlass renders correctly over the real bundled-PMTiles MapLibre map on Android (SM S921B). If it fails, flip `LiquidGlassSettings.platformBlurEnabled` to `false` and document in `docs/G1_SPIKE.md` as a full G1 fallback.
-- **Plan 02-02 (SkSL warnings + demotiles):** `demotiles.maplibre.org` URL did not load tiles during the G1 spike — verify that our bundled PMTiles + local style JSON pipeline works end-to-end (this is what 02-02 exists to do, but flag the G1 spike observation so we don't chase the wrong root cause).
+- **Plan 02-02 status (2026-07-03):** CARRY-FORWARD — 02-02 code is complete; G1 re-verify requires installing debug build on device and opening MapScreen (temporarily via a route). Deferred to 02-07 end-to-end device test or whenever next debug build is installed.
+- **Plan 02-02 (SkSL warnings + demotiles):** `demotiles.maplibre.org` URL did not load tiles during the G1 spike — verify that our bundled PMTiles + local style JSON pipeline works end-to-end (this is what 02-02 exists to do, but flag the G1 spike observation so we don't chase the wrong root cause). **STATUS (2026-07-03):** Code complete; end-to-end tile rendering verification requires device install — deferred to 02-07.
 
 ### Blockers/Concerns
 
@@ -101,6 +106,6 @@ Key locked-in decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-07-03 (Plan 02-01 G1 rendering spike — conditional PASS)
-Stopped at: Completed 02-01-PLAN.md (G1 gate resolved: `platformBlurEnabled = true` on both platforms)
-Resume file: None — next step is Plan 02-02 (MapLibre + PMTiles integration), which must also re-verify LiquidGlass renders correctly over the real map platform view
+Last session: 2026-07-03 (Plan 02-02 PMTiles base map — COMPLETE)
+Stopped at: Completed 02-02-PLAN.md (MapWidget + MapScreen + tests; flutter analyze clean, 21/21 tests green)
+Resume file: None — next step is Plan 02-03 (location + permission)
