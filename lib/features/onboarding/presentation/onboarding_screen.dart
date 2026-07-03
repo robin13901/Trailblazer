@@ -19,7 +19,7 @@ class OnboardingScreen extends ConsumerWidget {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               const Text(
-                'Welcome to Auto-Explore',
+                'Welcome to Trailblazer',
                 style: TextStyle(fontSize: 28, fontWeight: FontWeight.w600),
                 textAlign: TextAlign.center,
               ),

@@ -9,7 +9,7 @@ class App extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final router = ref.watch(appRouterProvider);
     return MaterialApp.router(
-      title: 'Auto-Explore',
+      title: 'Trailblazer',
       routerConfig: router,
     );
   }

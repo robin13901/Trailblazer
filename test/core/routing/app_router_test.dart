@@ -19,12 +19,12 @@ void main() {
     await tester.pumpAndSettle(const Duration(seconds: 1));
 
     // Splash resolved into onboarding because prefs are empty.
-    expect(find.text('Welcome to Auto-Explore'), findsOneWidget);
+    expect(find.text('Welcome to Trailblazer'), findsOneWidget);
 
     // Tap Continue -> flag set -> navigate to placeholder home.
     await tester.tap(find.text('Continue'));
     await tester.pumpAndSettle();
-    expect(find.text('Auto-Explore'), findsOneWidget);
+    expect(find.text('Trailblazer'), findsOneWidget);
   });
 
   testWidgets('second launch: skips onboarding, lands on home', (tester) async {
@@ -35,7 +35,7 @@ void main() {
     await tester.pumpWidget(const ProviderScope(child: App()));
     await tester.pumpAndSettle(const Duration(seconds: 1));
 
-    expect(find.text('Auto-Explore'), findsOneWidget);
-    expect(find.text('Welcome to Auto-Explore'), findsNothing);
+    expect(find.text('Trailblazer'), findsOneWidget);
+    expect(find.text('Welcome to Trailblazer'), findsNothing);
   });
 }

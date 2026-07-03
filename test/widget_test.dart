@@ -14,6 +14,6 @@ void main() {
     await tester.pumpAndSettle(const Duration(seconds: 1));
 
     // First launch (empty prefs) -> onboarding screen visible.
-    expect(find.text('Welcome to Auto-Explore'), findsOneWidget);
+    expect(find.text('Welcome to Trailblazer'), findsOneWidget);
   });
 }
