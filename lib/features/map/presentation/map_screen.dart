@@ -60,7 +60,14 @@ class MapScreen extends ConsumerWidget {
               left: 16,
               child: SafeArea(
                 child: SettingsGlassButton(
-                  onTap: () => context.go('/settings'),
+                  // Only wire navigation when the full shell is present.
+                  // When navigationShell is null (isolated widget tests),
+                  // onTap is left null so the button renders without crashing.
+                  // Use push (not go) so the shell stays alive beneath the
+                  // Settings screen and MapWidget is not disposed.
+                  onTap: navigationShell != null
+                      ? () => context.push('/settings')
+                      : null,
                 ),
               ),
             ),
