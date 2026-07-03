@@ -1,0 +1,246 @@
+{
+  "version": 8,
+  "name": "Trailblazer Dark",
+  "glyphs": "https://protomaps.github.io/basemaps-assets/fonts/{fontstack}/{range}.pbf",
+  "sprite": "https://protomaps.github.io/basemaps-assets/sprites/v4/dark",
+  "sources": {
+    "protomaps": {
+      "type": "vector",
+      "attribution": "<a href='https://protomaps.com'>Protomaps</a> © <a href='https://openstreetmap.org'>OpenStreetMap</a>",
+      "url": "pmtiles://assets/tiles/dev_berlin.pmtiles"
+    }
+  },
+  "layers": [
+    {
+      "id": "background",
+      "type": "background",
+      "paint": {
+        "background-color": "#0a1728"
+      }
+    },
+    {
+      "id": "earth",
+      "type": "fill",
+      "source": "protomaps",
+      "source-layer": "earth",
+      "paint": {
+        "fill-color": "#122340"
+      }
+    },
+    {
+      "id": "landcover-wood",
+      "type": "fill",
+      "source": "protomaps",
+      "source-layer": "landcover",
+      "filter": ["in", "pmap:kind", "wood", "forest"],
+      "paint": {
+        "fill-color": "#1a3a28",
+        "fill-opacity": 0.8
+      }
+    },
+    {
+      "id": "landcover-grass",
+      "type": "fill",
+      "source": "protomaps",
+      "source-layer": "landcover",
+      "filter": ["in", "pmap:kind", "scrub", "grass", "farmland"],
+      "paint": {
+        "fill-color": "#1a2f4a",
+        "fill-opacity": 0.7
+      }
+    },
+    {
+      "id": "landuse-park",
+      "type": "fill",
+      "source": "protomaps",
+      "source-layer": "landuse",
+      "filter": ["in", "pmap:kind", "park", "nature_reserve", "garden", "cemetery"],
+      "paint": {
+        "fill-color": "#1a3a28",
+        "fill-opacity": 0.9
+      }
+    },
+    {
+      "id": "water",
+      "type": "fill",
+      "source": "protomaps",
+      "source-layer": "water",
+      "paint": {
+        "fill-color": "#061024"
+      }
+    },
+    {
+      "id": "waterway",
+      "type": "line",
+      "source": "protomaps",
+      "source-layer": "water",
+      "filter": ["==", "$type", "LineString"],
+      "paint": {
+        "line-color": "#061024",
+        "line-width": ["interpolate", ["linear"], ["zoom"], 8, 0.5, 14, 2]
+      }
+    },
+    {
+      "id": "buildings",
+      "type": "fill",
+      "source": "protomaps",
+      "source-layer": "buildings",
+      "paint": {
+        "fill-color": "#1a2a44",
+        "fill-opacity": 0.7
+      }
+    },
+    {
+      "id": "buildings-outline",
+      "type": "line",
+      "source": "protomaps",
+      "source-layer": "buildings",
+      "paint": {
+        "line-color": "#243355",
+        "line-width": 0.5
+      }
+    },
+    {
+      "id": "roads-minor-casing",
+      "type": "line",
+      "source": "protomaps",
+      "source-layer": "roads",
+      "filter": ["in", "pmap:kind", "minor_road", "medium_road"],
+      "layout": {
+        "line-cap": "round",
+        "line-join": "round"
+      },
+      "paint": {
+        "line-color": "#2a3a55",
+        "line-width": ["interpolate", ["linear"], ["zoom"], 10, 1.5, 15, 5]
+      }
+    },
+    {
+      "id": "roads-minor",
+      "type": "line",
+      "source": "protomaps",
+      "source-layer": "roads",
+      "filter": ["in", "pmap:kind", "minor_road", "medium_road"],
+      "layout": {
+        "line-cap": "round",
+        "line-join": "round"
+      },
+      "paint": {
+        "line-color": "#3a4d6b",
+        "line-width": ["interpolate", ["linear"], ["zoom"], 10, 0.8, 15, 3.5]
+      }
+    },
+    {
+      "id": "roads-major",
+      "type": "line",
+      "source": "protomaps",
+      "source-layer": "roads",
+      "filter": ["==", "pmap:kind", "major_road"],
+      "layout": {
+        "line-cap": "round",
+        "line-join": "round"
+      },
+      "paint": {
+        "line-color": "#d99230",
+        "line-width": ["interpolate", ["linear"], ["zoom"], 8, 1, 14, 5, 18, 14]
+      }
+    },
+    {
+      "id": "roads-highway",
+      "type": "line",
+      "source": "protomaps",
+      "source-layer": "roads",
+      "filter": ["==", "pmap:kind", "highway"],
+      "layout": {
+        "line-cap": "round",
+        "line-join": "round"
+      },
+      "paint": {
+        "line-color": "#f0b040",
+        "line-width": ["interpolate", ["linear"], ["zoom"], 6, 1.5, 12, 4, 16, 10]
+      }
+    },
+    {
+      "id": "transit-rail",
+      "type": "line",
+      "source": "protomaps",
+      "source-layer": "transit",
+      "filter": ["in", "pmap:kind", "rail", "subway"],
+      "layout": {
+        "line-cap": "butt",
+        "line-join": "round"
+      },
+      "paint": {
+        "line-color": "#3a4d6b",
+        "line-width": ["interpolate", ["linear"], ["zoom"], 10, 0.5, 14, 1.5],
+        "line-dasharray": [4, 2]
+      }
+    },
+    {
+      "id": "boundaries",
+      "type": "line",
+      "source": "protomaps",
+      "source-layer": "boundaries",
+      "paint": {
+        "line-color": "#3a4d6b",
+        "line-width": 1,
+        "line-dasharray": [3, 2]
+      }
+    },
+    {
+      "id": "roads-labels",
+      "type": "symbol",
+      "source": "protomaps",
+      "source-layer": "roads",
+      "filter": ["in", "pmap:kind", "highway", "major_road"],
+      "layout": {
+        "text-field": ["get", "name"],
+        "text-size": ["interpolate", ["linear"], ["zoom"], 12, 10, 16, 13],
+        "text-font": ["Noto Sans Regular"],
+        "symbol-placement": "line",
+        "text-max-angle": 30
+      },
+      "paint": {
+        "text-color": "#9ab0c8",
+        "text-halo-color": "#0a1728",
+        "text-halo-width": 1.5
+      }
+    },
+    {
+      "id": "places-suburb",
+      "type": "symbol",
+      "source": "protomaps",
+      "source-layer": "places",
+      "filter": ["in", "pmap:kind", "suburb", "quarter", "neighbourhood"],
+      "layout": {
+        "text-field": ["get", "name"],
+        "text-size": ["interpolate", ["linear"], ["zoom"], 12, 10, 16, 13],
+        "text-font": ["Noto Sans Regular"],
+        "text-max-width": 8
+      },
+      "paint": {
+        "text-color": "#7a96b0",
+        "text-halo-color": "#0a1728",
+        "text-halo-width": 1.2
+      }
+    },
+    {
+      "id": "places-city",
+      "type": "symbol",
+      "source": "protomaps",
+      "source-layer": "places",
+      "filter": ["in", "pmap:kind", "city", "town", "village"],
+      "layout": {
+        "text-field": ["get", "name"],
+        "text-size": ["interpolate", ["linear"], ["zoom"], 8, 11, 14, 15],
+        "text-font": ["Noto Sans Medium"],
+        "text-max-width": 10
+      },
+      "paint": {
+        "text-color": "#cfd8e0",
+        "text-halo-color": "#0a1728",
+        "text-halo-width": 1.5
+      }
+    }
+  ]
+}
