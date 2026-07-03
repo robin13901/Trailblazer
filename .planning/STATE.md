@@ -10,28 +10,28 @@ See: .planning/PROJECT.md (updated 2026-07-02)
 ## Current Position
 
 Phase: 1 of 11 (Scaffolding)
-Plan: Plans 01, 02, 03, 04, 05, 06 committed (6 of 7 in current phase)
-Status: In progress (Plan 07 remaining in phase)
-Last activity: 2026-07-03 — Completed 01-06 github-actions-ci; CI run 28650295975 green (1m 47s); Codecov upload accepted
+Plan: Plans 01, 02, 03, 04, 05, 06, 07 committed (7 of 7 in current phase)
+Status: Phase complete — ready for `/gsd:verify-work` phase-level verification
+Last activity: 2026-07-03 — Completed 01-07 readme-and-docs; README + docs/ARCHITECTURE.md landed with real robin13901/Trailblazer badge URLs
 
-Progress: [█░░░░░░░░░] ~7.8% (6/77 est. plans overall — Phase 1 sizing: 7 plans; other phases TBD)
+Progress: [█░░░░░░░░░] ~9.1% (7/77 est. plans overall — Phase 1 sizing: 7 plans done; other phases TBD)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 6 (01-01, 01-02, 01-03, 01-04, 01-05, 01-06)
-- Average duration: ~21 min
-- Total execution time: ~2.1 hours (est.)
+- Total plans completed: 7 (01-01, 01-02, 01-03, 01-04, 01-05, 01-06, 01-07)
+- Average duration: ~19 min
+- Total execution time: ~2.2 hours (est.)
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| 01-scaffolding | 6 | ~127 min | ~21 min |
+| 01-scaffolding | 7 | ~135 min | ~19 min |
 
 **Recent Trend:**
-- Last 6 plans: 01-01 (18 min), 01-05 (~2 min), 01-02, 01-03 (parallel Wave 2), 01-04 (25 min), 01-06 (~17 min: 7 min exec + ~10 min interactive checkpoint)
-- Trend: infra plans on target; checkpoint-heavy plans still land under 20 min
+- Last 7 plans: 01-01 (18 min), 01-05 (~2 min), 01-02, 01-03 (parallel Wave 2), 01-04 (25 min), 01-06 (~17 min: 7 min exec + ~10 min interactive checkpoint), 01-07 (~8 min docs-only)
+- Trend: infra plans on target; docs close-out fastest (no code = no Ralph Loop)
 
 *Updated after each plan completion*
 
@@ -69,6 +69,9 @@ Key locked-in decisions affecting current work:
 - **Plan 01-06 (2026-07-03):** CI codegen (build_runner + drift_dev schema generate) runs BEFORE `dart format` and `flutter analyze` — analyzer needs `.g.dart` and migration helpers, which are gitignored and don't exist on fresh CI checkouts.
 - **Plan 01-06 (2026-07-03):** iOS build (`flutter build ipa --no-codesign`) is manual-trigger only (`workflow_dispatch`) — saves macOS runner minutes. Android debug builds happen locally on the dev machine, not in CI.
 - **Plan 01-06 (2026-07-03):** iOS artifact is `build/ios/archive/*.xcarchive`, not `.ipa` — unsigned builds don't produce a real .ipa.
+- **Plan 01-07 (2026-07-03):** README title uses the product name **Trailblazer**; Dart package name remains `auto_explore` in `pubspec.yaml` (legacy working title). One-liner in README calls this out to prevent import-path confusion.
+- **Plan 01-07 (2026-07-03):** README + `docs/ARCHITECTURE.md` deliberately overrode 15 stale plan-template details to match actual Phase 1 state (repo slug, branch, dropped lints, iOS artifact type, iOS manual trigger, Android-local-only, codegen ordering, package imports, alphabetized deps, FK cascades, business-key PKs, `PlatformDispatcher` return value, onboarding-in-splash decision, `permission_handler` not-yet-added, FGS placeholder class, `NSBluetoothPeripheralUsageDescription` skip). All 15 sourced from prior SUMMARY files / STATE decisions.
+- **Plan 01-07 (2026-07-03):** Anti-patterns table pattern established (vs prior projects) — reusable for future phase docs.
 
 ### Pending Todos
 
@@ -88,6 +91,6 @@ Key locked-in decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-07-03 (Plan 01-06 execution + checkpoint resolution)
-Stopped at: Completed .planning/phases/01-scaffolding/06-github-actions-ci-PLAN.md
-Resume file: None (Plan 07 is the last remaining plan in Phase 1)
+Last session: 2026-07-03 (Plan 01-07 execution — docs close-out)
+Stopped at: Completed .planning/phases/01-scaffolding/07-readme-and-docs-PLAN.md — Phase 1 (Scaffolding) COMPLETE (7/7 plans)
+Resume file: None — next step is `/gsd:verify-work` for phase-level verification, then start Phase 2 (Map foundation) planning
