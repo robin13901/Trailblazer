@@ -25,9 +25,9 @@ class MapStyleFade extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => AnimatedOpacity(
-        opacity: visible ? 1.0 : 0.0,
-        duration: const Duration(milliseconds: 180),
-        curve: Curves.easeInOut,
-        child: child,
-      );
+    opacity: visible ? 1.0 : 0.0,
+    duration: const Duration(milliseconds: 180),
+    curve: Curves.easeInOut,
+    child: child,
+  );
 }

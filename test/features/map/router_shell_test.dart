@@ -15,8 +15,7 @@ import '../../helpers/fake_maplibre_platform.dart';
 
 /// Stub notifier that returns [PermissionStatus.granted] without hitting the
 /// permission_handler platform channel.
-class _FakeLocationPermissionNotifier
-    extends AsyncNotifier<PermissionStatus>
+class _FakeLocationPermissionNotifier extends AsyncNotifier<PermissionStatus>
     implements LocationPermissionNotifier {
   @override
   Future<PermissionStatus> build() async => PermissionStatus.granted;
@@ -62,20 +61,23 @@ void main() {
   });
 
   group('Router shell — StatefulShellRoute tab navigation (02-06)', () {
-    testWidgets('map shell lands on Map tab: FocusAreaPill + BottomNavShell visible',
-        (tester) async {
-      await pumpAppAtMapShell(tester);
+    testWidgets(
+      'map shell lands on Map tab: FocusAreaPill + BottomNavShell visible',
+      (tester) async {
+        await pumpAppAtMapShell(tester);
 
-      // Map tab active: chrome is visible.
-      expect(find.byType(FocusAreaPill), findsOneWidget);
-      expect(find.byType(BottomNavShell), findsOneWidget);
-      // Onboarding and Trips placeholder text are NOT present.
-      expect(find.text('Welcome to Trailblazer'), findsNothing);
-      expect(find.text('Trips inbox comes in Phase 6.'), findsNothing);
-    });
+        // Map tab active: chrome is visible.
+        expect(find.byType(FocusAreaPill), findsOneWidget);
+        expect(find.byType(BottomNavShell), findsOneWidget);
+        // Onboarding and Trips placeholder text are NOT present.
+        expect(find.text('Welcome to Trailblazer'), findsNothing);
+        expect(find.text('Trips inbox comes in Phase 6.'), findsNothing);
+      },
+    );
 
-    testWidgets('tapping Trips tab shows TripsScreen and hides map chrome',
-        (tester) async {
+    testWidgets('tapping Trips tab shows TripsScreen and hides map chrome', (
+      tester,
+    ) async {
       await pumpAppAtMapShell(tester);
 
       // Tap the Trips tab inside the bottom pill.
@@ -90,8 +92,9 @@ void main() {
       expect(find.byType(FocusAreaPill), findsNothing);
     });
 
-    testWidgets('tapping Map tab returns chrome + hides TripsScreen',
-        (tester) async {
+    testWidgets('tapping Map tab returns chrome + hides TripsScreen', (
+      tester,
+    ) async {
       await pumpAppAtMapShell(tester);
 
       // Navigate to Trips, then back to Map.
@@ -106,8 +109,9 @@ void main() {
       expect(find.text('Trips inbox comes in Phase 6.'), findsNothing);
     });
 
-    testWidgets('tapping Regions tab shows RegionsScreen placeholder',
-        (tester) async {
+    testWidgets('tapping Regions tab shows RegionsScreen placeholder', (
+      tester,
+    ) async {
       await pumpAppAtMapShell(tester);
 
       await tester.tap(find.text('Regions'));

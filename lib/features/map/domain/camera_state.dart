@@ -35,12 +35,12 @@ class CameraState {
     double? bearing,
     FollowMode? followMode,
   }) => CameraState(
-        latitude: latitude ?? this.latitude,
-        longitude: longitude ?? this.longitude,
-        zoom: zoom ?? this.zoom,
-        bearing: bearing ?? this.bearing,
-        followMode: followMode ?? this.followMode,
-      );
+    latitude: latitude ?? this.latitude,
+    longitude: longitude ?? this.longitude,
+    zoom: zoom ?? this.zoom,
+    bearing: bearing ?? this.bearing,
+    followMode: followMode ?? this.followMode,
+  );
 
   @override
   bool operator ==(Object other) =>

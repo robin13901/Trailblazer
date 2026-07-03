@@ -27,7 +27,8 @@ class LiquidGlassSettings {
   /// Reads the static [platformBlurEnabled] flag. Provided as an instance
   /// getter so widget code can use `LiquidGlassSettings.instance.platformSupportsBlurOverMap`
   /// without importing the class name twice.
-  bool get platformSupportsBlurOverMap => LiquidGlassSettings.platformBlurEnabled;
+  bool get platformSupportsBlurOverMap =>
+      LiquidGlassSettings.platformBlurEnabled;
 
   // Shared visual parameters (tuned per ui-ux-pro-max recommendations).
   double get glassThickness => 20;

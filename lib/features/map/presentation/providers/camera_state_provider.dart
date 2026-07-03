@@ -34,7 +34,6 @@ class CameraStateNotifier extends Notifier<CameraState> {
 }
 
 /// Provider for the current [CameraState].
-final cameraStateProvider =
-    NotifierProvider<CameraStateNotifier, CameraState>(
+final cameraStateProvider = NotifierProvider<CameraStateNotifier, CameraState>(
   CameraStateNotifier.new,
 );

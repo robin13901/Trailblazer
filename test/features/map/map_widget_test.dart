@@ -41,8 +41,7 @@ Future<void> pumpMapWidget(
 
 /// Stub notifier that returns a fixed [PermissionStatus] without calling
 /// the permission_handler platform channel.
-class _FakeLocationPermissionNotifier
-    extends AsyncNotifier<PermissionStatus>
+class _FakeLocationPermissionNotifier extends AsyncNotifier<PermissionStatus>
     implements LocationPermissionNotifier {
   _FakeLocationPermissionNotifier(this._status);
 
@@ -99,8 +98,11 @@ void main() {
 
       final map = tester.widget<MapLibreMap>(find.byType(MapLibreMap));
 
-      expect(map.tiltGesturesEnabled, isFalse,
-          reason: '02-CONTEXT.md mandates flat 2D — no tilt gesture');
+      expect(
+        map.tiltGesturesEnabled,
+        isFalse,
+        reason: '02-CONTEXT.md mandates flat 2D — no tilt gesture',
+      );
       expect(map.rotateGesturesEnabled, isTrue);
       expect(map.zoomGesturesEnabled, isTrue);
       expect(map.scrollGesturesEnabled, isTrue);
@@ -145,27 +147,29 @@ void main() {
     });
 
     testWidgets(
-        'myLocationEnabled is false when permission denied (no blue dot)',
-        (tester) async {
-      await pumpMapWidget(tester);
+      'myLocationEnabled is false when permission denied (no blue dot)',
+      (tester) async {
+        await pumpMapWidget(tester);
 
-      final map = tester.widget<MapLibreMap>(find.byType(MapLibreMap));
-      expect(map.myLocationEnabled, isFalse);
-    });
+        final map = tester.widget<MapLibreMap>(find.byType(MapLibreMap));
+        expect(map.myLocationEnabled, isFalse);
+      },
+    );
 
     testWidgets(
-        'myLocationEnabled is true when permission granted (blue dot shown)',
-        (tester) async {
-      await pumpMapWidget(
-        tester,
-        permissionStatus: PermissionStatus.granted,
-      );
-      // Async notifier resolves on the next frame.
-      await tester.pump();
+      'myLocationEnabled is true when permission granted (blue dot shown)',
+      (tester) async {
+        await pumpMapWidget(
+          tester,
+          permissionStatus: PermissionStatus.granted,
+        );
+        // Async notifier resolves on the next frame.
+        await tester.pump();
 
-      final map = tester.widget<MapLibreMap>(find.byType(MapLibreMap));
-      expect(map.myLocationEnabled, isTrue);
-    });
+        final map = tester.widget<MapLibreMap>(find.byType(MapLibreMap));
+        expect(map.myLocationEnabled, isTrue);
+      },
+    );
 
     testWidgets('initial camera targets Berlin at zoom 15', (tester) async {
       await pumpMapWidget(tester);

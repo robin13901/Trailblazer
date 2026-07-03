@@ -12,8 +12,7 @@ import 'helpers/fake_maplibre_platform.dart';
 
 /// Stub notifier that returns [PermissionStatus.granted] without hitting the
 /// permission_handler platform channel.
-class _FakeLocationPermissionNotifier
-    extends AsyncNotifier<PermissionStatus>
+class _FakeLocationPermissionNotifier extends AsyncNotifier<PermissionStatus>
     implements LocationPermissionNotifier {
   @override
   Future<PermissionStatus> build() async => PermissionStatus.granted;

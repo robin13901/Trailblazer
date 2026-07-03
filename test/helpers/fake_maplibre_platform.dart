@@ -144,8 +144,11 @@ class FakeMapLibrePlatform extends MapLibrePlatform {
   );
 
   @override
-  Future<void> addImage(String name, Uint8List bytes, [bool sdf = false]) async {
-  }
+  Future<void> addImage(
+    String name,
+    Uint8List bytes, [
+    bool sdf = false,
+  ]) async {}
 
   @override
   Future<void> addImageSource(
@@ -194,8 +197,7 @@ class FakeMapLibrePlatform extends MapLibrePlatform {
   Future<dynamic> getFilter(String layerId) async => null;
 
   @override
-  Future<Point<num>> toScreenLocation(LatLng latLng) async =>
-      const Point(0, 0);
+  Future<Point<num>> toScreenLocation(LatLng latLng) async => const Point(0, 0);
 
   @override
   Future<List<Point<num>>> toScreenLocationBatch(

@@ -47,7 +47,10 @@ void main() {
           .read(mapStyleAssetProvider.notifier)
           .updateFromBrightness(Brightness.dark);
 
-      expect(container.read(mapStyleAssetProvider), 'assets/map_style_dark.json');
+      expect(
+        container.read(mapStyleAssetProvider),
+        'assets/map_style_dark.json',
+      );
     });
 
     test('updateFromBrightness(light) sets light asset', () {
@@ -62,7 +65,10 @@ void main() {
           .read(mapStyleAssetProvider.notifier)
           .updateFromBrightness(Brightness.light);
 
-      expect(container.read(mapStyleAssetProvider), 'assets/map_style_light.json');
+      expect(
+        container.read(mapStyleAssetProvider),
+        'assets/map_style_light.json',
+      );
     });
   });
 }

@@ -17,25 +17,30 @@ void main() {
       expect(repo, isA<LocationRepository>());
     });
 
-    test('currentStatus() returns a Future (type assertion, no platform call)',
-        () {
-      // Verify the method exists and has the correct return type by reflection
-      // without actually invoking the platform channel.
-      const repo = LocationRepository();
-      expect(repo.currentStatus, isA<Function>());
-    });
+    test(
+      'currentStatus() returns a Future (type assertion, no platform call)',
+      () {
+        // Verify the method exists and has the correct return type by reflection
+        // without actually invoking the platform channel.
+        const repo = LocationRepository();
+        expect(repo.currentStatus, isA<Function>());
+      },
+    );
 
     test(
-        'requestPermission() returns a Future (type assertion, no platform call)',
-        () {
-      const repo = LocationRepository();
-      expect(repo.requestPermission, isA<Function>());
-    });
+      'requestPermission() returns a Future (type assertion, no platform call)',
+      () {
+        const repo = LocationRepository();
+        expect(repo.requestPermission, isA<Function>());
+      },
+    );
 
-    test('hasPermission() returns a Future (type assertion, no platform call)',
-        () {
-      const repo = LocationRepository();
-      expect(repo.hasPermission, isA<Function>());
-    });
+    test(
+      'hasPermission() returns a Future (type assertion, no platform call)',
+      () {
+        const repo = LocationRepository();
+        expect(repo.hasPermission, isA<Function>());
+      },
+    );
   });
 }

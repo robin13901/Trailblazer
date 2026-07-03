@@ -37,8 +37,7 @@ Future<void> pumpMapScreen(WidgetTester tester) async {
   );
 }
 
-class _FakeLocationPermissionNotifier
-    extends AsyncNotifier<PermissionStatus>
+class _FakeLocationPermissionNotifier extends AsyncNotifier<PermissionStatus>
     implements LocationPermissionNotifier {
   @override
   Future<PermissionStatus> build() async => PermissionStatus.denied;
@@ -110,8 +109,9 @@ void main() {
       expect(scaffold.appBar, isNull);
     });
 
-    testWidgets('TripFab tap shows SnackBar mentioning Phase 3 (UI-03 stub)',
-        (tester) async {
+    testWidgets('TripFab tap shows SnackBar mentioning Phase 3 (UI-03 stub)', (
+      tester,
+    ) async {
       await pumpMapScreen(tester);
 
       await tester.tap(find.byType(TripFab));
@@ -121,26 +121,28 @@ void main() {
     });
 
     testWidgets(
-        'SettingsGlassButton tap does not crash when no router is present '
-        '(onTap: null, standalone widget test)', (tester) async {
-      // When MapScreen is pumped without a GoRouter, the SettingsGlassButton
-      // is constructed with onTap: null (via MapScreen._isMapTab logic when
-      // navigationShell is null). Verify the button renders and tapping
-      // it does not throw.
-      await pumpMapScreen(tester);
+      'SettingsGlassButton tap does not crash when no router is present '
+      '(onTap: null, standalone widget test)',
+      (tester) async {
+        // When MapScreen is pumped without a GoRouter, the SettingsGlassButton
+        // is constructed with onTap: null (via MapScreen._isMapTab logic when
+        // navigationShell is null). Verify the button renders and tapping
+        // it does not throw.
+        await pumpMapScreen(tester);
 
-      // Button is present.
-      expect(find.byType(SettingsGlassButton), findsOneWidget);
+        // Button is present.
+        expect(find.byType(SettingsGlassButton), findsOneWidget);
 
-      // Tap should not throw (onTap is null → GestureDetector no-ops).
-      await expectLater(
-        () async {
-          await tester.tap(find.byType(SettingsGlassButton));
-          await tester.pump();
-        },
-        returnsNormally,
-      );
-    });
+        // Tap should not throw (onTap is null → GestureDetector no-ops).
+        await expectLater(
+          () async {
+            await tester.tap(find.byType(SettingsGlassButton));
+            await tester.pump();
+          },
+          returnsNormally,
+        );
+      },
+    );
 
     testWidgets('BottomNavShell tab switch updates selected index', (
       tester,
@@ -159,14 +161,15 @@ void main() {
     });
 
     testWidgets(
-        'without navigationShell, _LocalBottomNav fallback is used (standalone)',
-        (tester) async {
-      // When MapScreen is constructed without navigationShell, the screen
-      // uses the self-managed _LocalBottomNav which renders a BottomNavShell.
-      await pumpMapScreen(tester);
+      'without navigationShell, _LocalBottomNav fallback is used (standalone)',
+      (tester) async {
+        // When MapScreen is constructed without navigationShell, the screen
+        // uses the self-managed _LocalBottomNav which renders a BottomNavShell.
+        await pumpMapScreen(tester);
 
-      // BottomNavShell is present (from _LocalBottomNav).
-      expect(find.byType(BottomNavShell), findsOneWidget);
-    });
+        // BottomNavShell is present (from _LocalBottomNav).
+        expect(find.byType(BottomNavShell), findsOneWidget);
+      },
+    );
   });
 }

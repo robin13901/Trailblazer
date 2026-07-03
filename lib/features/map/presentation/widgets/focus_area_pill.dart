@@ -19,9 +19,9 @@ class FocusAreaPill extends StatelessWidget {
         child: Text(
           '—',
           style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                fontWeight: FontWeight.w500,
-                fontSize: 14,
-              ),
+            fontWeight: FontWeight.w500,
+            fontSize: 14,
+          ),
         ),
       ),
     );

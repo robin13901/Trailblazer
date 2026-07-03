@@ -75,65 +75,74 @@ void main() {
     });
   });
 
-  group('GlassPill — liquid glass path (platformSupportsBlurOverMap = true)', () {
-    setUp(() {
-      LiquidGlassSettings.platformBlurEnabled = true;
-    });
+  group(
+    'GlassPill — liquid glass path (platformSupportsBlurOverMap = true)',
+    () {
+      setUp(() {
+        LiquidGlassSettings.platformBlurEnabled = true;
+      });
 
-    testWidgets('renders LiquidGlass when flag is true', (tester) async {
-      await pumpGlass(tester, const GlassPill(child: Text('X')));
+      testWidgets('renders LiquidGlass when flag is true', (tester) async {
+        await pumpGlass(tester, const GlassPill(child: Text('X')));
 
-      expect(find.byType(lg.LiquidGlass), findsOneWidget);
-      expect(find.byType(GlassPillFallback), findsNothing);
-    });
+        expect(find.byType(lg.LiquidGlass), findsOneWidget);
+        expect(find.byType(GlassPillFallback), findsNothing);
+      });
 
-    testWidgets('wraps LiquidGlass in a LiquidGlassLayer', (tester) async {
-      await pumpGlass(tester, const GlassPill(child: Text('X')));
+      testWidgets('wraps LiquidGlass in a LiquidGlassLayer', (tester) async {
+        await pumpGlass(tester, const GlassPill(child: Text('X')));
 
-      expect(find.byType(lg.LiquidGlassLayer), findsOneWidget);
-    });
-  });
+        expect(find.byType(lg.LiquidGlassLayer), findsOneWidget);
+      });
+    },
+  );
 
-  group('GlassCircle — fallback path (platformSupportsBlurOverMap = false)', () {
-    setUp(() {
-      LiquidGlassSettings.platformBlurEnabled = false;
-    });
+  group(
+    'GlassCircle — fallback path (platformSupportsBlurOverMap = false)',
+    () {
+      setUp(() {
+        LiquidGlassSettings.platformBlurEnabled = false;
+      });
 
-    testWidgets('renders GlassCircleFallback when flag is false', (
-      tester,
-    ) async {
-      await pumpGlass(
+      testWidgets('renders GlassCircleFallback when flag is false', (
         tester,
-        const GlassCircle(size: 44, child: Icon(Icons.settings_outlined)),
-      );
+      ) async {
+        await pumpGlass(
+          tester,
+          const GlassCircle(size: 44, child: Icon(Icons.settings_outlined)),
+        );
 
-      expect(find.byType(GlassCircleFallback), findsOneWidget);
-      expect(find.byType(lg.LiquidGlass), findsNothing);
-    });
+        expect(find.byType(GlassCircleFallback), findsOneWidget);
+        expect(find.byType(lg.LiquidGlass), findsNothing);
+      });
 
-    testWidgets('does not use BackdropFilter', (tester) async {
-      await pumpGlass(
-        tester,
-        const GlassCircle(size: 44, child: Icon(Icons.settings_outlined)),
-      );
+      testWidgets('does not use BackdropFilter', (tester) async {
+        await pumpGlass(
+          tester,
+          const GlassCircle(size: 44, child: Icon(Icons.settings_outlined)),
+        );
 
-      expect(find.byType(BackdropFilter), findsNothing);
-    });
-  });
+        expect(find.byType(BackdropFilter), findsNothing);
+      });
+    },
+  );
 
-  group('GlassCircle — liquid glass path (platformSupportsBlurOverMap = true)', () {
-    setUp(() {
-      LiquidGlassSettings.platformBlurEnabled = true;
-    });
+  group(
+    'GlassCircle — liquid glass path (platformSupportsBlurOverMap = true)',
+    () {
+      setUp(() {
+        LiquidGlassSettings.platformBlurEnabled = true;
+      });
 
-    testWidgets('renders LiquidGlass when flag is true', (tester) async {
-      await pumpGlass(
-        tester,
-        const GlassCircle(size: 44, child: Icon(Icons.settings_outlined)),
-      );
+      testWidgets('renders LiquidGlass when flag is true', (tester) async {
+        await pumpGlass(
+          tester,
+          const GlassCircle(size: 44, child: Icon(Icons.settings_outlined)),
+        );
 
-      expect(find.byType(lg.LiquidGlass), findsOneWidget);
-      expect(find.byType(GlassCircleFallback), findsNothing);
-    });
-  });
+        expect(find.byType(lg.LiquidGlass), findsOneWidget);
+        expect(find.byType(GlassCircleFallback), findsNothing);
+      });
+    },
+  );
 }

@@ -26,7 +26,9 @@ class GlassCircle extends StatelessWidget {
     final radius = size / 2;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final tint = isDark ? settings.darkGlassTint : settings.lightGlassTint;
-    final border = isDark ? settings.darkGlassBorder : settings.lightGlassBorder;
+    final border = isDark
+        ? settings.darkGlassBorder
+        : settings.lightGlassBorder;
 
     if (settings.platformSupportsBlurOverMap) {
       return SizedBox(

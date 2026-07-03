@@ -35,5 +35,5 @@ class LocationPermissionNotifier extends AsyncNotifier<PermissionStatus> {
 /// Provider for the current [PermissionStatus] of `locationWhenInUse`.
 final locationPermissionProvider =
     AsyncNotifierProvider<LocationPermissionNotifier, PermissionStatus>(
-  LocationPermissionNotifier.new,
-);
+      LocationPermissionNotifier.new,
+    );

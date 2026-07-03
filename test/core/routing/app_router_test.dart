@@ -14,8 +14,7 @@ import '../../helpers/fake_maplibre_platform.dart';
 
 /// Stub notifier that returns [PermissionStatus.granted] without calling
 /// the permission_handler platform channel.
-class _FakeLocationPermissionNotifier
-    extends AsyncNotifier<PermissionStatus>
+class _FakeLocationPermissionNotifier extends AsyncNotifier<PermissionStatus>
     implements LocationPermissionNotifier {
   @override
   Future<PermissionStatus> build() async => PermissionStatus.granted;
@@ -66,8 +65,9 @@ void main() {
     expect(find.text('Welcome to Trailblazer'), findsNothing);
   });
 
-  testWidgets('second launch: skips onboarding, lands on map shell',
-      (tester) async {
+  testWidgets('second launch: skips onboarding, lands on map shell', (
+    tester,
+  ) async {
     // Pre-set the onboarding_done flag to simulate a repeat launch.
     final repo = OnboardingFlagRepository(SharedPreferencesAsync());
     await repo.markDone();

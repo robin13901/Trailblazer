@@ -23,5 +23,5 @@ class MapControllerNotifier extends Notifier<MapLibreMapController?> {
 /// creation or after disposal.
 final mapControllerProvider =
     NotifierProvider<MapControllerNotifier, MapLibreMapController?>(
-  MapControllerNotifier.new,
-);
+      MapControllerNotifier.new,
+    );

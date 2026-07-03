@@ -25,8 +25,8 @@ String assetForBrightness(Brightness b) =>
 class MapStyleAssetNotifier extends Notifier<String> {
   @override
   String build() => assetForBrightness(
-        PlatformDispatcher.instance.platformBrightness,
-      );
+    PlatformDispatcher.instance.platformBrightness,
+  );
 
   /// Called from MapWidget's [WidgetsBindingObserver] when system brightness
   /// changes. Updates the stored asset path so watchers reflect the new style.
@@ -39,7 +39,6 @@ class MapStyleAssetNotifier extends Notifier<String> {
 ///
 /// Derived from system brightness; updated by the map widget via
 /// [MapStyleAssetNotifier.updateFromBrightness].
-final mapStyleAssetProvider =
-    NotifierProvider<MapStyleAssetNotifier, String>(
+final mapStyleAssetProvider = NotifierProvider<MapStyleAssetNotifier, String>(
   MapStyleAssetNotifier.new,
 );
