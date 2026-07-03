@@ -73,7 +73,14 @@ Additional research-recommended spikes: HMM parameter tuning + golden corpus rec
   3. Blue location dot appears on the map when location permission is granted; camera position (last lat/lng/zoom) persists across app restarts.
   4. Dark mode style switches automatically with system theme via the project-owned style JSON asset.
   5. Liquid Glass shell — focus-area pill placeholder, bottom nav pill, FAB, overlay panels — renders on real iOS + Android without release-mode jank, or the documented fallback (per Gate G1) is active.
-**Plans:** TBD (5–8)
+**Plans:** 7 plans
+  - [ ] 02-01-g1-rendering-spike-PLAN.md — G1 spike: LiquidGlass over MapLibre on real devices; set platformSupportsBlurOverMap
+  - [ ] 02-02-pmtiles-base-map-PLAN.md — MapLibre + bundled PMTiles + light/dark style JSONs + MapWidget
+  - [ ] 02-03-location-and-camera-PLAN.md — permission_handler, blue dot, CameraState/FollowMode (Phase-3-ready), recenter
+  - [ ] 02-04-dark-mode-style-switch-PLAN.md — brightness observer + setStyle crossfade + ThemeMode.system
+  - [ ] 02-05-liquid-glass-shell-PLAN.md — GlassPill/Circle branching on G1 flag; focus pill, FAB, settings button, bottom nav
+  - [ ] 02-06-router-shell-refactor-PLAN.md — StatefulShellRoute.indexedStack with 3 tabs + /settings
+  - [ ] 02-07-phase-verification-PLAN.md — real-device smoke test + SC1-SC5 verification + STATE/ROADMAP close-out
 
 ### Phase 3: Tracking MVP
 **Goal:** The app records trips automatically and manually, in the background, on both platforms, with battery baseline established.
@@ -191,7 +198,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Scaffolding | 7/7 | ✓ Complete | 2026-07-03 |
-| 2. Map + Glass Shell | 0/TBD | Not started | - |
+| 2. Map + Glass Shell | 0/7 | Not started | - |
 | 3. Tracking MVP | 0/TBD | Not started | - |
 | 4. OSM Pipeline | 0/TBD | Not started | - |
 | 5. OSM DB + Matcher | 0/TBD | Not started | - |
