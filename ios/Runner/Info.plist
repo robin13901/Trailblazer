@@ -45,5 +45,24 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<!-- ==== Auto-Explore permission strings ==== -->
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Auto-Explore records your route while you drive to show which roads you've explored.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>Auto-Explore records trips in the background so you never miss a road you've driven.</string>
+	<key>NSLocationAlwaysUsageDescription</key>
+	<string>Auto-Explore needs Always location access to record trips while your phone is locked.</string>
+	<key>NSMotionUsageDescription</key>
+	<string>Auto-Explore uses motion sensors to detect when you start and stop driving.</string>
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>Auto-Explore can use your car's Bluetooth connection to automatically detect which vehicle you're driving.</string>
+	<key>NSBluetoothCentralUsageDescription</key>
+	<string>Auto-Explore can use Bluetooth to detect your vehicle.</string>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>location</string>
+		<string>bluetooth-central</string>
+	</array>
+	<!-- ==== end Auto-Explore ==== -->
 </dict>
 </plist>
