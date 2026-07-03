@@ -9,12 +9,12 @@ See: .planning/PROJECT.md (updated 2026-07-02)
 
 ## Current Position
 
-Phase: 1 of 11 (Scaffolding) — **COMPLETE ✓ (verified 2026-07-03, incl. real-device install)**
-Plan: 7/7 plans + phase-completion housekeeping done
-Status: Ready to plan Phase 2
-Last activity: 2026-07-03 — Phase 1 verified (5/5 must-haves, incl. real-device launch confirmed by user); display-name rename Auto-Explore → Trailblazer; built-in Kotlin migration deferred with documented gradle.properties comment block
+Phase: 2 of 11 (Map + Glass Shell) — **IN PROGRESS**
+Plan: 1/7 plans in Phase 2 done (02-01 G1 spike — conditional PASS)
+Status: G1 gate resolved (`platformBlurEnabled = true`), ready for Plan 02-02 (PMTiles integration)
+Last activity: 2026-07-03 — Completed Plan 02-01 G1 rendering spike; user confirmed Android LiquidGlass render on SM S921B; re-verification pending in 02-02
 
-Progress: [█░░░░░░░░░] ~9.1% (7/77 est. plans overall — Phase 1: 7/7; other phases TBD)
+Progress: [█░░░░░░░░░] ~10.4% (8/77 est. plans overall — Phase 1: 7/7; Phase 2: 1/7)
 
 ## Performance Metrics
 
@@ -75,6 +75,9 @@ Key locked-in decisions affecting current work:
 - **Phase 1 close-out (2026-07-03):** Real-device install smoke test confirmed by user on Android — SC5 fully verified. Widget test remains authoritative for CI regressions.
 - **Phase 1 close-out (2026-07-03):** Display name rename Auto-Explore → Trailblazer applied to Dart layer (MaterialApp title, splash/onboarding/home screens, test assertions), iOS `CFBundleDisplayName` + 6 permission strings, Android `android:label`. Internal identifiers preserved: Dart package `auto_explore`, iOS bundle prefix `de.autoexplore`, Android applicationId `de.autoexplore.auto_explore` — those are stable IDs linked to Codecov/GitHub/future store listings.
 - **Phase 1 close-out (2026-07-03):** Built-in Kotlin migration deferred. Flutter 3.44 auto-added `android.builtInKotlin=false` and `android.newDsl=false` to `gradle.properties`, silencing the deprecation warning. Full migration requires AGP 9.0+ (we're on 8.11.1); recipe documented inline in `gradle.properties` for when we bump AGP.
+- **Plan 02-01 (2026-07-03):** G1 gate resolved — `LiquidGlassSettings.platformSupportsBlurOverMap = true` on both platforms. Android (SM S921B, Impeller) confirmed via SpikeG1Screen: `liquid_glass_renderer` shaders compile and render correctly; refraction visible in top pill. iOS: not device-tested, defaulted to `true` (`liquid_glass_renderer` is iOS-designed). BackdropFilter over PlatformView remains broken on Android (issue #185497) — confirmed via spike; unused going forward. Conditional PASS: full over-platform-view verification deferred to end of Plan 02-02 (real PMTiles-backed map). Fallback path in `LiquidGlassSettings` retained as defensive code. Full record: `docs/G1_SPIKE.md`. Downstream glass shell (02-05) branches on this flag.
+- **Plan 02-01 (2026-07-03):** `LiquidGlassSettings` API deviated from plan sketch — the proposed `setPlatformSupportsBlurOverMap(value: ...)` method refactored to a public static field/getter pair `platformBlurEnabled` to satisfy the `very_good_analysis` `use_setters_to_change_properties` / `unnecessary_getters_setters` lint pair. Wire-up in `main.dart` is `LiquidGlassSettings.platformBlurEnabled = true;`. Instance reads still go through `LiquidGlassSettings.instance.platformSupportsBlurOverMap` (unchanged public surface for downstream widgets).
+- **Plan 02-01 (2026-07-03):** `LiquidRoundedSuperellipse.borderRadius` is a plain `double` in `liquid_glass_renderer` 0.2.0-dev.4, not a `Radius`. Corrected in `spike_g1_screen.dart`; downstream 02-05 code must use the same signature.
 
 ### Pending Todos
 
@@ -85,10 +88,12 @@ Key locked-in decisions affecting current work:
 - **Phase 2 handoff (from Plan 01-03):** Replace `/` (`PlaceholderHomeScreen`) with a `StatefulShellRoute` + real map view; keep splash/onboarding untouched.
 - **Phase 2 handoff (post-close-out):** When we bump AGP to 9.0+, remove `kotlin-android` plugin + `kotlinOptions{}` block from `android/app/build.gradle.kts` and add top-level `kotlin { compilerOptions { jvmTarget = JvmTarget.JVM_17 } }`. Then flip both flags in `android/gradle.properties` to `true` (or delete them). Recipe is inline in the file.
 - **Phase 2 handoff (post-close-out):** One-time manual `workflow_dispatch` trigger of `iOS Build` from GitHub Actions UI to observe a green macOS run.
+- **Plan 02-02 (G1 re-verify):** At end of 02-02, visually verify LiquidGlass renders correctly over the real bundled-PMTiles MapLibre map on Android (SM S921B). If it fails, flip `LiquidGlassSettings.platformBlurEnabled` to `false` and document in `docs/G1_SPIKE.md` as a full G1 fallback.
+- **Plan 02-02 (SkSL warnings + demotiles):** `demotiles.maplibre.org` URL did not load tiles during the G1 spike — verify that our bundled PMTiles + local style JSON pipeline works end-to-end (this is what 02-02 exists to do, but flag the G1 spike observation so we don't chase the wrong root cause).
 
 ### Blockers/Concerns
 
-- **G1 (P2):** `BackdropFilter` behavior over MapLibre platform view on Impeller must be validated on real iOS + Android before full glass commitment. Fallback path documented.
+- **G1 (P2):** **RESOLVED (conditional PASS) 2026-07-03** — `platformBlurEnabled = true` on both platforms. Android device-verified (SM S921B, Impeller); iOS defaulted to `true` (not device-tested). Full over-platform-view re-verification pending at end of Plan 02-02 — see `docs/G1_SPIKE.md`.
 - **G2 (P7):** `maplibre_gl` ^0.26.2 `setFeatureState` support unverified. Sharded-GeoJSON fallback stands by.
 - **HMM accuracy (P5):** Requires ≥ 20-trip golden corpus recorded in real driving before matcher can pass CI regression.
 - **Lint gap (P1):** `custom_lint` + `riverpod_lint` temporarily out (see decisions). Regular analyzer + `very_good_analysis` still enforce style + correctness; Riverpod-specific misuse detection is on hold.
@@ -96,6 +101,6 @@ Key locked-in decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-07-03 (Phase 1 close-out — verification, display-name rename, Kotlin migration deferral)
-Stopped at: Phase 1 (Scaffolding) COMPLETE (7/7 plans + verification passed + real-device confirmed + housekeeping)
-Resume file: None — next step is `/gsd:plan-phase 2` (Map + Glass Shell) after `/clear` for a fresh context window
+Last session: 2026-07-03 (Plan 02-01 G1 rendering spike — conditional PASS)
+Stopped at: Completed 02-01-PLAN.md (G1 gate resolved: `platformBlurEnabled = true` on both platforms)
+Resume file: None — next step is Plan 02-02 (MapLibre + PMTiles integration), which must also re-verify LiquidGlass renders correctly over the real map platform view

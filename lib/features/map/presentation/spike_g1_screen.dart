@@ -1,5 +1,7 @@
-// SPIKE SCREEN — not wired into router; see docs/G1_SPIKE.md
-// Temporary bypass in main.dart during Task 3 checkpoint (NOT committed).
+// SPIKE SCREEN — not wired into router; see docs/G1_SPIKE.md.
+// Re-runnable diagnostic: temporarily bypass main.dart to boot this screen
+// directly if the G1 decision needs re-verification on a new device or
+// after a Flutter / liquid_glass_renderer upgrade.
 
 import 'dart:ui' as ui;
 
