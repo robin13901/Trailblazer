@@ -1,0 +1,61 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  lint-and-test:
+    name: Lint + Test + Coverage
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        # actions/checkout@v4 automatically handles the pull-request ref
+        # (checks out the merge commit for PR events) — no extra config required.
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.44.4
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Verify formatting
+        run: dart format --set-exit-if-changed .
+
+      - name: Analyze
+        run: flutter analyze --fatal-infos
+
+      # Codegen (drift + riverpod parts) — must exist before tests import them.
+      - name: Run build_runner
+        run: dart run build_runner build --delete-conflicting-outputs
+
+      # Regenerate migration helpers (gitignored per Plan 02).
+      - name: Generate Drift migration helpers
+        run: |
+          mkdir -p test/generated_migrations
+          dart run drift_dev schema generate drift_schemas/ test/generated_migrations/
+
+      - name: Run tests with coverage
+        run: flutter test --coverage
+
+      - name: Strip generated files from coverage
+        run: |
+          dart pub run remove_from_coverage \
+            -f coverage/lcov.info \
+            -r '\.g\.dart$' \
+            -r '\.freezed\.dart$' \
+            -r '\.drift\.dart$' \
+            -r 'test/generated_migrations'
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          files: ./coverage/lcov.info
+          token: ${{ secrets.CODECOV_TOKEN }}
+          fail_ci_if_error: false

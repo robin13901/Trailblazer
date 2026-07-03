@@ -1,0 +1,18 @@
+# Codecov project config — no hard gate per CONTEXT.md decision.
+coverage:
+  status:
+    project:
+      default:
+        target: auto
+        threshold: 100%   # Effectively disables the project gate.
+    patch:
+      default:
+        target: auto
+        threshold: 100%
+
+ignore:
+  - "**/*.g.dart"
+  - "**/*.freezed.dart"
+  - "**/*.drift.dart"
+  - "test/generated_migrations/**"
+  - "lib/**/*.g.dart"
