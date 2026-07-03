@@ -10,11 +10,11 @@ See: .planning/PROJECT.md (updated 2026-07-02)
 ## Current Position
 
 Phase: 2 of 11 (Map + Glass Shell) — **IN PROGRESS**
-Plan: 2/7 plans in Phase 2 done (02-02 PMTiles base map — COMPLETE)
-Status: MapWidget + MapScreen + bundled PMTiles + style JSONs + tests all green
-Last activity: 2026-07-03 — Completed Plan 02-02 PMTiles base map; ready for Plan 02-03 (location)
+Plan: 3/7 plans in Phase 2 done (02-03 location + camera — COMPLETE)
+Status: Location permission + CameraState + FollowMode + RecenterButton + onboarding wiring all green
+Last activity: 2026-07-03 — Completed Plan 02-03 (location + camera state); ready for Plan 02-04 (dark mode)
 
-Progress: [█░░░░░░░░░] ~11.7% (9/77 est. plans overall — Phase 1: 7/7; Phase 2: 2/7)
+Progress: [█░░░░░░░░░] ~13% (10/77 est. plans overall — Phase 1: 7/7; Phase 2: 3/7)
 
 ## Performance Metrics
 
@@ -82,6 +82,13 @@ Key locked-in decisions affecting current work:
 - **Plan 02-02 (2026-07-03):** `maplibre_gl_platform_interface: ^0.26.2` added as `dev_dependency` so tests can subclass `MapLibrePlatform` directly (re-export from `maplibre_gl` is too limited); `depend_on_referenced_packages` lint satisfied.
 - **Plan 02-02 (2026-07-03):** `MapWidget` states only `tiltGesturesEnabled: false` explicitly — all other `MapLibreMap` gesture flags are defaults and omitted per `avoid_redundant_argument_values`. `_controller` field removed from `_MapWidgetState` (unused in Phase 2); `onMapCreated` still forwarded inline via `widget.onMapCreated?.call(c)`.
 - **Plan 02-02 (2026-07-03):** PMTiles style referenced via bare asset path string in `MapLibreMap.styleString` (e.g. `'assets/map_style_light.json'`) — NOT `asset://...`. PMTiles source declared in style JSON via `"pmtiles://assets/tiles/dev_berlin.pmtiles"` URL, NOT at runtime via `controller.addSource()` (Pitfall 1 avoided).
+- **Plan 02-03 (2026-07-03):** `permission_handler: ^12.0.3` added. `meta: ^1.16.0` promoted to direct dep to satisfy `depend_on_referenced_packages` lint when using `@immutable` in `CameraState`.
+- **Plan 02-03 (2026-07-03):** `MapControllerNotifier` exposes `controller` getter+setter (not `attach`/`detach` methods) to satisfy the `use_setters_to_change_properties` vs `avoid_setters_without_getters` lint cycle (same pattern as `LiquidGlassSettings.platformBlurEnabled` in Plan 02-01).
+- **Plan 02-03 (2026-07-03):** `myLocationRenderMode` is gated on `isGranted`: `compass` only when `myLocationEnabled=true` — `MapLibreMap` asserts this constraint at construction time.
+- **Plan 02-03 (2026-07-03):** Riverpod `ref` must NOT be used in `ConsumerStatefulWidget.dispose()` after unmount. Safe pattern: cache `ref.read(provider.notifier)` in `initState`, use cached reference in `dispose()`.
+- **Plan 02-03 (2026-07-03):** `FakeLocationPermissionNotifier` pattern: `AsyncNotifier` stub injected via `ProviderScope.overrides` for all tests that use `OnboardingScreen` or `MapWidget`. Prevents `MissingPluginException` from `permission_handler` platform channel. Used in `app_router_test` and `map_widget_test`.
+- **Plan 02-03 (2026-07-03):** `Logger('onboarding')` used directly — no `AppLogger.instance` class. Phase 1 logging API is `setupLogging()` + standard `logging.Logger` usage.
+- **Plan 02-03 (2026-07-03):** `FollowMode.locationAndHeading` slot reserved for Phase 3 heading-lock. Phase 3 wires it to `MyLocationTrackingMode.trackingCompass`; no changes to `CameraState` or `CameraStateNotifier.setFollowMode` needed.
 
 ### Pending Todos
 
@@ -106,6 +113,6 @@ Key locked-in decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-07-03 (Plan 02-02 PMTiles base map — COMPLETE)
-Stopped at: Completed 02-02-PLAN.md (MapWidget + MapScreen + tests; flutter analyze clean, 21/21 tests green)
-Resume file: None — next step is Plan 02-03 (location + permission)
+Last session: 2026-07-03 (Plan 02-03 location + camera — COMPLETE)
+Stopped at: Completed 02-03-PLAN.md (location permission + CameraState + providers + RecenterButton; flutter analyze clean, all tests green)
+Resume file: None — next step is Plan 02-04 (dark mode)
