@@ -12,7 +12,7 @@ Depth: **comprehensive** — 11 phases, driven by the 119 v1 requirements (FND, 
 - Integer phases (1–11): Planned milestone work
 - Decimal phases (e.g. 2.1): Urgent insertions if research spikes uncover blockers
 
-- [ ] **Phase 1: Scaffolding** — CI, lints, App DB skeleton, routing, error/logging, permission plumbing
+- [x] **Phase 1: Scaffolding** — CI, lints, App DB skeleton, routing, error/logging, permission plumbing
 - [ ] **Phase 2: Map + Glass Shell** — MapLibre + PMTiles + Liquid Glass chrome (rendering spike gate)
 - [ ] **Phase 3: Tracking MVP** — background GPS + motion state machine + manual/auto trip capture
 - [ ] **Phase 4: OSM Pipeline** — dev-machine PBF → slim `osm.sqlite` + `germany-base.pmtiles`
@@ -55,13 +55,13 @@ Additional research-recommended spikes: HMM parameter tuning + golden corpus rec
   4. App DB opens with Drift migration infrastructure intact and SchemaVerifier tests pass for every defined migration step.
   5. Empty app launches on iOS + Android using declared Info.plist purpose strings and Android manifest `foregroundServiceType="location"` without crashing.
 **Plans:** 7 plans
-  - [ ] 01-flutter-project-bootstrap-PLAN.md — flutter create, pubspec, analysis_options, ProviderScope entry point
-  - [ ] 02-drift-app-db-schema-PLAN.md — full v1 Drift schema (7 tables) + MigrationStrategy + SchemaVerifier tests
-  - [ ] 03-go-router-shell-PLAN.md — go_router config + splash/onboarding/placeholder-home flow (first-launch flag)
-  - [ ] 04-error-logging-infra-PLAN.md — AppLogger + FlutterError/PlatformDispatcher hooks + sealed DomainError + Result<T>
-  - [ ] 05-platform-permissions-manifest-PLAN.md — iOS Info.plist purpose strings + Android manifest permissions + FGS skeleton
-  - [ ] 06-github-actions-ci-PLAN.md — ci.yml + ios-build.yml + codecov.yml (autonomous: false — Codecov token human-action)
-  - [ ] 07-readme-and-docs-PLAN.md — README with badges + docs/ARCHITECTURE.md
+  - [x] 01-flutter-project-bootstrap-PLAN.md — flutter create, pubspec, analysis_options, ProviderScope entry point
+  - [x] 02-drift-app-db-schema-PLAN.md — full v1 Drift schema (7 tables) + MigrationStrategy + SchemaVerifier tests
+  - [x] 03-go-router-shell-PLAN.md — go_router config + splash/onboarding/placeholder-home flow (first-launch flag)
+  - [x] 04-error-logging-infra-PLAN.md — AppLogger + FlutterError/PlatformDispatcher hooks + sealed DomainError + Result<T>
+  - [x] 05-platform-permissions-manifest-PLAN.md — iOS Info.plist purpose strings + Android manifest permissions + FGS skeleton
+  - [x] 06-github-actions-ci-PLAN.md — ci.yml + ios-build.yml + codecov.yml (autonomous: false — Codecov token human-action)
+  - [x] 07-readme-and-docs-PLAN.md — README with badges + docs/ARCHITECTURE.md
 
 ### Phase 2: Map + Glass Shell
 **Goal:** A map screen with Liquid Glass chrome renders fluidly on both platforms; the rendering spike gate (G1) has been resolved.
@@ -190,7 +190,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Scaffolding | 0/7 | Not started | - |
+| 1. Scaffolding | 7/7 | ✓ Complete | 2026-07-03 |
 | 2. Map + Glass Shell | 0/TBD | Not started | - |
 | 3. Tracking MVP | 0/TBD | Not started | - |
 | 4. OSM Pipeline | 0/TBD | Not started | - |

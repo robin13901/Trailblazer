@@ -7,17 +7,17 @@
 
 ### Foundation & CI (FND)
 
-- [ ] **FND-01**: Flutter project skeleton (iOS + Android only) with feature-first structure (`lib/features/`, `lib/core/`, `tool/`)
-- [ ] **FND-02**: `very_good_analysis` lints + `dart format --set-exit-if-changed` enforced in CI
-- [ ] **FND-03**: GitHub Actions test workflow runs `flutter analyze` + `flutter test --coverage` on push/PR
-- [ ] **FND-04**: Codecov integration: coverage report uploaded, generated files (`.g.dart`, `l10n/`) stripped before upload
-- [ ] **FND-05**: GitHub Actions iOS build workflow produces installable `.ipa` (unsigned initially)
-- [ ] **FND-06**: README with project description, architecture summary, build/test/CI badges
-- [ ] **FND-07**: Riverpod 3.x set up as sole state-management approach; DI via provider composition, no singleton `.instance`
-- [ ] **FND-08**: Drift App DB (mutable) scaffolded with migration infrastructure and `SchemaVerifier` tests
-- [ ] **FND-09**: `go_router` configured for typed navigation between top-level screens
-- [ ] **FND-10**: Logging, error boundaries, and typed exceptions in `lib/core/`
-- [ ] **FND-11**: iOS Info.plist purpose strings + Android manifest with `foregroundServiceType="location"` scaffolded from day one
+- [x] **FND-01**: Flutter project skeleton (iOS + Android only) with feature-first structure (`lib/features/`, `lib/core/`, `tool/`)
+- [x] **FND-02**: `very_good_analysis` lints + `dart format --set-exit-if-changed` enforced in CI
+- [x] **FND-03**: GitHub Actions test workflow runs `flutter analyze` + `flutter test --coverage` on push/PR
+- [x] **FND-04**: Codecov integration: coverage report uploaded, generated files (`.g.dart`, `l10n/`) stripped before upload
+- [x] **FND-05**: GitHub Actions iOS build workflow produces installable `.ipa` (unsigned initially)
+- [x] **FND-06**: README with project description, architecture summary, build/test/CI badges
+- [x] **FND-07**: Riverpod 3.x set up as sole state-management approach; DI via provider composition, no singleton `.instance`
+- [x] **FND-08**: Drift App DB (mutable) scaffolded with migration infrastructure and `SchemaVerifier` tests
+- [x] **FND-09**: `go_router` configured for typed navigation between top-level screens
+- [x] **FND-10**: Logging, error boundaries, and typed exceptions in `lib/core/`
+- [x] **FND-11**: iOS Info.plist purpose strings + Android manifest with `foregroundServiceType="location"` scaffolded from day one
 
 ### Map Display (MAP)
 
@@ -163,9 +163,9 @@
 
 - [ ] **QUA-01**: All feature modules have widget tests for their key screens (Map, Trip Inbox, Vehicle List, Region List, Focus-Area Pill)
 - [ ] **QUA-02**: Core map-matcher has ≥ 90% line coverage; golden-trip regression suite in CI
-- [ ] **QUA-03**: Drift migration tests use `SchemaVerifier` to validate every migration step
+- [x] **QUA-03**: Drift migration tests use `SchemaVerifier` to validate every migration step
 - [ ] **QUA-04**: `patrol` integration tests cover: onboarding flow, first trip recording, inbox confirmation, matching → coverage update, region browser
-- [ ] **QUA-05**: iOS + Android debug builds succeed in CI
+- [x] **QUA-05**: iOS + Android debug builds succeed in CI
 - [ ] **QUA-06**: 60-minute driving battery-drain baseline (measured on real device) committed to repo; regression on major changes flagged
 - [ ] **QUA-07**: Real-device QA gauntlet before release: iPhone (current + one older), Samsung, Xiaomi (worst-case battery-killer)
 
@@ -244,17 +244,17 @@ Every requirement maps to exactly one phase. Phase Gates in ROADMAP.md carry two
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| FND-01 | Phase 1: Scaffolding | Pending |
-| FND-02 | Phase 1: Scaffolding | Pending |
-| FND-03 | Phase 1: Scaffolding | Pending |
-| FND-04 | Phase 1: Scaffolding | Pending |
-| FND-05 | Phase 1: Scaffolding | Pending |
-| FND-06 | Phase 1: Scaffolding | Pending |
-| FND-07 | Phase 1: Scaffolding | Pending |
-| FND-08 | Phase 1: Scaffolding | Pending |
-| FND-09 | Phase 1: Scaffolding | Pending |
-| FND-10 | Phase 1: Scaffolding | Pending |
-| FND-11 | Phase 1: Scaffolding | Pending |
+| FND-01 | Phase 1: Scaffolding | Complete |
+| FND-02 | Phase 1: Scaffolding | Complete |
+| FND-03 | Phase 1: Scaffolding | Complete |
+| FND-04 | Phase 1: Scaffolding | Complete |
+| FND-05 | Phase 1: Scaffolding | Complete |
+| FND-06 | Phase 1: Scaffolding | Complete |
+| FND-07 | Phase 1: Scaffolding | Complete |
+| FND-08 | Phase 1: Scaffolding | Complete |
+| FND-09 | Phase 1: Scaffolding | Complete |
+| FND-10 | Phase 1: Scaffolding | Complete |
+| FND-11 | Phase 1: Scaffolding | Complete |
 | MAP-01 | Phase 2: Map + Glass Shell | Pending |
 | MAP-02 | Phase 2: Map + Glass Shell | Pending |
 | MAP-03 | Phase 2: Map + Glass Shell | Pending |
@@ -358,12 +358,12 @@ Every requirement maps to exactly one phase. Phase Gates in ROADMAP.md carry two
 | SET-09 | Phase 10: Settings + Backup | Pending |
 | QUA-01 | Phase 11: Hardening | Pending |
 | QUA-02 | Phase 5: OSM DB + Matcher | Pending |
-| QUA-03 | Phase 1: Scaffolding | Pending |
+| QUA-03 | Phase 1: Scaffolding | Complete |
 | QUA-04 | Phase 11: Hardening | Pending |
-| QUA-05 | Phase 1: Scaffolding | Pending |
+| QUA-05 | Phase 1: Scaffolding | Complete |
 | QUA-06 | Phase 3: Tracking MVP | Pending |
 | QUA-07 | Phase 11: Hardening | Pending |
 
 ---
 *Requirements defined: 2026-07-02*
-*Last updated: 2026-07-02 — Traceability populated; 119 v1 requirements mapped 1:1 to 11 phases*
+*Last updated: 2026-07-03 — Phase 1 (Scaffolding) complete; 13 requirements (FND-01..11, QUA-03, QUA-05) moved to Complete*

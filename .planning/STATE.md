@@ -5,16 +5,16 @@
 See: .planning/PROJECT.md (updated 2026-07-02)
 
 **Core value:** When I open the map, I immediately see the roads I've already driven, painted onto the world — and that view keeps pulling me back to explore more.
-**Current focus:** Phase 1 — Scaffolding
+**Current focus:** Phase 2 — Map + Glass Shell (Phase 1 complete + verified)
 
 ## Current Position
 
-Phase: 1 of 11 (Scaffolding)
-Plan: Plans 01, 02, 03, 04, 05, 06, 07 committed (7 of 7 in current phase)
-Status: Phase complete — ready for `/gsd:verify-work` phase-level verification
-Last activity: 2026-07-03 — Completed 01-07 readme-and-docs; README + docs/ARCHITECTURE.md landed with real robin13901/Trailblazer badge URLs
+Phase: 1 of 11 (Scaffolding) — **COMPLETE ✓ (verified 2026-07-03, incl. real-device install)**
+Plan: 7/7 plans + phase-completion housekeeping done
+Status: Ready to plan Phase 2
+Last activity: 2026-07-03 — Phase 1 verified (5/5 must-haves, incl. real-device launch confirmed by user); display-name rename Auto-Explore → Trailblazer; built-in Kotlin migration deferred with documented gradle.properties comment block
 
-Progress: [█░░░░░░░░░] ~9.1% (7/77 est. plans overall — Phase 1 sizing: 7 plans done; other phases TBD)
+Progress: [█░░░░░░░░░] ~9.1% (7/77 est. plans overall — Phase 1: 7/7; other phases TBD)
 
 ## Performance Metrics
 
@@ -72,6 +72,9 @@ Key locked-in decisions affecting current work:
 - **Plan 01-07 (2026-07-03):** README title uses the product name **Trailblazer**; Dart package name remains `auto_explore` in `pubspec.yaml` (legacy working title). One-liner in README calls this out to prevent import-path confusion.
 - **Plan 01-07 (2026-07-03):** README + `docs/ARCHITECTURE.md` deliberately overrode 15 stale plan-template details to match actual Phase 1 state (repo slug, branch, dropped lints, iOS artifact type, iOS manual trigger, Android-local-only, codegen ordering, package imports, alphabetized deps, FK cascades, business-key PKs, `PlatformDispatcher` return value, onboarding-in-splash decision, `permission_handler` not-yet-added, FGS placeholder class, `NSBluetoothPeripheralUsageDescription` skip). All 15 sourced from prior SUMMARY files / STATE decisions.
 - **Plan 01-07 (2026-07-03):** Anti-patterns table pattern established (vs prior projects) — reusable for future phase docs.
+- **Phase 1 close-out (2026-07-03):** Real-device install smoke test confirmed by user on Android — SC5 fully verified. Widget test remains authoritative for CI regressions.
+- **Phase 1 close-out (2026-07-03):** Display name rename Auto-Explore → Trailblazer applied to Dart layer (MaterialApp title, splash/onboarding/home screens, test assertions), iOS `CFBundleDisplayName` + 6 permission strings, Android `android:label`. Internal identifiers preserved: Dart package `auto_explore`, iOS bundle prefix `de.autoexplore`, Android applicationId `de.autoexplore.auto_explore` — those are stable IDs linked to Codecov/GitHub/future store listings.
+- **Phase 1 close-out (2026-07-03):** Built-in Kotlin migration deferred. Flutter 3.44 auto-added `android.builtInKotlin=false` and `android.newDsl=false` to `gradle.properties`, silencing the deprecation warning. Full migration requires AGP 9.0+ (we're on 8.11.1); recipe documented inline in `gradle.properties` for when we bump AGP.
 
 ### Pending Todos
 
@@ -80,6 +83,8 @@ Key locked-in decisions affecting current work:
 - **Post-01-06 follow-up:** Consider adding an on-demand Android CI job (`workflow_dispatch`) later if solo-dev workflow changes.
 - **Post-01-06 follow-up:** Watch the first real PR — the `dart format` file-exclusion glob has never been exercised on a `pull_request` ref.
 - **Phase 2 handoff (from Plan 01-03):** Replace `/` (`PlaceholderHomeScreen`) with a `StatefulShellRoute` + real map view; keep splash/onboarding untouched.
+- **Phase 2 handoff (post-close-out):** When we bump AGP to 9.0+, remove `kotlin-android` plugin + `kotlinOptions{}` block from `android/app/build.gradle.kts` and add top-level `kotlin { compilerOptions { jvmTarget = JvmTarget.JVM_17 } }`. Then flip both flags in `android/gradle.properties` to `true` (or delete them). Recipe is inline in the file.
+- **Phase 2 handoff (post-close-out):** One-time manual `workflow_dispatch` trigger of `iOS Build` from GitHub Actions UI to observe a green macOS run.
 
 ### Blockers/Concerns
 
@@ -91,6 +96,6 @@ Key locked-in decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-07-03 (Plan 01-07 execution — docs close-out)
-Stopped at: Completed .planning/phases/01-scaffolding/07-readme-and-docs-PLAN.md — Phase 1 (Scaffolding) COMPLETE (7/7 plans)
-Resume file: None — next step is `/gsd:verify-work` for phase-level verification, then start Phase 2 (Map foundation) planning
+Last session: 2026-07-03 (Phase 1 close-out — verification, display-name rename, Kotlin migration deferral)
+Stopped at: Phase 1 (Scaffolding) COMPLETE (7/7 plans + verification passed + real-device confirmed + housekeeping)
+Resume file: None — next step is `/gsd:plan-phase 2` (Map + Glass Shell) after `/clear` for a fresh context window
