@@ -39,7 +39,7 @@ class BottomNavShell extends StatelessWidget {
       child: GlassPill(
         // Stadium shape: radius ≥ height/2 → 999 renders as full stadium.
         borderRadius: 999,
-        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 6),
+        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 10),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -96,7 +96,7 @@ class _NavTabItem extends StatelessWidget {
           // The pill's outer GlassPill provides vertical breathing room —
           // this padding is horizontal-only so the label + icon fit inside
           // the 64 dp pill height. Widens each tab's tap target.
-          padding: const EdgeInsets.symmetric(horizontal: 12),
+          padding: const EdgeInsets.symmetric(horizontal: 18),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             mainAxisAlignment: MainAxisAlignment.center,

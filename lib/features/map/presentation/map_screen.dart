@@ -14,10 +14,10 @@ import 'package:permission_handler/permission_handler.dart';
 
 /// Layout constants for the bottom chrome row.
 ///
-/// XFin reference: the pill and FAB share the same 56 dp height, and the
-/// spacing (screen-edge ↔ FAB) equals (FAB ↔ pill), and equals the vertical
-/// gap between the recenter button and the FAB. Everything is 12 dp.
-const double _fabSize = 56;
+/// XFin reference: the pill and FAB share the same height/diameter, and
+/// the spacing (screen-edge ↔ FAB), (FAB ↔ pill), and (FAB ↔ recenter,
+/// vertical) all equal `_chromeGap`.
+const double _fabSize = 64;
 const double _chromeGap = 12;
 const double _navRowBottomInset = 12;
 
@@ -150,25 +150,29 @@ class _LocalBottomNavState extends State<_LocalBottomNav> {
   }
 }
 
-/// Fixed-slot bottom chrome — nav pill centered, FAB anchored to the right,
-/// recenter button directly above the FAB.
+/// Fixed-slot bottom chrome — nav pill (flexes to fill), FAB anchored
+/// to the right, recenter button directly above the FAB.
 ///
 /// Two-row Column with IDENTICAL structure so the recenter slot lands
 /// pixel-perfect above the FAB slot:
 ///
-///   Row 1 (recenter row):  [phantom L | gap | phantom center | gap | RECENTER slot ]
-///   Row 2 (main row):      [phantom L | gap |     PILL      | gap |   FAB slot   ]
+///   Row 1 (recenter): [ phantom L | gap | Expanded (empty) | gap | RECENTER slot ]
+///   Row 2 (main):     [ phantom L | gap | Expanded → PILL  | gap |   FAB slot   ]
 ///
-/// Both rows have the same three "slot" widths: `_fabSize`, `flex`,
-/// `_fabSize`. The pill sits in the flex slot (Row 2, center); the
-/// recenter and FAB each sit in the right `_fabSize` slot. Because both
-/// rows use IDENTICAL widths, the recenter and FAB are structurally
-/// guaranteed to have the exact same X range.
+/// Both rows share identical left widths (phantom + gap + Expanded), so
+/// the recenter and FAB have identical X ranges by construction.
 ///
-/// `Flexible` is deliberately AVOIDED on the pill — it has intrinsic
-/// size, and Flexible/Expanded caused transient 0-width layouts during
-/// SnackBar / navigation transitions, which crashed
-/// `liquid_glass_renderer` inside `Picture.toImageSync(0, h)`.
+/// The left "phantom" is much narrower than the right FAB slot on
+/// purpose: the FAB is a distinct visual element the eye reads
+/// separately from the pill, so the pill doesn't need to be at
+/// geometric center. A small phantom is just enough to visually balance
+/// the row without stealing horizontal space from the pill.
+///
+/// `Flexible` is deliberately AVOIDED on the pill itself — it has
+/// intrinsic size, and Flexible/Expanded caused transient 0-width
+/// layouts during SnackBar / navigation transitions, which crashed
+/// `liquid_glass_renderer` inside `Picture.toImageSync(0, h)`. Expanded
+/// wraps a `Center` instead, which lets the pill hug its content.
 class _BottomChrome extends StatelessWidget {
   const _BottomChrome({
     required this.navShell,
@@ -179,6 +183,11 @@ class _BottomChrome extends StatelessWidget {
   final Widget navShell;
   final bool showFab;
   final bool showRecenter;
+
+  /// Left "phantom" slot width. Smaller than [_fabSize] so the pill
+  /// gets more horizontal room while still feeling balanced against
+  /// the FAB visually.
+  static const double _phantomWidth = 16;
 
   @override
   Widget build(BuildContext context) {
@@ -191,7 +200,7 @@ class _BottomChrome extends StatelessWidget {
           // Row 1: recenter above the FAB slot.
           Row(
             children: [
-              const SizedBox(width: _fabSize),
+              const SizedBox(width: _phantomWidth),
               const SizedBox(width: _chromeGap),
               const Expanded(child: SizedBox.shrink()),
               const SizedBox(width: _chromeGap),
@@ -205,10 +214,10 @@ class _BottomChrome extends StatelessWidget {
             ],
           ),
           const SizedBox(height: _chromeGap),
-          // Row 2: pill (centered) + FAB (right).
+          // Row 2: pill (flexes into center) + FAB (right).
           Row(
             children: [
-              const SizedBox(width: _fabSize),
+              const SizedBox(width: _phantomWidth),
               const SizedBox(width: _chromeGap),
               Expanded(child: Center(child: navShell)),
               const SizedBox(width: _chromeGap),
