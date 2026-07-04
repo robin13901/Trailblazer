@@ -140,8 +140,10 @@ void main() {
       await tester.tap(find.bySemanticsLabel('Settings'));
       await tester.pumpAndSettle();
 
-      // SettingsScreen placeholder text is visible.
-      expect(find.text('Settings comes in Phase 10.'), findsOneWidget);
+      // Assert we landed on the Settings screen — the About section header
+      // ('ABOUT') is a stable landmark surfaced in Phase 2 for map-attribution
+      // credits (Protomaps / OSM). Content beneath will grow in Phase 10.
+      expect(find.text('ABOUT'), findsOneWidget);
     });
   });
 }

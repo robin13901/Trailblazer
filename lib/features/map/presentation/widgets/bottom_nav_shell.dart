@@ -32,24 +32,23 @@ class BottomNavShell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.only(bottom: 12),
-        child: GlassPill(
-          padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: [
-              for (var i = 0; i < _tabs.length; i++)
-                _NavTabItem(
-                  icon: _tabs[i].icon,
-                  label: _tabs[i].label,
-                  isSelected: currentIndex == i,
-                  onTap: () => onTap(i),
-                ),
-            ],
-          ),
-        ),
+    return GlassPill(
+      // Extra-large radius makes the pill stadium-shaped (radius ≥ height/2).
+      // The pill hugs its content — no outer stretch — so the caller lays
+      // it out with `Align` or `Row` next to the FAB.
+      borderRadius: 999,
+      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 10),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          for (var i = 0; i < _tabs.length; i++)
+            _NavTabItem(
+              icon: _tabs[i].icon,
+              label: _tabs[i].label,
+              isSelected: currentIndex == i,
+              onTap: () => onTap(i),
+            ),
+        ],
       ),
     );
   }

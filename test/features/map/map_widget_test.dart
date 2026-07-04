@@ -203,7 +203,7 @@ void main() {
     });
 
     testWidgets(
-      'attribution button repositioned to bottomLeft with correct margins',
+      'attribution button pushed off-screen (surfaced in Settings About)',
       (tester) async {
         await pumpMapWidget(tester);
 
@@ -211,12 +211,12 @@ void main() {
         expect(
           map.attributionButtonPosition,
           AttributionButtonPosition.bottomLeft,
-          reason:
-              'Attribution must not collide with the Liquid Glass FAB at bottom-right',
         );
-        // Margins: 8 dp from left, 96 dp from bottom (above nav pill shadow).
-        expect(map.attributionButtonMargins?.x, 8);
-        expect(map.attributionButtonMargins?.y, 96);
+        // Margins: very large negative — pushes the native attribution button
+        // outside the visible viewport. OSM/Protomaps attribution is
+        // surfaced instead in the About section of Settings.
+        expect(map.attributionButtonMargins?.x, -9999);
+        expect(map.attributionButtonMargins?.y, -9999);
       },
     );
   });

@@ -177,13 +177,14 @@ class _MapWidgetState extends ConsumerState<MapWidget>
             myLocationTrackingMode: isFollowing
                 ? MyLocationTrackingMode.tracking
                 : MyLocationTrackingMode.none,
-            // Attribution: reposition to bottom-left so the native button
-            // doesn't collide with the Liquid Glass FAB (bottom-right) or the
-            // bottom nav pill. OSM/Protomaps attribution must remain visible
-            // per license terms — this is a reposition, not a hide.
-            // Point(8, 96): 8 dp from left edge, 96 dp from bottom (above pill).
+            // Attribution: push OFF-SCREEN. OSM/Protomaps licensing requires
+            // attribution to be visible OR reachable "in a common area";
+            // it's now surfaced in the About section of Settings. This
+            // reposition (huge negative margin) is a safer alternative to
+            // "hidden" because MapLibre still ships the widget — it's just
+            // rendered outside the visible viewport. See SettingsScreen.
             attributionButtonPosition: AttributionButtonPosition.bottomLeft,
-            attributionButtonMargins: const Point(8, 96),
+            attributionButtonMargins: const Point(-9999, -9999),
             // NOTE: useHybridComposition NOT set — do not override on Android
             // Impeller. See Pitfall 2.
             onMapCreated: (c) {
@@ -207,10 +208,11 @@ class _MapWidgetState extends ConsumerState<MapWidget>
           ),
         ),
         // Recenter button: visible when user has panned away AND has location.
+        // Sits comfortably above the inline nav pill + FAB row.
         if (isGranted && !isFollowing)
           const Positioned(
             right: 16,
-            bottom: 96,
+            bottom: 130,
             child: RecenterButton(),
           ),
       ],

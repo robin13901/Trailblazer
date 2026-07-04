@@ -79,26 +79,36 @@ class MapScreen extends ConsumerWidget {
               right: 0,
               child: SafeArea(child: Center(child: FocusAreaPill())),
             ),
-
-            // Bottom-right FAB stub.
-            const Positioned(
-              right: 16,
-              bottom: 100,
-              child: TripFab(),
-            ),
           ],
 
-          // Bottom nav pill — always visible regardless of active tab.
+          // Bottom row — nav pill (always visible) + inline FAB (map tab only).
+          // XFin-style: pill hugs content, FAB sits directly to its right.
           Positioned(
-            left: 16,
-            right: 16,
+            left: 0,
+            right: 0,
             bottom: 0,
-            child: navigationShell != null
-                ? BottomNavShell(
-                    currentIndex: currentIndex,
-                    onTap: navigationShell!.goBranch,
-                  )
-                : const _LocalBottomNav(),
+            child: SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Flexible(
+                      child: navigationShell != null
+                          ? BottomNavShell(
+                              currentIndex: currentIndex,
+                              onTap: navigationShell!.goBranch,
+                            )
+                          : const _LocalBottomNav(),
+                    ),
+                    if (isMapTab) ...[
+                      const SizedBox(width: 10),
+                      const TripFab(),
+                    ],
+                  ],
+                ),
+              ),
+            ),
           ),
         ],
       ),
