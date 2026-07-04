@@ -16,7 +16,7 @@ set -euo pipefail
 TILE_FILE="assets/tiles/dev_germany.pmtiles"
 SOURCE_URL="https://demo-bucket.protomaps.com/v4.pmtiles"
 BBOX="5.866,47.270,15.042,55.058"  # Germany (Konstanz to Sylt, Aachen to Goerlitz)
-MAXZOOM=14
+MAXZOOM=11  # maxzoom 14 (~3.2 GB) and 13 (~1.8 GB) exceed APK bundling budget; 11 = 371 MB
 
 if [ -f "$TILE_FILE" ]; then
   echo "Tile file already exists: $TILE_FILE ($(du -h "$TILE_FILE" | cut -f1))"

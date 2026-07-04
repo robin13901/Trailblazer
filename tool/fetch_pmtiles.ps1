@@ -16,7 +16,7 @@ $ErrorActionPreference = "Stop"
 $TileFile  = "assets/tiles/dev_germany.pmtiles"
 $SourceUrl = "https://demo-bucket.protomaps.com/v4.pmtiles"
 $Bbox      = "5.866,47.270,15.042,55.058"   # Germany
-$MaxZoom   = 14
+$MaxZoom   = 11   # maxzoom 14 (~3.2 GB) and 13 (~1.8 GB) exceed APK bundling budget; 11 = 371 MB
 
 if (Test-Path $TileFile) {
     $size = (Get-Item $TileFile).Length / 1MB

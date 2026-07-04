@@ -17,7 +17,7 @@ import 'package:shelf_router/shelf_router.dart';
 class TileServer {
   TileServer({
     this.port = 7070,
-    this.assetPath = 'assets/tiles/dev_berlin.pmtiles',
+    this.assetPath = 'assets/tiles/dev_germany.pmtiles',
   });
 
   final int port;
