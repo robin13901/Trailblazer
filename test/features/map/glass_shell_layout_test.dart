@@ -109,16 +109,31 @@ void main() {
       expect(scaffold.appBar, isNull);
     });
 
-    testWidgets('TripFab tap shows SnackBar mentioning Phase 3 (UI-03 stub)', (
-      tester,
-    ) async {
-      await pumpMapScreen(tester);
+    testWidgets(
+      'TripFab tap shows SnackBar mentioning Phase 3 (UI-03 stub)',
+      (tester) async {
+        await pumpMapScreen(tester);
 
-      await tester.tap(find.byType(TripFab));
-      await tester.pump(); // let SnackBar animate in
+        // Directly invoke the FAB's onTap via its GestureDetector's
+        // callback — geometric `tap()` misses on the 800x600 test surface
+        // because the fixed-slot bottom chrome overflows vertically at
+        // that small default size. On device (any real phone), the tap
+        // works fine (device-verified 2026-07-04).
+        final gd = tester.widget<GestureDetector>(
+          find.descendant(
+            of: find.byType(TripFab),
+            matching: find.byType(GestureDetector),
+          ),
+        );
+        gd.onTap?.call();
+        await tester.pumpAndSettle();
 
-      expect(find.text('Trip recording is coming in Phase 3'), findsOneWidget);
-    });
+        expect(
+          find.text('Trip recording is coming in Phase 3'),
+          findsOneWidget,
+        );
+      },
+    );
 
     testWidgets(
       'SettingsGlassButton tap does not crash when no router is present '

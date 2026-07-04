@@ -1,11 +1,25 @@
+import 'package:auto_explore/features/map/domain/follow_mode.dart';
+import 'package:auto_explore/features/map/presentation/providers/camera_state_provider.dart';
+import 'package:auto_explore/features/map/presentation/providers/location_permission_provider.dart';
 import 'package:auto_explore/features/map/presentation/widgets/bottom_nav_shell.dart';
 import 'package:auto_explore/features/map/presentation/widgets/focus_area_pill.dart';
 import 'package:auto_explore/features/map/presentation/widgets/map_widget.dart';
+import 'package:auto_explore/features/map/presentation/widgets/recenter_button.dart';
 import 'package:auto_explore/features/map/presentation/widgets/settings_glass_button.dart';
 import 'package:auto_explore/features/map/presentation/widgets/trip_fab.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:permission_handler/permission_handler.dart';
+
+/// Layout constants for the bottom chrome row.
+///
+/// Pill and FAB have fixed sizes so the pill's position on-screen never
+/// shifts when the FAB is hidden (non-map tabs). See [_BottomChrome].
+const double _fabSize = 56;
+const double _navRowGap = 10;
+const double _navRowSideMargin = 16;
+const double _navRowBottomInset = 12;
 
 /// Phase-2 Map screen — chrome overlays on top of the base [MapWidget].
 ///
@@ -81,35 +95,33 @@ class MapScreen extends ConsumerWidget {
             ),
           ],
 
-          // Bottom row — nav pill (always visible) + inline FAB (map tab only).
-          // XFin-style: pill hugs content, FAB sits directly to its right.
+          // Bottom chrome — fixed-slot layout so pill position never shifts
+          // when the FAB is hidden on non-map tabs. See _BottomChrome.
           Positioned(
             left: 0,
             right: 0,
             bottom: 0,
             child: SafeArea(
               child: Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Flexible(
-                      child: navigationShell != null
-                          ? BottomNavShell(
-                              currentIndex: currentIndex,
-                              onTap: navigationShell!.goBranch,
-                            )
-                          : const _LocalBottomNav(),
-                    ),
-                    if (isMapTab) ...[
-                      const SizedBox(width: 10),
-                      const TripFab(),
-                    ],
-                  ],
+                padding: const EdgeInsets.only(bottom: _navRowBottomInset),
+                child: _BottomChrome(
+                  navShell: navigationShell != null
+                      ? BottomNavShell(
+                          currentIndex: currentIndex,
+                          onTap: navigationShell!.goBranch,
+                        )
+                      : const _LocalBottomNav(),
+                  showFab: isMapTab,
                 ),
               ),
             ),
           ),
+
+          // Recenter button — sits directly above the FAB slot with the same
+          // right margin, forming a vertical stack of two 56 dp glass
+          // circles. Only visible on the Map tab AND when the user has
+          // panned away from their location.
+          if (isMapTab) const _RecenterSlot(),
         ],
       ),
     );
@@ -138,6 +150,85 @@ class _LocalBottomNavState extends State<_LocalBottomNav> {
       onTap: (i) => setState(() {
         _index = i;
       }),
+    );
+  }
+}
+
+/// Fixed-slot bottom chrome — nav pill centered, FAB anchored to the right.
+///
+/// The FAB slot is ALWAYS reserved (even when [showFab] is false) so that
+/// the nav pill occupies the exact same on-screen position on every tab.
+/// This matches the XFin reference where the pill does not shift.
+///
+/// Layout: [FAB gutter | FAB slot | gap | PILL | gap | FAB slot | FAB gutter]
+///                                         ^ centered inside this slot
+///
+/// The pill is centered by placing an identical (empty) FAB slot on the
+/// left, mirroring the real FAB slot on the right — so the visual center
+/// of the pill matches the visual center of the screen minus the FAB row.
+class _BottomChrome extends StatelessWidget {
+  const _BottomChrome({required this.navShell, required this.showFab});
+
+  final Widget navShell;
+  final bool showFab;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: _navRowSideMargin),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          // Left "phantom" slot: mirrors the right FAB slot so the pill
+          // is optically centered when the FAB is present, and remains
+          // in the same position when the FAB is hidden.
+          const SizedBox(width: _fabSize),
+          const SizedBox(width: _navRowGap),
+          Flexible(child: navShell),
+          const SizedBox(width: _navRowGap),
+          SizedBox(
+            width: _fabSize,
+            height: _fabSize,
+            child: showFab ? const TripFab() : const SizedBox.shrink(),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Recenter button slot — pinned above the FAB slot, matching right margin.
+///
+/// Visible only when location permission is granted AND the user has
+/// panned away from follow mode. Position math:
+///   right: [_navRowSideMargin]  (matches FAB's right edge)
+///   bottom: [safe area] + [_navRowBottomInset] + [_fabSize] + [gap 8]
+class _RecenterSlot extends ConsumerWidget {
+  const _RecenterSlot();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final permissionAsync = ref.watch(locationPermissionProvider);
+    final cameraState = ref.watch(cameraStateProvider);
+
+    final isGranted = permissionAsync.maybeWhen(
+      data: (s) => s.isGranted || s.isLimited,
+      orElse: () => false,
+    );
+    final isFollowing =
+        cameraState.followMode == FollowMode.location ||
+        cameraState.followMode == FollowMode.locationAndHeading;
+
+    if (!isGranted || isFollowing) return const SizedBox.shrink();
+
+    final bottomInset = MediaQuery.of(context).padding.bottom;
+    // Bottom position: safe area + row inset + FAB height + small gap.
+    final recenterBottom = bottomInset + _navRowBottomInset + _fabSize + 8;
+
+    return Positioned(
+      right: _navRowSideMargin,
+      bottom: recenterBottom,
+      child: const RecenterButton(),
     );
   }
 }

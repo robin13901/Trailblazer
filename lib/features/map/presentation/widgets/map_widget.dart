@@ -8,7 +8,6 @@ import 'package:auto_explore/features/map/presentation/providers/location_permis
 import 'package:auto_explore/features/map/presentation/providers/map_controller_provider.dart';
 import 'package:auto_explore/features/map/presentation/providers/map_style_provider.dart';
 import 'package:auto_explore/features/map/presentation/widgets/map_style_fade.dart';
-import 'package:auto_explore/features/map/presentation/widgets/recenter_button.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:maplibre_gl/maplibre_gl.dart';
@@ -33,8 +32,9 @@ import 'package:permission_handler/permission_handler.dart';
 /// Style transitions use a 180 ms opacity crossfade ([MapStyleFade]):
 /// fade out → `setStyle()` → fade in on `onStyleLoadedCallback`.
 ///
-/// The [RecenterButton] is overlaid when follow mode is [FollowMode.none]
-/// AND location permission is granted.
+/// Recenter button + FAB overlays are owned by `MapScreen` — not this
+/// widget — so their positioning stays coordinated with the bottom
+/// chrome row.
 class MapWidget extends ConsumerStatefulWidget {
   const MapWidget({
     super.key,
@@ -147,75 +147,50 @@ class _MapWidgetState extends ConsumerState<MapWidget>
       data: (s) => s.isGranted || s.isLimited,
       orElse: () => false,
     );
-
     final isFollowing =
         cameraState.followMode == FollowMode.location ||
         cameraState.followMode == FollowMode.locationAndHeading;
 
-    return Stack(
-      children: [
-        MapStyleFade(
-          visible: _styleVisible,
-          child: MapLibreMap(
-            styleString: styleAsset,
-            initialCameraPosition: CameraPosition(
-              target: widget.initialTarget,
-              zoom: widget.initialZoom,
-            ),
-            // 02-CONTEXT.md: flat 2D only — tilt is the only non-default gesture flag.
-            tiltGesturesEnabled: false,
-            compassViewPosition: CompassViewPosition.topRight,
-            trackCameraPosition: true,
-            // Location dot + heading cone + accuracy ring.
-            // myLocationRenderMode must be normal when myLocationEnabled is false
-            // (MapLibreMap asserts: compass requires myLocationEnabled=true).
-            myLocationEnabled: isGranted,
-            myLocationRenderMode: isGranted
-                ? MyLocationRenderMode.compass
-                : MyLocationRenderMode.normal,
-            // Follow mode: tracking when location/locationAndHeading, else none.
-            myLocationTrackingMode: isFollowing
-                ? MyLocationTrackingMode.tracking
-                : MyLocationTrackingMode.none,
-            // Attribution: push OFF-SCREEN. OSM/Protomaps licensing requires
-            // attribution to be visible OR reachable "in a common area";
-            // it's now surfaced in the About section of Settings. This
-            // reposition (huge negative margin) is a safer alternative to
-            // "hidden" because MapLibre still ships the widget — it's just
-            // rendered outside the visible viewport. See SettingsScreen.
-            attributionButtonPosition: AttributionButtonPosition.bottomLeft,
-            attributionButtonMargins: const Point(-9999, -9999),
-            // NOTE: useHybridComposition NOT set — do not override on Android
-            // Impeller. See Pitfall 2.
-            onMapCreated: (c) {
-              ref.read(mapControllerProvider.notifier).controller = c;
-              widget.onMapCreated?.call(c);
-            },
-            onStyleLoadedCallback: _onStyleLoaded,
-            // Pan/rotate dismisses follow mode.
-            onCameraTrackingDismissed: () {
-              ref
-                  .read(cameraStateProvider.notifier)
-                  .setFollowMode(FollowMode.none);
-            },
-            // Sync camera position into state on idle.
-            onCameraIdle: () {
-              // trackCameraPosition=true keeps MapLibreMap.cameraPosition fresh.
-              // We don't have direct access here; position is updated on user
-              // camera moves. Follow-mode changes (tracking → none) are the
-              // primary state we care about, handled by onCameraTrackingDismissed.
-            },
-          ),
+    return MapStyleFade(
+      visible: _styleVisible,
+      child: MapLibreMap(
+        styleString: styleAsset,
+        initialCameraPosition: CameraPosition(
+          target: widget.initialTarget,
+          zoom: widget.initialZoom,
         ),
-        // Recenter button: visible when user has panned away AND has location.
-        // Sits comfortably above the inline nav pill + FAB row.
-        if (isGranted && !isFollowing)
-          const Positioned(
-            right: 16,
-            bottom: 130,
-            child: RecenterButton(),
-          ),
-      ],
+        // 02-CONTEXT.md: flat 2D only — tilt is the only non-default gesture flag.
+        tiltGesturesEnabled: false,
+        compassViewPosition: CompassViewPosition.topRight,
+        trackCameraPosition: true,
+        // Location dot + heading cone + accuracy ring.
+        // myLocationRenderMode must be normal when myLocationEnabled is false
+        // (MapLibreMap asserts: compass requires myLocationEnabled=true).
+        myLocationEnabled: isGranted,
+        myLocationRenderMode: isGranted
+            ? MyLocationRenderMode.compass
+            : MyLocationRenderMode.normal,
+        // Follow mode: tracking when location/locationAndHeading, else none.
+        myLocationTrackingMode: isFollowing
+            ? MyLocationTrackingMode.tracking
+            : MyLocationTrackingMode.none,
+        // Attribution: push OFF-SCREEN. OSM/Protomaps licensing requires
+        // attribution to be visible OR reachable "in a common area";
+        // it's now surfaced in the About section of Settings.
+        attributionButtonPosition: AttributionButtonPosition.bottomLeft,
+        attributionButtonMargins: const Point(-9999, -9999),
+        // NOTE: useHybridComposition NOT set — do not override on Android
+        // Impeller. See Pitfall 2.
+        onMapCreated: (c) {
+          ref.read(mapControllerProvider.notifier).controller = c;
+          widget.onMapCreated?.call(c);
+        },
+        onStyleLoadedCallback: _onStyleLoaded,
+        // Pan/rotate dismisses follow mode.
+        onCameraTrackingDismissed: () {
+          ref.read(cameraStateProvider.notifier).setFollowMode(FollowMode.none);
+        },
+      ),
     );
   }
 }
