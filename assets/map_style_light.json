@@ -7,7 +7,9 @@
     "protomaps": {
       "type": "vector",
       "attribution": "<a href='https://protomaps.com'>Protomaps</a> © <a href='https://openstreetmap.org'>OpenStreetMap</a>",
-      "url": "pmtiles://assets/tiles/dev_berlin.pmtiles"
+      "tiles": ["http://127.0.0.1:7070/{z}/{x}/{y}.pbf"],
+      "minzoom": 0,
+      "maxzoom": 14
     }
   },
   "layers": [

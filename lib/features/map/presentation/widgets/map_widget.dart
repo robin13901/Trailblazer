@@ -1,5 +1,7 @@
 import 'dart:async';
+import 'dart:math';
 
+import 'package:auto_explore/features/map/data/tile_server_providers.dart';
 import 'package:auto_explore/features/map/domain/follow_mode.dart';
 import 'package:auto_explore/features/map/presentation/providers/camera_state_provider.dart';
 import 'package:auto_explore/features/map/presentation/providers/location_permission_provider.dart';
@@ -22,6 +24,11 @@ import 'package:permission_handler/permission_handler.dart';
 ///   - Follow-mode: driven by [cameraStateProvider].
 ///   - Active map style: driven by [mapStyleAssetProvider]; updated on
 ///     system brightness change via [WidgetsBindingObserver].
+///
+/// A loopback tile server ([tileServerProvider]) must be running before
+/// MapLibreMap is built — otherwise MapLibre fires tile requests to a socket
+/// that isn't listening yet and caches the failure. A [ColoredBox] placeholder
+/// is shown while the server starts (typically 300–800 ms cold-start).
 ///
 /// Style transitions use a 180 ms opacity crossfade ([MapStyleFade]):
 /// fade out → `setStyle()` → fade in on `onStyleLoadedCallback`.
@@ -117,6 +124,21 @@ class _MapWidgetState extends ConsumerState<MapWidget>
 
   @override
   Widget build(BuildContext context) {
+    // Wait for the loopback tile server to be ready before building MapLibreMap.
+    // Without this guard, MapLibre fires tile requests to a socket that isn't
+    // listening yet and caches the 'connection refused' failure.
+    final tileServerAsync = ref.watch(tileServerProvider);
+
+    return tileServerAsync.when(
+      loading: () =>
+          // Background colour matches the dark style to avoid a white flash.
+          const ColoredBox(color: Color(0xFF0A1728)),
+      error: (e, _) => Center(child: Text('Tile server failed: $e')),
+      data: (_) => _buildMap(context),
+    );
+  }
+
+  Widget _buildMap(BuildContext context) {
     final permissionAsync = ref.watch(locationPermissionProvider);
     final cameraState = ref.watch(cameraStateProvider);
     final styleAsset = ref.watch(mapStyleAssetProvider);
@@ -155,6 +177,13 @@ class _MapWidgetState extends ConsumerState<MapWidget>
             myLocationTrackingMode: isFollowing
                 ? MyLocationTrackingMode.tracking
                 : MyLocationTrackingMode.none,
+            // Attribution: reposition to bottom-left so the native button
+            // doesn't collide with the Liquid Glass FAB (bottom-right) or the
+            // bottom nav pill. OSM/Protomaps attribution must remain visible
+            // per license terms — this is a reposition, not a hide.
+            // Point(8, 96): 8 dp from left edge, 96 dp from bottom (above pill).
+            attributionButtonPosition: AttributionButtonPosition.bottomLeft,
+            attributionButtonMargins: const Point(8, 96),
             // NOTE: useHybridComposition NOT set — do not override on Android
             // Impeller. See Pitfall 2.
             onMapCreated: (c) {

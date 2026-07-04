@@ -1,6 +1,10 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <!-- ==== Trailblazer permissions (Phase 1 scaffolding) ==== -->
 
+    <!-- Internet — required for glyph/sprite fetches (Protomaps CDN) and
+         loopback tile server HTTP requests on Android -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
     <!-- Location -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
