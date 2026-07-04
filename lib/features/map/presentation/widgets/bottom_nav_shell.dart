@@ -32,14 +32,14 @@ class BottomNavShell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Fixed height 56 so the pill visually matches the 56 dp FAB / recenter
+    // Fixed height 64 so the pill visually matches the 64 dp FAB / recenter
     // circles. XFin reference: pill and FAB same diameter/height.
     return SizedBox(
-      height: 56,
+      height: 64,
       child: GlassPill(
         // Stadium shape: radius ≥ height/2 → 999 renders as full stadium.
         borderRadius: 999,
-        padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 12),
+        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -93,12 +93,15 @@ class _NavTabItem extends StatelessWidget {
         borderRadius: BorderRadius.circular(999),
         onTap: onTap,
         child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 2, horizontal: 20),
+          // The pill's outer GlassPill provides vertical breathing room —
+          // this padding is horizontal-only so the label + icon fit inside
+          // the 64 dp pill height. Widens each tab's tap target.
+          padding: const EdgeInsets.symmetric(horizontal: 20),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(icon, size: 20, color: color),
+              Icon(icon, size: 22, color: color),
               const SizedBox(height: 2),
               Text(
                 label,
