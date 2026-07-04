@@ -14,10 +14,9 @@ import 'package:permission_handler/permission_handler.dart';
 
 /// Layout constants for the bottom chrome row.
 ///
-/// XFin reference: the pill and FAB share the same 56 dp height, and the
-/// spacing (screen-edge ↔ FAB) equals (FAB ↔ pill), and equals the vertical
-/// gap between the recenter button and the FAB. Everything is 12 dp.
-const double _fabSize = 56;
+/// Pill, FAB, and recenter are all 64 dp. Spacing between elements
+/// (screen-edge ↔ FAB, FAB ↔ pill, FAB ↔ recenter vertical) is 12 dp.
+const double _fabSize = 64;
 const double _chromeGap = 12;
 const double _navRowBottomInset = 12;
 
