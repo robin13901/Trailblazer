@@ -31,6 +31,10 @@ class GlassCircle extends StatelessWidget {
         : settings.lightGlassBorder;
 
     if (settings.platformSupportsBlurOverMap) {
+      // Guard against 0-dim constraints. `liquid_glass_renderer` calls
+      // `Picture.toImageSync(w, h)` during paint; if either dim is 0 that
+      // throws "Invalid image dimensions" and crashes the app.
+      if (size <= 0) return const SizedBox.shrink();
       return SizedBox(
         width: size,
         height: size,

@@ -52,15 +52,10 @@ class RecenterButton extends ConsumerWidget {
             ref
                 .read(cameraStateProvider.notifier)
                 .setFollowMode(FollowMode.none);
-            if (!context.mounted) return;
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text(
-                  'Waiting for a location fix. Try again in a moment.',
-                ),
-                duration: Duration(seconds: 2),
-              ),
-            );
+            // Deliberately no SnackBar here — showing one re-layouts the
+            // bottom Row, which briefly zero-widths the pill and trips
+            // liquid_glass_renderer's Picture.toImageSync guard. The log
+            // is sufficient; user can just try again.
           }
         },
         child: const GlassCircle(

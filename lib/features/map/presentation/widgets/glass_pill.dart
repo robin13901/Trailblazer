@@ -38,16 +38,28 @@ class GlassPill extends StatelessWidget {
         : settings.lightGlassBorder;
 
     if (settings.platformSupportsBlurOverMap) {
-      return lg.LiquidGlassLayer(
-        settings: lg.LiquidGlassSettings(
-          thickness: settings.glassThickness,
-          blur: settings.glassBlurSigma,
-          saturation: settings.glassSaturation,
-        ),
-        child: lg.LiquidGlass(
-          shape: lg.LiquidRoundedSuperellipse(borderRadius: radius),
-          child: Padding(padding: padding, child: child),
-        ),
+      // Guard against 0-dim constraints. `liquid_glass_renderer` calls
+      // `Picture.toImageSync(w, h)` during paint; if either dim is 0 that
+      // throws "Invalid image dimensions" and crashes the app. 0-dim can
+      // happen transiently during layout churn — e.g. when a SnackBar
+      // animates in and briefly re-layouts our bottom Row's Flexible.
+      return LayoutBuilder(
+        builder: (context, constraints) {
+          if (constraints.maxWidth <= 0 || constraints.maxHeight <= 0) {
+            return const SizedBox.shrink();
+          }
+          return lg.LiquidGlassLayer(
+            settings: lg.LiquidGlassSettings(
+              thickness: settings.glassThickness,
+              blur: settings.glassBlurSigma,
+              saturation: settings.glassSaturation,
+            ),
+            child: lg.LiquidGlass(
+              shape: lg.LiquidRoundedSuperellipse(borderRadius: radius),
+              child: Padding(padding: padding, child: child),
+            ),
+          );
+        },
       );
     }
 
