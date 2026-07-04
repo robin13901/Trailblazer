@@ -23,8 +23,8 @@ class TripFab extends StatelessWidget {
           );
         },
         child: const GlassCircle(
-          size: 56,
-          child: Icon(Icons.fiber_manual_record, size: 26),
+          size: 64,
+          child: Icon(Icons.fiber_manual_record, size: 30),
         ),
       ),
     );

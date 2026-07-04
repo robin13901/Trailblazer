@@ -9,19 +9,29 @@ import 'package:maplibre_gl/maplibre_gl.dart';
 
 final _log = Logger('RecenterButton');
 
-/// Circular glass button — same size as `TripFab` (56 dp).
+/// Street-level zoom target for the recenter tap. z=15 shows a ~1 km
+/// radius around the user — you can see the current street, neighboring
+/// streets, and the block context. Tunable per Phase 3+ needs.
+const double _recenterZoom = 15;
+
+/// Circular glass button — same size as `TripFab`.
 ///
 /// Visible only when the user has panned away from their location
 /// (i.e. follow mode is [FollowMode.none]) AND location permission is
 /// granted. Positioned directly above the FAB with matching right margin
 /// so it forms a vertical stack of two identical circles.
 ///
-/// Fail-soft on tap: if the MapLibre native side hasn't acquired a
-/// location fix yet (GPS cold-start, indoors, permission just granted),
-/// `updateMyLocationTrackingMode(tracking)` can throw an assertion or
-/// crash the platform view. The tap wraps the call in try/catch, reverts
-/// the follow-mode state on error, and surfaces a SnackBar instead of a
-/// crashed app.
+/// Behavior on tap:
+///   1. Read the last-known device location.
+///   2. Animate the camera to (user, [_recenterZoom]) over ~500 ms.
+///   3. Enable MapLibre's `tracking` mode so subsequent GPS ticks
+///      continue to follow the user without further user input.
+///
+/// Fail-soft: if step 1 or 2 fails (permission just granted but no fix
+/// yet, GPS cold-start, indoors), the tap reverts follow mode and logs
+/// the error. No user-visible SnackBar — that would re-layout the
+/// bottom Row and crash `liquid_glass_renderer` on 0-width pill during
+/// the animation.
 class RecenterButton extends ConsumerWidget {
   const RecenterButton({super.key});
 
@@ -38,11 +48,27 @@ class RecenterButton extends ConsumerWidget {
             return;
           }
           try {
-            // Update the Riverpod state first so MapWidget's next build
+            // Update follow-mode state FIRST so MapWidget's next build
             // passes `myLocationTrackingMode: tracking` to MapLibreMap.
             ref
                 .read(cameraStateProvider.notifier)
                 .setFollowMode(FollowMode.location);
+
+            // Read the current user location from the native side.
+            // Returns null if no fix is available yet.
+            final userLocation = await controller.requestMyLocationLatLng();
+
+            if (userLocation != null) {
+              // Animate to user @ street-level zoom.
+              await controller.animateCamera(
+                CameraUpdate.newLatLngZoom(userLocation, _recenterZoom),
+                duration: const Duration(milliseconds: 500),
+              );
+            }
+
+            // Enable native tracking so the camera continues to follow
+            // subsequent GPS ticks. Safe to call even without a fix —
+            // MapLibre just no-ops until one arrives.
             await controller.updateMyLocationTrackingMode(
               MyLocationTrackingMode.tracking,
             );
@@ -52,15 +78,11 @@ class RecenterButton extends ConsumerWidget {
             ref
                 .read(cameraStateProvider.notifier)
                 .setFollowMode(FollowMode.none);
-            // Deliberately no SnackBar here — showing one re-layouts the
-            // bottom Row, which briefly zero-widths the pill and trips
-            // liquid_glass_renderer's Picture.toImageSync guard. The log
-            // is sufficient; user can just try again.
           }
         },
         child: const GlassCircle(
-          size: 56,
-          child: Icon(Icons.my_location, size: 24),
+          size: 64,
+          child: Icon(Icons.my_location, size: 26),
         ),
       ),
     );

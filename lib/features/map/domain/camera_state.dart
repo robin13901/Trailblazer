@@ -20,12 +20,13 @@ class CameraState {
   final FollowMode followMode;
 
   /// Phase-2 default: unknown position, zoom 15 (address-level),
-  /// no follow. Replaced as soon as first location fix arrives OR
-  /// the user pans.
+  /// follow-mode = location. On launch, MapLibre's tracking mode will snap
+  /// the camera to the user's fix as soon as it arrives.
   static const CameraState initial = CameraState(
     latitude: 0,
     longitude: 0,
     zoom: 15,
+    followMode: FollowMode.location,
   );
 
   CameraState copyWith({

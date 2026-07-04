@@ -18,7 +18,9 @@ void main() {
       expect(CameraState.initial.longitude, 0);
       expect(CameraState.initial.zoom, 15);
       expect(CameraState.initial.bearing, 0);
-      expect(CameraState.initial.followMode, FollowMode.none);
+      // Default: FollowMode.location so the camera tracks the user's fix
+      // as soon as it arrives. Changed from FollowMode.none in Wave 7.
+      expect(CameraState.initial.followMode, FollowMode.location);
     });
 
     test('constructor sets all fields', () {
