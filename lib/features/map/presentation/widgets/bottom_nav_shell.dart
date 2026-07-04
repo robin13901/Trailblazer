@@ -39,7 +39,7 @@ class BottomNavShell extends StatelessWidget {
       child: GlassPill(
         // Stadium shape: radius ≥ height/2 → 999 renders as full stadium.
         borderRadius: 999,
-        padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 6),
+        padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 12),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -93,12 +93,12 @@ class _NavTabItem extends StatelessWidget {
         borderRadius: BorderRadius.circular(999),
         onTap: onTap,
         child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 2, horizontal: 14),
+          padding: const EdgeInsets.symmetric(vertical: 2, horizontal: 20),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(icon, size: 22, color: color),
+              Icon(icon, size: 20, color: color),
               const SizedBox(height: 2),
               Text(
                 label,
