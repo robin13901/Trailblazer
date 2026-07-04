@@ -21,23 +21,23 @@
 
 ### Map Display (MAP)
 
-- [ ] **MAP-01**: MapLibre GL widget renders a Google-Maps-inspired vector base map (cartoon style, not satellite)
-- [ ] **MAP-02**: PMTiles archive is the tile source; map works fully offline once the archive is present
-- [ ] **MAP-03**: User can pan, zoom, rotate, and tilt the map with standard gestures
-- [ ] **MAP-04**: Map shows current device location marker (blue dot) when location permission granted
-- [ ] **MAP-05**: Dark mode style switches automatically with system theme
-- [ ] **MAP-06**: Map style JSON is a project asset (customisable, not vendor-locked)
-- [ ] **MAP-07**: Camera state (last position, zoom) persists across app restarts
+- [x] **MAP-01**: MapLibre GL widget renders a Google-Maps-inspired vector base map (cartoon style, not satellite)
+- [x] **MAP-02**: PMTiles archive is the tile source; map works fully offline once the archive is present
+- [x] **MAP-03**: User can pan, zoom, rotate, and tilt the map with standard gestures
+- [x] **MAP-04**: Map shows current device location marker (blue dot) when location permission granted
+- [x] **MAP-05**: Dark mode style switches automatically with system theme
+- [x] **MAP-06**: Map style JSON is a project asset (customisable, not vendor-locked)
+- [x] **MAP-07**: Camera state (last position, zoom) persists across app restarts
 
 ### Liquid Glass UI (UI)
 
-- [ ] **UI-01**: Focus-area pill overlays the top of the map showing current admin region + exploration %
-- [ ] **UI-02**: Bottom navigation is a Liquid Glass pill (Map, Trips, Regions, Settings)
-- [ ] **UI-03**: Floating action button (record trip) is Liquid Glass styled
-- [ ] **UI-04**: Panels/sheets overlaying the map use `showLiquidGlassPanel` overlay pattern (keeps map visible behind)
-- [ ] **UI-05**: **P2 gate**: Rendering spike on real iOS + Android device before Liquid Glass is committed to for on-map overlays; documented fallback (`FrostedGlassCard` / gradient tint) if BackdropFilter fails on MapLibre platform view
-- [ ] **UI-06**: App uses no traditional `AppBar` on the map screen; focus-area pill is the only top-of-screen chrome
-- [ ] **UI-07**: Light + dark themes both use the shared `LiquidGlassSettings` singleton pattern from XFin reference
+- [x] **UI-01**: Focus-area pill overlays the top of the map showing current admin region + exploration %
+- [x] **UI-02**: Bottom navigation is a Liquid Glass pill (Map, Trips, Regions, Settings)
+- [x] **UI-03**: Floating action button (record trip) is Liquid Glass styled
+- [x] **UI-04**: Panels/sheets overlaying the map use `showLiquidGlassPanel` overlay pattern (keeps map visible behind)
+- [x] **UI-05**: **P2 gate**: Rendering spike on real iOS + Android device before Liquid Glass is committed to for on-map overlays; documented fallback (`FrostedGlassCard` / gradient tint) if BackdropFilter fails on MapLibre platform view
+- [x] **UI-06**: App uses no traditional `AppBar` on the map screen; focus-area pill is the only top-of-screen chrome
+- [x] **UI-07**: Light + dark themes both use the shared `LiquidGlassSettings` singleton pattern from XFin reference
 
 ### OSM Data Pipeline (OSM)
 
@@ -255,20 +255,20 @@ Every requirement maps to exactly one phase. Phase Gates in ROADMAP.md carry two
 | FND-09 | Phase 1: Scaffolding | Complete |
 | FND-10 | Phase 1: Scaffolding | Complete |
 | FND-11 | Phase 1: Scaffolding | Complete |
-| MAP-01 | Phase 2: Map + Glass Shell | Pending |
-| MAP-02 | Phase 2: Map + Glass Shell | Pending |
-| MAP-03 | Phase 2: Map + Glass Shell | Pending |
-| MAP-04 | Phase 2: Map + Glass Shell | Pending |
-| MAP-05 | Phase 2: Map + Glass Shell | Pending |
-| MAP-06 | Phase 2: Map + Glass Shell | Pending |
-| MAP-07 | Phase 2: Map + Glass Shell | Pending |
-| UI-01 | Phase 2: Map + Glass Shell | Pending |
-| UI-02 | Phase 2: Map + Glass Shell | Pending |
-| UI-03 | Phase 2: Map + Glass Shell | Pending |
-| UI-04 | Phase 2: Map + Glass Shell | Pending |
-| UI-05 | Phase 2: Map + Glass Shell (Gate G1) | Pending |
-| UI-06 | Phase 2: Map + Glass Shell | Pending |
-| UI-07 | Phase 2: Map + Glass Shell | Pending |
+| MAP-01 | Phase 2: Map + Glass Shell | Complete |
+| MAP-02 | Phase 2: Map + Glass Shell | Complete |
+| MAP-03 | Phase 2: Map + Glass Shell | Complete (deviated — tilt disabled per 02-CONTEXT.md) |
+| MAP-04 | Phase 2: Map + Glass Shell | Complete |
+| MAP-05 | Phase 2: Map + Glass Shell | Complete |
+| MAP-06 | Phase 2: Map + Glass Shell | Complete |
+| MAP-07 | Phase 2: Map + Glass Shell | Complete (deviated — camera opens at current location per 02-CONTEXT.md) |
+| UI-01 | Phase 2: Map + Glass Shell | Complete (partial — focus pill stub; real data Phase 8) |
+| UI-02 | Phase 2: Map + Glass Shell | Complete |
+| UI-03 | Phase 2: Map + Glass Shell | Complete |
+| UI-04 | Phase 2: Map + Glass Shell | Complete (partial — panel pattern foundation; full panels Phase 8) |
+| UI-05 | Phase 2: Map + Glass Shell (Gate G1) | Complete — G1 unconditional PASS 2026-07-04 |
+| UI-06 | Phase 2: Map + Glass Shell | Complete |
+| UI-07 | Phase 2: Map + Glass Shell | Complete |
 | TRK-01 | Phase 3: Tracking MVP | Pending |
 | TRK-02 | Phase 3: Tracking MVP | Pending |
 | TRK-03 | Phase 3: Tracking MVP | Pending |
@@ -366,4 +366,4 @@ Every requirement maps to exactly one phase. Phase Gates in ROADMAP.md carry two
 
 ---
 *Requirements defined: 2026-07-02*
-*Last updated: 2026-07-03 — Phase 1 (Scaffolding) complete; 13 requirements (FND-01..11, QUA-03, QUA-05) moved to Complete*
+*Last updated: 2026-07-04 — Phase 2 (Map + Glass Shell) complete; 14 requirements (MAP-01..07, UI-01..07) moved to Complete*

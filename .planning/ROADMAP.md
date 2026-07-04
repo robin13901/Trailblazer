@@ -13,7 +13,7 @@ Depth: **comprehensive** — 11 phases, driven by the 119 v1 requirements (FND, 
 - Decimal phases (e.g. 2.1): Urgent insertions if research spikes uncover blockers
 
 - [x] **Phase 1: Scaffolding** — CI, lints, App DB skeleton, routing, error/logging, permission plumbing
-- [ ] **Phase 2: Map + Glass Shell** — MapLibre + PMTiles + Liquid Glass chrome (rendering spike gate)
+- [x] **Phase 2: Map + Glass Shell** — MapLibre + PMTiles + Liquid Glass chrome (rendering spike gate)
 - [ ] **Phase 3: Tracking MVP** — background GPS + motion state machine + manual/auto trip capture
 - [ ] **Phase 4: OSM Pipeline** — dev-machine PBF → slim `osm.sqlite` + `germany-base.pmtiles`
 - [ ] **Phase 5: OSM DB + Matcher** — OSM DB runtime, HMM engine, matcher isolate, golden corpus
@@ -67,6 +67,7 @@ Additional research-recommended spikes: HMM parameter tuning + golden corpus rec
 **Goal:** A map screen with Liquid Glass chrome renders fluidly on both platforms; the rendering spike gate (G1) has been resolved.
 **Depends on:** Phase 1
 **Requirements:** MAP-01, MAP-02, MAP-03, MAP-04, MAP-05, MAP-06, MAP-07, UI-01, UI-02, UI-03, UI-04, UI-05, UI-06, UI-07
+**Completed:** 2026-07-04
 **Success Criteria** (what must be TRUE):
   1. User sees a Google-Maps-inspired cartoon vector map that pans, zooms, rotates, and tilts smoothly with standard gestures.
   2. Map works fully offline from a bundled PMTiles archive; base map remains available with airplane mode on.
@@ -74,13 +75,13 @@ Additional research-recommended spikes: HMM parameter tuning + golden corpus rec
   4. Dark mode style switches automatically with system theme via the project-owned style JSON asset.
   5. Liquid Glass shell — focus-area pill placeholder, bottom nav pill, FAB, overlay panels — renders on real iOS + Android without release-mode jank, or the documented fallback (per Gate G1) is active.
 **Plans:** 7 plans
-  - [ ] 02-01-g1-rendering-spike-PLAN.md — G1 spike: LiquidGlass over MapLibre on real devices; set platformSupportsBlurOverMap
-  - [ ] 02-02-pmtiles-base-map-PLAN.md — MapLibre + bundled PMTiles + light/dark style JSONs + MapWidget
-  - [ ] 02-03-location-and-camera-PLAN.md — permission_handler, blue dot, CameraState/FollowMode (Phase-3-ready), recenter
-  - [ ] 02-04-dark-mode-style-switch-PLAN.md — brightness observer + setStyle crossfade + ThemeMode.system
-  - [ ] 02-05-liquid-glass-shell-PLAN.md — GlassPill/Circle branching on G1 flag; focus pill, FAB, settings button, bottom nav
-  - [ ] 02-06-router-shell-refactor-PLAN.md — StatefulShellRoute.indexedStack with 3 tabs + /settings
-  - [ ] 02-07-phase-verification-PLAN.md — real-device smoke test + SC1-SC5 verification + STATE/ROADMAP close-out
+  - [x] 02-01-g1-rendering-spike-PLAN.md — G1 spike: LiquidGlass over MapLibre on real devices; set platformSupportsBlurOverMap
+  - [x] 02-02-pmtiles-base-map-PLAN.md — MapLibre + bundled PMTiles + light/dark style JSONs + MapWidget
+  - [x] 02-03-location-and-camera-PLAN.md — permission_handler, blue dot, CameraState/FollowMode (Phase-3-ready), recenter
+  - [x] 02-04-dark-mode-style-switch-PLAN.md — brightness observer + setStyle crossfade + ThemeMode.system
+  - [x] 02-05-liquid-glass-shell-PLAN.md — GlassPill/Circle branching on G1 flag; focus pill, FAB, settings button, bottom nav
+  - [x] 02-06-router-shell-refactor-PLAN.md — StatefulShellRoute.indexedStack with 3 tabs + /settings
+  - [x] 02-07-phase-verification-PLAN.md — real-device smoke test + SC1-SC5 verification + STATE/ROADMAP close-out
 
 ### Phase 3: Tracking MVP
 **Goal:** The app records trips automatically and manually, in the background, on both platforms, with battery baseline established.
@@ -198,7 +199,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Scaffolding | 7/7 | ✓ Complete | 2026-07-03 |
-| 2. Map + Glass Shell | 0/7 | Not started | - |
+| 2. Map + Glass Shell | 7/7 | ✓ Complete | 2026-07-04 |
 | 3. Tracking MVP | 0/TBD | Not started | - |
 | 4. OSM Pipeline | 0/TBD | Not started | - |
 | 5. OSM DB + Matcher | 0/TBD | Not started | - |
