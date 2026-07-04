@@ -11,8 +11,8 @@ See: .planning/PROJECT.md (updated 2026-07-02)
 
 Phase: 2 of 11 (Map + Glass Shell) — **IN PROGRESS**
 Plan: 6/7 plans in Phase 2 done (02-06 router shell refactor — COMPLETE)
-Status: StatefulShellRoute wired; 3-tab shell + /settings route + chrome hiding on non-map tabs; 63/63 tests green
-Last activity: 2026-07-03 — Completed Plan 02-06 (router shell); ready for Plan 02-07 (G1 docs + phase verification)
+Status: StatefulShellRoute wired; 3-tab shell + /settings route + chrome hiding on non-map tabs; 64/64 tests green; Wave 7 smoke-test bugfixes applied
+Last activity: 2026-07-04 — Wave 7 bugfixes: PMTiles loopback tile server + attribution button reposition
 
 Progress: [█░░░░░░░░░] ~16% (13/77 est. plans overall — Phase 1: 7/7; Phase 2: 6/7)
 
@@ -103,6 +103,8 @@ Key locked-in decisions affecting current work:
 - **Plan 02-06 (2026-07-03):** `SettingsGlassButton` accepts `VoidCallback? onTap` (router-agnostic). `MapScreen` passes `() => context.push('/settings')` when shell is present; null when `navigationShell == null` (standalone widget tests — no-op, no crash).
 - **Plan 02-06 (2026-07-03):** `_MapTabContent` sentinel class used for the Map branch (not SizedBox.shrink inline) — explicit named class signals to Phase 3+ that sub-routes under `/` belong as children of the Map branch.
 - **Plan 02-06 (2026-07-03):** Chrome (FocusAreaPill, SettingsGlassButton, TripFab) hidden when `currentIndex > 0` (non-map tabs). BottomNavShell always visible.
+- **Wave 7 bugfix (2026-07-04):** maplibre_gl 0.26.2 does not natively resolve `pmtiles://` URLs on Android. Added Dart loopback tile server (`TileServer` in `lib/features/map/data/tile_server.dart`) reading from bundled `assets/tiles/dev_berlin.pmtiles` via `pmtiles ^2.2.0` and `shelf ^1.4.2` + `shelf_router ^1.1.4`, serving on `http://127.0.0.1:7070/{z}/{x}/{y}.pbf`. Style JSONs (`assets/map_style_light.json`, `assets/map_style_dark.json`) changed from `pmtiles://` URL to XYZ `tiles:[]` array. This is the offline path on both platforms (iOS `pmtiles://` supported natively per 0.26.2 CHANGELOG, but unified code path is simpler).
+- **Wave 7 bugfix (2026-07-04):** MapLibre native attribution button cannot be fully hidden via Flutter API (no `attributionEnabled: false` in maplibre_gl 0.26.2). Repositioned to `AttributionButtonPosition.bottomLeft` with `Point(8, 96)` margins to keep OSM/Protomaps license attribution visible but out of the way of the Liquid Glass FAB (bottom-right) and bottom nav pill. Fully custom attribution chip deferred to Phase 8+.
 
 ### Pending Todos
 
@@ -112,6 +114,7 @@ Key locked-in decisions affecting current work:
 - **Post-01-06 follow-up:** Watch the first real PR — the `dart format` file-exclusion glob has never been exercised on a `pull_request` ref.
 - **Phase 2 handoff (from Plan 01-03):** Replace `/` (`PlaceholderHomeScreen`) with a `StatefulShellRoute` + real map view; keep splash/onboarding untouched. **DONE in Plan 02-06.**
 - **Phase 2 handoff (post-close-out):** When we bump AGP to 9.0+, remove `kotlin-android` plugin + `kotlinOptions{}` block from `android/app/build.gradle.kts` and add top-level `kotlin { compilerOptions { jvmTarget = JvmTarget.JVM_17 } }`. Then flip both flags in `android/gradle.properties` to `true` (or delete them). Recipe is inline in the file.
+- **Phase 8+ or later:** Consider a fully custom OSM/Protomaps attribution chip (Liquid Glass-styled) to replace/hide the native MapLibre attribution button. Would require either patching the Android native binding or accepting the native button repositioned as a compromise.
 - **Phase 2 handoff (post-close-out):** One-time manual `workflow_dispatch` trigger of `iOS Build` from GitHub Actions UI to observe a green macOS run.
 - **Plan 02-02 (G1 re-verify):** At end of 02-02, visually verify LiquidGlass renders correctly over the real bundled-PMTiles MapLibre map on Android (SM S921B). If it fails, flip `LiquidGlassSettings.platformBlurEnabled` to `false` and document in `docs/G1_SPIKE.md` as a full G1 fallback.
 - **Plan 02-02 status (2026-07-03):** CARRY-FORWARD — 02-02 code is complete; G1 re-verify requires installing debug build on device and opening MapScreen (temporarily via a route). Deferred to 02-07 end-to-end device test or whenever next debug build is installed.
@@ -127,6 +130,6 @@ Key locked-in decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-07-03 (Plan 02-06 router shell refactor — COMPLETE)
-Stopped at: Completed 02-06-PLAN.md (StatefulShellRoute + /settings + chrome hiding; 63/63 tests green)
-Resume file: None — next step is Plan 02-07 (G1 docs + phase verification)
+Last session: 2026-07-04 (Wave 7 smoke-test bugfixes)
+Stopped at: Applied Wave 7 bugfixes — PMTiles loopback tile server + attribution reposition (64/64 tests green); ready for re-smoke-test then 02-07 close-out
+Resume file: None — user to re-run device smoke test after this bugfix, then continue with 02-07 SUMMARY / VERIFICATION / ROADMAP updates

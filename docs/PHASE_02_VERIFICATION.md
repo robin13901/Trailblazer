@@ -196,5 +196,53 @@ Real-device results to be filled in after Task 2 checkpoint.
 
 ---
 
-*Document created: 2026-07-03 by Plan 02-07 executor.*
-*Updated after Task 2: (pending real-device checkpoint)*
+## Bug Fix — PMTiles on Android Needs a Loopback Tile Server
+
+**Discovered during:** Phase 2 real-device smoke test (2026-07-04)
+
+**Root cause:** `maplibre_gl ^0.26.2` on Android does NOT natively resolve
+the `pmtiles://` URL scheme. The style JSON declared
+`"url": "pmtiles://assets/tiles/dev_berlin.pmtiles"` — the native MapLibre
+engine silently failed to resolve it and rendered only the `background` layer
+(navy blue), zero vector tiles.
+
+**Fix (committed as `feat(02-07)`):**
+
+A Dart-side loopback HTTP tile server (`TileServer` in
+`lib/features/map/data/tile_server.dart`) reads the bundled PMTiles archive
+from a temp-file copy and serves tiles via `shelf` on
+`http://127.0.0.1:7070/{z}/{x}/{y}.pbf`. Both style JSONs updated from
+`pmtiles://` URL to XYZ `tiles: [...]` array. `MapWidget` watches
+`tileServerProvider` (a `FutureProvider<TileServer>`) and shows a dark
+`ColoredBox` placeholder until the server is ready.
+
+Dependencies added: `pmtiles ^2.2.0`, `shelf ^1.4.2`, `shelf_router ^1.1.4`.
+
+`INTERNET` permission added to `AndroidManifest.xml` (required for glyph/
+sprite CDN fetches and loopback HTTP).
+
+---
+
+## Bug Fix — MapLibre Attribution Button Collision
+
+**Discovered during:** Phase 2 real-device smoke test (2026-07-04)
+
+**Root cause:** MapLibre Android SDK renders a mandatory attribution button
+at bottom-right by default (same position as the Liquid Glass FAB). There is
+no `attributionEnabled: false` option in `maplibre_gl 0.26.2` — hiding it
+entirely would also violate OSM/Protomaps license terms.
+
+**Fix (committed as `feat(02-07)`):**
+
+Attribution button repositioned to `AttributionButtonPosition.bottomLeft`
+with `Point(8, 96)` margins — sits 96 dp above the bottom edge (above the
+bottom nav pill shadow zone), left-aligned, and does not overlap the FAB
+(bottom-right), recenter button (bottom-right), or settings button (top-left).
+
+A test assertion was added to `map_widget_test.dart` verifying the position
+and margins are applied.
+
+---
+
+*Bugfix section added: 2026-07-04 after real-device smoke test.*
+
