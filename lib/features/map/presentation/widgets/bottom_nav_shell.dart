@@ -32,17 +32,14 @@ class BottomNavShell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Fixed height 64 so the pill visually matches the 64 dp FAB / recenter.
-    // Each tab is a fixed-width 88 dp slot. With 3 tabs that's 264 dp of
-    // content; GlassPill adds its own horizontal padding. Total pill
-    // width ≈ 288 dp — fits comfortably on all phone widths ≥ 320 with
-    // room for the 64 dp FAB + 12 dp margins on the right.
+    // Fixed height 64 so the pill visually matches the 64 dp FAB / recenter
+    // circles. XFin reference: pill and FAB same diameter/height.
     return SizedBox(
       height: 64,
       child: GlassPill(
-        // Stadium shape: radius ≥ height/2.
+        // Stadium shape: radius ≥ height/2 → 999 renders as full stadium.
         borderRadius: 999,
-        padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 4),
+        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 10),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -92,35 +89,28 @@ class _NavTabItem extends StatelessWidget {
       selected: isSelected,
       label: label,
       button: true,
-      child: SizedBox(
-        // Fixed-width tab slot. With 3 slots at 88 dp = 264 dp total.
-        // Equal-width slots produce XFin-style uniform spacing.
-        width: 88,
-        height: double.infinity,
-        child: Material(
-          type: MaterialType.transparency,
-          child: InkWell(
-            borderRadius: BorderRadius.circular(999),
-            onTap: onTap,
-            child: Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(icon, size: 22, color: color),
-                  const SizedBox(height: 2),
-                  Text(
-                    label,
-                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                      color: color,
-                      fontWeight: isSelected
-                          ? FontWeight.w600
-                          : FontWeight.w400,
-                    ),
-                  ),
-                ],
+      child: InkWell(
+        borderRadius: BorderRadius.circular(999),
+        onTap: onTap,
+        child: Padding(
+          // The pill's outer GlassPill provides vertical breathing room —
+          // this padding is horizontal-only so the label + icon fit inside
+          // the 64 dp pill height. Widens each tab's tap target.
+          padding: const EdgeInsets.symmetric(horizontal: 18),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, size: 22, color: color),
+              const SizedBox(height: 2),
+              Text(
+                label,
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: color,
+                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+                ),
               ),
-            ),
+            ],
           ),
         ),
       ),

@@ -95,9 +95,9 @@ class MapScreen extends ConsumerWidget {
             ),
           ],
 
-          // Bottom pill — centered across the entire bottom of the screen.
-          // Uses its own Positioned so it is TRULY centered (screen-width
-          // aware), regardless of what other chrome is on the left or right.
+          // Bottom chrome — nav pill + FAB + (optional) recenter, all in
+          // a single Column so their positions are structurally guaranteed
+          // to line up (identical Row structure on each line).
           Positioned(
             left: 0,
             right: 0,
@@ -105,37 +105,19 @@ class MapScreen extends ConsumerWidget {
             child: SafeArea(
               child: Padding(
                 padding: const EdgeInsets.only(bottom: _navRowBottomInset),
-                child: Center(
-                  child: navigationShell != null
+                child: _BottomChrome(
+                  navShell: navigationShell != null
                       ? BottomNavShell(
                           currentIndex: currentIndex,
                           onTap: navigationShell!.goBranch,
                         )
                       : const _LocalBottomNav(),
+                  showFab: isMapTab,
+                  showRecenter: isMapTab,
                 ),
               ),
             ),
           ),
-
-          // FAB — pinned bottom-right, aligned to pill vertically.
-          if (isMapTab)
-            const Positioned(
-              right: _chromeGap,
-              bottom: 0,
-              child: SafeArea(
-                child: Padding(
-                  padding: EdgeInsets.only(bottom: _navRowBottomInset),
-                  child: SizedBox(
-                    width: _fabSize,
-                    height: _fabSize,
-                    child: TripFab(),
-                  ),
-                ),
-              ),
-            ),
-
-          // Recenter — pinned above the FAB, same right margin.
-          if (isMapTab) const _RecenterSlot(),
         ],
       ),
     );
@@ -168,11 +150,95 @@ class _LocalBottomNavState extends State<_LocalBottomNav> {
   }
 }
 
-/// Recenter button — pinned above the FAB with the same right margin,
-/// same gap as the pill's bottom inset. Renders nothing when location
-/// permission is missing or the user is already in follow mode.
-class _RecenterSlot extends ConsumerWidget {
-  const _RecenterSlot();
+/// Fixed-slot bottom chrome — nav pill (flexes to fill), FAB anchored
+/// to the right, recenter button directly above the FAB.
+///
+/// Two-row Column with IDENTICAL structure so the recenter slot lands
+/// pixel-perfect above the FAB slot:
+///
+///   Row 1 (recenter): [ phantom L | gap | Expanded (empty) | gap | RECENTER slot ]
+///   Row 2 (main):     [ phantom L | gap | Expanded → PILL  | gap |   FAB slot   ]
+///
+/// Both rows share identical left widths (phantom + gap + Expanded), so
+/// the recenter and FAB have identical X ranges by construction.
+///
+/// The left "phantom" is much narrower than the right FAB slot on
+/// purpose: the FAB is a distinct visual element the eye reads
+/// separately from the pill, so the pill doesn't need to be at
+/// geometric center. A small phantom is just enough to visually balance
+/// the row without stealing horizontal space from the pill.
+///
+/// `Flexible` is deliberately AVOIDED on the pill itself — it has
+/// intrinsic size, and Flexible/Expanded caused transient 0-width
+/// layouts during SnackBar / navigation transitions, which crashed
+/// `liquid_glass_renderer` inside `Picture.toImageSync(0, h)`. Expanded
+/// wraps a `Center` instead, which lets the pill hug its content.
+class _BottomChrome extends StatelessWidget {
+  const _BottomChrome({
+    required this.navShell,
+    required this.showFab,
+    required this.showRecenter,
+  });
+
+  final Widget navShell;
+  final bool showFab;
+  final bool showRecenter;
+
+  /// Left "phantom" slot width. Smaller than [_fabSize] so the pill
+  /// gets more horizontal room while still feeling balanced against
+  /// the FAB visually.
+  static const double _phantomWidth = 16;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: _chromeGap),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Row 1: recenter above the FAB slot.
+          Row(
+            children: [
+              const SizedBox(width: _phantomWidth),
+              const SizedBox(width: _chromeGap),
+              const Expanded(child: SizedBox.shrink()),
+              const SizedBox(width: _chromeGap),
+              SizedBox(
+                width: _fabSize,
+                height: _fabSize,
+                child: showRecenter
+                    ? const _RecenterOrEmpty()
+                    : const SizedBox.shrink(),
+              ),
+            ],
+          ),
+          const SizedBox(height: _chromeGap),
+          // Row 2: pill (flexes into center) + FAB (right).
+          Row(
+            children: [
+              const SizedBox(width: _phantomWidth),
+              const SizedBox(width: _chromeGap),
+              Expanded(child: Center(child: navShell)),
+              const SizedBox(width: _chromeGap),
+              SizedBox(
+                width: _fabSize,
+                height: _fabSize,
+                child: showFab ? const TripFab() : const SizedBox.shrink(),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Renders the recenter button, or an empty box when location isn't
+/// granted / user is already in follow mode. Kept as a widget so we can
+/// read providers without rebuilding `_BottomChrome` itself.
+class _RecenterOrEmpty extends ConsumerWidget {
+  const _RecenterOrEmpty();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -188,16 +254,6 @@ class _RecenterSlot extends ConsumerWidget {
         cameraState.followMode == FollowMode.locationAndHeading;
 
     if (!isGranted || isFollowing) return const SizedBox.shrink();
-
-    final bottomInset = MediaQuery.of(context).padding.bottom;
-    // Bottom: safe area + row inset + FAB height + chrome gap.
-    final recenterBottom =
-        bottomInset + _navRowBottomInset + _fabSize + _chromeGap;
-
-    return Positioned(
-      right: _chromeGap,
-      bottom: recenterBottom,
-      child: const RecenterButton(),
-    );
+    return const RecenterButton();
   }
 }
