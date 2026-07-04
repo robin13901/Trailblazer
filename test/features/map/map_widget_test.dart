@@ -1,3 +1,4 @@
+import 'package:auto_explore/features/map/data/tile_server_providers.dart';
 import 'package:auto_explore/features/map/presentation/providers/location_permission_provider.dart';
 import 'package:auto_explore/features/map/presentation/providers/map_style_provider.dart';
 import 'package:auto_explore/features/map/presentation/widgets/map_widget.dart';
@@ -8,12 +9,15 @@ import 'package:maplibre_gl/maplibre_gl.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 import '../../helpers/fake_maplibre_platform.dart';
+import '../../helpers/fake_tile_server.dart';
 
 /// Helper: pumps [MapWidget] wrapped in [MaterialApp] + [ProviderScope].
 ///
 /// Overrides [locationPermissionProvider] with a stub that returns
 /// [PermissionStatus.denied] synchronously (no platform channel call).
-/// Tests that need a specific status should pass [permissionStatus].
+///
+/// Overrides [tileServerProvider] with a [FakeTileServer] so the widget's
+/// `.when()` guard immediately resolves to `data` — no real socket is bound.
 ///
 /// Pass [styleOverride] to fix the active map style asset regardless of the
 /// test-runner's platform brightness (e.g. to assert the dark style is used).
@@ -29,6 +33,13 @@ Future<void> pumpMapWidget(
         locationPermissionProvider.overrideWith(
           () => _FakeLocationPermissionNotifier(permissionStatus),
         ),
+        // Provide a fake tile server so the tileServerProvider.when() guard
+        // resolves immediately to `data` without binding a real socket.
+        tileServerProvider.overrideWith((_) async {
+          final server = FakeTileServer();
+          await server.start();
+          return server;
+        }),
         if (styleOverride != null)
           mapStyleAssetProvider.overrideWith(
             () => _FixedMapStyleNotifier(styleOverride),
@@ -37,6 +48,8 @@ Future<void> pumpMapWidget(
       child: MaterialApp(home: Scaffold(body: widget)),
     ),
   );
+  // Allow the FutureProvider to resolve to its data state.
+  await tester.pump();
 }
 
 /// Stub notifier that returns a fixed [PermissionStatus] without calling
@@ -186,5 +199,23 @@ void main() {
       );
       expect(map.initialCameraPosition!.zoom, 15);
     });
+
+    testWidgets(
+      'attribution button repositioned to bottomLeft with correct margins',
+      (tester) async {
+        await pumpMapWidget(tester);
+
+        final map = tester.widget<MapLibreMap>(find.byType(MapLibreMap));
+        expect(
+          map.attributionButtonPosition,
+          AttributionButtonPosition.bottomLeft,
+          reason:
+              'Attribution must not collide with the Liquid Glass FAB at bottom-right',
+        );
+        // Margins: 8 dp from left, 96 dp from bottom (above nav pill shadow).
+        expect(map.attributionButtonMargins?.x, 8);
+        expect(map.attributionButtonMargins?.y, 96);
+      },
+    );
   });
 }
