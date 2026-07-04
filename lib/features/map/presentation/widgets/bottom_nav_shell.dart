@@ -96,7 +96,7 @@ class _NavTabItem extends StatelessWidget {
           // The pill's outer GlassPill provides vertical breathing room —
           // this padding is horizontal-only so the label + icon fit inside
           // the 64 dp pill height. Widens each tab's tap target.
-          padding: const EdgeInsets.symmetric(horizontal: 20),
+          padding: const EdgeInsets.symmetric(horizontal: 14),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             mainAxisAlignment: MainAxisAlignment.center,
