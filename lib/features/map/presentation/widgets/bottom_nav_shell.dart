@@ -32,23 +32,26 @@ class BottomNavShell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GlassPill(
-      // Extra-large radius makes the pill stadium-shaped (radius ≥ height/2).
-      // The pill hugs its content — no outer stretch — so the caller lays
-      // it out with `Align` or `Row` next to the FAB.
-      borderRadius: 999,
-      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 10),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          for (var i = 0; i < _tabs.length; i++)
-            _NavTabItem(
-              icon: _tabs[i].icon,
-              label: _tabs[i].label,
-              isSelected: currentIndex == i,
-              onTap: () => onTap(i),
-            ),
-        ],
+    // Fixed height 56 so the pill visually matches the 56 dp FAB / recenter
+    // circles. XFin reference: pill and FAB same diameter/height.
+    return SizedBox(
+      height: 56,
+      child: GlassPill(
+        // Stadium shape: radius ≥ height/2 → 999 renders as full stadium.
+        borderRadius: 999,
+        padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 6),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (var i = 0; i < _tabs.length; i++)
+              _NavTabItem(
+                icon: _tabs[i].icon,
+                label: _tabs[i].label,
+                isSelected: currentIndex == i,
+                onTap: () => onTap(i),
+              ),
+          ],
+        ),
       ),
     );
   }
@@ -87,31 +90,21 @@ class _NavTabItem extends StatelessWidget {
       label: label,
       button: true,
       child: InkWell(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(999),
         onTap: onTap,
         child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 16),
+          padding: const EdgeInsets.symmetric(vertical: 2, horizontal: 14),
           child: Column(
             mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Icon(icon, size: 22, color: color),
-              const SizedBox(height: 3),
+              const SizedBox(height: 2),
               Text(
                 label,
                 style: Theme.of(context).textTheme.labelSmall?.copyWith(
                   color: color,
                   fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
-                ),
-              ),
-              const SizedBox(height: 2),
-              // Selection indicator dot.
-              AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
-                width: isSelected ? 4 : 0,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: isSelected ? activeColor : Colors.transparent,
-                  shape: BoxShape.circle,
                 ),
               ),
             ],

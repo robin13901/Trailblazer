@@ -14,11 +14,11 @@ import 'package:permission_handler/permission_handler.dart';
 
 /// Layout constants for the bottom chrome row.
 ///
-/// Pill and FAB have fixed sizes so the pill's position on-screen never
-/// shifts when the FAB is hidden (non-map tabs). See [_BottomChrome].
+/// XFin reference: the pill and FAB share the same 56 dp height, and the
+/// spacing (screen-edge ↔ FAB) equals (FAB ↔ pill), and equals the vertical
+/// gap between the recenter button and the FAB. Everything is 12 dp.
 const double _fabSize = 56;
-const double _navRowGap = 10;
-const double _navRowSideMargin = 16;
+const double _chromeGap = 12;
 const double _navRowBottomInset = 12;
 
 /// Phase-2 Map screen — chrome overlays on top of the base [MapWidget].
@@ -175,7 +175,7 @@ class _BottomChrome extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: _navRowSideMargin),
+      padding: const EdgeInsets.symmetric(horizontal: _chromeGap),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
@@ -183,9 +183,9 @@ class _BottomChrome extends StatelessWidget {
           // is optically centered when the FAB is present, and remains
           // in the same position when the FAB is hidden.
           const SizedBox(width: _fabSize),
-          const SizedBox(width: _navRowGap),
+          const SizedBox(width: _chromeGap),
           Flexible(child: navShell),
-          const SizedBox(width: _navRowGap),
+          const SizedBox(width: _chromeGap),
           SizedBox(
             width: _fabSize,
             height: _fabSize,
@@ -197,12 +197,11 @@ class _BottomChrome extends StatelessWidget {
   }
 }
 
-/// Recenter button slot — pinned above the FAB slot, matching right margin.
+/// Recenter button slot — pinned above the FAB slot with matching margins.
 ///
-/// Visible only when location permission is granted AND the user has
-/// panned away from follow mode. Position math:
-///   right: [_navRowSideMargin]  (matches FAB's right edge)
-///   bottom: [safe area] + [_navRowBottomInset] + [_fabSize] + [gap 8]
+/// XFin-style perfect spacing: the distance from the screen edge to the
+/// recenter button equals the distance from the FAB to the recenter button
+/// equals [_chromeGap] (12 dp).
 class _RecenterSlot extends ConsumerWidget {
   const _RecenterSlot();
 
@@ -222,11 +221,12 @@ class _RecenterSlot extends ConsumerWidget {
     if (!isGranted || isFollowing) return const SizedBox.shrink();
 
     final bottomInset = MediaQuery.of(context).padding.bottom;
-    // Bottom position: safe area + row inset + FAB height + small gap.
-    final recenterBottom = bottomInset + _navRowBottomInset + _fabSize + 8;
+    // Bottom position: safe area + row inset + FAB height + chrome gap.
+    final recenterBottom =
+        bottomInset + _navRowBottomInset + _fabSize + _chromeGap;
 
     return Positioned(
-      right: _navRowSideMargin,
+      right: _chromeGap,
       bottom: recenterBottom,
       child: const RecenterButton(),
     );
