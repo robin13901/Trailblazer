@@ -120,3 +120,61 @@ same underlying value.)
 
 [fl-185497]: https://github.com/flutter/flutter/issues/185497
 [fl-43902]: https://github.com/flutter/flutter/issues/43902
+
+---
+
+## Post-Integration Observations (2026-07-04)
+
+**Status upgrade: Conditional PASS → Unconditional PASS**
+
+### Wave 1 (Plan 02-01) result — over solid background
+
+`SpikeG1Screen` ran `LiquidGlass` over an amber `Scaffold` background
+(the `demotiles.maplibre.org` tile URL failed to load during the spike).
+The shader compiled and rendered correctly; refraction/tint was visually
+confirmed by the user on Samsung Galaxy S24 (SM-S921B), Android 14,
+Impeller. The gate was passed conditionally with a re-verify item
+pending the bundled-PMTiles map.
+
+### Wave 7 (Plan 02-07) result — over real MapLibre platform view
+
+After the loopback tile server (`TileServer` via `shelf` + `pmtiles`)
+was wired in and Germany vector tiles were rendering correctly, SC5 of
+the Phase 2 real-device smoke test confirmed that `LiquidGlass` renders
+correctly **over the real MapLibre platform view** on the same Galaxy S24.
+
+- Three 64 dp glass circles (pill, FAB, recenter) all showed visible
+  LiquidGlass refraction over live Protomaps v4 vector tiles.
+- No jank, no shader compilation failure, no rendering artifacts.
+- `BackdropFilter` is still unused (confirmed broken over `PlatformView`
+  on Android per Flutter issue #185497 — the Wave 1 finding stands).
+
+### Decision standing
+
+`LiquidGlassSettings.platformBlurEnabled = true` on **both platforms**
+with full confidence. The conditional caveat from Wave 1 is resolved.
+iOS remains assumed-true (package is iOS-designed; no Mac + iOS device
+available for empirical verification).
+
+### SkSL shader warnings — clarification
+
+`flutter run`, `flutter build`, and `flutter test` print `impellerc`
+warnings that the three `liquid_glass_renderer` fragment shaders
+(`liquid_glass_geometry_blended.frag`, `liquid_glass_arbitrary.frag`,
+`liquid_glass_filter.frag`) cannot be transpiled to SkSL. These warnings
+are **Skia-backend-only** — they apply to the legacy Skia renderer used
+in headless test execution on the host machine. Flutter 3.44 defaults to
+Impeller on Android and iOS; at real app runtime the shaders compile and
+execute correctly via Impeller. The warnings do not indicate any problem
+with the app on a real device.
+
+### Downstream consequences (updated)
+
+- **Plan 02-05 (Glass Shell):** Shipped as `lg.LiquidGlass` on both
+  platforms. `FallbackGlassPill` / `FallbackGlassCircle` remain as
+  defensive code — a single `platformBlurEnabled = false` flip activates
+  them if a future Flutter upgrade breaks the shader path.
+- **Gate G1:** Closed as unconditional PASS. No further re-verification
+  required unless `liquid_glass_renderer` or Flutter engine is upgraded.
+- **Phase 2 verification:** SC5 confirmed. See
+  `.planning/phases/02-map-glass-shell/02-VERIFICATION.md`.

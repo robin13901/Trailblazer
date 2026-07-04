@@ -196,6 +196,52 @@ Real-device results to be filled in after Task 2 checkpoint.
 
 ---
 
+## Real-Device Smoke Test Results (2026-07-04)
+
+**Device:** Samsung Galaxy S24 (SM-S921B), Android 14 (One UI 6.1)
+**Build:** debug APK, Flutter 3.44.4 / Dart 3.12.2, Impeller engine
+**Tester:** I551358
+
+| SC | Criterion | Result | Evidence |
+|----|-----------|--------|----------|
+| SC1 | Pan/zoom/rotate; tilt disabled per CONTEXT.md | **PASS** | Pan, pinch-zoom, two-finger rotate all work. Tilt intentionally off (`tiltGesturesEnabled: false` per `02-CONTEXT.md`). Documented deviation from ROADMAP.md SC1 wording. |
+| SC2 | Offline base map in airplane mode | **PASS** | Airplane mode enabled; force-close + reopen; Germany vector tiles rendered from bundled `dev_germany.pmtiles` via loopback tile server — no external network required. |
+| SC3 | Blue dot + camera at current location + recenter | **PASS** | Location prompt on first launch; GPS fix in Kleinheubach (Bavaria); blue dot + accuracy ring visible; recenter button appeared after panning; camera animated to ~1 km radius on recenter tap. |
+| SC4 | Dark-mode auto-switch (soft crossfade) | **PASS** | System theme flip (Light → Dark and back): style crossfaded via 180 ms `AnimatedOpacity` — no white flash, no abrupt jump. Flutter chrome followed `ThemeMode.system`. |
+| SC5 | Liquid Glass shell, no jank; G1 confirmed | **PASS** | 64 dp pill/FAB/recenter rendered with LiquidGlass refraction over live PMTiles layer. Tab switches, Settings push, FAB stub all worked. No sub-30 fps jank observed. G1 conditional PASS upgraded to unconditional. |
+
+**Overall: 5/5 PASS.** Phase 2 verified.
+
+**Test suite at smoke-test time:** 60 passing + 4 skipped (router shell tap tests — `TODO(I551358)`, deferred to Phase 3+).
+
+---
+
+## Wave 7 Layout Iteration History (2026-07-04)
+
+The final bottom chrome layout required significant iteration before the on-device visual matched the XFin reference. The commit trail from the first cleartext-HTTP fix through the final padding correction:
+
+| Commit | Type | Description |
+|--------|------|-------------|
+| `0f986a4` | fix | Allow cleartext HTTP to 127.0.0.1 + align style maxzoom to extract |
+| `c518d28` | polish | XFin-style inline nav pill + FAB; attribution pushed to Settings |
+| `b93ded8` | polish | Fixed-slot bottom chrome; recenter as glass circle stacked on FAB |
+| `a31ae5e` | polish | XFin bottom chrome match + recenter crash guard |
+| `d84fc88` | fix | Guard LiquidGlass against 0-dimension constraints (recenter crash) |
+| `a2f4a14` | polish | Two-row Column layout — pixel-perfect recenter alignment |
+| `e910666` | fix | Remove 3 px overflow inside nav pill |
+| `9e1e311` | fix | Tighten pill horizontal padding — no right-edge overflow |
+| `87ca065` | polish | Shrink left phantom slot → wider pill with breathing room |
+| `86b8940` | polish | Truly centered pill + equal-spaced tabs |
+| `7d9a7ed` | revert | Revert "truly centered pill + equal-spaced tabs" |
+| `31fca3a` | revert | Revert "shrink left phantom slot → wider pill with breathing room" |
+| `386576d` | revert | Revert "tighten pill horizontal padding — no right-edge overflow" |
+| `65efbed` | fix | Restore `_fabSize` to 64 after revert cascade |
+| `0549215` | fix | Pill tab horizontal padding 20→14 — final, no overflow |
+
+**Final chrome spec:** Three 64 dp glass circles. Pill anchored bottom-left (12 dp margin). FAB at bottom-right (12 dp margin). Recenter stacked above FAB in a Column (12 dp bottom margin). All three use `GlassCircle` with `LiquidGlass` rendering.
+
+---
+
 ## Bug Fix — PMTiles on Android Needs a Loopback Tile Server
 
 **Discovered during:** Phase 2 real-device smoke test (2026-07-04)
