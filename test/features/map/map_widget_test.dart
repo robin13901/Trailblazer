@@ -184,7 +184,7 @@ void main() {
       },
     );
 
-    testWidgets('initial camera targets Berlin at zoom 15', (tester) async {
+    testWidgets('initial camera targets Berlin at zoom 11', (tester) async {
       await pumpMapWidget(tester);
 
       final map = tester.widget<MapLibreMap>(find.byType(MapLibreMap));
@@ -197,7 +197,9 @@ void main() {
         map.initialCameraPosition!.target.longitude,
         closeTo(13.40, 0.01),
       );
-      expect(map.initialCameraPosition!.zoom, 15);
+      // Zoom 11 is the maxzoom of the bundled Germany extract — starting
+      // deeper would over-zoom (blurry tiles). See Wave 7 fix.
+      expect(map.initialCameraPosition!.zoom, 11);
     });
 
     testWidgets(

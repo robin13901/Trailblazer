@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Trailblazer network security config.
+
+  We use a Dart-side loopback HTTP tile server (see TileServer at
+  lib/features/map/data/tile_server.dart) to serve bundled PMTiles as
+  standard XYZ tiles at http://127.0.0.1:7070/{z}/{x}/{y}.pbf.
+
+  Since Android 9 (API 28), cleartext HTTP is blocked by default —
+  including to 127.0.0.1. Without this config, MapLibre silently fails
+  every tile request and the map renders only the style background.
+
+  Scope: cleartext is permitted ONLY to loopback (127.0.0.1). All other
+  hosts (including protomaps.github.io for glyphs/sprites) still require
+  HTTPS. This is the minimum-privilege configuration.
+-->
+<network-security-config>
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">127.0.0.1</domain>
+        <domain includeSubdomains="false">localhost</domain>
+    </domain-config>
+</network-security-config>

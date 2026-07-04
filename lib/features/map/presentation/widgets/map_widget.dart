@@ -39,7 +39,7 @@ class MapWidget extends ConsumerStatefulWidget {
   const MapWidget({
     super.key,
     this.initialTarget = const LatLng(52.52, 13.40), // Berlin fallback
-    this.initialZoom = 15,
+    this.initialZoom = 11,
     this.onMapCreated,
     this.onStyleLoaded,
   });
