@@ -105,9 +105,11 @@ Key locked-in decisions affecting current work:
 - **Plan 02-06 (2026-07-03):** Chrome (FocusAreaPill, SettingsGlassButton, TripFab) hidden when `currentIndex > 0` (non-map tabs). BottomNavShell always visible.
 - **Wave 7 bugfix (2026-07-04):** maplibre_gl 0.26.2 does not natively resolve `pmtiles://` URLs on Android. Added Dart loopback tile server (`TileServer` in `lib/features/map/data/tile_server.dart`) reading from bundled `assets/tiles/dev_berlin.pmtiles` via `pmtiles ^2.2.0` and `shelf ^1.4.2` + `shelf_router ^1.1.4`, serving on `http://127.0.0.1:7070/{z}/{x}/{y}.pbf`. Style JSONs (`assets/map_style_light.json`, `assets/map_style_dark.json`) changed from `pmtiles://` URL to XYZ `tiles:[]` array. This is the offline path on both platforms (iOS `pmtiles://` supported natively per 0.26.2 CHANGELOG, but unified code path is simpler).
 - **Wave 7 bugfix (2026-07-04):** MapLibre native attribution button cannot be fully hidden via Flutter API (no `attributionEnabled: false` in maplibre_gl 0.26.2). Repositioned to `AttributionButtonPosition.bottomLeft` with `Point(8, 96)` margins to keep OSM/Protomaps license attribution visible but out of the way of the Liquid Glass FAB (bottom-right) and bottom nav pill. Fully custom attribution chip deferred to Phase 8+.
+- **Wave 7 Berlin→Germany extract (2026-07-04):** `assets/tiles/dev_berlin.pmtiles` (30 MB) replaced with `assets/tiles/dev_germany.pmtiles` (full Germany bbox 5.866,47.270,15.042,55.058, maxzoom 11, 371 MB, 5125 tiles). Fixes empty-map issue when user's location is outside Berlin (user's device: Kleinheubach, Bavaria). File is gitignored — `tool/fetch_pmtiles.sh` / `tool/fetch_pmtiles.ps1` fetches it after cloning. `TileServer.assetPath` default changed accordingly. Maxzoom 14 (3.2 GB) and maxzoom 13 (1.8 GB) were attempted but exceeded APK bundling budget; maxzoom 11 (371 MB) is the practical limit for Germany with Protomaps v4 schema. Replaced in Phase 4 by the custom-built `germany-base.pmtiles` from the OSM pipeline.
 
 ### Pending Todos
 
+- **Phase 4:** Replace `assets/tiles/dev_germany.pmtiles` (Protomaps demo bucket, generic v4 schema, maxzoom 11, 371 MB) with the custom `germany-base.pmtiles` produced by the OSM pipeline. Target: < 200 MB with Kfz-focused schema (fewer POI layers, road-graph focus). Run `tool/fetch_pmtiles.sh` to regenerate in the interim.
 - **Chore (post-Phase 1):** Re-add `custom_lint` + `riverpod_lint` when a `custom_lint` release supports `analyzer ^13.0.0`. Also restore `analyzer.plugins: - custom_lint` in `analysis_options.yaml`.
 - **Optional:** Confirm `flutter build apk --debug` on a Windows box that has `cmdline-tools` + Android SDK licenses accepted (Plan 06 chose to leave Android build local rather than CI-gated; developer validates locally).
 - **Post-01-06 follow-up:** Consider adding an on-demand Android CI job (`workflow_dispatch`) later if solo-dev workflow changes.
@@ -130,6 +132,6 @@ Key locked-in decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-07-04 (Wave 7 smoke-test bugfixes)
-Stopped at: Applied Wave 7 bugfixes — PMTiles loopback tile server + attribution reposition (64/64 tests green); ready for re-smoke-test then 02-07 close-out
-Resume file: None — user to re-run device smoke test after this bugfix, then continue with 02-07 SUMMARY / VERIFICATION / ROADMAP updates
+Last session: 2026-07-04 (Berlin→Germany PMTiles extract + gitignore policy)
+Stopped at: Replaced dev_berlin.pmtiles with dev_germany.pmtiles (maxzoom 11, 371 MB, gitignored); fetch scripts added; 64/64 tests green; ready for 02-07 close-out + device smoke test
+Resume file: None

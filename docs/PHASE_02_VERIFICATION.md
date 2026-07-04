@@ -244,5 +244,27 @@ and margins are applied.
 
 ---
 
-*Bugfix section added: 2026-07-04 after real-device smoke test.*
+---
 
+## Wave 7 Addendum — Berlin → Germany PMTiles Extract (2026-07-04)
+
+**Trigger:** User's device is in Kleinheubach, Bavaria — outside the Berlin extract bbox.
+Map rendered empty (background layer only; no vector tiles visible).
+
+**Change summary:**
+
+- `assets/tiles/dev_berlin.pmtiles` (30 MB) replaced by `assets/tiles/dev_germany.pmtiles`
+  (full Germany bbox 5.866°E–15.042°E, 47.270°N–55.058°N, maxzoom 11, 371 MB).
+  Fell back from maxzoom 14 (3.2 GB) and maxzoom 13 (1.8 GB) — both exceeded the
+  practical APK bundling budget. maxzoom 11 produces 5125 tiles at 371 MB; MapLibre
+  overzooms from z11 at higher detail levels — adequate for Phase 2 smoke testing.
+- `assets/tiles/*.pmtiles` is now **gitignored**. Run `tool/fetch_pmtiles.sh` (bash) or
+  `tool/fetch_pmtiles.ps1` (PowerShell) after cloning to fetch the tile file.
+- `TileServer.assetPath` default updated from `dev_berlin.pmtiles` to `dev_germany.pmtiles`.
+- `assets/tiles/README.md` rewritten to document the Germany extract + gitignore policy.
+- Phase 4 will replace this with the custom-built `germany-base.pmtiles` (< 200 MB
+  Kfz-focused schema) from the OSM pipeline.
+
+**No code contract changes.** Tests use a fake `TileServer` override and are unaffected.
+
+*Addendum added: 2026-07-04*

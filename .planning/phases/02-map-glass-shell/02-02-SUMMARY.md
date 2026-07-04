@@ -172,5 +172,28 @@ completed: 2026-07-03
 
 ---
 
+## Wave 7 Addendum — Berlin → Germany extract (2026-07-04)
+
+**Trigger:** User's device location is Kleinheubach, Bavaria — far outside the Berlin bbox
+(13.088°E, 52.338°N → 13.761°E, 52.677°N). Map rendered empty (only background layer).
+
+**Change:**
+- `assets/tiles/dev_berlin.pmtiles` (30 MB) replaced by `assets/tiles/dev_germany.pmtiles`
+  (full Germany bbox 5.866,47.270,15.042,55.058, maxzoom 11, 371 MB — fell back from
+  maxzoom 14/13 because those extracts were 3.2 GB / 1.8 GB respectively, exceeding the
+  500 MB APK bundling budget; maxzoom 11 = 5125 tiles, 371 MB, practical for debug APK).
+- `assets/tiles/*.pmtiles` added to `.gitignore` — file is no longer committed.
+- `tool/fetch_pmtiles.sh` (bash) + `tool/fetch_pmtiles.ps1` (PowerShell) added; each
+  fresh clone must run one of these to fetch the tile asset.
+- `TileServer.assetPath` default changed from `'assets/tiles/dev_berlin.pmtiles'` to
+  `'assets/tiles/dev_germany.pmtiles'`.
+- `assets/tiles/README.md` rewritten to document Germany extract + gitignore policy.
+
+**No code contract changes.** Tests use a fake `TileServer` override — unchanged.
+
+*Addendum added: 2026-07-04*
+
+---
+
 *Phase: 02-map-glass-shell*
 *Completed: 2026-07-03*
