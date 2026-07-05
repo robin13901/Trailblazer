@@ -64,6 +64,7 @@ void main() {
     Duration autoStopDwell = const Duration(minutes: 2),
     Duration resumeWindow = const Duration(minutes: 15),
     Duration activityFreshness = const Duration(seconds: 10),
+    Duration notificationInterval = const Duration(seconds: 30),
   }) {
     return TrackingService(
       facade: facade,
@@ -72,6 +73,7 @@ void main() {
       autoStopDwell: autoStopDwell,
       resumeWindow: resumeWindow,
       activityFreshness: activityFreshness,
+      notificationInterval: notificationInterval,
     );
   }
 
@@ -523,6 +525,63 @@ void main() {
       expect(newState.tripId, isNot(firstTripId));
 
       await svc.stopActive();
+      await svc.dispose();
+    });
+
+    // -------------------------------------------------------------------------
+    // 11. Notification ticker fires during manual trip
+    // -------------------------------------------------------------------------
+    test(
+        'notification ticker: fires >= 3 times during a 350 ms manual trip, '
+        'each text starts with "Recording · "', () async {
+      const intervalMs = 100;
+      final svc = makeService(
+        notificationInterval: const Duration(milliseconds: intervalMs),
+      );
+      await svc.init();
+
+      await svc.startManual();
+      expect(svc.currentState, isA<TrackingRecording>());
+
+      // Emit 65 fixes so the trip passes the keeper threshold on stop.
+      final now = DateTime.now();
+      for (final fix in buildFixesFrom(now, 65)) {
+        facade.emitFix(fix);
+        await Future<void>.delayed(Duration.zero);
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+
+      // Wait long enough for the ticker to fire at least 3 times (3 × 100 ms).
+      await Future<void>.delayed(const Duration(milliseconds: 350));
+
+      expect(
+        facade.notificationTexts.length,
+        greaterThanOrEqualTo(3),
+        reason: 'Ticker should fire at least 3 times in 350 ms with 100 ms interval',
+      );
+      for (final text in facade.notificationTexts) {
+        expect(
+          text,
+          startsWith('Recording · '),
+          reason: 'Every notification text must start with "Recording · "',
+        );
+      }
+
+      final countBeforeStop = facade.notificationTexts.length;
+
+      // Stop the trip — ticker must be cancelled.
+      await svc.stopActive();
+      expect(svc.currentState, isA<TrackingIdle>());
+
+      // Wait another interval to confirm the ticker is no longer firing.
+      await Future<void>.delayed(const Duration(milliseconds: 200));
+
+      expect(
+        facade.notificationTexts.length,
+        countBeforeStop,
+        reason: 'Ticker must stop firing after stopActive()',
+      );
+
       await svc.dispose();
     });
   });

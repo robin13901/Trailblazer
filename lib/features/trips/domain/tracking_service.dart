@@ -31,6 +31,7 @@ class TrackingService {
     Duration resumeWindow = const Duration(minutes: 15),
     double resumeRadiusMeters = 500,
     Duration activityFreshness = const Duration(seconds: 10),
+    Duration notificationInterval = const Duration(seconds: 30),
   })  : _facade = facade,
         _repository = repository,
         _pointsSink = pointsSink,
@@ -38,7 +39,8 @@ class TrackingService {
         _autoStopDwell = autoStopDwell,
         _resumeWindow = resumeWindow,
         _resumeRadiusMeters = resumeRadiusMeters,
-        _activityFreshness = activityFreshness;
+        _activityFreshness = activityFreshness,
+        _notificationInterval = notificationInterval;
 
   final BackgroundGeolocationFacade _facade;
   final TripsRepository _repository;
@@ -48,6 +50,7 @@ class TrackingService {
   final Duration _resumeWindow;
   final double _resumeRadiusMeters;
   final Duration _activityFreshness;
+  final Duration _notificationInterval;
 
   final _log = Logger('tracking');
 
@@ -72,6 +75,12 @@ class TrackingService {
   Timer? _resumeTimer;
   DateTime? _pendingStopAt;
   FixAccepted? _pendingStopFix;
+
+  // Notification updater — fires every ~30 s during recording to keep the
+  // Android FGS notification text fresh. Lives here alongside dwell/resume
+  // to avoid coupling to widget or Riverpod lifecycles (which can churn on
+  // hot reload / background mode).
+  Timer? _notificationTicker;
 
   // Facade subscriptions
   StreamSubscription<FixInput>? _locSub;
@@ -124,6 +133,8 @@ class TrackingService {
             manuallyStarted: trip.manuallyStarted,
           ),
         );
+        // Resume the notification updater for the hydrated trip.
+        _startNotificationTicker();
       },
       err: (e) {
         _log.severe('activeTrip failed on cold-start: ${e.message}');
@@ -156,6 +167,7 @@ class TrackingService {
           pointCount: 0,
           manuallyStarted: true,
         ));
+        _startNotificationTicker();
       },
       err: (e) {
         _log.severe('startManual openTrip failed: ${e.message}');
@@ -178,6 +190,7 @@ class TrackingService {
     if (tripId == null) return;
 
     _cancelDwellTimers();
+    _stopNotificationTicker();
 
     await _finalizeAndClose(tripId, autoStopped: false);
 
@@ -191,6 +204,7 @@ class TrackingService {
   /// Release resources. Call when the service is being disposed.
   Future<void> dispose() async {
     _cancelDwellTimers();
+    _stopNotificationTicker();
     await _locSub?.cancel();
     await _motionSub?.cancel();
     await _activitySub?.cancel();
@@ -407,6 +421,7 @@ class TrackingService {
           pointCount: 0,
           manuallyStarted: false,
         ));
+        _startNotificationTicker();
       },
       err: (e) {
         _log.severe('openTrip failed on auto-start: ${e.message}');
@@ -473,6 +488,7 @@ class TrackingService {
     _resumeTimer = null;
     _pendingStopAt = null;
     _pendingStopFix = null;
+    _stopNotificationTicker();
     final tripId = _currentTripId;
     if (tripId == null) return;
     unawaited(_finalizeAndClose(tripId, autoStopped: true));
@@ -546,6 +562,39 @@ class TrackingService {
     _dwellTimer = null;
     _resumeTimer?.cancel();
     _resumeTimer = null;
+  }
+
+  /// Starts (or restarts) the periodic notification updater.
+  ///
+  /// Fires every [_notificationInterval] during a recording trip. On each tick
+  /// it formats the current elapsed time, distance, and speed and calls
+  /// [BackgroundGeolocationFacade.setNotificationText] — fire-and-forget.
+  ///
+  /// Lives here alongside [_dwellTimer] / [_resumeTimer] so the timer is
+  /// owned by the long-lived service, not a widget or Riverpod notifier
+  /// (which can be recreated on hot reload or while the app is backgrounded).
+  void _startNotificationTicker() {
+    _notificationTicker?.cancel();
+    _notificationTicker = Timer.periodic(_notificationInterval, (_) {
+      final s = _currentState;
+      if (s is! TrackingRecording) return;
+      final now = DateTime.now();
+      final d = s.duration(now);
+      final mm = d.inMinutes.remainder(60).toString().padLeft(2, '0');
+      final ss = d.inSeconds.remainder(60).toString().padLeft(2, '0');
+      final km = (s.distanceMeters / 1000).toStringAsFixed(1);
+      final spd = s.currentSpeedKmh?.round().toString() ?? '—';
+      // Fire-and-forget — errors logged inside the facade.
+      unawaited(_facade.setNotificationText(
+        'Recording · $mm:$ss · $km km · $spd km/h',
+      ));
+    });
+  }
+
+  /// Cancels the notification updater.
+  void _stopNotificationTicker() {
+    _notificationTicker?.cancel();
+    _notificationTicker = null;
   }
 
   void _emitState(TrackingState state) {

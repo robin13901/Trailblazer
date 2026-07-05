@@ -8,6 +8,7 @@ import 'package:auto_explore/features/map/presentation/widgets/permission_denial
 import 'package:auto_explore/features/map/presentation/widgets/recenter_button.dart';
 import 'package:auto_explore/features/map/presentation/widgets/settings_glass_button.dart';
 import 'package:auto_explore/features/map/presentation/widgets/trip_fab.dart';
+import 'package:auto_explore/features/trips/presentation/widgets/live_tracking_panel.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -129,6 +130,7 @@ class MapScreen extends ConsumerWidget {
                       : const _LocalBottomNav(),
                   showFab: isMapTab,
                   showRecenter: isMapTab,
+                  showPanel: isMapTab,
                 ),
               ),
             ),
@@ -165,20 +167,17 @@ class _LocalBottomNavState extends State<_LocalBottomNav> {
   }
 }
 
-/// Fixed-slot bottom chrome — nav pill centered, FAB anchored to the right,
-/// recenter button directly above the FAB.
+/// Fixed-slot bottom chrome — live-panel (conditional), nav pill centered,
+/// FAB anchored to the right, recenter button directly above the FAB.
 ///
-/// Two-row Column with IDENTICAL structure so the recenter slot lands
-/// pixel-perfect above the FAB slot:
+/// Three-row Column:
 ///
-///   Row 1 (recenter row):  [phantom L | gap | phantom center | gap | RECENTER slot ]
-///   Row 2 (main row):      [phantom L | gap |     PILL      | gap |   FAB slot   ]
+///   Row 0 (live panel row): [phantom L | gap | LIVE PANEL (centered) | gap | phantom R ]
+///   Row 1 (recenter row):   [phantom L | gap | phantom center | gap | RECENTER slot ]
+///   Row 2 (main row):       [phantom L | gap |     PILL      | gap |   FAB slot   ]
 ///
-/// Both rows have the same three "slot" widths: `_fabSize`, `flex`,
-/// `_fabSize`. The pill sits in the flex slot (Row 2, center); the
-/// recenter and FAB each sit in the right `_fabSize` slot. Because both
-/// rows use IDENTICAL widths, the recenter and FAB are structurally
-/// guaranteed to have the exact same X range.
+/// Both phantom-slot rows share IDENTICAL widths (`_fabSize`, flex, `_fabSize`)
+/// so the recenter and FAB are structurally guaranteed to have the same X range.
 ///
 /// `Flexible` is deliberately AVOIDED on the pill — it has intrinsic
 /// size, and Flexible/Expanded caused transient 0-width layouts during
@@ -189,11 +188,13 @@ class _BottomChrome extends StatelessWidget {
     required this.navShell,
     required this.showFab,
     required this.showRecenter,
+    required this.showPanel,
   });
 
   final Widget navShell;
   final bool showFab;
   final bool showRecenter;
+  final bool showPanel;
 
   @override
   Widget build(BuildContext context) {
@@ -203,6 +204,11 @@ class _BottomChrome extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          // Row 0: live tracking panel — centered above chrome, map tab only.
+          if (showPanel) ...[
+            const Center(child: LiveTrackingPanel()),
+            const SizedBox(height: _chromeGap),
+          ],
           // Row 1: recenter above the FAB slot.
           Row(
             children: [
