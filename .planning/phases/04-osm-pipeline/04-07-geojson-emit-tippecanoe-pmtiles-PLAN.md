@@ -3,8 +3,8 @@ id: 04-07
 phase: 04-osm-pipeline
 plan: 07
 type: execute
-wave: 5
-depends_on: [04-05]
+wave: 6
+depends_on: [04-05, 04-06]
 files_modified:
   - tool/osm_pipeline/lib/pmtiles/layer_schema.dart
   - tool/osm_pipeline/lib/pmtiles/geojson_writer.dart
@@ -46,7 +46,7 @@ must_haves:
 
 ## Goal
 
-Emit the four-layer vector schema as GeoJSONSeq files and invoke tippecanoe to produce `germany-base.pmtiles`. Runs in parallel with 04-06.
+Emit the four-layer vector schema as GeoJSONSeq files and invoke tippecanoe to produce `germany-base.pmtiles`. Runs after 04-06 (wave 6) — replaces the Stage D stub 04-06 planted in `pipeline_orchestrator.dart`.
 
 ## Context
 
@@ -56,7 +56,8 @@ Emit the four-layer vector schema as GeoJSONSeq files and invoke tippecanoe to p
 - 04-RESEARCH §12 pitfall #3: no sea polygons in v1 — Germany's coastline requires a separate Daylight/OSMCoastline dataset. Inland lakes + rivers are enough.
 - 04-RESEARCH §12 pitfall #7: after 04-03's physical reversal of `oneway=-1`, roads-layer features emit `oneway=true` verbatim (no re-reversal in emission).
 - 04-RESEARCH.md §2 Windows mitigation: shell out to `wsl tippecanoe ...` on Windows dev boxes. 04-01 already documented the WSL2 prerequisite in `tool/osm_pipeline/README.md`. 04-09 owns the more detailed WSL setup doc.
-- This plan reads directly from the SCRATCH DB (produced by 04-03/04/05), not from 04-06's final osm.sqlite — running 04-07 and 04-06 in parallel means both consume scratch and don't step on each other. Alternative: 04-07 reads the final osm.sqlite. Choosing SCRATCH keeps parallelism.
+- **Wave 6 (after 04-06):** 04-06 seeded a Stage D stub in `pipeline_orchestrator.dart`; this plan replaces the stub with the real `runPmtilesStage()` call. Because this runs in a later wave than 04-06, the shared orchestrator file is edited sequentially — no merge conflict.
+- Reads directly from the SCRATCH DB (produced by 04-03/04/05), not from 04-06's final osm.sqlite. Alternative would be reading the final osm.sqlite; scratch is chosen for locality with 04-05's segmented-intersection output.
 
 ## Tasks
 
@@ -223,7 +224,7 @@ Emit the four-layer vector schema as GeoJSONSeq files and invoke tippecanoe to p
     tool/osm_pipeline/lib/output/pipeline_orchestrator.dart
     tool/osm_pipeline/test/pmtiles/tippecanoe_runner_test.dart
   </files>
-  <intent>Invoke tippecanoe cross-platform, stream its output, produce germany-base.pmtiles.</intent>
+  <intent>Invoke tippecanoe cross-platform, stream its output, produce germany-base.pmtiles. Replace the Stage D stub 04-06 planted in the orchestrator with the real call.</intent>
   <action>
     **`tippecanoe_runner.dart`**:
     ```dart
@@ -321,7 +322,12 @@ Emit the four-layer vector schema as GeoJSONSeq files and invoke tippecanoe to p
 
     Note: `--no-tile-compression` matches Phase 2's MapLibre setup (the app's MapLibre expects uncompressed MVT). Verify against `pubspec.yaml`'s `maplibre_gl` version — if it expects gzipped, drop this flag.
 
-    Wire Stage D into `pipeline_orchestrator.dart` (replace the earlier stub call).
+    **Wire Stage D into `pipeline_orchestrator.dart`** — 04-06 planted a stub Logger.info + comment at the Stage D position. Replace both with the real call:
+    ```dart
+    Logger.info('Stage D: GeoJSONSeq + tippecanoe...');
+    await runPmtilesStage(scratch: scratch, pbf: pbf, outDir: outDir);
+    ```
+    This is a targeted edit within the shared orchestrator file; 04-06 already ran (wave 5) so no merge conflict.
 
     **`tippecanoe_runner_test.dart`**:
     - Mocked `Process.start` (via `dart:io` platform channel replacement or just testing the `_resolveExecutable()` helper directly):

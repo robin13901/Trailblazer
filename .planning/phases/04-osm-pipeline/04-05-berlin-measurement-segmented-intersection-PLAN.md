@@ -14,7 +14,7 @@ files_modified:
   - tool/osm_pipeline/bin/measure_berlin_row_count.dart
   - tool/osm_pipeline/test/intersect/polygon_clip_test.dart
   - tool/osm_pipeline/test/intersect/way_admin_join_test.dart
-autonomous: true
+autonomous: false
 requirements: [OSM-04]
 
 must_haves:
@@ -24,18 +24,18 @@ must_haves:
     - "For every Kfz way that intersects any admin region at levels 2/4/6/8/9/10, the pipeline writes exactly one way_admin_raw row per (way_id, region_id, level) pair; a way that enters/exits/re-enters produces multiple rows"
     - "Multipolygon admin regions (outer + inner enclaves) are handled correctly — the inner ring is a SUBTRACTED hole, not an independent region"
     - "way_admin_raw carries the fraction_start and fraction_end columns (double in [0,1]) representing where along the way each sub-segment starts and ends — enables Phase 8 coverage math without storing sub-geometries"
-    - "Ways lying wholly within a region at all six levels get their six admin_region_id_L{2,4,6,8,9,10} columns populated on the ways table (denormalization for size, 04-RESEARCH §7 final strategy); cross-border ways get NULLs on those columns and rely on way_admin_raw for their level joins"
+    - "way_admin_raw contains one row per (way_id, region_id, admin_level, fraction_start, fraction_end) for every cross-border sub-segment, including sub-segments produced by enter/exit/re-enter and multipolygon-with-hole cases (denormalization roll-up onto the ways table is 04-06's responsibility)"
   artifacts:
     - path: "tool/osm_pipeline/lib/intersect/polygon_clip.dart"
       provides: "clip_linestring_to_polygon(line, polygon) → List<Subsegment>"
     - path: "tool/osm_pipeline/lib/measure/berlin_row_count_probe.dart"
       provides: "Diagnostic tool: prints row-count projections + a schema-locking recommendation from a Berlin-bbox scratch DB"
     - path: "tool/osm_pipeline/lib/intersect/way_admin_join.dart"
-      provides: "buildWayAdminJoin(scratch) — iterates ways × admin regions and populates way_admin_raw + denormalized ways.admin_region_id_L* columns"
+      provides: "buildWayAdminJoin(scratch) — iterates ways × admin regions and populates way_admin_raw"
   key_links:
     - from: "tool/osm_pipeline/lib/intersect/way_admin_join.dart"
       to: "tool/osm_pipeline/lib/scratch/scratch_db.dart"
-      via: "reads ways_raw + admin_regions_raw, writes way_admin_raw + updates ways_raw"
+      via: "reads ways_raw + admin_regions_raw, writes way_admin_raw"
       pattern: "INSERT INTO way_admin_raw"
     - from: "tool/osm_pipeline/bin/measure_berlin_row_count.dart"
       to: "tool/osm_pipeline/lib/measure/berlin_row_count_probe.dart"
@@ -53,8 +53,8 @@ Precede any schema-locking task with a **Berlin-bbox row-count measurement** (04
 - 04-RESEARCH.md §7 "final strategy" recommendation: denormalized `admin_region_id_L{2,4,6,8,9,10}` on `ways` for wholly-contained ways + `way_admin_raw` for cross-border ways. But this is guarded on "actual Kfz way count for Germany is ~4M, not 40M" — **an empirical claim that must be verified on Berlin before locking**.
 - 04-RESEARCH.md §7 states explicitly: "Do NOT lock a schema before running the Berlin-bbox smoke and scaling. The plan should include an early 'measure Berlin-bbox row count and extrapolate' task before committing schema."
 - Fallback: if Berlin measurement projects > 150 MB for the denormalized columns, DROP the level 9 and level 10 columns (Stadtteil/Ortsteil) and require a runtime spatial lookup for those two levels — 04-RESEARCH §7 escape hatch.
-- This plan is a Wave 4 blocker for 04-06 (which owns the final osm.sqlite schema). 04-06 reads the recommendation from `04-05-BERLIN-MEASUREMENT.md` and picks columns accordingly.
-- Berlin fixture: NO commit of a real Berlin PBF (60 MB, too big — 04-RESEARCH §11). The probe task expects the user to point at a local Berlin PBF via env var / CLI arg. If absent, the probe short-circuits with an actionable error.
+- This plan is a Wave 4 blocker for 04-06 (which owns the final osm.sqlite schema). 04-06 reads the recommendation from `04-05-BERLIN-MEASUREMENT.md` and picks columns accordingly. 04-06's Deviation Handling documents a HARD gate: if the measurement file is missing or marked "not empirically verified", 04-06 refuses to execute.
+- Berlin fixture: NO commit of a real Berlin PBF (60 MB, too big — 04-RESEARCH §11). The probe task expects the user to point at a local Berlin PBF via env var / CLI arg. Because the schema-lock in 04-06 depends on this measurement, this plan is `autonomous: false` — Task 3 is a checkpoint that requires the user to supply the Berlin PBF and confirm the measurement result before Task 4 runs.
 
 ## Tasks
 
@@ -118,15 +118,14 @@ Precede any schema-locking task with a **Berlin-bbox row-count measurement** (04
 </task>
 
 <task type="auto">
-  <name>Task 2: Berlin-bbox row-count probe (schema unlock)</name>
+  <name>Task 2: Berlin-bbox row-count probe (implementation)</name>
   <files>
     tool/osm_pipeline/lib/measure/berlin_row_count_probe.dart
     tool/osm_pipeline/bin/measure_berlin_row_count.dart
-    .planning/phases/04-osm-pipeline/04-05-BERLIN-MEASUREMENT.md
   </files>
-  <intent>Empirically confirm 04-RESEARCH §7's row-count claim on real Berlin data before locking the schema in 04-06.</intent>
+  <intent>Implement the probe binary + probe library. Running it against a real Berlin PBF is Task 3 (checkpoint) — this task is code-only.</intent>
   <action>
-    Requires the user to provide a Berlin PBF locally. Read the path from the `TRAILBLAZER_BERLIN_PBF` env var. If unset, print a clear instruction message and exit non-zero:
+    Requires the user to provide a Berlin PBF locally at RUN time. Read the path from the `TRAILBLAZER_BERLIN_PBF` env var. If unset, print a clear instruction message and exit non-zero:
 
     ```
     Berlin PBF not provided. Download from
@@ -167,7 +166,7 @@ Precede any schema-locking task with a **Berlin-bbox row-count measurement** (04
        - Else → "join-table-only"
     7. Write the report as a MARKDOWN artifact: `.planning/phases/04-osm-pipeline/04-05-BERLIN-MEASUREMENT.md` — table of counts, projections, and the recommendation. This file is committed and 04-06 reads it.
 
-    Structure of the report:
+    Structure of the report (Task 3 fills this in by running the probe):
     ```markdown
     # Phase 4 · Plan 05 · Berlin-bbox Row-Count Measurement
 
@@ -201,20 +200,57 @@ Precede any schema-locking task with a **Berlin-bbox row-count measurement** (04
     **`bin/measure_berlin_row_count.dart`** — thin CLI wrapper: parse env var, call the probe, print the report to stdout, write the markdown artifact, exit 0/1 accordingly.
   </action>
   <verify>
-    Manual smoke: if a Berlin PBF is available, `dart run tool/osm_pipeline/bin/measure_berlin_row_count.dart` completes in < 5 min, produces the .md artifact, and prints the recommendation.
-    Without Berlin PBF: the tool exits non-zero with the download instruction — this is the acceptance for the plan's automated verify (Berlin PBF is a user-provided asset).
-    Executor note: if no Berlin PBF is available at execution time, the executor SHOULD stop and surface a checkpoint asking the user to provide it — the schema-lock in 04-06 depends on this measurement.
+    `cd tool/osm_pipeline && dart test` — no test regressions introduced.
+    `flutter analyze` clean.
+    Unit-level smoke: without a Berlin PBF, `dart run tool/osm_pipeline/bin/measure_berlin_row_count.dart` exits non-zero with the download instruction message (Task 3 covers the real run).
   </verify>
 </task>
 
+<task type="checkpoint:human-verify">
+  <name>Task 3: Berlin measurement run + user confirmation (schema unlock)</name>
+  <gate>blocking</gate>
+  <what-built>
+    Task 2 implemented the probe binary. Now we need a real measurement against a real Berlin PBF, because 04-06 will read this file to lock its schema strategy. The whole point of the Berlin measurement (per RESEARCH §7: *"Do NOT lock a schema before running the Berlin-bbox smoke and scaling"*) is that we don't guess.
+  </what-built>
+  <how-to-verify>
+    1. Download the Berlin PBF from Geofabrik if not already present:
+       ```
+       https://download.geofabrik.de/europe/germany/berlin.html
+       → berlin-latest.osm.pbf  (~60 MB)
+       ```
+    2. Point the probe at the file:
+       ```bash
+       export TRAILBLAZER_BERLIN_PBF=/absolute/path/to/berlin-latest.osm.pbf
+       # PowerShell: $env:TRAILBLAZER_BERLIN_PBF = "..."
+       ```
+    3. Run:
+       ```bash
+       dart run tool/osm_pipeline/bin/measure_berlin_row_count.dart
+       ```
+       Should complete in < 5 min. Produces `.planning/phases/04-osm-pipeline/04-05-BERLIN-MEASUREMENT.md`.
+
+    4. Read the "Recommendation" line at the bottom of the produced file. Confirm the projected sizes look reasonable and the recommended strategy matches your intuition.
+
+    5. If the recommendation says "join-table-only" or "denormalized L2..L8 only": the schema in 04-06 will differ from the 04-RESEARCH §7 default — this is EXPECTED behavior, not a red flag. Confirm you're OK proceeding with the measurement-driven strategy.
+
+    6. If you cannot obtain a Berlin PBF right now: explicitly acknowledge to the executor that 04-06 is blocked until this is resolved. Do NOT bypass with a stub — 04-06 has a hard gate that will refuse to run without a real measurement.
+  </how-to-verify>
+  <resume-signal>
+    Reply with one of:
+    - "measurement complete, recommendation: <strategy>"  — 04-06 will read the file and use this strategy
+    - "blocked, no Berlin PBF available"  — execution pauses; the user must obtain the PBF before 04-06 can run
+    - "override, use default L2..L10"  — explicit user override; the executor writes a stub file marked "not empirically verified" AND flags the risk in the SUMMARY. 04-06 will still HARD-FAIL on this stub unless the user also confirms the override there.
+  </resume-signal>
+</task>
+
 <task type="auto">
-  <name>Task 3: way_admin_join orchestrator + tests</name>
+  <name>Task 4: way_admin_join orchestrator + tests</name>
   <files>
     tool/osm_pipeline/lib/intersect/way_admin_join.dart
     tool/osm_pipeline/lib/scratch/scratch_schema.dart
     tool/osm_pipeline/test/intersect/way_admin_join_test.dart
   </files>
-  <intent>Populate the scratch way_admin_raw table using the clipper + the recommendation from the measurement.</intent>
+  <intent>Populate the scratch way_admin_raw table using the clipper. Runs after the measurement is locked (Task 3 checkpoint).</intent>
   <action>
     Extend `scratch_schema.dart` with a **PROVISIONAL** schema — the final osm.sqlite shape is decided in 04-06 but we need a scratch stagingground here:
 
@@ -263,13 +299,13 @@ Precede any schema-locking task with a **Berlin-bbox row-count measurement** (04
 ## Verification
 
 - `cd tool/osm_pipeline && dart test test/intersect/` — all green.
-- `.planning/phases/04-osm-pipeline/04-05-BERLIN-MEASUREMENT.md` exists AND contains a filled-in "Recommendation" line (once the user has run `measure_berlin_row_count.dart` with the Berlin PBF).
+- `.planning/phases/04-osm-pipeline/04-05-BERLIN-MEASUREMENT.md` exists AND contains a filled-in "Recommendation" line (produced by Task 3's real run against a real Berlin PBF).
 - `flutter analyze` clean.
 - Running the full CLI on tiny.osm.pbf produces the expected 1 way_admin_raw row for the fixture's Kfz way crossing Testgemeinde.
 
 ## Deviation Handling
 
-- If Berlin PBF is not available at execution time: create a stub `04-05-BERLIN-MEASUREMENT.md` with "**Recommendation:** Denormalized L2..L10 (03-RESEARCH §7 default; not empirically verified — Berlin PBF unavailable)" and flag this in the execution SUMMARY. 04-06 executes on the default assumption but the plan MUST note it. The user then runs the probe manually and, if the projection blows the budget, we file a corrective plan (04-05.1) before executing 04-10.
+- **Berlin PBF unavailable at execution time:** the Task 3 checkpoint blocks. Do NOT auto-generate a stub measurement — 04-06 has a hard gate that rejects unverified measurements. The user must either supply the PBF or explicitly override via the Task 3 "override" resume-signal (which flags the risk and requires a matching override in 04-06).
 - If the O(ways × admin_regions_at_level) scan is too slow even for Berlin (> 60 s), replace the linear-scan candidate query with a proper R-Tree. `sqlite3`'s built-in R*Tree virtual table can be used here as a scratch structure — no extra dep.
 - Coincident-edge tie-break: 04-RESEARCH §7 says "left of line". If tests reveal this is inconsistent for closed polygons (left is defined relative to line direction; polygons have no direction), fall back to "assign to the polygon whose centroid is on the left" — document the switch in the code.
 - Multipolygon-with-inner geometry uses MultiPolygon.polygons[0].holes — task 2 of 04-04 already produced that shape.

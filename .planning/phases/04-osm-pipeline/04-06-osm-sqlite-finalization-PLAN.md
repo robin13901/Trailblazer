@@ -58,7 +58,7 @@ Produce the final on-disk `osm.sqlite` artifact — schema, R-Tree, version stam
 - 04-RESEARCH.md §10 output pragmas: `journal_mode=WAL`, `synchronous=NORMAL`, `page_size=4096`.
 - 04-06 promotes scratch tables (`ways_raw`, `nodes_raw`, `admin_regions_raw`, `way_admin_raw` from plans 04-03/04/05) into final tables. Renaming: `ways_raw` → `ways`, `admin_regions_raw` → `admin_regions`, `way_admin_raw` → `way_admin`. `nodes_raw` does NOT survive — nodes are inlined into way geometry BLOBs (see Task 1).
 - Way geometry storage: each row in `ways` carries a `geometry_wkb` BLOB (LineString WKB) instead of separately joining against `nodes`. This keeps the matcher's read path to a single indexed lookup — no N+1 across a nodes table.
-- 04-07 runs in the SAME wave as 04-06 (both consume scratch, both write different artifacts). They must NOT touch the same output file. 04-06 owns `osm.sqlite`. 04-07 owns the GeoJSONSeq → pmtiles pipeline.
+- **04-07 runs in wave 6, AFTER this plan (04-06 = wave 5).** 04-06 creates a stub Stage D call in `pipeline_orchestrator.dart`; 04-07 replaces the stub with the real GeoJSONSeq → pmtiles pipeline. They share the orchestrator file but run sequentially, so no merge conflict.
 
 ## Tasks
 
@@ -152,10 +152,13 @@ Produce the final on-disk `osm.sqlite` artifact — schema, R-Tree, version stam
 
     Node: SQLite `rtree` (not `rtree_i32`) — 04-RESEARCH §8 explicitly rejects int-scaled lat/lng.
 
-    Denormalization strategy source: read from `.planning/phases/04-osm-pipeline/04-05-BERLIN-MEASUREMENT.md` at plan-execution time. Parse the "**Recommendation:**" line. If it says "L2..L10", keep all six columns. If it says "drop L9/L10", omit those two CREATE-column clauses. If it says "join-table-only", omit ALL six admin_region_id columns and rely entirely on the way_admin table. If the file doesn't exist yet (Berlin PBF not available at execute time), default to L2..L10 and log the assumption to the SUMMARY.
+    Denormalization strategy source: read from `.planning/phases/04-osm-pipeline/04-05-BERLIN-MEASUREMENT.md` at plan-execution time. Parse the "**Recommendation:**" line. If it says "L2..L10", keep all six columns. If it says "drop L9/L10", omit those two CREATE-column clauses. If it says "join-table-only", omit ALL six admin_region_id columns and rely entirely on the way_admin table.
+
+    **HARD GATE (see Deviation Handling):** if `04-05-BERLIN-MEASUREMENT.md` does not exist, OR contains the phrase "not empirically verified", 04-06 REFUSES to execute and returns to the user with an actionable error. Do NOT silently fall back to the L2..L10 default. The whole point of the measurement (04-RESEARCH §7: "Do NOT lock a schema before running the Berlin-bbox smoke and scaling") is that we don't guess.
 
     **`osm_sqlite_writer.dart`** — the copy-and-rollup logic:
 
+    0. **Preflight:** open `04-05-BERLIN-MEASUREMENT.md`. If the file is absent, throw a `PipelineError('04-06 blocked: 04-05-BERLIN-MEASUREMENT.md missing. Run tool/osm_pipeline/bin/measure_berlin_row_count.dart with a real Berlin PBF first (see 04-05 Task 3).')`. If the file contains "not empirically verified", throw a `PipelineError('04-06 blocked: measurement is a stub, not empirically verified. Rerun 04-05 Task 3 with a real Berlin PBF, OR pass --allow-unverified-measurement to explicitly override (records the risk in the SUMMARY).')`. The `--allow-unverified-measurement` flag is the ONLY way past the gate; there is no silent fallback.
     1. Open a new sqlite3 file at the CLI's output dir (`--out` isn't a CLI flag yet — write to `${scratch_dir}/../osm.sqlite` or `Directory.current/osm.sqlite`, decision: `Directory.current/out/osm.sqlite`. Create `out/` if missing.).
     2. Apply pragmas + CREATE statements.
     3. Bulk-copy admin_regions_raw → admin_regions (rename only). Populate admin_regions_rtree from the bbox columns.
@@ -175,6 +178,7 @@ Produce the final on-disk `osm.sqlite` artifact — schema, R-Tree, version stam
   </action>
   <verify>
     `cd tool/osm_pipeline && dart test test/output/osm_sqlite_writer_test.dart` — passes.
+    Preflight gate covered by a test: given a missing measurement file, writer throws PipelineError with the expected message. Given a stub file with "not empirically verified", writer throws PipelineError. Given a valid measurement file, writer proceeds.
     Manual smoke on tiny fixture: `dart run tool/osm_pipeline` produces `out/osm.sqlite`. Open with the `sqlite3` CLI (or via `sqlite3` Dart package):
     - `.schema` shows all expected tables.
     - `SELECT COUNT(*) FROM ways;` → 2 (1 kfz + 1 feldweg).
@@ -297,7 +301,8 @@ Produce the final on-disk `osm.sqlite` artifact — schema, R-Tree, version stam
         await OsmSqliteWriter.write(scratch, osmSqlite);
 
         Logger.info('Stage D: GeoJSONSeq + tippecanoe...  (plan 04-07)');
-        // Stub call — 04-07 implements this.
+        // Stub call — 04-07 replaces this with a real runPmtilesStage() call.
+        // 04-07 runs in wave 6 (after this plan) — no merge conflict, sequential edit.
 
         Logger.info('Stage E: pmtiles metadata + style rewrite...  (plan 04-08)');
         // Stub call — 04-08 implements this.
@@ -340,9 +345,15 @@ Produce the final on-disk `osm.sqlite` artifact — schema, R-Tree, version stam
 - End-to-end smoke on tiny.osm.pbf produces a valid osm.sqlite with all expected tables + metadata + R-Tree rows.
 - `PRAGMA user_version` returns `pipelineSchemaVersion` (currently 1).
 - `metadata` table has 7 rows with the expected keys.
+- Preflight gate covered by a test: missing or "not empirically verified" measurement file → PipelineError, no partial osm.sqlite written.
 
 ## Deviation Handling
 
+- **HARD GATE on 04-05 measurement:** if `.planning/phases/04-osm-pipeline/04-05-BERLIN-MEASUREMENT.md` is absent OR contains "not empirically verified", 04-06 refuses to run and returns an actionable error to the user (see Task 1 preflight). The user must either:
+  1. Run 04-05 Task 3 with a real Berlin PBF, OR
+  2. Pass `--allow-unverified-measurement` to the CLI to explicitly override. The override MUST be recorded in the SUMMARY and the SC4 (200 MB budget) risk called out.
+
+  Do NOT silently fall back to the L2..L10 default. This gate is the whole point of the 04-05 measurement.
 - If SQLite's rtree module is not enabled in the `sqlite3` Dart package's bundled binary, switch to `sqlite3_flutter_libs` (the app already uses it) OR build sqlite3 with the R-Tree module. 04-RESEARCH §8 assumes R-Tree is available; verify at execute time via a quick `SELECT * FROM sqlite_master WHERE type='table' AND name='sqlite_stat1';` — if that fails, escalate to the user.
 - If the tiny fixture doesn't have a `osmosis_replication_timestamp` (hand-crafted PBFs often don't), fall back to `DateTime.fromMillisecondsSinceEpoch(0)` and log a warning. Real Geofabrik PBFs always carry this field.
 - If the writer's single-transaction bulk-copy exceeds RAM on real Germany, split into per-table transactions with COMMIT between tables (each still bulk).

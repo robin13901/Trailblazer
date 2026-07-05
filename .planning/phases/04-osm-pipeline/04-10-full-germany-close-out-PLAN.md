@@ -3,7 +3,7 @@ id: 04-10
 phase: 04-osm-pipeline
 plan: 10
 type: execute
-wave: 8
+wave: 9
 depends_on: [04-09]
 files_modified:
   - assets/tiles/dev_germany.pmtiles
@@ -55,6 +55,7 @@ Run the full-Germany pipeline, verify SC4 (200 MB budget hard constraint), repla
 - 04-RESEARCH §12 pitfall #9 (`highway=road` sanity): the pipeline logs this count already (04-03). Task 2's verification report captures the count and comments if > 0.1 % of Kfz ways.
 - Phase 4 is a dev-machine deliverable independent of the app's in-car verification. The Ralph-Loop pre-push hook covers the code side; SC1–SC5 are code-level acceptance, no drive-test required (per phase deferrred-in-car-verification memory).
 - **This plan is `autonomous: false`** — the full-Germany run takes ~1 hour and the user's dev box; the executor cannot run it without user intervention (need the Germany PBF, need WSL2 tippecanoe, need patience). Same checkpoint shape as 04-09 Task 4.
+- **SC3 reconciliation:** ROADMAP.md's SC3 wording (*"The `way_admin` join table is populated for every Kfz way ↔ region pair whose geometries intersect."*) predates the 04-RESEARCH §7 denormalized final schema. Under the final schema, wholly-contained Kfz ways carry region membership as `ways.admin_region_id_L{n}` COLUMNS (not as `way_admin` rows — 04-06 Task 1 explicitly deletes rolled-up rows). A strict reading of SC3 would false-fail. Task 2's VERIFICATION report restates SC3 in reconciled form and flags the ROADMAP wording as a documentation-only discrepancy. Do NOT edit ROADMAP.md SC3 wording itself — the reconciliation note in the VERIFICATION report is the source of truth for future readers.
 
 ## Tasks
 
@@ -174,11 +175,21 @@ Run the full-Germany pipeline, verify SC4 (200 MB budget hard constraint), repla
       | 10 (Ortsteil) | varies |
     - [x] Excluded: highway=service (no rows in ways where highway='service' AND source='kfz').
 
-    ### SC3 — way_admin populated for every Kfz way ↔ region intersection
+    ### SC3 — Kfz way ↔ region coverage (reconciled wording)
+
+    **ROADMAP SC3 (original wording):** *"The `way_admin` join table is populated for every Kfz way ↔ region pair whose geometries intersect."*
+
+    **Reconciled reading (final denormalized schema per 04-RESEARCH §7):**
+    Kfz way ↔ region pairs are covered via EITHER `way_admin` rows (cross-border sub-segments) OR `ways.admin_region_id_L{n}` columns (wholly-contained ways). The sum of both = every intersecting pair. 04-06 Task 1 explicitly deletes rolled-up rows from `way_admin_raw` after promoting them to the denormalized columns — this is the intended final-schema shape, not a bug.
+
+    **Documentation-only discrepancy note:** ROADMAP.md SC3 wording is NOT edited in this phase — the reconciliation lives here in the VERIFICATION report so future readers see the transparent trail. If a future phase (e.g. Phase 8 coverage aggregation) needs the reconciled wording in ROADMAP itself, that's a follow-up.
+
+    **Evidence:**
     - [x] way_admin cross-border rows: <count>
     - [x] Denormalized wholly-contained coverage:
       `SELECT COUNT(*) FROM ways WHERE admin_region_id_l8 IS NOT NULL` → <count>
       (should be ≈ 95 % of Kfz ways per 04-RESEARCH §7 assumption)
+    - [x] Sum check: <way_admin distinct (way_id, region_id, level) rows> + <ways with admin_region_id_l{n} NOT NULL rows> ≈ <total Kfz way ↔ region intersections>. Discrepancy < 1% is OK (rounding on the fraction_start ≤ 1e-9 boundary).
     - [x] Point-in-polygon sanity: pick 10 random Kfz ways with admin_region_id_l8 IS NULL, verify each has ≥ 1 way_admin row at level=8 covering its span.
 
     ### SC4 — 200 MB budget per artifact
@@ -228,6 +239,7 @@ Run the full-Germany pipeline, verify SC4 (200 MB budget hard constraint), repla
   </action>
   <verify>
     File exists with all sections filled in from Task 1's captured numbers.
+    SC3 section explicitly restates the reconciled wording AND flags the ROADMAP.md discrepancy as documentation-only.
   </verify>
 </task>
 
@@ -283,6 +295,7 @@ Run the full-Germany pipeline, verify SC4 (200 MB budget hard constraint), repla
       - Full-Germany pipeline validated: osm.sqlite <X> MB / germany-base.pmtiles <Y> MB (SC4 pass).
       - Berlin smoke wall-clock: <T> s (SC1, SC5 pass).
       - dev_germany.pmtiles → germany-base.pmtiles rename shipped.
+      - SC3 reconciliation: see 04-VERIFICATION.md — ROADMAP SC3 wording predates the denormalized final schema; reconciled reading recorded in VERIFICATION report, ROADMAP wording left as-is (documentation-only discrepancy).
       - New pending todo (Phase 5): host germany-base.pmtiles + osm.sqlite at a downloadable URL for the runtime download flow (OSMDB-01).
       ```
 
@@ -293,6 +306,7 @@ Run the full-Germany pipeline, verify SC4 (200 MB budget hard constraint), repla
     `ROADMAP.md`:
     - Change Phase 4 line 18 from `[ ] **Phase 4: OSM Pipeline**` to `[x] **Phase 4: OSM Pipeline**`.
     - Under Phase 4's `Success Criteria`, add a `**Completed:** <date>` line matching the Phase 2/3 pattern.
+    - **DO NOT edit SC3 wording itself.** The reconciliation note lives in 04-VERIFICATION.md; ROADMAP SC wording is intentionally left as-is to preserve the historical target. Anyone re-reading ROADMAP for SC3 verification should be pointed at the VERIFICATION report via the Progress table's link column.
     - Under `Plans:`, list the 10 plans with checkboxes:
       ```
       - [x] 04-01-reconciliation-and-cli-scaffold-PLAN.md — reconcile OSM-02 + stand up CLI
@@ -316,14 +330,16 @@ Run the full-Germany pipeline, verify SC4 (200 MB budget hard constraint), repla
     `git status` shows the planning doc diffs.
     Manual: open the app on a device (or simulator) — map still renders. Berlin admin regions should now be visible (they weren't in the Protomaps demo — this is the CROSS-CHECK the new pmtiles is loaded).
     `grep '\[ \] \*\*Phase 4:' .planning/ROADMAP.md` returns 0 matches; `grep '\[x\] \*\*Phase 4:' .planning/ROADMAP.md` returns 1 match.
+    ROADMAP.md SC3 wording is UNCHANGED (verify by diff — only status flip + Completed line + Plans checkboxes should differ).
   </verify>
 </task>
 
 ## Verification
 
 - 04-VERIFICATION.md exists and all 5 SC checkboxes are ticked with evidence.
+- SC3 reconciliation is explicit in 04-VERIFICATION.md.
 - OSM-01..OSM-08 flip to Complete in REQUIREMENTS.md.
-- ROADMAP.md Phase 4 flipped to `[x]` with 10 plan checkboxes filled in.
+- ROADMAP.md Phase 4 flipped to `[x]` with 10 plan checkboxes filled in; SC3 wording UNCHANGED.
 - STATE.md pending-todo for dev_germany.pmtiles replacement is resolved.
 - `flutter analyze` + `flutter test` at repo root — both green.
 - Manual: app opens on a device and the map still renders (with our new schema).

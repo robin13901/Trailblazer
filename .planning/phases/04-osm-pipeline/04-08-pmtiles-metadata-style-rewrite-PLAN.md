@@ -3,7 +3,7 @@ id: 04-08
 phase: 04-osm-pipeline
 plan: 08
 type: execute
-wave: 6
+wave: 7
 depends_on: [04-07]
 files_modified:
   - tool/osm_pipeline/lib/pmtiles/pmtiles_metadata_patcher.dart

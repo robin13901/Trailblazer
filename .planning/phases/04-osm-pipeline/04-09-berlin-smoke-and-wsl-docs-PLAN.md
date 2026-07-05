@@ -3,7 +3,7 @@ id: 04-09
 phase: 04-osm-pipeline
 plan: 09
 type: execute
-wave: 7
+wave: 8
 depends_on: [04-06, 04-08]
 files_modified:
   - tool/osm_pipeline/smoke.sh
