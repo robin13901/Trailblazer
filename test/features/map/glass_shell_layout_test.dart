@@ -5,6 +5,8 @@ import 'package:auto_explore/features/map/presentation/widgets/bottom_nav_shell.
 import 'package:auto_explore/features/map/presentation/widgets/focus_area_pill.dart';
 import 'package:auto_explore/features/map/presentation/widgets/settings_glass_button.dart';
 import 'package:auto_explore/features/map/presentation/widgets/trip_fab.dart';
+import 'package:auto_explore/features/trips/domain/tracking_state.dart';
+import 'package:auto_explore/features/trips/presentation/providers/tracking_state_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -29,6 +31,7 @@ Future<void> pumpMapScreen(WidgetTester tester) async {
         mapStyleAssetProvider.overrideWith(
           () => _FixedMapStyleNotifier('assets/map_style_light.json'),
         ),
+        trackingStateProvider.overrideWith(_FakeTrackingNotifier.new),
       ],
       child: const MaterialApp(
         home: MapScreen(),
@@ -56,6 +59,25 @@ class _FixedMapStyleNotifier extends MapStyleAssetNotifier {
 
   @override
   String build() => _asset;
+}
+
+/// Fake TrackingNotifier that stays Idle and records call counts.
+///
+/// Injected via trackingStateProvider override so TripFab tests avoid
+/// the real TrackingService and its platform-channel dependencies.
+class _FakeTrackingNotifier extends Notifier<TrackingState>
+    implements TrackingNotifier {
+  int startManualCalled = 0;
+  int stopActiveCalled = 0;
+
+  @override
+  TrackingState build() => const TrackingIdle();
+
+  @override
+  Future<void> startManual() async => startManualCalled++;
+
+  @override
+  Future<void> stopActive() async => stopActiveCalled++;
 }
 
 void main() {
@@ -110,9 +132,16 @@ void main() {
     });
 
     testWidgets(
-      'TripFab tap shows SnackBar mentioning Phase 3 (UI-03 stub)',
+      'TripFab tap in idle calls startManual (Phase 3 wired — no longer a stub)',
       (tester) async {
         await pumpMapScreen(tester);
+
+        // Retrieve the fake notifier from the ProviderScope.
+        final container = ProviderScope.containerOf(
+          tester.element(find.byType(MapScreen)),
+        );
+        final fake =
+            container.read(trackingStateProvider.notifier) as _FakeTrackingNotifier;
 
         // Directly invoke the FAB's onTap via its GestureDetector's
         // callback — geometric `tap()` misses on the 800x600 test surface
@@ -126,12 +155,9 @@ void main() {
           ),
         );
         gd.onTap?.call();
-        await tester.pumpAndSettle();
+        await tester.pump();
 
-        expect(
-          find.text('Trip recording is coming in Phase 3'),
-          findsOneWidget,
-        );
+        expect(fake.startManualCalled, 1);
       },
     );
 
