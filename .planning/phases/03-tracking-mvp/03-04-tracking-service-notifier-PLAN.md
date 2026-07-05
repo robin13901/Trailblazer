@@ -6,10 +6,12 @@ type: execute
 wave: 2
 depends_on: [03-01, 03-02, 03-03]
 files_modified:
+  - lib/features/trips/data/trips_repository_points_sink.dart
   - lib/features/trips/domain/tracking_service.dart
   - lib/features/trips/presentation/providers/tracking_state_provider.dart
   - lib/features/trips/data/tracking_service_providers.dart
   - lib/main.dart
+  - test/features/trips/data/trips_repository_points_sink_test.dart
   - test/features/trips/domain/tracking_service_test.dart
   - test/features/trips/presentation/tracking_notifier_test.dart
   - test/helpers/fake_background_geolocation_facade.dart
@@ -20,13 +22,18 @@ must_haves:
   truths:
     - "Manual start: tapping FAB → `TrackingNotifier.startManual()` opens a Trips row (status=recording, manuallyStarted=true), calls `facade.changePace(moving: true)`, and transitions state to TrackingRecording"
     - "Manual stop: `stopActive()` calls `facade.changePace(moving: false)`, flushes the batcher, closes the trip via repository (or deletes it if `!passesKeeperThreshold`), transitions to TrackingIdle"
-    - "Auto-start: `facade.onMotionChange(isMoving: true)` while state is Idle opens an auto trip (manuallyStarted=false) — but only if the current activity classification is `in_vehicle` (auto_stopped stays false until the dwell timer fires)"
+    - "Auto-start: `facade.onMotionChange(isMoving: true)` while state is Idle opens an auto trip (manuallyStarted=false) — but only if the most recent activity classification is `in_vehicle` AND that classification arrived within the freshness window (default 10 s). This is the TRK-01 automotive filter, NOT a state machine on top of FGB."
+    - "Stale activity race: if the cached activity is null/unknown OR older than the freshness window (default 10 s), a motion=true event is discarded — the next motion tick (FGB re-emits within seconds) is expected to retry once the fresh activity classification lands"
     - "Auto-stop dwell: when the latest activity is non-automotive for > 2 min AND the resume window (15 min + 500 m of stop point) has elapsed with no in_vehicle event, the notifier closes the trip with `autoStopped=true`"
     - "Resume window: an `in_vehicle` motion event within 15 min AND within 500 m of the stop point extends the same trip (endedAt still null, no new row)"
     - "Cold-start hydration: on `build()`, if `repository.activeTrip()` returns a row, state is TrackingRecording seeded from that row's stats"
     - "Every fix from `facade.onLocation` is fed to `TripFixIngestor.ingest()`; `FixAccepted` → batcher; `SplitRequired` → close current trip + open new one seeded with the recovered fix"
     - "Both `main.dart` and Riverpod overrides in tests can inject a `BackgroundGeolocationFacade` — production wire uses `FgbBackgroundGeolocationFacade`"
+    - "TripsRepositoryPointsSink adapter satisfies the 03-02 TripPointsSink contract by wrapping TripsRepository.appendPoints — it converts domain TripPoint → Drift TripPointsCompanion and unwraps Result<void> (logging on Err, never rethrowing)"
   artifacts:
+    - path: "lib/features/trips/data/trips_repository_points_sink.dart"
+      provides: "Adapter that lets TripsRepository (Plan 03-01) satisfy Plan 03-02's TripPointsSink contract"
+      contains: "class TripsRepositoryPointsSink"
     - path: "lib/features/trips/domain/tracking_service.dart"
       provides: "The orchestrator that owns facade subscriptions, ingestor, batcher, and dwell timers — imperative, not a widget"
       contains: "class TrackingService"
@@ -34,14 +41,18 @@ must_haves:
       provides: "Notifier<TrackingState> — thin Riverpod adapter over TrackingService"
       contains: "class TrackingNotifier"
     - path: "lib/features/trips/data/tracking_service_providers.dart"
-      provides: "backgroundGeolocationFacadeProvider (FGB-backed) + trackingServiceProvider"
+      provides: "backgroundGeolocationFacadeProvider (FGB-backed) + trackingServiceProvider + tripsRepositoryPointsSinkProvider"
       contains: "backgroundGeolocationFacadeProvider"
     - path: "test/helpers/fake_background_geolocation_facade.dart"
       provides: "Reusable in-memory facade fake for all trip-notifier / tracking-service tests"
       contains: "class FakeBackgroundGeolocationFacade"
   key_links:
+    - from: "lib/features/trips/data/trips_repository_points_sink.dart"
+      to: "TripsRepository.appendPoints"
+      via: "adapter converts List<TripPoint> → List<TripPointsCompanion>, calls repo, folds Result<void> Err into a logger warning"
+      pattern: "TripsRepositoryPointsSink"
     - from: "lib/features/trips/domain/tracking_service.dart"
-      to: "TripFixIngestor + TripFixBatcher + TripsRepository + BackgroundGeolocationFacade"
+      to: "TripFixIngestor + TripFixBatcher + TripsRepositoryPointsSink + BackgroundGeolocationFacade"
       via: "constructor injection of all four"
       pattern: "TrackingService\\("
     - from: "lib/main.dart"
@@ -59,7 +70,7 @@ Wire the pure-Dart pieces (ingestor + batcher + repository + facade) into a sing
 
 Purpose: TRK-01 (auto-detect background trip), TRK-02 (manual trip via FAB), TRK-03 (manual trip only ends on Stop — no auto-end for manual trips), TRK-04 (auto-trip 2-min non-automotive dwell), TRK-05 (metadata persisted), TRK-08 (state machine + 20-fix batching).
 
-Output: TrackingService + TrackingNotifier + providers + main.dart wiring + 2 test files + shared fake facade helper. UI still shows the P2 static FAB — Plan 03-06 wires the FAB to the notifier.
+Output: TripsRepositoryPointsSink adapter + TrackingService + TrackingNotifier + providers + main.dart wiring + 3 test files + shared fake facade helper. UI still shows the P2 static FAB — Plan 03-06 wires the FAB to the notifier.
 </objective>
 
 <execution_context>
@@ -89,7 +100,90 @@ Output: TrackingService + TrackingNotifier + providers + main.dart wiring + 2 te
 <tasks>
 
 <task type="auto">
-  <name>Task 1: TrackingService — imperative orchestrator (no Riverpod)</name>
+  <name>Task 1: TripsRepositoryPointsSink adapter (Drift ↔ domain seam)</name>
+  <files>
+    - lib/features/trips/data/trips_repository_points_sink.dart
+    - test/features/trips/data/trips_repository_points_sink_test.dart
+  </files>
+  <action>
+    Plan 03-02 defines `TripPointsSink` with `Future<void> appendPoints(int tripId, List<TripPoint> points)` in `lib/features/trips/domain/trip_fix_batcher.dart` (domain layer, no Drift imports). Plan 03-01 defines `TripsRepository.appendPoints(...)` returning `Future<Result<void>>` and consuming `List<TripPointsCompanion>` (Drift-generated). These signatures deliberately don't match — the domain layer must not know about Drift.
+
+    This task creates the adapter that bridges them, living in the data layer alongside the repository.
+
+    1. `lib/features/trips/data/trips_repository_points_sink.dart`:
+       ```dart
+       import 'package:auto_explore/core/errors/result.dart';
+       import 'package:auto_explore/features/trips/data/trips_repository.dart';
+       import 'package:auto_explore/features/trips/domain/trip_fix_batcher.dart'
+           show TripPointsSink;
+       import 'package:auto_explore/features/trips/domain/trip_point.dart';
+       import 'package:drift/drift.dart' show Value;
+       import 'package:logging/logging.dart';
+       // Import the generated companion type from wherever 03-01 exposes it:
+       import 'package:auto_explore/core/db/app_database.dart'; // TripPointsCompanion
+
+       /// Adapts [TripsRepository] to the domain-layer [TripPointsSink] contract
+       /// from Plan 03-02. Converts [TripPoint] → [TripPointsCompanion] and folds
+       /// [Result.Err] into a logged warning so the batcher's `Future<void>`
+       /// contract holds (never rethrow — a dropped batch must not kill the trip).
+       class TripsRepositoryPointsSink implements TripPointsSink {
+         TripsRepositoryPointsSink(this._repo, {Logger? logger})
+             : _log = logger ?? Logger('tracking.points_sink');
+         final TripsRepository _repo;
+         final Logger _log;
+
+         @override
+         Future<void> appendPoints(int tripId, List<TripPoint> points) async {
+           if (points.isEmpty) return;
+           final companions = points.map(_toCompanion).toList(growable: false);
+           final result = await _repo.appendPoints(tripId, companions);
+           result.when(
+             ok: (_) {},
+             err: (e) => _log.warning(
+               'appendPoints failed for tripId=$tripId '
+               '(${points.length} points dropped): ${e.message}',
+             ),
+           );
+         }
+
+         TripPointsCompanion _toCompanion(TripPoint p) => TripPointsCompanion(
+               tripId: Value(p.tripId),
+               seq: Value(p.seq),
+               ts: Value(p.ts),
+               lat: Value(p.lat),
+               lon: Value(p.lon),
+               speedKmh: Value(p.speedKmh),
+               accuracyMeters: Value(p.accuracyMeters),
+               altitudeMeters: Value(p.altitudeMeters),
+               motionType: Value(p.motionType),
+             );
+       }
+       ```
+       Verify the exact field names / nullability against Plan 03-01's `TripPointsCompanion` — 03-01's schema is authoritative. If a column is non-nullable but the DTO is nullable, fall back to a sensible default (`0` for numbers, `''` never — prefer NULLABLE columns in the schema).
+
+    2. `test/features/trips/data/trips_repository_points_sink_test.dart`:
+       - Boot an in-memory `AppDatabase` + real `TripsRepository` (per Plan 03-01's test pattern).
+       - Cases:
+         - `appendPoints(tripId, [])` → repository is not called (empty short-circuit)
+         - `appendPoints(tripId, [3 TripPoints])` → 3 rows land in `trip_points` with matching seq/lat/lon
+         - Repository returns `Err` (inject via a `TripsRepository` stub or an unopened DB handle) → adapter completes normally (does NOT rethrow), warning logged (assert via a `Logger.root.onRecord` listener capturing SEVERE/WARNING records)
+
+    Anti-patterns to avoid:
+    - Do NOT surface `Result<void>` from the sink — the batcher expects `Future<void>`. Errors are logged, never rethrown, per STATE.md 01-04 (swallow-and-log at boundaries).
+    - Do NOT edit `lib/features/trips/data/trips_repository.dart` — its signature stays `Future<Result<void>>` as Plan 03-01 shipped it. The adapter is the seam.
+    - Do NOT use `withOpacity` (no color code here, but STATE.md rule applies universally).
+  </action>
+  <verify>
+    - `flutter analyze` clean
+    - `flutter test test/features/trips/data/trips_repository_points_sink_test.dart` all green
+  </verify>
+  <done>
+    Adapter bridges Plan 03-01's `Result<void>`-returning repo to Plan 03-02's `Future<void>` sink contract. Ready for injection into `TrackingService`.
+  </done>
+</task>
+
+<task type="auto">
+  <name>Task 2: TrackingService — imperative orchestrator (no Riverpod)</name>
   <files>
     - lib/features/trips/domain/tracking_service.dart
     - test/helpers/fake_background_geolocation_facade.dart
@@ -98,8 +192,8 @@ Output: TrackingService + TrackingNotifier + providers + main.dart wiring + 2 te
   <action>
     1. `lib/features/trips/domain/tracking_service.dart` — plain Dart class, no Flutter/Riverpod imports. Owns:
        - The `BackgroundGeolocationFacade` (injected)
-       - The `TripsRepository` (injected)
-       - The active `TripFixIngestor` and `TripFixBatcher` (created per-trip, disposed on stop)
+       - The `TripsRepository` (injected) — for open/close/hydrate; `TripsRepositoryPointsSink` is injected separately for the batcher
+       - The active `TripFixIngestor` and `TripFixBatcher` (created per-trip, disposed on stop) — batcher is wired to the injected `TripPointsSink`
        - Stream subscriptions to `facade.onLocation`, `facade.onMotionChange`, `facade.onActivityChange`
        - Dwell timer (auto-stop) and resume-window timer
        - A `Stream<TrackingState>` output the notifier consumes
@@ -110,10 +204,12 @@ Output: TrackingService + TrackingNotifier + providers + main.dart wiring + 2 te
          TrackingService({
            required BackgroundGeolocationFacade facade,
            required TripsRepository repository,
+           required TripPointsSink pointsSink,
            TripFixIngestor Function() ingestorFactory = _defaultIngestor,
            Duration autoStopDwell = const Duration(minutes: 2),
            Duration resumeWindow = const Duration(minutes: 15),
            double resumeRadiusMeters = 500,
+           Duration activityFreshness = const Duration(seconds: 10),
          });
 
          Stream<TrackingState> get stateStream; // seeded with TrackingIdle
@@ -129,28 +225,45 @@ Output: TrackingService + TrackingNotifier + providers + main.dart wiring + 2 te
        }
        ```
 
-    2. Behaviour rules (implement in the service, verify in Task 2 tests):
+    2. Behaviour rules (implement in the service, verify in Task 3 tests):
 
        **onLocation event handling:**
        - Convert `FixInput` → `IngestorOutcome` via ingestor.
-       - `FixAccepted` → build a `TripPointsCompanion` with `tripId = _currentTripId, seq = ++_seq, ts = fix.ts, lat, lon, speedKmh, accuracyMeters, altitudeMeters, motionType` and pass to `batcher.add(...)`. Then update `_currentState` (`TrackingRecording` with fresh distance, pointCount, currentSpeedKmh) and emit to the stream.
+       - `FixAccepted` → build a domain `TripPoint(tripId: _currentTripId, seq: ++_seq, ts: fix.ts, lat, lon, speedKmh, accuracyMeters, altitudeMeters, motionType)` and pass to `batcher.add(...)`. Then update `_currentState` (`TrackingRecording` with fresh distance, pointCount, currentSpeedKmh) and emit to the stream.
+         - **Note:** the batcher's sink is the injected `TripsRepositoryPointsSink` from Task 1 — the service never touches `TripPointsCompanion` directly.
        - `FixRejected` → no state change (log at fine level via `Logger('tracking')`).
        - `GapObserved` → flush batcher (natural checkpoint per RESEARCH.md); no state change.
        - `SplitRequired` → **close the current trip (auto), open a new one, seed it with the recovered fix.** Concretely:
-         1. `finalize` current ingestor → `TripSummaryDraft`
-         2. If passesKeeper → `repository.closeTrip(_currentTripId, summary with autoStopped=true)`; else `repository.deleteTrip(_currentTripId)`.
-         3. `batcher.flush()` (before repo close so points land in DB) — actually flush BEFORE close so pointCount matches.
+         1. `batcher.flush()` (before repo close so points land in DB before we mark the trip done)
+         2. `finalize` current ingestor → `TripSummaryDraft`
+         3. If passesKeeper → `repository.closeTrip(_currentTripId, summary with autoStopped=true)`; else `repository.deleteTrip(_currentTripId)`.
          4. Open new trip row (`repository.openTrip(...)`) with `manuallyStarted=false`.
          5. Reset ingestor, feed the recovered fix as its first input.
 
-       **onMotionChange event handling:**
-       - If `mc.isMoving == true` AND state is TrackingIdle AND latest activity type is `in_vehicle` (see below), open an auto-trip: `repository.openTrip(startedAt: mc.ts, manuallyStarted: false)`, create fresh ingestor + batcher, emit TrackingRecording.
+       **onMotionChange event handling — TRK-01 automotive filter (NOT a state machine):**
+       - If `mc.isMoving == true` AND state is TrackingIdle:
+         - **Automotive filter (single-line check, enforcing TRK-01 "automotive"):**
+           ```dart
+           final lastActivity = _lastActivityType; // cached from onActivityChange
+           final lastActivityAt = _lastActivityAt; // DateTime? of cache write
+           final activityFresh = lastActivityAt != null &&
+               DateTime.now().difference(lastActivityAt) <= activityFreshness;
+           if (lastActivity != 'in_vehicle' || !activityFresh) {
+             // Non-automotive OR stale activity → discard this motion event.
+             // FGB re-emits motion within seconds; the next tick retries once
+             // a fresh classification lands. No state machine, no fusion.
+             _log.fine('motion=true discarded: activity=$lastActivity, fresh=$activityFresh');
+             return;
+           }
+           ```
+           This single-line check enforces TRK-01's "automotive" requirement. Non-automotive motion (walking, cycling, still) is simply discarded — no state machine, no classifier fusion. The stale-activity guard handles the race where motion arrives before the first activity update (or after a long dormant period).
+         - Otherwise, open an auto-trip: `repository.openTrip(startedAt: mc.ts, manuallyStarted: false)`, create fresh ingestor + batcher, emit TrackingRecording.
        - Also handles resume-window logic (see auto-stop below).
-       - On any motion change, also call `batcher.flush()` (natural checkpoint).
+       - On any motion change while recording, also call `batcher.flush()` (natural checkpoint).
 
        **onActivityChange event handling:**
-       - Cache `_lastActivityType` (default `'unknown'`).
-       - If state is TrackingRecording AND `ac.activityType` is non-automotive (anything except `in_vehicle`) → start `_dwellTimer = Timer(autoStopDwell, _onDwellExpired)`. Reset the timer if a subsequent activity is `in_vehicle` again.
+       - Cache both `_lastActivityType` (default `'unknown'`) AND `_lastActivityAt = DateTime.now()`. The `_lastActivityAt` timestamp is the freshness anchor used by the automotive filter above.
+       - If state is TrackingRecording AND `manuallyStarted == false` AND `ac.activityType` is non-automotive (anything except `in_vehicle`) → start `_dwellTimer = Timer(autoStopDwell, _onDwellExpired)`. Reset the timer if a subsequent activity is `in_vehicle` again.
        - `_onDwellExpired` → **do not close immediately.** Record `_pendingStopAt = DateTime.now()` and `_pendingStopFix = _lastAcceptedFix` (or last-known location from the ingestor). Start `_resumeTimer = Timer(resumeWindow, _closeAutoTrip)`. State stays TrackingRecording (the trip's endedAt stays NULL).
        - During the resume window, if a new `in_vehicle` motion event arrives AND `haversine(newLat/Lon, _pendingStopFix) <= resumeRadiusMeters` → cancel `_resumeTimer`, clear `_pendingStopAt`, resume normally. Otherwise on timer fire → `_closeAutoTrip()`: finalize summary with `autoStopped=true`, apply keeper threshold, transition to Idle.
 
@@ -185,7 +298,9 @@ Output: TrackingService + TrackingNotifier + providers + main.dart wiring + 2 te
          final _motion = StreamController<MotionChange>.broadcast();
          final _activity = StreamController<ActivityChange>.broadcast();
          bool started = false, moving = false, readyCalled = false;
-         String? lastNotificationText;
+         final List<String> notificationTexts = [];
+         String? get lastNotificationText =>
+             notificationTexts.isEmpty ? null : notificationTexts.last;
 
          @override
          Future<void> ready() async { readyCalled = true; }
@@ -195,7 +310,7 @@ Output: TrackingService + TrackingNotifier + providers + main.dart wiring + 2 te
            this.moving = moving;
          }
          @override Future<void> setNotificationText(String t) async {
-           lastNotificationText = t;
+           notificationTexts.add(t);
          }
          @override Future<void> showIgnoreBatteryOptimizations() async {}
          @override Stream<FixInput> get onLocation => _loc.stream;
@@ -214,38 +329,43 @@ Output: TrackingService + TrackingNotifier + providers + main.dart wiring + 2 te
              ));
        }
        ```
+       The `notificationTexts` list is deliberately exposed as a growing log so Plan 03-06's 30 s notification updater can be verified from tests without needing `fake_async`.
 
     4. `test/features/trips/domain/tracking_service_test.dart`:
-       - Boot AppDatabase with in-memory executor, real TripsRepository, FakeBackgroundGeolocationFacade.
+       - Boot AppDatabase with in-memory executor, real TripsRepository, real `TripsRepositoryPointsSink` (from Task 1), FakeBackgroundGeolocationFacade.
        - Cases:
          - **manual round-trip**: `startManual()` → emit 10 in-vehicle fixes → `stopActive()` — asserts: one Trip row with status=pending, endedAt set, 10 trip_points, autoStopped=false.
          - **manual below keeper**: `startManual()` → emit 3 fixes within 30 s in a 20 m bbox → `stopActive()` — asserts: zero trip rows, zero trip_points (trip was deleted).
-         - **auto-start on motion + in_vehicle**: emit activityType='in_vehicle', then emitMotion(true) — asserts: a Trip row with manuallyStarted=false exists, state is TrackingRecording.
-         - **auto-stop after dwell**: continuation of above; wait past dwell (use `FakeAsync` from `fake_async` if needed — or make dwell duration injectable and set to 100 ms in tests). Emit activityType='still'. Wait past dwell + resume window. Assert trip row is closed with autoStopped=true.
+         - **auto-start on motion + fresh in_vehicle**: emit activityType='in_vehicle' at t=0, then emitMotion(true) at t=1s (within freshness window) — asserts: a Trip row with manuallyStarted=false exists, state is TrackingRecording.
+         - **auto-start DISCARDED on stale activity**: emit activityType='in_vehicle' at t=0, advance time past freshness window (inject `activityFreshness: Duration(milliseconds: 100)` and wait 150 ms via `Future.delayed` — real time, no fake_async needed), then emitMotion(true) — asserts: state STAYS Idle, NO trip row opened. Then emit a fresh activityType='in_vehicle' + motion(true) — trip opens.
+         - **auto-start DISCARDED on non-automotive activity**: emit activityType='walking', then emitMotion(true) — asserts: state STAYS Idle, no trip row.
+         - **auto-stop after dwell**: continuation of the fresh-in_vehicle case; make dwell duration injectable and set to 100 ms in tests. Emit activityType='still'. Wait past dwell + resume window. Assert trip row is closed with autoStopped=true.
          - **resume window extends trip**: start auto trip, dwell fires, then within resume window emit activityType='in_vehicle' + a fix within 500 m of stop point — assert trip row's endedAt is STILL null (same trip continues), one row not two.
-         - **manual trip ignores dwell**: startManual → 5 fixes → emit activityType='still' for 3 min (via fake time) → assert state is STILL TrackingRecording, trip row endedAt is still null. `stopActive()` closes it.
+         - **manual trip ignores dwell**: startManual → 5 fixes → emit activityType='still' for 3 min (via short injected dwell) → assert state is STILL TrackingRecording, trip row endedAt is still null. `stopActive()` closes it.
          - **cold-start hydration**: seed a trips row directly via repo (endedAt=null, manuallyStarted=true) → construct fresh TrackingService → `init()` → assert `currentState` is TrackingRecording with tripId matching the seeded row.
          - **SplitRequired closes+opens**: emit a fix, then emit a fix 6 min later at 800 m distance → assert two trip rows exist, first has endedAt set, second is active.
 
-       Use `pkg:fake_async` for time-sensitive tests OR make `Duration autoStopDwell` and `resumeWindow` injectable to small values in tests. Prefer the latter — simpler, no extra dep.
+       Prefer injectable-duration knobs over `fake_async`: `autoStopDwell: Duration(milliseconds: 100)`, `resumeWindow: Duration(milliseconds: 200)`, `activityFreshness: Duration(milliseconds: 100)`. Real time, real timers, no extra dep.
 
     Anti-patterns to avoid:
-    - Do NOT import Riverpod in `tracking_service.dart` — Task 2 handles Riverpod adapter separately.
-    - Do NOT put UI concerns (timers for 1-second clock face) here — that's Plan 03-06 (widget-owned timer).
+    - Do NOT import Riverpod in `tracking_service.dart` — Task 4 handles Riverpod adapter separately.
+    - Do NOT put UI concerns (timers for 1-second clock face) here — that's Plan 03-06 (widget-owned timer). The 30 s NOTIFICATION timer is a different beast and DOES live here (added by 03-06).
     - Do NOT use `Timer.periodic` for the resume window — it's a one-shot `Timer` (RESEARCH.md q3).
+    - Do NOT build a "motion state machine" that fuses motion + activity across multiple events. The automotive filter is a single-line predicate on the cached activity at the instant motion=true arrives, plus a freshness check. Nothing more.
     - Do NOT hydrate by re-reading every trip_points row — the overlay needs stats only, not the polyline (P4/P7 can polyline the map later).
+    - Do NOT hand the batcher a `TripPointsCompanion` — it's a `TripPoint` (domain DTO); the adapter from Task 1 handles the conversion.
   </action>
   <verify>
     - `flutter analyze` clean
-    - `flutter test test/features/trips/domain/tracking_service_test.dart` all 8+ cases green
+    - `flutter test test/features/trips/domain/tracking_service_test.dart` all 10 cases green (includes the two new automotive-filter cases)
   </verify>
   <done>
-    TrackingService is the phase's brain — manual/auto/dwell/resume/split/keeper all covered. Fake facade helper is committed under `test/helpers/`.
+    TrackingService is the phase's brain — manual/auto/dwell/resume/split/keeper all covered. TRK-01 automotive filter enforced with fresh-activity guard; stale-activity race documented and tested. Fake facade helper committed under `test/helpers/`.
   </done>
 </task>
 
 <task type="auto">
-  <name>Task 2: Riverpod adapter (TrackingNotifier + providers) + main.dart wiring</name>
+  <name>Task 3: Riverpod adapter (TrackingNotifier + providers) + main.dart wiring</name>
   <files>
     - lib/features/trips/presentation/providers/tracking_state_provider.dart
     - lib/features/trips/data/tracking_service_providers.dart
@@ -259,6 +379,7 @@ Output: TrackingService + TrackingNotifier + providers + main.dart wiring + 2 te
        import 'package:auto_explore/features/trips/data/background_geolocation_facade.dart';
        import 'package:auto_explore/features/trips/data/fgb_background_geolocation_facade.dart';
        import 'package:auto_explore/features/trips/data/trips_repository_providers.dart';
+       import 'package:auto_explore/features/trips/data/trips_repository_points_sink.dart';
        import 'package:auto_explore/features/trips/domain/tracking_service.dart';
 
        final backgroundGeolocationFacadeProvider =
@@ -266,10 +387,16 @@ Output: TrackingService + TrackingNotifier + providers + main.dart wiring + 2 te
          return FgbBackgroundGeolocationFacade();
        });
 
+       final tripsRepositoryPointsSinkProvider =
+           Provider<TripsRepositoryPointsSink>((ref) {
+         return TripsRepositoryPointsSink(ref.watch(tripsRepositoryProvider));
+       });
+
        final trackingServiceProvider = Provider<TrackingService>((ref) {
          final service = TrackingService(
            facade: ref.watch(backgroundGeolocationFacadeProvider),
            repository: ref.watch(tripsRepositoryProvider),
+           pointsSink: ref.watch(tripsRepositoryPointsSinkProvider),
          );
          ref.onDispose(service.dispose);
          return service;
@@ -350,13 +477,15 @@ Output: TrackingService + TrackingNotifier + providers + main.dart wiring + 2 te
 - `flutter analyze` clean
 - `flutter test` full suite green
 - No regression on `test/features/map/**` from Phase 2
-- Commit: `feat(03-04): TrackingService + Riverpod notifier + facade wiring`
+- Commit: `feat(03-04): TrackingService + TripsRepositoryPointsSink + Riverpod notifier + facade wiring`
 </verification>
 
 <success_criteria>
 - Manual + auto trip lifecycles work end-to-end at the notifier level, verified by tests
+- TRK-01 automotive filter proven by two dedicated tests (fresh-activity accept, stale-activity discard)
 - Cold-start hydration proven by test
 - Every FGB-side call is behind the facade — swap-out for tests is trivial
+- Drift ↔ domain seam sits in the adapter — the domain layer stays Drift-free
 - No UI-facing wiring yet (that's 03-06)
 </success_criteria>
 

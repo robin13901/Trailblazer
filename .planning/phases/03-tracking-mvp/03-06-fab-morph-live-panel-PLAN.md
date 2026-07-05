@@ -10,7 +10,7 @@ files_modified:
   - lib/features/trips/presentation/widgets/live_tracking_panel.dart
   - lib/features/trips/presentation/widgets/tracking_duration_ticker.dart
   - lib/features/map/presentation/map_screen.dart
-  - lib/features/trips/presentation/providers/tracking_state_provider.dart
+  - lib/features/trips/domain/tracking_service.dart
   - test/features/map/trip_fab_morph_test.dart
   - test/features/trips/presentation/live_tracking_panel_test.dart
 autonomous: false
@@ -22,7 +22,7 @@ must_haves:
     - "Tapping the FAB in Idle calls TrackingNotifier.startManual(); tapping in Recording calls stopActive()"
     - "LiveTrackingPanel is visible on the map (above the bottom-nav pill, below FAB) ONLY when state is TrackingRecording"
     - "Panel text renders as `Recording · MM:SS · X.X km · N km/h`, updates every 1 s via a widget-owned Timer that cancels on state change"
-    - "During recording, TrackingNotifier updates the Android FGS notification text via facade.setNotificationText(...) every ~30 s"
+    - "During recording, TrackingService updates the Android FGS notification text via facade.setNotificationText(...) every ~30 s. The timer lives in TrackingService alongside the dwell/resume timers — NOT in the Riverpod notifier and NOT in a widget."
     - "AnimatedSwitcher smoothly cross-fades between Start/Stop FAB variants (~200 ms)"
     - "Semantics label flips: 'Start trip' (idle) → 'Stop trip' (recording)"
     - "iOS blue-bar 'location in use' indicator does its default thing — no custom text (platform limit, documented)"
@@ -36,6 +36,9 @@ must_haves:
     - path: "lib/features/trips/presentation/widgets/tracking_duration_ticker.dart"
       provides: "1-second widget-owned Timer.periodic"
       contains: "Timer.periodic"
+    - path: "lib/features/trips/domain/tracking_service.dart"
+      provides: "Extended in this plan with the 30 s notification updater — additive only, no public-API change"
+      contains: "_notificationTicker"
   key_links:
     - from: "trip_fab.dart"
       to: "trackingStateProvider"
@@ -45,18 +48,20 @@ must_haves:
       to: "trackingStateProvider + trackingDurationTicker"
       via: "watch state for visibility + distance, ticker for MM:SS"
       pattern: "trackingStateProvider"
-    - from: "TrackingNotifier"
+    - from: "tracking_service.dart"
       to: "facade.setNotificationText"
-      via: "Timer.periodic(Duration(seconds: 30)) started in startManual/auto-start; cancelled in stopActive/idle"
+      via: "Timer.periodic(Duration(seconds: 30)) started inside _openTrip (manual + auto); cancelled inside _closeTrip / stopActive"
       pattern: "setNotificationText"
 ---
 
 <objective>
 Wire the P2 static FAB to the notifier so it morphs Start↔Stop, insert the LiveTrackingPanel into the map's bottom chrome, and light up the persistent Android notification with 30 s live-updates. This is the entire user-visible surface of Phase 3 recording.
 
+The 30 s notification updater is added to `TrackingService` (Plan 03-04's territory) as an **additive extension** — same file, no public-API change, no new fields consumed by the notifier. This keeps the timer alongside its siblings (dwell, resume) and away from widget/Riverpod lifecycles that can churn on hot reload.
+
 Purpose: TRK-02 (manual start via FAB), TRK-03 (manual trip only ends on Stop button), TRK-09 (live-tracking overlay), TRK-11 (persistent notification with live stats — Android).
 
-Output: Two new widgets + FAB rewrite + map_screen slot + 30 s notification updater in the notifier + 2 widget tests. Ends with a real-device visual checkpoint (75 min per RESEARCH.md estimate).
+Output: Two new widgets + FAB rewrite + map_screen slot + notification-updater addition inside TrackingService + 2 widget tests. Ends with a real-device visual checkpoint (75 min per RESEARCH.md estimate).
 </objective>
 
 <execution_context>
@@ -75,6 +80,9 @@ Output: Two new widgets + FAB rewrite + map_screen slot + 30 s notification upda
 @lib/features/map/presentation/widgets/trip_fab.dart
 @lib/features/map/presentation/widgets/glass_pill.dart
 @lib/features/map/presentation/map_screen.dart
+
+# Extended in Task 2 (additive only)
+@lib/features/trips/domain/tracking_service.dart
 
 # Package name is `auto_explore`.
 </context>
@@ -210,6 +218,7 @@ Output: Two new widgets + FAB rewrite + map_screen slot + 30 s notification upda
     - Do NOT wrap `_StopVariant` in `LiquidGlass` — it must read as an emergency-action affordance (CONTEXT + RESEARCH decision).
     - Do NOT recompute the duration in the notifier — it's a UI clock; the notifier only exposes `startedAt` + `distanceMeters` + `currentSpeedKmh`.
     - Do NOT put the Timer inside the LiveTrackingPanel's ConsumerWidget without a State — that WILL leak on rebuild (Pitfall 4).
+    - Do NOT use `withOpacity` anywhere — `withValues(alpha:)` only (STATE.md rule).
   </action>
   <verify>
     - `flutter analyze` clean
@@ -221,10 +230,10 @@ Output: Two new widgets + FAB rewrite + map_screen slot + 30 s notification upda
 </task>
 
 <task type="auto">
-  <name>Task 2: Slot LiveTrackingPanel into map_screen + 30 s notification updater in notifier</name>
+  <name>Task 2: Slot LiveTrackingPanel into map_screen + 30 s notification updater inside TrackingService</name>
   <files>
     - lib/features/map/presentation/map_screen.dart
-    - lib/features/trips/presentation/providers/tracking_state_provider.dart
+    - lib/features/trips/domain/tracking_service.dart
   </files>
   <action>
     1. Edit `lib/features/map/presentation/map_screen.dart`:
@@ -233,41 +242,66 @@ Output: Two new widgets + FAB rewrite + map_screen slot + 30 s notification upda
        - Match Phase 2's `visibility on Map tab only` rule (STATE.md 02-06): `if (currentIndex > 0) return SizedBox.shrink()` for the panel too.
        - Do NOT touch the Stack ordering, the Positioned attribution offset, or the RecenterButton column pattern.
 
-    2. Edit `lib/features/trips/presentation/providers/tracking_state_provider.dart` (from Plan 03-04):
-       - Add a `Timer? _notificationTicker` field.
-       - When the state transitions from Idle → Recording (or is Recording on init), start:
-         ```dart
+    2. Extend `lib/features/trips/domain/tracking_service.dart` from Plan 03-04. **This is an additive edit — no public-API change, no signature change to `startManual`/`stopActive`/`init`. Plan 03-04's tests must continue to pass unchanged.**
+
+       Add a private `Timer? _notificationTicker` field and helpers:
+       ```dart
+       Timer? _notificationTicker;
+
+       void _startNotificationTicker() {
          _notificationTicker?.cancel();
          _notificationTicker = Timer.periodic(const Duration(seconds: 30), (_) {
-           final s = state;
-           if (s is TrackingRecording) {
-             final now = DateTime.now();
-             final d = s.duration(now);
-             final mm = d.inMinutes.remainder(60).toString().padLeft(2, '0');
-             final ss = d.inSeconds.remainder(60).toString().padLeft(2, '0');
-             final km = (s.distanceMeters / 1000).toStringAsFixed(1);
-             final spd = s.currentSpeedKmh?.round().toString() ?? '—';
-             ref.read(backgroundGeolocationFacadeProvider)
-                 .setNotificationText('Recording · $mm:$ss · $km km · $spd km/h');
-           }
+           final s = _currentState;
+           if (s is! TrackingRecording) return;
+           final now = DateTime.now();
+           final d = s.duration(now);
+           final mm = d.inMinutes.remainder(60).toString().padLeft(2, '0');
+           final ss = d.inSeconds.remainder(60).toString().padLeft(2, '0');
+           final km = (s.distanceMeters / 1000).toStringAsFixed(1);
+           final spd = s.currentSpeedKmh?.round().toString() ?? '—';
+           // fire-and-forget — errors logged inside the facade
+           unawaited(_facade.setNotificationText(
+             'Recording · $mm:$ss · $km km · $spd km/h',
+           ));
          });
-         ```
-       - Cancel on Recording → Idle transition and via `ref.onDispose`.
-       - Alternatively (cleaner): move this whole ticker into `TrackingService` itself, so it lives alongside dwell/resume timers. Prefer this — keeps the notifier a pure adapter.
-       - Wire choice: **implement inside `TrackingService`** — add a `_notificationTicker` field there, start it in the same places `_openTrip(...)` runs, stop it in `_closeTrip(...)` / `stopActive`. This localizes lifecycle. Update Plan 03-04's file if needed — but do NOT re-run Plan 03-04's tests: they use FakeBackgroundGeolocationFacade which records `lastNotificationText`; the tests already have an assertion hook.
-       - Extend the Fake in `test/helpers/fake_background_geolocation_facade.dart`: track a list `List<String> notificationTexts` and assert in Plan 03-04's tests that the list receives entries when running through recording with fake_time or manual test-driven timer advance. (This test enhancement is optional if fake_async isn't in devDeps; document as "verified on-device only" in that case.)
+       }
+
+       void _stopNotificationTicker() {
+         _notificationTicker?.cancel();
+         _notificationTicker = null;
+       }
+       ```
+
+       Wire the ticker at the same lifecycle joins the dwell/resume timers already use:
+       - Call `_startNotificationTicker()` inside the private `_openTrip(...)` used by both `startManual()` and the auto-start motion path (single call site since 03-04's tests exercise both).
+       - Call `_startNotificationTicker()` inside `init()` when hydration lands in `TrackingRecording`.
+       - Call `_stopNotificationTicker()` inside `_closeTrip(...)` and `stopActive()`.
+       - Call `_stopNotificationTicker()` inside `dispose()`.
+
+       Verify against Plan 03-04's `test/features/trips/domain/tracking_service_test.dart`:
+       - `manual round-trip` → after `stopActive`, `_notificationTicker == null` (verify via a private getter added for tests OR by asserting the fake facade's `notificationTexts` list stops growing after stop).
+       - `manual round-trip` for a 60-fix run at 1 Hz → since the periodic fires at 30 s wall-clock, tests that run in fake-time-free real seconds may not observe a tick. Add ONE new case: use an injected shorter duration.
+         - Add `Duration notificationInterval = const Duration(seconds: 30)` as a new **optional** named parameter to `TrackingService`'s constructor (default preserves prod behavior). Update `_startNotificationTicker()` to use it. This is the ONLY new public constructor param — additive, backward-compatible with all existing 03-04 test call sites.
+         - New test case: `notificationInterval: Duration(milliseconds: 100)`, run a valid manual trip for 350 ms → assert `fakeFacade.notificationTexts.length >= 3`, each entry starts with `'Recording · '`.
+         - Additional test: after `stopActive()`, `notificationTexts.length` stays put for at least 200 ms (ticker cancelled).
+
+       The Fake in `test/helpers/fake_background_geolocation_facade.dart` was already extended in Plan 03-04 to accumulate `List<String> notificationTexts`. This plan does NOT edit the fake — it just consumes it.
 
     Anti-patterns to avoid:
+    - Do NOT put the 30 s timer in `TrackingNotifier` — Riverpod's Notifier lifecycle is tied to `keepAlive`/dispose semantics and hot-reload churn; the trip may run while no widget is watching the provider (Android background), and the notifier can be recreated. TrackingService is long-lived and owns the trip.
+    - Do NOT put the 30 s timer in a widget — same reason.
     - Do NOT update the notification on every fix (RESEARCH.md: "1 Hz updates would waste battery").
-    - Do NOT tie the 30 s timer to a widget lifecycle — the trip may run while no widget is watching (Android background).
+    - Do NOT change `TrackingService`'s public method signatures — the plan is additive only. Plan 03-04's test suite must pass unchanged (aside from the ONE new case above, which uses a new optional constructor param).
     - Do NOT move the FAB/Recenter positioning — STATE.md flags the 15-commit iteration behind the P2 chrome layout; don't re-open that fight.
+    - Do NOT use `withOpacity` anywhere — `withValues(alpha:)` only (STATE.md rule).
   </action>
   <verify>
     - `flutter analyze` clean
+    - `flutter test test/features/trips/domain/tracking_service_test.dart` — all Plan 03-04 cases plus the new ticker case green
     - `flutter test` full suite green (Phase 2 map layout tests still pass)
   </verify>
   <done>
-    LiveTrackingPanel slots in above the FAB row; 30 s notification updater lives inside TrackingService.
+    LiveTrackingPanel slots in above the FAB row; 30 s notification updater lives inside TrackingService alongside dwell/resume timers; additive-only edit preserves the 03-04 test surface.
   </done>
 </task>
 
@@ -310,11 +344,13 @@ Output: Two new widgets + FAB rewrite + map_screen slot + 30 s notification upda
 - `flutter analyze` clean
 - `flutter test` full suite green
 - On-device checkpoint approved
-- Commit: `feat(03-06): FAB morph + live tracking panel + 30s notification updater`
+- Commit: `feat(03-06): FAB morph + live tracking panel + 30s notification updater in TrackingService`
 </verification>
 
 <success_criteria>
 - Manual trip lifecycle is fully user-visible on Android
+- Notification updater lives in `TrackingService` (verifier can locate it in a single file, alongside dwell/resume timers)
+- 03-04's public API is unchanged — one new optional constructor param, that's it
 - iOS has the equivalent visual (blue bar automatic + panel + FAB morph) — deferred device test
 - 60-min drive in Plan 03-07 exercises the auto path + notification longevity
 </success_criteria>

@@ -9,6 +9,7 @@ files_modified:
   - lib/features/trips/domain/haversine.dart
   - lib/features/trips/domain/trip_fix_input.dart
   - lib/features/trips/domain/trip_fix_ingestor.dart
+  - lib/features/trips/domain/trip_point.dart
   - lib/features/trips/domain/trip_fix_batcher.dart
   - lib/features/trips/domain/tracking_state.dart
   - test/features/trips/domain/haversine_test.dart
@@ -27,6 +28,7 @@ must_haves:
     - "Haversine matches known-fixture distance (Frankfurt→Grebenhain) within 0.5% tolerance"
     - "TripFixBatcher flushes exactly when pending reaches batchSize (default 20) and on explicit flush()"
     - "sealed TrackingState is available with TrackingIdle + TrackingRecording variants (both const-constructable)"
+    - "TripFixBatcher operates on a domain-level TripPoint DTO and a narrow TripPointsSink interface — zero dependency on Plan 03-01's Drift-generated types"
   artifacts:
     - path: "lib/features/trips/domain/trip_fix_ingestor.dart"
       provides: "Pure-Dart TripFixIngestor + IngestorOutcome sealed class"
@@ -34,8 +36,11 @@ must_haves:
     - path: "lib/features/trips/domain/haversine.dart"
       provides: "Great-circle distance function"
       contains: "double haversineMeters"
+    - path: "lib/features/trips/domain/trip_point.dart"
+      provides: "Domain-level TripPoint DTO consumed by the batcher"
+      contains: "class TripPoint"
     - path: "lib/features/trips/domain/trip_fix_batcher.dart"
-      provides: "20-fix accumulator with flush()"
+      provides: "20-fix accumulator with flush() + narrow TripPointsSink interface"
       contains: "class TripFixBatcher"
     - path: "lib/features/trips/domain/tracking_state.dart"
       provides: "Sealed TrackingState + Idle/Recording variants"
@@ -47,6 +52,10 @@ must_haves:
       to: "lib/features/trips/domain/haversine.dart"
       via: "top-level import — no `geolocator` dependency"
       pattern: "haversineMeters"
+    - from: "lib/features/trips/domain/trip_fix_batcher.dart"
+      to: "lib/features/trips/domain/trip_point.dart"
+      via: "batcher accumulates TripPoint values (domain DTO), NOT Drift companions"
+      pattern: "TripPoint"
     - from: "test/features/trips/domain/fixtures/trip_fixtures.dart"
       to: "trip_fix_ingestor_test.dart"
       via: "shared golden FixInput lists exercised by all cases"
@@ -54,11 +63,11 @@ must_haves:
 ---
 
 <objective>
-Ship the pure-Dart fix pipeline: accuracy filter, 1 Hz rate limit, gap/split detection, keeper-threshold check, Haversine distance, 20-fix batcher, and the sealed TrackingState. All unit-tested, zero FGB dependency, zero native touch.
+Ship the pure-Dart fix pipeline: accuracy filter, 1 Hz rate limit, gap/split detection, keeper-threshold check, Haversine distance, 20-fix batcher, and the sealed TrackingState. All unit-tested, zero FGB dependency, zero native touch, **zero dependency on Plan 03-01's Drift types** so this plan can run in parallel with 03-01 (Wave 1).
 
-Purpose: TRK-05 (metadata capture) and TRK-08 (battery-conscious state machine, batched every ~20 fixes) both need this logic to be small, deterministic, and fully covered before Wave 2 wires the FGB event stream to it. The pure-Dart split lets Wave 2 use a `FakeBackgroundGeolocationFacade` in tests.
+Purpose: TRK-05 (metadata capture) and TRK-08 (battery-conscious state machine, batched every ~20 fixes) both need this logic to be small, deterministic, and fully covered before Wave 2 wires the FGB event stream to it. The pure-Dart split lets Wave 2 use a `FakeBackgroundGeolocationFacade` in tests. The Drift-companion ↔ domain-TripPoint adapter is created in Plan 03-04 (which already depends on both 03-01 and 03-02).
 
-Output: Six library files + four test files under `lib/features/trips/domain/` and `test/features/trips/domain/`. Zero changes to pubspec, zero changes to native.
+Output: Seven library files + four test files under `lib/features/trips/domain/` and `test/features/trips/domain/`. Zero changes to pubspec, zero changes to native, **zero imports from `package:auto_explore/features/trips/data/**`**.
 </objective>
 
 <execution_context>
@@ -200,9 +209,10 @@ Output: Six library files + four test files under `lib/features/trips/domain/` a
 </task>
 
 <task type="auto">
-  <name>Task 2: TripFixIngestor + TripFixBatcher + full test suite</name>
+  <name>Task 2: TripFixIngestor + TripPoint DTO + TripFixBatcher + full test suite</name>
   <files>
     - lib/features/trips/domain/trip_fix_ingestor.dart
+    - lib/features/trips/domain/trip_point.dart
     - lib/features/trips/domain/trip_fix_batcher.dart
     - test/features/trips/domain/trip_fix_ingestor_test.dart
     - test/features/trips/domain/trip_fix_batcher_test.dart
@@ -287,10 +297,42 @@ Output: Six library files + four test files under `lib/features/trips/domain/` a
 
        - `TripSummaryDraft` is a local class inside this file (do NOT reuse `TripSummary` from Plan 03-01 — that one is repository-shaped with `autoStopped`, which the ingestor doesn't know about; Wave 2 combines Draft + auto/manual flag into the repo's TripSummary).
 
-    2. `lib/features/trips/domain/trip_fix_batcher.dart`:
+    2. `lib/features/trips/domain/trip_point.dart` — domain-level DTO the batcher accumulates. This is intentionally a plain class, **NOT** the Drift-generated `TripPointsCompanion` from Plan 03-01, so this plan can compile independently:
        ```dart
-       import 'package:auto_explore/features/trips/data/trips_repository.dart';
-       // (or a narrower TripPointsSink interface — see note below)
+       import 'package:meta/meta.dart';
+
+       @immutable
+       class TripPoint {
+         const TripPoint({
+           required this.tripId,
+           required this.seq,
+           required this.ts,
+           required this.lat,
+           required this.lon,
+           this.speedKmh,
+           this.accuracyMeters,
+           this.altitudeMeters,
+           this.motionType,
+         });
+         final int tripId;
+         final int seq;
+         final DateTime ts;
+         final double lat;
+         final double lon;
+         final double? speedKmh;
+         final double? accuracyMeters;
+         final double? altitudeMeters;
+         final String? motionType;
+       }
+       ```
+
+    3. `lib/features/trips/domain/trip_fix_batcher.dart` — has ZERO imports from `package:auto_explore/features/trips/data/**`. Defines the narrow sink interface locally:
+       ```dart
+       import 'package:auto_explore/features/trips/domain/trip_point.dart';
+
+       abstract interface class TripPointsSink {
+         Future<void> appendPoints(int tripId, List<TripPoint> points);
+       }
 
        class TripFixBatcher {
          TripFixBatcher({
@@ -299,32 +341,26 @@ Output: Six library files + four test files under `lib/features/trips/domain/` a
            this.batchSize = 20,
          });
          final int tripId;
-         final TripPointsSink sink; // narrower interface, not the full repo
+         final TripPointsSink sink;
          final int batchSize;
-         final _pending = <TripPointsCompanion>[];
+         final _pending = <TripPoint>[];
 
-         Future<void> add(TripPointsCompanion p) async {
+         Future<void> add(TripPoint p) async {
            _pending.add(p);
            if (_pending.length >= batchSize) await flush();
          }
          Future<void> flush() async {
            if (_pending.isEmpty) return;
-           final toSend = List<TripPointsCompanion>.of(_pending);
+           final toSend = List<TripPoint>.of(_pending);
            _pending.clear();
            await sink.appendPoints(tripId, toSend);
          }
          int get pendingCount => _pending.length;
        }
        ```
-       **Sink interface** — to keep tests trivial, define a `TripPointsSink` mixin/interface here:
-       ```dart
-       abstract interface class TripPointsSink {
-         Future<void> appendPoints(int tripId, List<TripPointsCompanion> ps);
-       }
-       ```
-       Have `TripsRepository` (from 03-01) `implement TripPointsSink` — no code change needed if the method signature matches. Test can supply a `_FakeSink` implementing this interface.
+       **The Drift-companion adapter (converting `TripPoint` → `TripPointsCompanion` and calling `TripsRepository.appendPoints`, which returns `Future<Result<void>>`) is Plan 03-04's job.** This plan does NOT import `TripsRepository` and does NOT edit any file under `lib/features/trips/data/`.
 
-    3. `test/features/trips/domain/trip_fix_ingestor_test.dart`:
+    4. `test/features/trips/domain/trip_fix_ingestor_test.dart`:
        - Use the fixtures from Task 1.
        - Cases:
          - accuracy > 25 m → FixRejected('accuracy')
@@ -337,7 +373,7 @@ Output: Six library files + four test files under `lib/features/trips/domain/` a
          - `goldenTinyDistanceCrawl` → passesKeeperThreshold == false (distance<100)
          - `goldenSuburbanDrive10Fixes` → 10 FixAccepted, finalize.avgSpeedKmh within ±5% of 40, maxSpeedKmh close to 40, pointCount == 10, passesKeeperThreshold == true
 
-    4. `test/features/trips/domain/trip_fix_batcher_test.dart`:
+    5. `test/features/trips/domain/trip_fix_batcher_test.dart`:
        - Fake `TripPointsSink` records `(tripId, list.length)` per call.
        - Feed 19 points → 0 flush calls.
        - Feed 20th → 1 flush of length 20, `pendingCount == 0`.
@@ -347,16 +383,18 @@ Output: Six library files + four test files under `lib/features/trips/domain/` a
 
     Anti-patterns to avoid:
     - Do NOT import `flutter_background_geolocation` here. If you find yourself needing `bg.Location`, put a converter in Wave 2's `tracking_service.dart` and keep the ingestor accepting `FixInput` only.
+    - Do NOT import ANYTHING from `package:auto_explore/features/trips/data/**` — that directory is Plan 03-01's territory and this plan runs in the same wave. Any Drift `TripPointsCompanion` usage belongs in the 03-04 adapter, not here.
     - Do NOT store an unbounded `_seenUuids` set — bound at 100 (FIFO or ring); the FGB replay window on resume is small.
     - Do NOT let the ingestor own a `TripsRepository` reference — it emits outcomes; the caller in Wave 2 decides whether to persist.
   </action>
   <verify>
     - `flutter analyze` clean
     - `flutter test test/features/trips/domain/` — every test green
+    - `grep -r "package:auto_explore/features/trips/data/" lib/features/trips/domain/` returns zero lines
     - Total ingestor code ~200-300 lines; test file ~200-300 lines. If either doubles, revisit.
   </verify>
   <done>
-    Ingestor emits the four IngestorOutcome variants correctly on the golden fixtures. Batcher flushes on batchSize boundary + explicit flush(). All 9+ test cases pass. Zero FGB references in `lib/features/trips/domain/`.
+    Ingestor emits the four IngestorOutcome variants correctly on the golden fixtures. Batcher flushes on batchSize boundary + explicit flush(). All 9+ test cases pass. Zero FGB references and zero Drift/data-layer imports in `lib/features/trips/domain/`.
   </done>
 </task>
 
@@ -367,12 +405,14 @@ Output: Six library files + four test files under `lib/features/trips/domain/` a
 - `flutter test test/features/trips/domain/` all green
 - No new pub deps added in this plan (deps are 03-03's job)
 - Zero `flutter_background_geolocation` imports under `lib/features/trips/domain/`
+- Zero `package:auto_explore/features/trips/data/` imports under `lib/features/trips/domain/` (so 03-02 compiles even if 03-01 lands after)
 - Commit: `feat(03-02): pure-Dart trip fix ingestor + haversine + batcher`
 </verification>
 
 <success_criteria>
 - 80% of P3 tracking logic is now unit-testable without any device or FGB mock
 - Wave 2 has a well-defined seam: convert `bg.Location` → `FixInput`, feed to ingestor, react to `IngestorOutcome`
+- Wave 1 parallelism preserved: 03-02 compiles with zero knowledge of 03-01's Drift types
 - Golden fixtures exercised in CI catch regressions on the accuracy / gap / split / keeper rules
 </success_criteria>
 
