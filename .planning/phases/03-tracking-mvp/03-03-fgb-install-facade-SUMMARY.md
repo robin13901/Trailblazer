@@ -1,0 +1,166 @@
+---
+phase: 03-tracking-mvp
+plan: 03
+subsystem: tracking
+tags: [flutter_background_geolocation, background-gps, facade, android, ios, manifest, foreground-service]
+
+# Dependency graph
+requires:
+  - phase: 01-scaffolding
+    provides: AndroidManifest.xml permissions + Info.plist UIBackgroundModes foundation
+provides:
+  - flutter_background_geolocation 5.3.0 installed and verified (debug APK builds clean)
+  - Android placeholder .LocationRecordingService deleted (FGB merges its own service)
+  - iOS UIBackgroundModes gains 'fetch' (FGB heartbeat requirement)
+  - BackgroundGeolocationFacade abstract interface (7 methods + 3 streams)
+  - FgbBackgroundGeolocationFacade — only file in lib/ that imports FGB directly
+  - Interface stability test suite (5 assertions, no native required)
+affects:
+  - 03-04 (TrackingNotifier uses BackgroundGeolocationFacade for FGB event wiring)
+  - 03-05 (OnboardingLadder calls showIgnoreBatteryOptimizations via facade)
+  - All Wave 2+ plans that depend on FakeBackgroundGeolocationFacade in tests
+
+# Tech tracking
+tech-stack:
+  added:
+    - flutter_background_geolocation: ^5.3.0 (Transistor Software GPS+motion SDK)
+  patterns:
+    - Facade seam pattern: FGB isolated to single file; all other code depends only on abstract interface
+    - Dynamic timestamp parsing helper (_parseTimestamp) for FGB's string/epoch-ms dual format
+    - NotificationPriority enum usage (not int constant) for FGB notification config
+
+key-files:
+  created:
+    - lib/features/trips/data/background_geolocation_facade.dart
+    - lib/features/trips/data/fgb_background_geolocation_facade.dart
+    - test/features/trips/data/background_geolocation_facade_test.dart
+  modified:
+    - pubspec.yaml (added flutter_background_geolocation: ^5.3.0, alphabetized)
+    - pubspec.lock (new dependency resolved)
+    - android/app/src/main/AndroidManifest.xml (placeholder service deleted)
+    - ios/Runner/Info.plist (fetch added to UIBackgroundModes)
+    - .flutter-plugins-dependencies (auto-generated, now tracked)
+
+key-decisions:
+  - "FGB facade: raw exceptions bubble from ready/start/stop — Wave 2 TrackingNotifier is the Result<T> boundary"
+  - "NotificationPriority.low enum used (not Config.NOTIFICATION_PRIORITY_LOW int) — type mismatch surfaced by analyzer"
+  - "Dynamic timestamp parsed as string-first, epoch-ms fallback, DateTime.now() last resort"
+  - "iOS pod install deferred (requires macOS) — Android and Dart layers complete on Windows"
+  - "Phase-1 .LocationRecordingService deleted (not rebound) per RESEARCH.md Pitfall 2 — FGB merges its own service via manifest merge"
+
+patterns-established:
+  - "Facade seam: abstract interface class + single concrete FGB-backed impl — Wave 2 tests inject FakeFacade without native"
+  - "FGB import isolation: only fgb_background_geolocation_facade.dart may import flutter_background_geolocation"
+  - "Comment at top of both facade files documents the isolation rule for future contributors"
+
+# Metrics
+duration: 23min
+completed: 2026-07-05
+---
+
+# Phase 3 Plan 03: FGB Install + Facade Seam Summary
+
+**`flutter_background_geolocation` 5.3.0 installed with manifest hygiene (placeholder service deleted, iOS fetch mode added) and FGB isolated behind a testable `BackgroundGeolocationFacade` interface — only `fgb_background_geolocation_facade.dart` imports the plugin directly**
+
+## Performance
+
+- **Duration:** 23 min
+- **Started:** 2026-07-05T10:29:18Z
+- **Completed:** 2026-07-05T10:52:21Z
+- **Tasks:** 2
+- **Files modified:** 8
+
+## Accomplishments
+
+- FGB 5.3.0 installed (`flutter pub get` clean, `flutter build apk --debug` succeeds, no duplicate-service AAPT error)
+- Phase-1 placeholder `<service android:name=".LocationRecordingService">` deleted from AndroidManifest.xml; iOS `UIBackgroundModes` gains `<string>fetch</string>` for FGB heartbeat scheduling
+- `BackgroundGeolocationFacade` abstract interface defines the single import surface for Wave 2 (7 methods: `ready/start/stop/changePace/setNotificationText/showIgnoreBatteryOptimizations/currentState` + 3 streams: `onLocation/onMotionChange/onActivityChange` + 3 value types: `MotionChange/ActivityChange/FgbState`)
+- Interface stability test (5 assertions) runs without native SDK and serves as a canary for renames
+
+## Task Commits
+
+1. **Task 1: Install FGB + native config** - `bd41082` (feat)
+2. **Task 2: BackgroundGeolocationFacade interface + FGB-backed impl** - `4a6debc` (feat)
+
+## Files Created/Modified
+
+- `pubspec.yaml` — added `flutter_background_geolocation: ^5.3.0` between `drift_flutter` and `flutter_riverpod` (sort_pub_dependencies)
+- `android/app/src/main/AndroidManifest.xml` — deleted `.LocationRecordingService` placeholder `<service>` block; replaced with explanatory comment
+- `ios/Runner/Info.plist` — added `<string>fetch</string>` to `UIBackgroundModes` array (was `[location, bluetooth-central]`, now `[location, bluetooth-central, fetch]`)
+- `.flutter-plugins-dependencies` — auto-generated by `flutter pub get` after FGB added; now tracked
+- `lib/features/trips/data/background_geolocation_facade.dart` — abstract interface + `MotionChange`/`ActivityChange`/`FgbState` value types
+- `lib/features/trips/data/fgb_background_geolocation_facade.dart` — FGB-backed impl; sole FGB import in lib/
+- `test/features/trips/data/background_geolocation_facade_test.dart` — 5 interface stability tests (pure Dart)
+
+## Decisions Made
+
+1. **Raw exceptions from facade** — `ready()`, `start()`, `stop()` bubble uncaught. `DomainError.wrap` boundary lives in Wave 2's `TrackingNotifier`, not the facade. Rationale: wrapping here adds no value for the caller and loses the original stack trace.
+
+2. **`NotificationPriority.low` enum** — Plan sketched `bg.Config.NOTIFICATION_PRIORITY_LOW` (an `int` constant), but `bg.Notification.priority` is typed `NotificationPriority?`. Corrected at execution time.
+
+3. **Dynamic timestamp parser** — `bg.Location.timestamp` is declared `dynamic` in FGB 5.3.0 (can be ISO-8601 String or epoch-ms int depending on `PersistenceConfig.timestampFormat`). Added `_parseTimestamp(dynamic)` helper that handles both cases with `DateTime.now()` fallback.
+
+4. **iOS pod install deferred** — This plan runs on a Windows dev box. `pod install` requires macOS. Android and Dart-side facade are complete. The deferred pod install is a named pending todo in STATE.md.
+
+5. **`on Exception` catch clauses in TripsRepository (03-01 fix)** — As a Rule 3 blocking fix, converted bare `catch` to `on Exception catch` across the 03-01 repository file to pass `very_good_analysis`'s `avoid_catches_without_on_clauses` lint.
+
+## Deviations from Plan
+
+### Auto-fixed Issues
+
+**1. [Rule 3 - Blocking] Fixed 03-01/03-02 analyze failures blocking flutter analyze clean**
+
+- **Found during:** Task 2 verification
+- **Issue:** 03-01 and 03-02's untracked files (trips_dao.dart, trips_repository.dart, trip_fix_ingestor.dart, etc.) introduced lint and type errors that caused `flutter analyze` to exit 1. These were blocking my plan's success criterion.
+- **Fix:** Ran `dart run build_runner build` to generate `trips_dao.g.dart`; the linter auto-corrected several issues; fixed `on Exception` catch clauses in `trips_repository.dart`; removed unnecessary ignore comments; fixed super parameter naming in `trips_dao.dart`.
+- **Files modified:** `lib/features/trips/data/trips_dao.dart`, `lib/features/trips/data/trips_repository.dart`, `lib/features/trips/data/trips_repository_providers.dart`
+- **Verification:** `flutter analyze --no-pub` exits 0, no issues
+- **Committed in:** Not separately committed — these are 03-01's untracked files; 03-01 must stage them
+
+**2. [Rule 3 - Blocking] Fixed `NotificationPriority` type mismatch in facade**
+
+- **Found during:** Task 2 (flutter analyze after creating fgb_background_geolocation_facade.dart)
+- **Issue:** Plan used `bg.Config.NOTIFICATION_PRIORITY_LOW` (int constant) but `bg.Notification.priority` is `NotificationPriority?` enum
+- **Fix:** Changed to `bg.NotificationPriority.low` (the correct enum value)
+- **Files modified:** `lib/features/trips/data/fgb_background_geolocation_facade.dart`
+- **Verification:** `flutter analyze` clean
+- **Committed in:** `4a6debc` (Task 2 commit)
+
+**3. [Rule 3 - Blocking] Fixed import ordering in fgb_background_geolocation_facade.dart**
+
+- **Found during:** Task 2 (initial flutter analyze)
+- **Issue:** `directives_ordering` lint — Dart imports must be in alphabetical sections
+- **Fix:** Reordered imports: `dart:async` → `package:auto_explore/...` → `package:flutter/...` → `package:flutter_background_geolocation/...`
+- **Files modified:** `lib/features/trips/data/fgb_background_geolocation_facade.dart`
+- **Verification:** `flutter analyze` clean
+- **Committed in:** `4a6debc` (Task 2 commit)
+
+---
+
+**Total deviations:** 3 auto-fixed (3 blocking)
+**Impact on plan:** All fixes necessary for `flutter analyze` clean. Items 2-3 were internal to my facade file. Item 1 fixed parallel-plan files to unblock the analyze requirement.
+
+## Issues Encountered
+
+- **iOS pod install** — Windows dev environment cannot run `pod install`. Documented as pending; requires macOS session or iOS CI pipeline to complete the native install. The Android build is fully verified.
+- **Parallel plan analyze conflicts** — 03-01 and 03-02 ran concurrently and left some untracked files with lint issues. Resolved via Rule 3 (blocking fix) during Task 2 verification.
+
+## iOS Pod Install (Pending)
+
+Pod install must be completed on a macOS machine or via the iOS CI workflow:
+```bash
+cd ios && pod repo update && pod install && cd ..
+```
+Expected: `Podfile.lock` gains a `TSLocationManager` entry. Verify via `grep TSLocationManager ios/Podfile.lock`.
+
+This is a **required step before the first iOS build** — without it, FGB's native `TSLocationManager` SDK is absent and the iOS app will crash.
+
+## Next Phase Readiness
+
+- **Wave 2 (03-04 TrackingNotifier)** can depend on `BackgroundGeolocationFacade` for constructor injection; tests use `_FakeFacade` pattern established here
+- **Wave 2 (03-05 OnboardingLadder)** can call `showIgnoreBatteryOptimizations()` via the facade
+- **Blockers:** iOS pod install pending (macOS required); does not block Android development or unit tests
+
+---
+*Phase: 03-tracking-mvp*
+*Completed: 2026-07-05*

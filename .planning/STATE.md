@@ -5,16 +5,16 @@
 See: .planning/PROJECT.md (updated 2026-07-02)
 
 **Core value:** When I open the map, I immediately see the roads I've already driven, painted onto the world — and that view keeps pulling me back to explore more.
-**Current focus:** Phase 3 — Tracking MVP (Wave 1 in progress 2026-07-05)
+**Current focus:** Phase 3 — Tracking MVP (Wave 1 complete 2026-07-05)
 
 ## Current Position
 
-Phase: 3 of 11 (Tracking MVP) — Wave 1 in progress
-Plan: 03-02 complete (pure-Dart fix pipeline); 03-01 and 03-03 also Wave 1
-Status: 03-02 committed 2026-07-05; domain layer clean, 22 tests green
-Last activity: 2026-07-05 — 03-02: pure-Dart TripFixIngestor + Haversine + Batcher + TrackingState
+Phase: 3 of 11 (Tracking MVP) — Wave 1 complete
+Plan: 03-03 complete (FGB install + facade seam); 03-01 and 03-02 also complete
+Status: All Wave 1 plans committed 2026-07-05; Wave 2 ready to start
+Last activity: 2026-07-05 — 03-03: FGB 5.3.0 installed + BackgroundGeolocationFacade interface + FGB-backed impl
 
-Progress: [██░░░░░░░░] ~20% (16/77 est. plans overall — Phase 1: 7/7; Phase 2: 7/7; Phase 3: 2+ in progress)
+Progress: [██░░░░░░░░] ~22% (17/77 est. plans overall — Phase 1: 7/7; Phase 2: 7/7; Phase 3: 3/7 Wave-1)
 
 ## Performance Metrics
 
@@ -55,7 +55,7 @@ Key locked-in decisions affecting current work:
 - **Plan 01-02 (2026-07-03):** `test/generated_migrations/` stays gitignored; `drift_schemas/drift_schema_v1.json` is the committed source of truth. CI (Plan 06) must run `dart run drift_dev schema generate drift_schemas/ test/generated_migrations/` before `flutter test`.
 - **Plan 01-02 (2026-07-03):** MigrationStrategy PRAGMAs (`foreign_keys=ON`, `journal_mode=WAL`) live in `beforeOpen` — SQLite `foreign_keys` is per-connection and must be re-applied on every open.
 - **Plan 01-02 (2026-07-03):** `coverage_cache` and `app_prefs` use business-key PKs (`region_id`, `key`) — no synthetic `id`. Domain uniqueness makes an extra index wasteful.
-- **Plan 01-05 (2026-07-03):** Foreground-service class in AndroidManifest is `.LocationRecordingService` (placeholder). Phase 3 must rebind `android:name` to `flutter_background_geolocation`'s real service class before the FGS starts.
+- **Plan 01-05 (2026-07-03):** Foreground-service class in AndroidManifest was `.LocationRecordingService` (placeholder). **RESOLVED in Plan 03-03:** placeholder deleted — FGB merges its own service via manifest merge.
 - **Plan 01-05 (2026-07-03):** Skipped `NSBluetoothPeripheralUsageDescription` — deprecated; app is central-only.
 - **Plan 01-05 (2026-07-03):** No `minSdkVersion` bump — permissions are gated via `maxSdkVersion` attributes + runtime prompts (Phase 3).
 - **Plan 01-04 (2026-07-03):** `FlutterError.onError` + `PlatformDispatcher.instance.onError` both funnel through `DomainError.wrap` and log `severe`. `PlatformDispatcher` returns `true` to prevent OS-level crash (dev-only; matches CONTEXT.md "no remote crash reporting").
@@ -113,9 +113,16 @@ Key locked-in decisions affecting current work:
 - **Plan 03-02 (2026-07-05):** `SplitRequired` does NOT update the ingestor's internal state. The caller must instantiate a fresh `TripFixIngestor` and feed `recovered` as its first fix.
 - **Plan 03-02 (2026-07-05):** Frankfurt→Grebenhain Haversine golden value is 63 720 m (not ~61.3 km as originally sketched — the sketch was approximate).
 - **Plan 03-02 (2026-07-05):** `goldenWithGap` 2-min gap does NOT trigger `GapObserved` (threshold is 5 min); the test was corrected to verify no `SplitRequired` emitted. `GapObserved` is only emitted when `dt > 5 min AND distance <= 500 m`.
+- **Plan 03-03 (2026-07-05):** Phase-1 placeholder `.LocationRecordingService` in AndroidManifest deleted (not rebound) — FGB merges its own service via manifest merge; keeping a user-side placeholder causes AAPT duplicate-service at build time (RESEARCH.md Pitfall 2).
+- **Plan 03-03 (2026-07-05):** `BackgroundGeolocationFacade` abstract interface isolates all FGB call sites to `fgb_background_geolocation_facade.dart`. No other file in `lib/` imports `flutter_background_geolocation` directly. Wave 2 tests use `FakeBackgroundGeolocationFacade` (implements the interface) without native code.
+- **Plan 03-03 (2026-07-05):** FGB facade raw exceptions bubble from `ready/start/stop` — `DomainError.wrap` boundary lives in Wave 2's `TrackingNotifier`, not the facade.
+- **Plan 03-03 (2026-07-05):** `bg.Notification.priority` is `NotificationPriority?` enum (FGB 5.3.0), not an `int` constant. Use `bg.NotificationPriority.low`, NOT `bg.Config.NOTIFICATION_PRIORITY_LOW`.
+- **Plan 03-03 (2026-07-05):** `bg.Location.timestamp` is `dynamic` — can be ISO-8601 `String` or epoch-ms `int`. Use `_parseTimestamp(dynamic)` helper pattern in facade.
+- **Plan 03-03 (2026-07-05):** iOS pod install deferred (Windows dev box). Must run `cd ios && pod repo update && pod install && cd ..` on macOS before first iOS build. Pending todo added.
 
 ### Pending Todos
 
+- **Phase 3 (iOS pod install):** `cd ios && pod repo update && pod install && cd ..` must run on macOS before the first iOS build with FGB. Expected: `Podfile.lock` gains `TSLocationManager`. Without this, iOS app crashes on FGB init.
 - **Phase 4:** Replace `assets/tiles/dev_germany.pmtiles` (Protomaps demo bucket, generic v4 schema, maxzoom 11, 371 MB) with the custom `germany-base.pmtiles` produced by the OSM pipeline. Target: < 200 MB with Kfz-focused schema (fewer POI layers, road-graph focus). Run `tool/fetch_pmtiles.sh` to regenerate in the interim.
 - **Phase 3+:** Router shell tap tests rework — 4 tests in `test/features/map/router_shell_test.dart` skipped with `TODO(I551358)`. Fixed-slot layout doesn't route synthetic `tap()` calls through the correct widget on the 800×600 test surface. Works on-device. Rework when Phase 3 adds sub-routes.
 - **Chore (post-Phase 1):** Re-add `custom_lint` + `riverpod_lint` when a `custom_lint` release supports `analyzer ^13.0.0`. Also restore `analyzer.plugins: - custom_lint` in `analysis_options.yaml`.
@@ -144,7 +151,7 @@ Key locked-in decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-07-05 (Phase 3 Wave 1 — 03-02: pure-Dart trip fix ingestor)
-Stopped at: 03-02 complete; SUMMARY.md created; STATE.md updated
+Last session: 2026-07-05 (Phase 3 Wave 1 complete — 03-01 Drift v2, 03-02 pure-Dart ingestor, 03-03 FGB install + facade)
+Stopped at: 03-03 complete; SUMMARY.md created; STATE.md updated; all Wave 1 plans committed
 Resume file: None
-Next: Complete Phase 3 Wave 1 (03-01 Drift v2 schema, 03-03 FGB install + facade) then Wave 2
+Next: Phase 3 Wave 2 — 03-04 (TrackingNotifier + FGB wiring) and 03-05 (OnboardingLadder)
