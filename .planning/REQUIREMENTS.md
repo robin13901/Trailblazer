@@ -42,7 +42,7 @@
 ### OSM Data Pipeline (OSM)
 
 - [ ] **OSM-01**: Dev-machine Dart CLI in `tool/osm_pipeline/` converts a Geofabrik `germany-latest.osm.pbf` into a slim artifact
-- [ ] **OSM-02**: Pipeline extracts only ways with `highway=motorway|trunk|primary|secondary|tertiary|residential|unclassified|service|living_street|motorway_link|trunk_link|primary_link|secondary_link|tertiary_link` (Kfz-classified) + `highway=track|path|footway|cycleway|pedestrian|bridleway` (Feldweg/Fußweg, stored but tagged as non-counting)
+- [ ] **OSM-02**: Pipeline extracts only ways with `highway=motorway|trunk|primary|secondary|tertiary|residential|unclassified|living_street|road|motorway_link|trunk_link|primary_link|secondary_link|tertiary_link` (14-tag Kfz allowlist — `service` excluded per Phase 4 CONTEXT §Highway filter, see decision log 2026-07-05) + `highway=track|path` filtered per Phase 4 RESEARCH §4 (Feldweg/Fußweg, stored `is_counting=0`, non-counting for coverage).
 - [ ] **OSM-03**: Pipeline extracts admin boundaries at OSM levels 2, 4, 6, 8, 9, 10 (Land, Bundesland, Landkreis, Gemeinde, Stadtteil, Ortsteil)
 - [ ] **OSM-04**: Pipeline pre-computes way ↔ admin region associations (join table `way_admin`) for all Kfz-way ↔ region pairs where the way's geometry intersects the region
 - [ ] **OSM-05**: Pipeline produces two output artifacts: (a) `osm.sqlite` (indexed SQLite with R-Tree over Kfz-way geometries) and (b) `germany-base.pmtiles` (rendered vector tiles)
