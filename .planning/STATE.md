@@ -9,12 +9,12 @@ See: .planning/PROJECT.md (updated 2026-07-02)
 
 ## Current Position
 
-Phase: 3 of 11 (Tracking MVP) — Wave 2 in progress
-Plan: 03-04 complete (TrackingService + notifier); 03-05 complete (permission ladder); 03-01, 03-02, 03-03 also complete
-Status: 03-04 and 03-05 committed 2026-07-05; Wave 2 both plans done; 03-06 (FAB morph) ready to start
-Last activity: 2026-07-05 — 03-04: TrackingService + TripsRepositoryPointsSink + TrackingNotifier + main.dart wiring
+Phase: 3 of 11 (Tracking MVP) — Wave 3 complete (widget-tested); on-device verification deferred
+Plan: 03-06 complete (FAB morph + live panel; widget tests pass; on-device Task 3 deferred to phase close-out); 03-01–03-05 all complete
+Status: 03-06 committed 2026-07-05; on-device Task 3 deferred to 03-07 in-car session; 03-07 (60-min baseline drive) next
+Last activity: 2026-07-05 — 03-06: TripFab morph + TrackingDurationTicker + LiveTrackingPanel + 30s _notificationTicker in TrackingService
 
-Progress: [███░░░░░░░] ~26% (20/77 est. plans overall — Phase 1: 7/7; Phase 2: 7/7; Phase 3: 5/7 Wave-1+2)
+Progress: [████░░░░░░] ~30% (23/77 est. plans overall — Phase 1: 7/7; Phase 2: 7/7; Phase 3: 6/7)
 
 ## Performance Metrics
 
@@ -137,10 +137,15 @@ Key locked-in decisions affecting current work:
 - **Plan 03-04 (2026-07-05):** `TrackingService` TRK-01 filter: single-line check at motion=true arrival: `_lastActivityType == 'in_vehicle' && DateTime.now().difference(_lastActivityAt!) <= activityFreshness`. No state machine. Stale activity (from long dormant period) discards the event; FGB re-emits within seconds.
 - **Plan 03-04 (2026-07-05):** Test fixture timestamps must use `DateTime.now()` at test start time, not a fixed past `DateTime`, because `TrackingService.startManual()` records `startedAt = DateTime.now()` and keeper threshold duration = `lastFix.ts - startedAt`. Mismatched timestamps cause negative duration → keeper fails → trip deleted.
 - **Plan 03-04 (2026-07-05):** `main.dart` migrated from `ProviderScope(child:)` to `ProviderContainer() + UncontrolledProviderScope` pattern to allow `facade.ready()` to be called eagerly before `runApp`. This is a net +5 line change and the recommended Flutter/Riverpod pattern for eager provider initialization.
+- **Plan 03-06 (2026-07-05):** FAB morph implemented via `_StartVariant`/`_StopVariant` private widgets each carrying a `ValueKey('start'/'stop')` const, wrapped by `AnimatedSwitcher(duration: 200ms)` inside the refactored `TripFab ConsumerWidget`. `ValueKey` identity is required when switching between unlike subtrees — avoids `AnimatedSwitcher` no-animation-on-same-type glitch.
+- **Plan 03-06 (2026-07-05):** `TrackingDurationTicker` pattern: a standalone `StatefulWidget` owning `Timer.periodic(const Duration(seconds: 1))` with cancel in `dispose()`, exposed via a `builder(BuildContext, DateTime now)` callback. Never embed `Timer.periodic` inside a `ConsumerWidget.build()` body — Riverpod rebuilds on every state change, which would recreate and leak the timer on each rebuild (RESEARCH.md Pitfall 4).
+- **Plan 03-06 (2026-07-05):** `LiveTrackingPanel` slotted into `_BottomChrome` in `map_screen.dart` above the recenter/FAB row, guarded by `showPanel: isMapTab` — collapses to `SizedBox.shrink` on non-map tabs and when state is `TrackingIdle`. Respects the Phase 2 "hide all trip chrome when not on map tab" decision (STATE.md 02-06). No changes to Stack ordering or attribution offset.
+- **Plan 03-06 (2026-07-05):** `_notificationTicker` added inside `TrackingService` as `Timer.periodic(notificationInterval, ...)` calling `unawaited(_facade.setNotificationText(...))`. Default `notificationInterval = const Duration(seconds: 30)`. Optional named constructor param for test-time injection (default preserves prod). Ticker started in `startManual()`, `_openAutoTrip()`, and `init()` hydration; stopped in `stopActive()`, `_closeAutoTrip()`, and `dispose()`. Lives alongside dwell/resume timers — correct lifecycle boundary that survives Riverpod notifier recreate and widget unmount.
 
 ### Pending Todos
 
 - **Phase 3 (iOS pod install):** `cd ios && pod repo update && pod install && cd ..` must run on macOS before the first iOS build with FGB. Expected: `Podfile.lock` gains `TSLocationManager`. Without this, iOS app crashes on FGB init.
+- **Phase 3 close-out (in-car):** Run 03-06 Task 3 verification during the 03-07 60-min baseline drive — FAB morph, LiveTrackingPanel updates, 30s notification updates, Stop flow (DB row creation), sub-threshold micro-trip guard, cold-start hydration. Exact 9 steps documented in `03-06-fab-morph-live-panel-SUMMARY.md` → Deferred Verification section.
 - **Phase 4:** Replace `assets/tiles/dev_germany.pmtiles` (Protomaps demo bucket, generic v4 schema, maxzoom 11, 371 MB) with the custom `germany-base.pmtiles` produced by the OSM pipeline. Target: < 200 MB with Kfz-focused schema (fewer POI layers, road-graph focus). Run `tool/fetch_pmtiles.sh` to regenerate in the interim.
 - **Phase 3+:** Router shell tap tests rework — 4 tests in `test/features/map/router_shell_test.dart` skipped with `TODO(I551358)`. Fixed-slot layout doesn't route synthetic `tap()` calls through the correct widget on the 800×600 test surface. Works on-device. Rework when Phase 3 adds sub-routes.
 - **Chore (post-Phase 1):** Re-add `custom_lint` + `riverpod_lint` when a `custom_lint` release supports `analyzer ^13.0.0`. Also restore `analyzer.plugins: - custom_lint` in `analysis_options.yaml`.
@@ -169,7 +174,7 @@ Key locked-in decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-07-05 (Phase 3 Wave 2 — 03-04 TrackingService + notifier + providers + main.dart)
-Stopped at: 03-04 complete; SUMMARY.md created; STATE.md updated; plan metadata commit pending
+Last session: 2026-07-05 (Phase 3 Wave 3 — 03-06 FAB morph + LiveTrackingPanel + 30s notification updater)
+Stopped at: 03-06 complete; SUMMARY.md created; STATE.md updated; on-device Task 3 deferred to 03-07 in-car session
 Resume file: None
-Next: Phase 3 Wave 3 — 03-06 (FAB morph + live-tracking panel)
+Next: Phase 3 — 03-07 (60-min baseline drive + 03-06 Task 3 in-car verification combined)
