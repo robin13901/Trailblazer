@@ -2,6 +2,8 @@ import 'package:auto_explore/app.dart';
 import 'package:auto_explore/features/map/presentation/providers/location_permission_provider.dart';
 import 'package:auto_explore/features/map/presentation/widgets/bottom_nav_shell.dart';
 import 'package:auto_explore/features/onboarding/data/onboarding_flag_repository.dart';
+import 'package:auto_explore/features/onboarding/data/permission_service_provider.dart';
+import 'package:auto_explore/features/trips/data/background_geolocation_facade_provider.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:maplibre_gl/maplibre_gl.dart';
@@ -10,6 +12,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:shared_preferences_platform_interface/in_memory_shared_preferences_async.dart';
 import 'package:shared_preferences_platform_interface/shared_preferences_async_platform_interface.dart';
 
+import '../../features/onboarding/fakes/fake_permission_service.dart';
+import '../../helpers/fake_background_geolocation_facade.dart';
 import '../../helpers/fake_maplibre_platform.dart';
 
 /// Stub notifier that returns [PermissionStatus.granted] without calling
@@ -46,23 +50,41 @@ void main() {
           locationPermissionProvider.overrideWith(
             _FakeLocationPermissionNotifier.new,
           ),
+          permissionServiceProvider.overrideWithValue(FakePermissionService()),
+          backgroundGeolocationFacadeProvider.overrideWithValue(
+            FakeBackgroundGeolocationFacade(),
+          ),
         ],
         child: const App(),
       ),
     );
     await tester.pumpAndSettle(const Duration(seconds: 1));
 
-    // Splash resolved into onboarding because prefs are empty.
-    expect(find.text('Welcome to Trailblazer'), findsOneWidget);
+    // Splash resolved into onboarding page 1 (3-page permission ladder).
+    expect(find.textContaining('Location while using Trailblazer'), findsOneWidget);
 
-    // Tap Continue -> permission requested (fake) -> flag set -> navigate
-    // to map screen (StatefulShellRoute index 0).
-    await tester.tap(find.text('Continue'));
+    // Tap page 1 Continue.
+    await tester.tap(find.text('Continue').first);
+    await tester.pumpAndSettle();
+
+    // Page 2: Enable background location.
+    expect(find.text('Enable background location'), findsOneWidget);
+    await tester.tap(find.text('Enable background location'));
+    await tester.pumpAndSettle();
+
+    // Page 3: final step (Continue / Enable).
+    final finalLabel = find.text('Continue');
+    final enableLabel = find.text('Enable');
+    if (finalLabel.evaluate().isNotEmpty) {
+      await tester.tap(finalLabel);
+    } else {
+      await tester.tap(enableLabel);
+    }
     await tester.pumpAndSettle();
 
     // MapScreen is active — BottomNavShell is the Dart-only landmark.
     expect(find.byType(BottomNavShell), findsOneWidget);
-    expect(find.text('Welcome to Trailblazer'), findsNothing);
+    expect(find.textContaining('Location while using Trailblazer'), findsNothing);
   });
 
   testWidgets('second launch: skips onboarding, lands on map shell', (
@@ -78,6 +100,10 @@ void main() {
           locationPermissionProvider.overrideWith(
             _FakeLocationPermissionNotifier.new,
           ),
+          permissionServiceProvider.overrideWithValue(FakePermissionService()),
+          backgroundGeolocationFacadeProvider.overrideWithValue(
+            FakeBackgroundGeolocationFacade(),
+          ),
         ],
         child: const App(),
       ),
@@ -85,6 +111,9 @@ void main() {
     await tester.pumpAndSettle(const Duration(seconds: 1));
 
     expect(find.byType(BottomNavShell), findsOneWidget);
-    expect(find.text('Welcome to Trailblazer'), findsNothing);
+    expect(
+      find.textContaining('Location while using Trailblazer'),
+      findsNothing,
+    );
   });
 }
