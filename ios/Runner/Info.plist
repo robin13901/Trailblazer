@@ -62,6 +62,7 @@
 	<array>
 		<string>location</string>
 		<string>bluetooth-central</string>
+		<string>fetch</string>
 	</array>
 	<!-- ==== end Trailblazer ==== -->
 </dict>

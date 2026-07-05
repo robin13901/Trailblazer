@@ -69,13 +69,11 @@
             android:name="flutterEmbedding"
             android:value="2" />
 
-        <!-- Foreground service skeleton for Phase 3 (flutter_background_geolocation
-             will map its actual service class to this declaration). -->
-        <service
-            android:name=".LocationRecordingService"
-            android:enabled="true"
-            android:exported="false"
-            android:foregroundServiceType="location" />
+        <!-- No app-level <service> declaration needed for flutter_background_geolocation.
+             FGB merges its own service classes (LocationRequestService and adapters)
+             via Android manifest merge. A user-side service declaration would cause
+             AAPT duplicate-service errors at build time (see RESEARCH.md Pitfall 2).
+             The Phase-1 placeholder .LocationRecordingService has been removed. -->
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and
