@@ -27,3 +27,5 @@ tool/osm_pipeline/.dart_tool/
 tool/osm_pipeline/build/
 tool/osm_pipeline/out/
 tool/osm_pipeline/**/*.osm.pbf
+# ...except the hand-crafted tiny fixture used by pbf_reader_test.dart
+!tool/osm_pipeline/test/fixtures/tiny.osm.pbf
