@@ -5,23 +5,23 @@
 See: .planning/PROJECT.md (updated 2026-07-02)
 
 **Core value:** When I open the map, I immediately see the roads I've already driven, painted onto the world — and that view keeps pulling me back to explore more.
-**Current focus:** Phase 4 — OSM Pipeline (Plan 04-01 complete 2026-07-05)
+**Current focus:** Phase 4 — OSM Pipeline (Plan 04-02 complete 2026-07-05)
 
 ## Current Position
 
 Phase: 4 of 11 (OSM Pipeline)
-Plan: 04-01 complete (Reconciliation + CLI Scaffold) — 2026-07-05
-Status: Phase 4 Wave 1 opened; 04-01 shipped path-imported sub-package + CLI stub + OSM-02 reconciliation
-Last activity: 2026-07-05 — Plan 04-01 complete: OSM-02 service exclusion locked; tool/osm_pipeline/ scaffolded; pipelineSchemaVersion=1; 9 args tests green
+Plan: 04-02 complete (PBF Streaming Reader + Fixture) — 2026-07-05
+Status: Phase 4 Wave 2 open; 04-02 shipped vendored streaming PBF reader + hand-crafted 478-byte tiny fixture + 9 new tests
+Last activity: 2026-07-05 — Plan 04-02 complete: PbfReader.stream() yields OsmNode|Way|Relation; 18 sub-package tests green
 
-Progress: [███░░░░░░░] ~29% (22/77 est. plans overall — Phase 1: 7/7; Phase 2: 7/7; Phase 3: 7/7 code-complete; Phase 4: 1/N)
+Progress: [███░░░░░░░] ~30% (23/77 est. plans overall — Phase 1: 7/7; Phase 2: 7/7; Phase 3: 7/7 code-complete; Phase 4: 2/N)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 22 (01-01..01-07, 02-01..02-07, 03-01..03-07, 04-01)
-- Average duration: ~19 min (Phase 1), ~86 min (Phase 2), ~30 min (Phase 3 avg), ~11 min (Phase 4 so far)
-- Total execution time: ~2.2 hours (P1 est.) + ~10 hours (P2 est.) + ~3.5 hours (P3 est.) + ~11 min (P4-01)
+- Total plans completed: 23 (01-01..01-07, 02-01..02-07, 03-01..03-07, 04-01, 04-02)
+- Average duration: ~19 min (Phase 1), ~86 min (Phase 2), ~30 min (Phase 3 avg), ~15 min (Phase 4 avg over 2 plans)
+- Total execution time: ~2.2 hours (P1 est.) + ~10 hours (P2 est.) + ~3.5 hours (P3 est.) + ~31 min (P4-01 + P4-02)
 
 **By Phase:**
 
@@ -30,7 +30,7 @@ Progress: [███░░░░░░░] ~29% (22/77 est. plans overall — Ph
 | 01-scaffolding | 7 | ~135 min | ~19 min |
 | 02-map-glass-shell | 7 | ~600 min est. | ~86 min |
 | 03-tracking-mvp | 7 | ~210 min est. | ~30 min |
-| 04-osm-pipeline | 1/N | ~11 min | ~11 min |
+| 04-osm-pipeline | 2/N | ~31 min | ~15 min |
 
 **Recent Trend:**
 - Last 7 plans: 01-01 (18 min), 01-05 (~2 min), 01-02, 01-03 (parallel Wave 2), 01-04 (25 min), 01-06 (~17 min: 7 min exec + ~10 min interactive checkpoint), 01-07 (~8 min docs-only)
@@ -161,6 +161,12 @@ Key locked-in decisions affecting current work:
 - **Plan 04-01 (2026-07-05) — `PipelineError` is a local `DomainError` shape.** The pipeline lives outside `lib/`, so it cannot import `package:auto_explore/core/errors/domain_error.dart`. `tool/osm_pipeline/lib/cli/errors.dart` defines `sealed class PipelineError` with `message` + optional `cause` + `stackTrace`, matching the app-side `DomainError` API. Same boundary discipline (wrap on entry, unwrap at CLI edge with exit code 2).
 - **Plan 04-01 (2026-07-05) — Windows dev-box prereq: tippecanoe via WSL2.** Stage D of the pipeline (04-07) shells out to `tippecanoe`; no first-party Windows binary exists. README documents the WSL2 install path. macOS/Linux dev boxes can `brew install tippecanoe` / distro package.
 - **Plan 04-01 (2026-07-05) — Pipeline tests run via `dart test` inside `tool/osm_pipeline/`.** Not `flutter test` — the sub-package is plain Dart. Repo-root `flutter test` still runs the app-side test suite via the pre-push hook. Pipeline tests are run manually today; may pick up a CI job later.
+- **Plan 04-02 (2026-07-05) — PBF parse strategy: vendored, no protobuf toolchain.** `dart_osmpbf@0.0.1` on pub.dev (only Dart PBF parser) fails the streaming criterion — materializes full PBF into Lists; also throws `Nodes not supported` / `Changesets not supported`. Vendored a minimal reader under `tool/osm_pipeline/lib/pbf/`. Zero new pubspec deps: hand-coded varint + length-delimited protobuf wire-format decoder (`proto_reader.dart` ~180 LOC), `dart:io`'s built-in `ZLibCodec` for blob decompression. Rationale recorded verbatim at top of `lib/pbf/pbf_reader.dart`.
+- **Plan 04-02 (2026-07-05) — PBF reader layering: one file per responsibility.** `entities.dart` (sealed `OsmEntity` = `OsmNode`|`OsmWay`|`OsmRelation` + `HeaderBlock`), `proto_reader.dart` (wire-format decoder), `blob_reader.dart` (BlobHeader + Blob + zlib), `dense_nodes.dart` (delta expansion + keys_vals cursor), `block_decoder.dart` (PrimitiveBlock → `Stream<OsmEntity>`), `pbf_reader.dart` (public API). Isolate-portable: no `dart:io` globals, all state instance-local — plan 04-10 may push into isolate pool without refactor.
+- **Plan 04-02 (2026-07-05) — `PipelineParseError` added to sealed `PipelineError`.** Carries an optional `sourceOffset: int?` — malformed BlobHeader, truncated payload, or zlib decode failure surfaces with the byte offset of the failing record (04-02 must_have). `toString()` appends `[sourceOffset: N]` when present. Downstream stage errors extend the same sealed hierarchy going forward.
+- **Plan 04-02 (2026-07-05) — Memory discipline: one PrimitiveBlock at a time, no eager tag build.** `BlockDecoder.decode()` is `async*`; consumers back-pressure via the Stream protocol. Dense-node keys_vals cursor is walked only when the array is non-empty — plan 04-03 will filter ways first, so unreferenced node tags never need construction (04-RESEARCH §10). No sorting, dedup, or full-file materialization anywhere in the reader.
+- **Plan 04-02 (2026-07-05) — Tiny fixture PBF: 478 bytes, hand-crafted, generator + bytes both committed.** `test/fixtures/tiny.osm.pbf` (24 dense nodes + 4 ways + 1 multipolygon relation with outer+inner) is generated by `test/fixtures/build_tiny_pbf.dart` (+ `proto_writer.dart` mirror of the reader). Regeneration is byte-deterministic — `test('regeneration is deterministic')` and `test('committed fixture matches fresh regeneration')` enforce this. `.gitignore` un-ignores the fixture via `!tool/osm_pipeline/test/fixtures/tiny.osm.pbf` after the broad `**/*.osm.pbf` rule. 04-RESEARCH §12 pitfall #1 (multipolygon inner enclave) is covered.
+- **Plan 04-02 (2026-07-05) — Sub-package inline-ignore doc pattern for `prefer_constructors_over_static_methods`.** `DenseNodesFields.decode(ProtoReader r)` is a static method (not a factory) because its construction iterates the protobuf field stream and may throw. `// ignore: prefer_constructors_over_static_methods` sits on the line immediately above `static DenseNodesFields decode(...)`. Same pattern as `ParsedArgs.parse` / `BoundingBox.parse` in 04-01.
 
 ### Pending Todos
 
