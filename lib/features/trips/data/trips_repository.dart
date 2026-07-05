@@ -1,0 +1,97 @@
+import 'package:auto_explore/core/db/app_database.dart';
+import 'package:auto_explore/core/errors/domain_error.dart';
+import 'package:auto_explore/core/errors/result.dart';
+import 'package:auto_explore/features/trips/data/trips_dao.dart';
+import 'package:auto_explore/features/trips/domain/trip_summary.dart';
+
+/// Domain-facing repository for trips and trip-point writes.
+///
+/// All non-stream methods return `Result<T>`; any exception that is not already
+/// a DomainError is wrapped via DomainError.wrap (STATE.md 01-04).
+///
+/// [TripPointsCompanion] is accessible via this import so callers
+/// (TrackingNotifier) can build point batches without importing Drift directly.
+class TripsRepository {
+  TripsRepository(this._dao);
+
+  final TripsDao _dao;
+
+  /// Open a new recording trip and return its id.
+  Future<Result<int>> openTrip({
+    required DateTime startedAt,
+    required bool manuallyStarted,
+    int? vehicleId,
+  }) async {
+    try {
+      final id = await _dao.openTrip(
+        startedAt: startedAt,
+        manuallyStarted: manuallyStarted,
+        vehicleId: vehicleId,
+      );
+      return Ok(id);
+      // DomainError.wrap accepts Object — must catch all throwables including
+      // Drift's SqliteException and Error subtypes, not only Exception.
+      // ignore: avoid_catches_without_on_clauses
+    } catch (e, st) {
+      return Err(DomainError.wrap(e, st));
+    }
+  }
+
+  /// Append a batch of GPS points to [tripId].
+  Future<Result<void>> appendPoints(
+    int tripId,
+    List<TripPointsCompanion> points,
+  ) async {
+    try {
+      await _dao.appendPointsBatch(tripId, points);
+      return const Ok(null);
+      // Catches all throwables (Error + Exception) for DomainError.wrap.
+      // ignore: avoid_catches_without_on_clauses
+    } catch (e, st) {
+      return Err(DomainError.wrap(e, st));
+    }
+  }
+
+  /// Close [tripId] with [summary] (writes bbox, pointCount, durations).
+  Future<Result<void>> closeTrip(int tripId, TripSummary summary) async {
+    try {
+      await _dao.closeTrip(tripId, summary);
+      return const Ok(null);
+      // Catches all throwables (Error + Exception) for DomainError.wrap.
+      // ignore: avoid_catches_without_on_clauses
+    } catch (e, st) {
+      return Err(DomainError.wrap(e, st));
+    }
+  }
+
+  /// Delete [tripId] and all its points (CASCADE).
+  Future<Result<void>> deleteTrip(int tripId) async {
+    try {
+      await _dao.deleteTrip(tripId);
+      return const Ok(null);
+      // Catches all throwables (Error + Exception) for DomainError.wrap.
+      // ignore: avoid_catches_without_on_clauses
+    } catch (e, st) {
+      return Err(DomainError.wrap(e, st));
+    }
+  }
+
+  /// Return the newest open trip row, or null if none (cold-start hydration).
+  Future<Result<Trip?>> activeTrip() async {
+    try {
+      final trip = await _dao.activeTrip();
+      return Ok(trip);
+      // Catches all throwables (Error + Exception) for DomainError.wrap.
+      // ignore: avoid_catches_without_on_clauses
+    } catch (e, st) {
+      return Err(DomainError.wrap(e, st));
+    }
+  }
+
+  /// Watch all points for [tripId] in sequence order.
+  ///
+  /// Returns a raw stream — the caller handles errors via StreamBuilder /
+  /// Riverpod's AsyncValue machinery.
+  Stream<List<TripPoint>> watchPoints(int tripId) =>
+      _dao.watchPoints(tripId);
+}
