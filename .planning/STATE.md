@@ -5,16 +5,16 @@
 See: .planning/PROJECT.md (updated 2026-07-02)
 
 **Core value:** When I open the map, I immediately see the roads I've already driven, painted onto the world — and that view keeps pulling me back to explore more.
-**Current focus:** Phase 3 — Tracking MVP (Wave 1 complete 2026-07-05)
+**Current focus:** Phase 3 — Tracking MVP (Wave 2 in progress 2026-07-05)
 
 ## Current Position
 
-Phase: 3 of 11 (Tracking MVP) — Wave 1 complete
-Plan: 03-03 complete (FGB install + facade seam); 03-01 and 03-02 also complete
-Status: All Wave 1 plans committed 2026-07-05; Wave 2 ready to start
-Last activity: 2026-07-05 — 03-03: FGB 5.3.0 installed + BackgroundGeolocationFacade interface + FGB-backed impl
+Phase: 3 of 11 (Tracking MVP) — Wave 2 in progress
+Plan: 03-05 complete (permission ladder + denial banner); 03-01, 03-02, 03-03 also complete
+Status: 03-05 committed 2026-07-05; on-device approved (Samsung Galaxy S24, Android 14)
+Last activity: 2026-07-05 — 03-05: 3-page permission ladder + TrackingCapability persistence + yellow denial banner
 
-Progress: [██░░░░░░░░] ~22% (17/77 est. plans overall — Phase 1: 7/7; Phase 2: 7/7; Phase 3: 3/7 Wave-1)
+Progress: [███░░░░░░░] ~26% (20/77 est. plans overall — Phase 1: 7/7; Phase 2: 7/7; Phase 3: 5/7 Wave-1+2)
 
 ## Performance Metrics
 
@@ -124,6 +124,14 @@ Key locked-in decisions affecting current work:
 - **Plan 03-03 (2026-07-05):** `bg.Notification.priority` is `NotificationPriority?` enum (FGB 5.3.0), not an `int` constant. Use `bg.NotificationPriority.low`, NOT `bg.Config.NOTIFICATION_PRIORITY_LOW`.
 - **Plan 03-03 (2026-07-05):** `bg.Location.timestamp` is `dynamic` — can be ISO-8601 `String` or epoch-ms `int`. Use `_parseTimestamp(dynamic)` helper pattern in facade.
 - **Plan 03-03 (2026-07-05):** iOS pod install deferred (Windows dev box). Must run `cd ios && pod repo update && pod install && cd ..` on macOS before first iOS build. Pending todo added.
+- **Plan 03-05 (2026-07-05):** `PermissionService` abstract interface + `PermissionHandlerService` live in `lib/features/onboarding/data/permission_service.dart`. `PermissionHandlerService` uses a prefixed import (`as ph`) to avoid shadowing the top-level `ph.openAppSettings()` function with the instance method of the same name.
+- **Plan 03-05 (2026-07-05):** `backgroundGeolocationFacadeProvider` placed in `lib/features/trips/data/background_geolocation_facade_provider.dart` — alongside the facade impl (03-03). Both 03-05 and 03-04 consumers import it from there; avoids cross-feature coupling.
+- **Plan 03-05 (2026-07-05):** `TrackingCapability` persisted via `SharedPreferencesAsync`, `prefsKey = 'tracking_capability'`, string values `'full_auto'`/`'manual_only'`. Constructor-injected repo for test-time `InMemorySharedPreferencesAsync` (same pattern as Plan 01-03 `OnboardingFlagRepository`).
+- **Plan 03-05 (2026-07-05):** `!isGranted` is the universal predicate for "permission not available" — used in both the ladder's final `TrackingCapability` resolution and `permissionDenialBannerVisibleProvider`. Covers `denied`, `restricted`, `limited`, and `permanentlyDenied`. Never use `isDenied` alone.
+- **Plan 03-05 (2026-07-05):** `permissionDenialBannerVisibleProvider` (`FutureProvider<bool>`) is defined in `permission_denial_banner.dart` (not a separate file) — co-location makes the ProviderScope override target obvious to test authors. Tests inject `AsyncValue.data(true/false)` directly to avoid async timing.
+- **Plan 03-05 (2026-07-05):** Banner invalidation: `AppLifecycleState.resumed → ref.invalidate(permissionDenialBannerVisibleProvider)` inside `WidgetsBindingObserver`. Re-reads permission status on every return from Settings without a timer or polling loop.
+- **Plan 03-05 (2026-07-05):** Page 3 Android/iOS branching via `Platform.isIOS/isAndroid` from `dart:io`. No `flutter_platform_widgets` dependency. iOS path: `requestSensors()`. Android path: `requestNotification()` then `BackgroundGeolocationFacade.showIgnoreBatteryOptimizations()`.
+- **Plan 03-05 (2026-07-05):** On-device checkpoint verified 2026-07-05 on Samsung Galaxy S24 (Android 14). Banner copy "Enable Always for auto-trips — tap to open Settings" approved as-is. All 3 rationale pages, denial banner, Settings deep-link, and resume-invalidation verified working.
 
 ### Pending Todos
 
@@ -156,7 +164,7 @@ Key locked-in decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-07-05 (Phase 3 Wave 1 complete — 03-01 Drift v2, 03-02 pure-Dart ingestor, 03-03 FGB install + facade)
-Stopped at: 03-03 complete; SUMMARY.md created; STATE.md updated; all Wave 1 plans committed
+Last session: 2026-07-05 (Phase 3 Wave 2 — 03-05 permission ladder + denial banner, on-device verified + approved)
+Stopped at: 03-05 complete; SUMMARY.md created; STATE.md updated; plan metadata commit pending
 Resume file: None
-Next: Phase 3 Wave 2 — 03-04 (TrackingNotifier + FGB wiring) and 03-05 (OnboardingLadder)
+Next: Phase 3 Wave 2 — 03-04 (TrackingNotifier + FGB wiring) if not yet complete
