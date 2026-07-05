@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'package:auto_explore/core/db/app_database.dart' hide TripPoint;
+import 'package:auto_explore/core/errors/domain_error.dart';
 import 'package:auto_explore/features/trips/data/background_geolocation_facade.dart';
 import 'package:auto_explore/features/trips/data/trips_repository.dart';
 import 'package:auto_explore/features/trips/domain/haversine.dart';
@@ -82,6 +84,10 @@ class TrackingService {
   // hot reload / background mode).
   Timer? _notificationTicker;
 
+  // Lazy-init flag: facade.ready() is called at most once per service instance,
+  // on first tracking use (manual start, auto-trip, or hydrated resume).
+  bool _facadeReady = false;
+
   // Facade subscriptions
   StreamSubscription<FixInput>? _locSub;
   StreamSubscription<MotionChange>? _motionSub;
@@ -98,8 +104,13 @@ class TrackingService {
   /// Current state snapshot (synchronous read).
   TrackingState get currentState => _currentState;
 
-  /// Called once at app boot (after facade.ready()). Wires event listeners
-  /// and hydrates state from the repository if a trip is already in flight.
+  /// Called once at app boot. Wires event listeners and hydrates state from the
+  /// repository if a trip is already in flight.
+  ///
+  /// [facade.ready()] is deferred: it is called here only if the repository
+  /// reveals an in-flight trip (so the FGS notification / nag toast does not
+  /// fire on every cold start). For fresh starts the call is deferred until the
+  /// user first engages tracking via [startManual] or the auto-trip path.
   Future<void> init() async {
     _locSub = _facade.onLocation.listen(_onLocation, onError: (Object e) {
       _log.severe('onLocation error', e);
@@ -112,41 +123,51 @@ class TrackingService {
       _log.severe('onActivityChange error', e);
     });
 
-    // Cold-start hydration
+    // Cold-start hydration — unpack Result<Trip?> without async callback inside
+    // when() to avoid discarded-future lint.
     final result = await _repository.activeTrip();
-    result.when(
-      ok: (trip) {
-        if (trip == null) {
-          _emitState(const TrackingIdle());
-          return;
-        }
-        _currentTripId = trip.id;
-        _tripStartedAt = trip.startedAt;
-        _ingestor = _ingestorFactory();
-        _batcher = TripFixBatcher(tripId: trip.id, sink: _pointsSink);
-        _emitState(
-          TrackingRecording(
-            tripId: trip.id,
-            startedAt: trip.startedAt,
-            distanceMeters: trip.distanceMeters ?? 0,
-            pointCount: trip.pointCount ?? 0,
-            manuallyStarted: trip.manuallyStarted,
-          ),
-        );
-        // Resume the notification updater for the hydrated trip.
-        _startNotificationTicker();
-      },
-      err: (e) {
-        _log.severe('activeTrip failed on cold-start: ${e.message}');
-        _emitState(const TrackingIdle());
-      },
+    Trip? trip;
+    DomainError? fetchError;
+    result.when(ok: (t) => trip = t, err: (e) => fetchError = e);
+
+    if (fetchError != null) {
+      _log.severe('activeTrip failed on cold-start: ${fetchError!.message}');
+      _emitState(const TrackingIdle());
+      return;
+    }
+
+    if (trip == null) {
+      _emitState(const TrackingIdle());
+      return;
+    }
+
+    // An in-flight trip exists — initialise the facade so FGB can resume
+    // delivering location events and the FGS notification is updated.
+    await _ensureFacadeReady();
+    _currentTripId = trip!.id;
+    _tripStartedAt = trip!.startedAt;
+    _ingestor = _ingestorFactory();
+    _batcher = TripFixBatcher(tripId: trip!.id, sink: _pointsSink);
+    _emitState(
+      TrackingRecording(
+        tripId: trip!.id,
+        startedAt: trip!.startedAt,
+        distanceMeters: trip!.distanceMeters ?? 0,
+        pointCount: trip!.pointCount ?? 0,
+        manuallyStarted: trip!.manuallyStarted,
+      ),
     );
+    // Resume the notification updater for the hydrated trip.
+    _startNotificationTicker();
   }
 
   /// Manual start (FAB tap). Opens a new recording trip with manuallyStarted=true.
   /// No-op if already recording.
   Future<void> startManual() async {
     if (_currentState is TrackingRecording) return;
+    // Initialise the facade on first tracking use so the FGB nag toast does
+    // not fire on every cold start — only when the user first engages tracking.
+    await _ensureFacadeReady();
     final now = DateTime.now();
     final result = await _repository.openTrip(
       startedAt: now,
@@ -402,6 +423,9 @@ class TrackingService {
   }
 
   Future<void> _openAutoTrip(DateTime ts) async {
+    // Initialise the facade on first auto-trip so the FGB nag toast does not
+    // fire on every cold start — only when motion is actually detected.
+    await _ensureFacadeReady();
     final result = await _repository.openTrip(
       startedAt: ts,
       manuallyStarted: false,
@@ -595,6 +619,15 @@ class TrackingService {
   void _stopNotificationTicker() {
     _notificationTicker?.cancel();
     _notificationTicker = null;
+  }
+
+  /// Calls [BackgroundGeolocationFacade.ready] exactly once per service
+  /// instance. Idempotent — subsequent calls are no-ops (the facade itself
+  /// also guards with its own `_ready` flag, but we avoid the extra await).
+  Future<void> _ensureFacadeReady() async {
+    if (_facadeReady) return;
+    await _facade.ready();
+    _facadeReady = true;
   }
 
   void _emitState(TrackingState state) {

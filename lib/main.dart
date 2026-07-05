@@ -1,10 +1,7 @@
-import 'dart:async';
-
 import 'package:auto_explore/app.dart';
 import 'package:auto_explore/core/errors/domain_error.dart';
 import 'package:auto_explore/core/logging/app_logger.dart';
 import 'package:auto_explore/core/theme/liquid_glass_settings.dart';
-import 'package:auto_explore/features/trips/data/background_geolocation_facade_provider.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -36,11 +33,15 @@ Future<void> main() async {
     return true; // Prevent OS-level crash.
   };
 
-  // Initialise the Riverpod container and call facade.ready() exactly once
-  // before the first frame. The container is passed to UncontrolledProviderScope
-  // so the same instance powers the entire widget tree.
+  // Initialise the Riverpod container before the first frame.
+  // The container is passed to UncontrolledProviderScope so the same instance
+  // powers the entire widget tree.
+  //
+  // NOTE: facade.ready() is intentionally NOT called here. It is deferred to
+  // TrackingService.startManual() / _openAutoTrip() / init()-when-resuming so
+  // that the FGB "LICENSE VALIDATION FAILURE" nag toast only appears the first
+  // time the user actually engages tracking, not on every cold start.
   final container = ProviderContainer();
-  unawaited(container.read(backgroundGeolocationFacadeProvider).ready());
 
   runApp(UncontrolledProviderScope(container: container, child: const App()));
 }
