@@ -1,0 +1,21 @@
+{
+  "reference": {
+    "device": "Samsung Galaxy S24 (SM-S921B)",
+    "os": "Android 14",
+    "app_version": "0.1.0+1",
+    "commit": "TBD",
+    "recorded": "TBD",
+    "duration_min": 60,
+    "start_battery_pct": null,
+    "end_battery_pct": null,
+    "drain_pct": null,
+    "drain_rate_pct_per_hour": null,
+    "mah_est": null,
+    "build_mode": "debug",
+    "screen_state": "off",
+    "notification": "live-stats",
+    "profile": "20 min urban + 20 min Landstraße + 20 min Autobahn"
+  },
+  "regression_threshold_relative_pct": 20,
+  "history": []
+}
