@@ -44,6 +44,9 @@ dev_dependencies:
   # only selected symbols). The version is locked to match maplibre_gl 0.26.2.
   maplibre_gl_platform_interface: ^0.26.2
   mocktail: ^1.0.5
+  # Path-imported Phase 4 sub-package. See tool/osm_pipeline/pubspec.yaml.
+  osm_pipeline:
+    path: tool/osm_pipeline
   remove_from_coverage: ^2.0.0
   riverpod_generator: ^4.0.4
   # Needed by tests to install InMemorySharedPreferencesAsync for

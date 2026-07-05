@@ -1,0 +1,15 @@
+name: osm_pipeline
+description: "Trailblazer OSM pipeline — dev-machine CLI that produces osm.sqlite and germany-base.pmtiles."
+publish_to: 'none'
+version: 0.1.0
+
+environment:
+  sdk: ^3.5.0
+
+dependencies:
+  args: ^2.5.0
+  path: ^1.9.0
+
+dev_dependencies:
+  test: ^1.25.0
+  very_good_analysis: ^7.0.0

@@ -21,3 +21,9 @@ docs/.battery-baseline.tmp.json
 # Flutter build artifacts (belt-and-braces; flutter create adds most)
 /build/
 .dart_tool/
+
+# Phase 4 pipeline scratch + outputs
+tool/osm_pipeline/.dart_tool/
+tool/osm_pipeline/build/
+tool/osm_pipeline/out/
+tool/osm_pipeline/**/*.osm.pbf
