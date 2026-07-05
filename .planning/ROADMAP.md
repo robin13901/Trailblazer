@@ -113,7 +113,17 @@ Additional research-recommended spikes: HMM parameter tuning + golden corpus rec
   3. The `way_admin` join table is populated for every Kfz way ↔ region pair whose geometries intersect.
   4. A full-Germany run keeps `osm.sqlite` under 200 MB and `germany-base.pmtiles` under 200 MB, with a version stamp (source PBF date + pipeline schema version) in each.
   5. Pipeline accepts an arbitrary `--bbox` flag for dev/testing without processing the full Germany extract.
-**Plans:** TBD (5–8)
+**Plans:** 10 plans
+  - [ ] 04-01-reconciliation-and-cli-scaffold-PLAN.md — reconcile OSM-02 service exclusion + stand up tool/osm_pipeline sub-package + stub CLI
+  - [ ] 04-02-pbf-streaming-reader-PLAN.md — pure-Dart streaming PBF reader + tiny fixture PBF for unit tests
+  - [ ] 04-03-highway-filter-directionality-PLAN.md — 14-tag Kfz filter + Feldweg carve-out + directionality normalization + scratch DB writer
+  - [ ] 04-04-admin-boundary-extraction-PLAN.md — admin relations (levels 2/4/6/8/9/10) → multipolygon assembly → WKB in scratch
+  - [ ] 04-05-berlin-measurement-segmented-intersection-PLAN.md — Berlin-bbox row-count probe (schema unlock) + segmented intersection + way_admin_raw
+  - [ ] 04-06-osm-sqlite-finalization-PLAN.md — final osm.sqlite schema + R-Tree + version stamp + PRAGMA user_version
+  - [ ] 04-07-geojson-emit-tippecanoe-pmtiles-PLAN.md — 4-layer GeoJSONSeq emission + tippecanoe subprocess (WSL2 on Windows)
+  - [ ] 04-08-pmtiles-metadata-style-rewrite-PLAN.md — pmtiles metadata patcher + rewrite of map_style_light.json + map_style_dark.json
+  - [ ] 04-09-berlin-smoke-and-wsl-docs-PLAN.md — smoke.sh + smoke.ps1 + tippecanoe/README.md WSL2 install guide (checkpoint)
+  - [ ] 04-10-full-germany-close-out-PLAN.md — full-Germany run + 200 MB budget verification + asset replacement + close-out (checkpoint)
 
 ### Phase 5: OSM DB + Matcher
 **Goal:** The HMM matcher turns a confirmed trip into a correct list of driven way intervals — offline, on-device, and CI-verified against a golden corpus.
@@ -209,7 +219,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 | 1. Scaffolding | 7/7 | ✓ Complete | 2026-07-03 |
 | 2. Map + Glass Shell | 7/7 | ✓ Complete | 2026-07-04 |
 | 3. Tracking MVP | 7/7 | ✓ Code-complete (drive deferred) | 2026-07-05 |
-| 4. OSM Pipeline | 0/TBD | Not started | - |
+| 4. OSM Pipeline | 0/10 | Planned | - |
 | 5. OSM DB + Matcher | 0/TBD | Not started | - |
 | 6. Inbox + Match Wire-Up | 0/TBD | Not started | - |
 | 7. Coverage Rendering | 0/TBD | Not started | - |
