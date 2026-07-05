@@ -4,6 +4,7 @@ import 'package:auto_explore/features/map/presentation/providers/location_permis
 import 'package:auto_explore/features/map/presentation/widgets/bottom_nav_shell.dart';
 import 'package:auto_explore/features/map/presentation/widgets/focus_area_pill.dart';
 import 'package:auto_explore/features/map/presentation/widgets/map_widget.dart';
+import 'package:auto_explore/features/map/presentation/widgets/permission_denial_banner.dart';
 import 'package:auto_explore/features/map/presentation/widgets/recenter_button.dart';
 import 'package:auto_explore/features/map/presentation/widgets/settings_glass_button.dart';
 import 'package:auto_explore/features/map/presentation/widgets/trip_fab.dart';
@@ -67,6 +68,21 @@ class MapScreen extends ConsumerWidget {
 
           // Map-tab-only chrome (hidden on Trips / Regions).
           if (isMapTab) ...[
+            // Denial banner — top of map, below status bar, above other chrome.
+            // Visible when Always location (or Android 13+ notification) is
+            // not granted. Invalidates on AppLifecycleState.resumed.
+            const Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              child: SafeArea(
+                child: Padding(
+                  padding: EdgeInsets.only(top: 12),
+                  child: PermissionDenialBanner(),
+                ),
+              ),
+            ),
+
             // Top-left settings button — floats 44pt below top (clears status bar).
             Positioned(
               top: 44,
