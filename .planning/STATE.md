@@ -5,16 +5,16 @@
 See: .planning/PROJECT.md (updated 2026-07-02)
 
 **Core value:** When I open the map, I immediately see the roads I've already driven, painted onto the world — and that view keeps pulling me back to explore more.
-**Current focus:** Phase 2 — Map + Glass Shell (COMPLETE + verified 2026-07-04)
+**Current focus:** Phase 3 — Tracking MVP (Wave 1 in progress 2026-07-05)
 
 ## Current Position
 
-Phase: 2 of 11 (Map + Glass Shell) — **COMPLETE + verified 2026-07-04**
-Plan: 7/7 plans in Phase 2 done (02-07 phase verification — COMPLETE)
-Status: All 5 SC passed on Samsung Galaxy S24 (Android 14); G1 gate unconditional PASS; 60+4 skipped tests; Phase 3 (Tracking MVP) ready to start
-Last activity: 2026-07-04 — Phase 2 close-out: real-device smoke test + layout polish + planning docs updated
+Phase: 3 of 11 (Tracking MVP) — Wave 1 in progress
+Plan: 03-02 complete (pure-Dart fix pipeline); 03-01 and 03-03 also Wave 1
+Status: 03-02 committed 2026-07-05; domain layer clean, 22 tests green
+Last activity: 2026-07-05 — 03-02: pure-Dart TripFixIngestor + Haversine + Batcher + TrackingState
 
-Progress: [██░░░░░░░░] ~18% (14/77 est. plans overall — Phase 1: 7/7; Phase 2: 7/7)
+Progress: [██░░░░░░░░] ~20% (16/77 est. plans overall — Phase 1: 7/7; Phase 2: 7/7; Phase 3: 2+ in progress)
 
 ## Performance Metrics
 
@@ -107,6 +107,12 @@ Key locked-in decisions affecting current work:
 - **Wave 7 bugfix (2026-07-04):** maplibre_gl 0.26.2 does not natively resolve `pmtiles://` URLs on Android. Added Dart loopback tile server (`TileServer` in `lib/features/map/data/tile_server.dart`) reading from bundled `assets/tiles/dev_berlin.pmtiles` via `pmtiles ^2.2.0` and `shelf ^1.4.2` + `shelf_router ^1.1.4`, serving on `http://127.0.0.1:7070/{z}/{x}/{y}.pbf`. Style JSONs (`assets/map_style_light.json`, `assets/map_style_dark.json`) changed from `pmtiles://` URL to XYZ `tiles:[]` array. This is the offline path on both platforms (iOS `pmtiles://` supported natively per 0.26.2 CHANGELOG, but unified code path is simpler).
 - **Wave 7 bugfix (2026-07-04):** MapLibre native attribution button cannot be fully hidden via Flutter API (no `attributionEnabled: false` in maplibre_gl 0.26.2). Repositioned to `AttributionButtonPosition.bottomLeft` with `Point(8, 96)` margins to keep OSM/Protomaps license attribution visible but out of the way of the Liquid Glass FAB (bottom-right) and bottom nav pill. Fully custom attribution chip deferred to Phase 8+.
 - **Wave 7 Berlin→Germany extract (2026-07-04):** `assets/tiles/dev_berlin.pmtiles` (30 MB) replaced with `assets/tiles/dev_germany.pmtiles` (full Germany bbox 5.866,47.270,15.042,55.058, maxzoom 11, 371 MB, 5125 tiles). Fixes empty-map issue when user's location is outside Berlin (user's device: Kleinheubach, Bavaria). File is gitignored — `tool/fetch_pmtiles.sh` / `tool/fetch_pmtiles.ps1` fetches it after cloning. `TileServer.assetPath` default changed accordingly. Maxzoom 14 (3.2 GB) and maxzoom 13 (1.8 GB) were attempted but exceeded APK bundling budget; maxzoom 11 (371 MB) is the practical limit for Germany with Protomaps v4 schema. Replaced in Phase 4 by the custom-built `germany-base.pmtiles` from the OSM pipeline.
+- **Plan 03-02 (2026-07-05):** `sealed IngestorOutcome` hierarchy — `FixAccepted`, `FixRejected`, `GapObserved`, `SplitRequired` — is the canonical Wave 2 seam. Wave 2's `tracking_service.dart` converts `bg.Location` → `FixInput` and feeds `TripFixIngestor`; no FGB types cross into the domain layer.
+- **Plan 03-02 (2026-07-05):** `TripSummaryDraft` is a local class in `trip_fix_ingestor.dart`, not Plan 03-01's repo-facing `TripSummary`. Wave 2 combines Draft + auto/manual flag to construct the repository record.
+- **Plan 03-02 (2026-07-05):** `TripPointsSink` narrow interface lives in `trip_fix_batcher.dart` with `// ignore: one_member_abstracts` — intentional DI contract for Plan 03-04's adapter.
+- **Plan 03-02 (2026-07-05):** `SplitRequired` does NOT update the ingestor's internal state. The caller must instantiate a fresh `TripFixIngestor` and feed `recovered` as its first fix.
+- **Plan 03-02 (2026-07-05):** Frankfurt→Grebenhain Haversine golden value is 63 720 m (not ~61.3 km as originally sketched — the sketch was approximate).
+- **Plan 03-02 (2026-07-05):** `goldenWithGap` 2-min gap does NOT trigger `GapObserved` (threshold is 5 min); the test was corrected to verify no `SplitRequired` emitted. `GapObserved` is only emitted when `dt > 5 min AND distance <= 500 m`.
 
 ### Pending Todos
 
@@ -138,7 +144,7 @@ Key locked-in decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-07-04 (Phase 2 close-out — real-device smoke test + layout polish + planning docs)
-Stopped at: Phase 2 complete and verified; 02-07-SUMMARY.md + 02-VERIFICATION.md created; ROADMAP.md + STATE.md + REQUIREMENTS.md updated; all planning docs committed
+Last session: 2026-07-05 (Phase 3 Wave 1 — 03-02: pure-Dart trip fix ingestor)
+Stopped at: 03-02 complete; SUMMARY.md created; STATE.md updated
 Resume file: None
-Next: `/gsd:plan-phase 3` — Phase 3: Tracking MVP
+Next: Complete Phase 3 Wave 1 (03-01 Drift v2 schema, 03-03 FGB install + facade) then Wave 2
