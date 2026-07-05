@@ -10,9 +10,9 @@ See: .planning/PROJECT.md (updated 2026-07-02)
 ## Current Position
 
 Phase: 3 of 11 (Tracking MVP) — Wave 2 in progress
-Plan: 03-05 complete (permission ladder + denial banner); 03-01, 03-02, 03-03 also complete
-Status: 03-05 committed 2026-07-05; on-device approved (Samsung Galaxy S24, Android 14)
-Last activity: 2026-07-05 — 03-05: 3-page permission ladder + TrackingCapability persistence + yellow denial banner
+Plan: 03-04 complete (TrackingService + notifier); 03-05 complete (permission ladder); 03-01, 03-02, 03-03 also complete
+Status: 03-04 and 03-05 committed 2026-07-05; Wave 2 both plans done; 03-06 (FAB morph) ready to start
+Last activity: 2026-07-05 — 03-04: TrackingService + TripsRepositoryPointsSink + TrackingNotifier + main.dart wiring
 
 Progress: [███░░░░░░░] ~26% (20/77 est. plans overall — Phase 1: 7/7; Phase 2: 7/7; Phase 3: 5/7 Wave-1+2)
 
@@ -132,6 +132,11 @@ Key locked-in decisions affecting current work:
 - **Plan 03-05 (2026-07-05):** Banner invalidation: `AppLifecycleState.resumed → ref.invalidate(permissionDenialBannerVisibleProvider)` inside `WidgetsBindingObserver`. Re-reads permission status on every return from Settings without a timer or polling loop.
 - **Plan 03-05 (2026-07-05):** Page 3 Android/iOS branching via `Platform.isIOS/isAndroid` from `dart:io`. No `flutter_platform_widgets` dependency. iOS path: `requestSensors()`. Android path: `requestNotification()` then `BackgroundGeolocationFacade.showIgnoreBatteryOptimizations()`.
 - **Plan 03-05 (2026-07-05):** On-device checkpoint verified 2026-07-05 on Samsung Galaxy S24 (Android 14). Banner copy "Enable Always for auto-trips — tap to open Settings" approved as-is. All 3 rationale pages, denial banner, Settings deep-link, and resume-invalidation verified working.
+- **Plan 03-04 (2026-07-05):** Drift-generated `TripPoint` row class (from `$TripPointsTable`) conflicts with domain `TripPoint` DTO — any file importing both `app_database.dart` and `domain/trip_point.dart` must use `hide TripPoint` on the app_database import.
+- **Plan 03-04 (2026-07-05):** `TripFixIngestor` gained two public read-only getters: `totalDistanceMeters` and `pointCount` — additive to Plan 03-02, exposes running stats for `TrackingService` live-state updates without duplicating accumulation logic.
+- **Plan 03-04 (2026-07-05):** `TrackingService` TRK-01 filter: single-line check at motion=true arrival: `_lastActivityType == 'in_vehicle' && DateTime.now().difference(_lastActivityAt!) <= activityFreshness`. No state machine. Stale activity (from long dormant period) discards the event; FGB re-emits within seconds.
+- **Plan 03-04 (2026-07-05):** Test fixture timestamps must use `DateTime.now()` at test start time, not a fixed past `DateTime`, because `TrackingService.startManual()` records `startedAt = DateTime.now()` and keeper threshold duration = `lastFix.ts - startedAt`. Mismatched timestamps cause negative duration → keeper fails → trip deleted.
+- **Plan 03-04 (2026-07-05):** `main.dart` migrated from `ProviderScope(child:)` to `ProviderContainer() + UncontrolledProviderScope` pattern to allow `facade.ready()` to be called eagerly before `runApp`. This is a net +5 line change and the recommended Flutter/Riverpod pattern for eager provider initialization.
 
 ### Pending Todos
 
@@ -164,7 +169,7 @@ Key locked-in decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-07-05 (Phase 3 Wave 2 — 03-05 permission ladder + denial banner, on-device verified + approved)
-Stopped at: 03-05 complete; SUMMARY.md created; STATE.md updated; plan metadata commit pending
+Last session: 2026-07-05 (Phase 3 Wave 2 — 03-04 TrackingService + notifier + providers + main.dart)
+Stopped at: 03-04 complete; SUMMARY.md created; STATE.md updated; plan metadata commit pending
 Resume file: None
-Next: Phase 3 Wave 2 — 03-04 (TrackingNotifier + FGB wiring) if not yet complete
+Next: Phase 3 Wave 3 — 03-06 (FAB morph + live-tracking panel)
