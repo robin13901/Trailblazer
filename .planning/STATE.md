@@ -5,23 +5,23 @@
 See: .planning/PROJECT.md (updated 2026-07-02)
 
 **Core value:** When I open the map, I immediately see the roads I've already driven, painted onto the world — and that view keeps pulling me back to explore more.
-**Current focus:** Phase 3 — Tracking MVP (Wave 2 in progress 2026-07-05)
+**Current focus:** Phase 4 — OSM Pipeline (Plan 04-01 complete 2026-07-05)
 
 ## Current Position
 
-Phase: 3 of 11 (Tracking MVP) — code-complete 2026-07-05 (in-car verification deferred to batched drive session)
-Plan: 03-07 complete (CLI + artifact scaffold + VERIFICATION.md + STATE/ROADMAP/REQUIREMENTS close-out)
-Status: Phase 3 code-complete 2026-07-05; on-device Task 3 (03-06) and 60-min drive (03-07) deferred to batched in-car session
-Last activity: 2026-07-05 — Phase 3 close-out: 03-VERIFICATION.md created, ROADMAP/STATE/REQUIREMENTS updated
+Phase: 4 of 11 (OSM Pipeline)
+Plan: 04-01 complete (Reconciliation + CLI Scaffold) — 2026-07-05
+Status: Phase 4 Wave 1 opened; 04-01 shipped path-imported sub-package + CLI stub + OSM-02 reconciliation
+Last activity: 2026-07-05 — Plan 04-01 complete: OSM-02 service exclusion locked; tool/osm_pipeline/ scaffolded; pipelineSchemaVersion=1; 9 args tests green
 
-Progress: [███░░░░░░░] ~30% (21/77 est. plans overall — Phase 1: 7/7; Phase 2: 7/7; Phase 3: 7/7 code-complete)
+Progress: [███░░░░░░░] ~29% (22/77 est. plans overall — Phase 1: 7/7; Phase 2: 7/7; Phase 3: 7/7 code-complete; Phase 4: 1/N)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 21 (01-01..01-07, 02-01..02-07, 03-01..03-07)
-- Average duration: ~19 min (Phase 1), ~86 min (Phase 2), ~30 min (Phase 3 avg)
-- Total execution time: ~2.2 hours (P1 est.) + ~10 hours (P2 est.) + ~3.5 hours (P3 est.)
+- Total plans completed: 22 (01-01..01-07, 02-01..02-07, 03-01..03-07, 04-01)
+- Average duration: ~19 min (Phase 1), ~86 min (Phase 2), ~30 min (Phase 3 avg), ~11 min (Phase 4 so far)
+- Total execution time: ~2.2 hours (P1 est.) + ~10 hours (P2 est.) + ~3.5 hours (P3 est.) + ~11 min (P4-01)
 
 **By Phase:**
 
@@ -30,6 +30,7 @@ Progress: [███░░░░░░░] ~30% (21/77 est. plans overall — Ph
 | 01-scaffolding | 7 | ~135 min | ~19 min |
 | 02-map-glass-shell | 7 | ~600 min est. | ~86 min |
 | 03-tracking-mvp | 7 | ~210 min est. | ~30 min |
+| 04-osm-pipeline | 1/N | ~11 min | ~11 min |
 
 **Recent Trend:**
 - Last 7 plans: 01-01 (18 min), 01-05 (~2 min), 01-02, 01-03 (parallel Wave 2), 01-04 (25 min), 01-06 (~17 min: 7 min exec + ~10 min interactive checkpoint), 01-07 (~8 min docs-only)
@@ -193,7 +194,7 @@ Key locked-in decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-07-05 (Phase 3 close-out — 03-07 partial: CLI + scaffold + VERIFICATION.md + STATE/ROADMAP/REQUIREMENTS)
-Stopped at: Phase 3 code-complete; two commits pending (Commit A: 03-07 artifacts; Commit B: phase close-out docs)
+Last session: 2026-07-05 (Plan 04-01 complete — Reconciliation + CLI Scaffold)
+Stopped at: Plan 04-01 SUMMARY committed; ready for 04-02 (PBF stream reader / Wave 1 continues)
 Resume file: None
-Next: `/gsd:discuss-phase 4` — Phase 4 OSM Pipeline (dev-machine deliverable; independent of Phase 3 in-car verification)
+Next: `/gsd:execute-phase 4` (Plan 04-02 — first coding plan on the newly scaffolded CLI)
