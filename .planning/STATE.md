@@ -9,19 +9,19 @@ See: .planning/PROJECT.md (updated 2026-07-02)
 
 ## Current Position
 
-Phase: 3 of 11 (Tracking MVP) — Wave 3 complete (widget-tested); on-device verification deferred
-Plan: 03-06 complete (FAB morph + live panel; widget tests pass; on-device Task 3 deferred to phase close-out); 03-01–03-05 all complete
-Status: 03-06 committed 2026-07-05; on-device Task 3 deferred to 03-07 in-car session; 03-07 (60-min baseline drive) next
-Last activity: 2026-07-05 — 03-06: TripFab morph + TrackingDurationTicker + LiveTrackingPanel + 30s _notificationTicker in TrackingService
+Phase: 3 of 11 (Tracking MVP) — code-complete 2026-07-05 (in-car verification deferred to batched drive session)
+Plan: 03-07 complete (CLI + artifact scaffold + VERIFICATION.md + STATE/ROADMAP/REQUIREMENTS close-out)
+Status: Phase 3 code-complete 2026-07-05; on-device Task 3 (03-06) and 60-min drive (03-07) deferred to batched in-car session
+Last activity: 2026-07-05 — Phase 3 close-out: 03-VERIFICATION.md created, ROADMAP/STATE/REQUIREMENTS updated
 
-Progress: [████░░░░░░] ~30% (23/77 est. plans overall — Phase 1: 7/7; Phase 2: 7/7; Phase 3: 6/7)
+Progress: [███░░░░░░░] ~30% (21/77 est. plans overall — Phase 1: 7/7; Phase 2: 7/7; Phase 3: 7/7 code-complete)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 7 (01-01, 01-02, 01-03, 01-04, 01-05, 01-06, 01-07)
-- Average duration: ~19 min
-- Total execution time: ~2.2 hours (est.)
+- Total plans completed: 21 (01-01..01-07, 02-01..02-07, 03-01..03-07)
+- Average duration: ~19 min (Phase 1), ~86 min (Phase 2), ~30 min (Phase 3 avg)
+- Total execution time: ~2.2 hours (P1 est.) + ~10 hours (P2 est.) + ~3.5 hours (P3 est.)
 
 **By Phase:**
 
@@ -29,6 +29,7 @@ Progress: [████░░░░░░] ~30% (23/77 est. plans overall — Ph
 |-------|-------|-------|----------|
 | 01-scaffolding | 7 | ~135 min | ~19 min |
 | 02-map-glass-shell | 7 | ~600 min est. | ~86 min |
+| 03-tracking-mvp | 7 | ~210 min est. | ~30 min |
 
 **Recent Trend:**
 - Last 7 plans: 01-01 (18 min), 01-05 (~2 min), 01-02, 01-03 (parallel Wave 2), 01-04 (25 min), 01-06 (~17 min: 7 min exec + ~10 min interactive checkpoint), 01-07 (~8 min docs-only)
@@ -142,11 +143,22 @@ Key locked-in decisions affecting current work:
 - **Plan 03-06 (2026-07-05):** `TrackingDurationTicker` pattern: a standalone `StatefulWidget` owning `Timer.periodic(const Duration(seconds: 1))` with cancel in `dispose()`, exposed via a `builder(BuildContext, DateTime now)` callback. Never embed `Timer.periodic` inside a `ConsumerWidget.build()` body — Riverpod rebuilds on every state change, which would recreate and leak the timer on each rebuild (RESEARCH.md Pitfall 4).
 - **Plan 03-06 (2026-07-05):** `LiveTrackingPanel` slotted into `_BottomChrome` in `map_screen.dart` above the recenter/FAB row, guarded by `showPanel: isMapTab` — collapses to `SizedBox.shrink` on non-map tabs and when state is `TrackingIdle`. Respects the Phase 2 "hide all trip chrome when not on map tab" decision (STATE.md 02-06). No changes to Stack ordering or attribution offset.
 - **Plan 03-06 (2026-07-05):** `_notificationTicker` added inside `TrackingService` as `Timer.periodic(notificationInterval, ...)` calling `unawaited(_facade.setNotificationText(...))`. Default `notificationInterval = const Duration(seconds: 30)`. Optional named constructor param for test-time injection (default preserves prod). Ticker started in `startManual()`, `_openAutoTrip()`, and `init()` hydration; stopped in `stopActive()`, `_closeAutoTrip()`, and `dispose()`. Lives alongside dwell/resume timers — correct lifecycle boundary that survives Riverpod notifier recreate and widget unmount.
+- **Phase 3 close-out (2026-07-05):** Code-complete without in-car verification. 03-06 Task 3 (9 on-device visual checks) and 03-07 Task 2 (60-min battery baseline drive) deferred to a batched drive session. VERIFICATION.md marks 4/5 SC code-complete, SC5 (battery baseline) drive-blocked. Both deferred checklists live in `.planning/phases/03-tracking-mvp/03-VERIFICATION.md` "In-car verification checklist (deferred)".
+- **Phase 3 close-out (2026-07-05):** FGB 5.3.0 installed; Phase-1 placeholder `<service>` deleted; iOS UIBackgroundModes gains `fetch` for FGB heartbeat scheduling (Plan 03-03).
+- **Phase 3 close-out (2026-07-05):** `BackgroundGeolocationFacade` abstract interface is the sole FGB import site — only `fgb_background_geolocation_facade.dart` imports `flutter_background_geolocation` directly. Wave 2 tests use `FakeBackgroundGeolocationFacade`.
+- **Phase 3 close-out (2026-07-05):** Pure-Dart ingestor (`TripFixIngestor`) + batcher (`TripFixBatcher`) + Haversine cover all accuracy/gap/split/keeper logic. 22 domain unit tests. No FGB or Drift dependencies in the domain layer.
+- **Phase 3 close-out (2026-07-05):** `TrackingService` owns manual/auto/dwell/resume timers and `_notificationTicker`. `TrackingNotifier` is a thin Riverpod adapter watching `stateStream`. 141 tests total.
+- **Phase 3 close-out (2026-07-05):** Permission ladder (3 pages): whenInUse → Always → Motion/Notification+BatteryOpt. `TrackingCapability` persisted in SharedPreferences. Yellow denial banner is the ONLY recovery path after a denied Always permission — no modal, no blocking gate.
+- **Phase 3 close-out (2026-07-05):** FAB morphs Start↔Stop via `AnimatedSwitcher(200ms) + ValueKey`. `LiveTrackingPanel` GlassPill overlay above bottom-nav pill row; collapses to SizedBox.shrink when idle. 30s notification updater lives in TrackingService.
+- **Phase 3 close-out (2026-07-05):** Battery baseline CLI shipped (`tool/battery_baseline.dart`). Artifact scaffold committed with PENDING markers. Drain rate measurement deferred to in-car drive. Regression threshold: > 20% relative drain rate increase requires justification + re-baseline.
+- **Phase 3 close-out (2026-07-05):** iOS blue-bar cannot show custom text — live-stats notification is Android-only. `setNotificationText()` is a no-op on iOS. Documented in 03-VERIFICATION.md Known Gaps.
+- **Phase 3 close-out (2026-07-05):** Trip keeper thresholds (60 s / 100 m / 50 m bbox diagonal) silently drop micro-trips. Raw GPS not retained for deleted trips. `passesKeeperThreshold` logic in `TripFixIngestor.finalize()`.
+- **Phase 3 close-out (2026-07-05):** Manual trips ignore dwell timer (TRK-03) — only the Stop FAB ends a manual trip. Auto trips are terminated by `_onDwellExpired()` → `_closeAutoTrip()` after 2 min of non-automotive activity.
 
 ### Pending Todos
 
 - **Phase 3 (iOS pod install):** `cd ios && pod repo update && pod install && cd ..` must run on macOS before the first iOS build with FGB. Expected: `Podfile.lock` gains `TSLocationManager`. Without this, iOS app crashes on FGB init.
-- **Phase 3 close-out (in-car):** Run 03-06 Task 3 verification during the 03-07 60-min baseline drive — FAB morph, LiveTrackingPanel updates, 30s notification updates, Stop flow (DB row creation), sub-threshold micro-trip guard, cold-start hydration. Exact 9 steps documented in `03-06-fab-morph-live-panel-SUMMARY.md` → Deferred Verification section.
+- **Phase 3 close-out (batched in-car drive — consolidated):** Run 03-06 Task 3 (9 on-device visual checks) AND 03-07 Task 2 (60-min battery baseline drive) in a single in-car session. Full checklist (18 items) in `.planning/phases/03-tracking-mvp/03-VERIFICATION.md` → "In-car verification checklist (deferred)". After drive: fill PENDING fields in `docs/battery-baseline.md` + `.json`, update SC5 to PASS, update REQUIREMENTS.md QUA-06 to Complete.
 - **Phase 4:** Replace `assets/tiles/dev_germany.pmtiles` (Protomaps demo bucket, generic v4 schema, maxzoom 11, 371 MB) with the custom `germany-base.pmtiles` produced by the OSM pipeline. Target: < 200 MB with Kfz-focused schema (fewer POI layers, road-graph focus). Run `tool/fetch_pmtiles.sh` to regenerate in the interim.
 - **Phase 3+:** Router shell tap tests rework — 4 tests in `test/features/map/router_shell_test.dart` skipped with `TODO(I551358)`. Fixed-slot layout doesn't route synthetic `tap()` calls through the correct widget on the 800×600 test surface. Works on-device. Rework when Phase 3 adds sub-routes.
 - **Chore (post-Phase 1):** Re-add `custom_lint` + `riverpod_lint` when a `custom_lint` release supports `analyzer ^13.0.0`. Also restore `analyzer.plugins: - custom_lint` in `analysis_options.yaml`.
@@ -175,7 +187,7 @@ Key locked-in decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-07-05 (Phase 3 Wave 3 — 03-06 FAB morph + LiveTrackingPanel + 30s notification updater)
-Stopped at: 03-06 complete; SUMMARY.md created; STATE.md updated; on-device Task 3 deferred to 03-07 in-car session
+Last session: 2026-07-05 (Phase 3 close-out — 03-07 partial: CLI + scaffold + VERIFICATION.md + STATE/ROADMAP/REQUIREMENTS)
+Stopped at: Phase 3 code-complete; two commits pending (Commit A: 03-07 artifacts; Commit B: phase close-out docs)
 Resume file: None
-Next: Phase 3 — 03-07 (60-min baseline drive + 03-06 Task 3 in-car verification combined)
+Next: `/gsd:discuss-phase 4` — Phase 4 OSM Pipeline (dev-machine deliverable; independent of Phase 3 in-car verification)

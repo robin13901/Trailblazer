@@ -14,7 +14,7 @@ Depth: **comprehensive** — 11 phases, driven by the 119 v1 requirements (FND, 
 
 - [x] **Phase 1: Scaffolding** — CI, lints, App DB skeleton, routing, error/logging, permission plumbing
 - [x] **Phase 2: Map + Glass Shell** — MapLibre + PMTiles + Liquid Glass chrome (rendering spike gate)
-- [ ] **Phase 3: Tracking MVP** — background GPS + motion state machine + manual/auto trip capture
+- [x] **Phase 3: Tracking MVP** — background GPS + motion state machine + manual/auto trip capture
 - [ ] **Phase 4: OSM Pipeline** — dev-machine PBF → slim `osm.sqlite` + `germany-base.pmtiles`
 - [ ] **Phase 5: OSM DB + Matcher** — OSM DB runtime, HMM engine, matcher isolate, golden corpus
 - [ ] **Phase 6: Inbox + Match Wire-Up** — trip inbox, confirm/reject, matching enqueue, coverage cache infra
@@ -87,6 +87,7 @@ Additional research-recommended spikes: HMM parameter tuning + golden corpus rec
 **Goal:** The app records trips automatically and manually, in the background, on both platforms, with battery baseline established.
 **Depends on:** Phase 1
 **Requirements:** TRK-01, TRK-02, TRK-03, TRK-04, TRK-05, TRK-06, TRK-07, TRK-08, TRK-09, TRK-10, TRK-11, QUA-06
+**Completed (code-complete, in-car verification deferred):** 2026-07-05
 **Success Criteria** (what must be TRUE):
   1. User taps the FAB, drives, then taps Stop — a `pending` trip with GPS polyline, speeds (avg + max), distance, duration, and per-fix motion activity type is written to the App DB.
   2. User closes the app, drives more than 60 s in a car — a `pending` auto-trip is recorded via `flutter_background_geolocation` and auto-terminates after 2 minutes of non-automotive dwell.
@@ -94,13 +95,13 @@ Additional research-recommended spikes: HMM parameter tuning + golden corpus rec
   4. iOS whenInUse→Always permission ladder + Android `foregroundServiceType="location"` + persistent notification + battery-optimization prompt are all wired; app never assumes Always is granted.
   5. A 60-minute driving battery-drain baseline is measured on a real device and committed to the repo as the regression reference for major changes.
 **Plans:** 7 plans
-  - [ ] 03-01-drift-v2-trip-repository-PLAN.md — Drift schema v2 (bbox + pointCount) + TripsDao + TripsRepository + migration test
-  - [ ] 03-02-trip-fix-ingestor-PLAN.md — pure-Dart TripFixIngestor + Haversine + TripFixBatcher + golden fixtures
-  - [ ] 03-03-fgb-install-facade-PLAN.md — install flutter_background_geolocation 5.3.0 + native manifest cleanup + BackgroundGeolocationFacade seam
-  - [ ] 03-04-tracking-service-notifier-PLAN.md — TrackingService (manual/auto/dwell/resume/split) + Riverpod TrackingNotifier + cold-start hydration
-  - [ ] 03-05-permission-ladder-banner-PLAN.md — 3-page onboarding permission ladder + TrackingCapability + yellow denial banner
-  - [ ] 03-06-fab-morph-live-panel-PLAN.md — FAB Start↔Stop morph + LiveTrackingPanel + 30 s notification updater
-  - [ ] 03-07-phase-verification-battery-baseline-PLAN.md — tool/battery_baseline.dart + 60-min drive artifact + Phase 3 close-out (VERIFICATION + STATE + ROADMAP)
+  - [x] 03-01-drift-v2-trip-repository-PLAN.md — Drift v2 migration + TripsDao/Repository
+  - [x] 03-02-trip-fix-ingestor-PLAN.md — pure-Dart ingestor + Haversine + batcher
+  - [x] 03-03-fgb-install-facade-PLAN.md — FGB install + facade seam
+  - [x] 03-04-tracking-service-notifier-PLAN.md — TrackingService + Riverpod notifier
+  - [x] 03-05-permission-ladder-banner-PLAN.md — permission ladder + yellow banner
+  - [x] 03-06-fab-morph-live-panel-PLAN.md — FAB morph + live panel + 30 s notification
+  - [x] 03-07-phase-verification-battery-baseline-PLAN.md — battery baseline CLI + phase close-out (in-car drive deferred)
 
 ### Phase 4: OSM Pipeline
 **Goal:** A repeatable dev-machine Dart CLI produces the slim OSM artifacts the app runtime consumes.
@@ -207,7 +208,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 |-------|----------------|--------|-----------|
 | 1. Scaffolding | 7/7 | ✓ Complete | 2026-07-03 |
 | 2. Map + Glass Shell | 7/7 | ✓ Complete | 2026-07-04 |
-| 3. Tracking MVP | 0/TBD | Not started | - |
+| 3. Tracking MVP | 7/7 | ✓ Code-complete (drive deferred) | 2026-07-05 |
 | 4. OSM Pipeline | 0/TBD | Not started | - |
 | 5. OSM DB + Matcher | 0/TBD | Not started | - |
 | 6. Inbox + Match Wire-Up | 0/TBD | Not started | - |

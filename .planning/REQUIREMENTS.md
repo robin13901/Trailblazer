@@ -269,17 +269,17 @@ Every requirement maps to exactly one phase. Phase Gates in ROADMAP.md carry two
 | UI-05 | Phase 2: Map + Glass Shell (Gate G1) | Complete — G1 unconditional PASS 2026-07-04 |
 | UI-06 | Phase 2: Map + Glass Shell | Complete |
 | UI-07 | Phase 2: Map + Glass Shell | Complete |
-| TRK-01 | Phase 3: Tracking MVP | Pending |
-| TRK-02 | Phase 3: Tracking MVP | Pending |
-| TRK-03 | Phase 3: Tracking MVP | Pending |
-| TRK-04 | Phase 3: Tracking MVP | Pending |
-| TRK-05 | Phase 3: Tracking MVP | Pending |
-| TRK-06 | Phase 3: Tracking MVP | Pending |
-| TRK-07 | Phase 3: Tracking MVP | Pending |
-| TRK-08 | Phase 3: Tracking MVP | Pending |
-| TRK-09 | Phase 3: Tracking MVP | Pending |
-| TRK-10 | Phase 3: Tracking MVP | Pending |
-| TRK-11 | Phase 3: Tracking MVP | Pending |
+| TRK-01 | Phase 3: Tracking MVP | Code-Complete (drive-deferred) |
+| TRK-02 | Phase 3: Tracking MVP | Code-Complete (drive-deferred) |
+| TRK-03 | Phase 3: Tracking MVP | Code-Complete (drive-deferred) |
+| TRK-04 | Phase 3: Tracking MVP | Code-Complete (drive-deferred) |
+| TRK-05 | Phase 3: Tracking MVP | Code-Complete (drive-deferred) |
+| TRK-06 | Phase 3: Tracking MVP | Code-Complete (drive-deferred) — bluetooth_hint column exists, always NULL in P3; wired in Phase 9 |
+| TRK-07 | Phase 3: Tracking MVP | Code-Complete (drive-deferred) |
+| TRK-08 | Phase 3: Tracking MVP | Code-Complete (drive-deferred) |
+| TRK-09 | Phase 3: Tracking MVP | Code-Complete (drive-deferred) |
+| TRK-10 | Phase 3: Tracking MVP | Code-Complete (drive-deferred) |
+| TRK-11 | Phase 3: Tracking MVP | Code-Complete (drive-deferred) |
 | OSM-01 | Phase 4: OSM Pipeline | Pending |
 | OSM-02 | Phase 4: OSM Pipeline | Pending |
 | OSM-03 | Phase 4: OSM Pipeline | Pending |
@@ -361,9 +361,9 @@ Every requirement maps to exactly one phase. Phase Gates in ROADMAP.md carry two
 | QUA-03 | Phase 1: Scaffolding | Complete |
 | QUA-04 | Phase 11: Hardening | Pending |
 | QUA-05 | Phase 1: Scaffolding | Complete |
-| QUA-06 | Phase 3: Tracking MVP | Pending |
+| QUA-06 | Phase 3: Tracking MVP | Code-Complete (drive-deferred) — CLI shipped, artifact scaffold in place; 60-min drive deferred to batched in-car session |
 | QUA-07 | Phase 11: Hardening | Pending |
 
 ---
 *Requirements defined: 2026-07-02*
-*Last updated: 2026-07-04 — Phase 2 (Map + Glass Shell) complete; 14 requirements (MAP-01..07, UI-01..07) moved to Complete*
+*Last updated: 2026-07-05 — Phase 3 (Tracking MVP) code-complete; TRK-01..11 + QUA-06 moved to Code-Complete (drive-deferred)*
