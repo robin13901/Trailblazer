@@ -5,23 +5,23 @@
 See: .planning/PROJECT.md (updated 2026-07-02)
 
 **Core value:** When I open the map, I immediately see the roads I've already driven, painted onto the world — and that view keeps pulling me back to explore more.
-**Current focus:** Phase 4 — OSM Pipeline (Plan 04-03 complete 2026-07-05)
+**Current focus:** Phase 4 — OSM Pipeline (Plan 04-04 complete 2026-07-05)
 
 ## Current Position
 
 Phase: 4 of 11 (OSM Pipeline)
-Plan: 04-03 complete (Highway Filter + Directionality) — 2026-07-05
-Status: Phase 4 Wave 3 in flight; 04-03 shipped filter + scratch DB + Stage B CLI wire (80 new tests, 98 sub-package total)
-Last activity: 2026-07-05 — Plan 04-03 complete: Kfz + Feldweg filters, directionality normaliser, ScratchDb, two-pass WayPipeline
+Plan: 04-04 complete (Admin Boundary Extraction) — 2026-07-05
+Status: Phase 4 Wave 3 code-complete for 04-03 + 04-04 (both parallel plans); 04-04 shipped admin filter + multipolygon assembler + WKB writer + Stage C CLI wire (42 new tests, 127 sub-package total)
+Last activity: 2026-07-05 — Plan 04-04 complete: isAdminRelation + MultipolygonAssembler + extractAdminRegions() + city-state dual-write
 
-Progress: [███░░░░░░░] ~31% (24/77 est. plans overall — Phase 1: 7/7; Phase 2: 7/7; Phase 3: 7/7 code-complete; Phase 4: 3/N)
+Progress: [███░░░░░░░] ~32% (25/77 est. plans overall — Phase 1: 7/7; Phase 2: 7/7; Phase 3: 7/7 code-complete; Phase 4: 4/N)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 24 (01-01..01-07, 02-01..02-07, 03-01..03-07, 04-01, 04-02, 04-03)
-- Average duration: ~19 min (Phase 1), ~86 min (Phase 2), ~30 min (Phase 3 avg), ~14 min (Phase 4 avg over 3 plans)
-- Total execution time: ~2.2 hours (P1 est.) + ~10 hours (P2 est.) + ~3.5 hours (P3 est.) + ~41 min (P4-01 + P4-02 + P4-03)
+- Total plans completed: 25 (01-01..01-07, 02-01..02-07, 03-01..03-07, 04-01..04-04)
+- Average duration: ~19 min (Phase 1), ~86 min (Phase 2), ~30 min (Phase 3 avg), ~15 min (Phase 4 avg over 4 plans)
+- Total execution time: ~2.2 hours (P1 est.) + ~10 hours (P2 est.) + ~3.5 hours (P3 est.) + ~61 min (P4-01..04-04)
 
 **By Phase:**
 
@@ -30,7 +30,7 @@ Progress: [███░░░░░░░] ~31% (24/77 est. plans overall — Ph
 | 01-scaffolding | 7 | ~135 min | ~19 min |
 | 02-map-glass-shell | 7 | ~600 min est. | ~86 min |
 | 03-tracking-mvp | 7 | ~210 min est. | ~30 min |
-| 04-osm-pipeline | 3/N | ~41 min | ~14 min |
+| 04-osm-pipeline | 4/N | ~61 min | ~15 min |
 
 **Recent Trend:**
 - Last 7 plans: 01-01 (18 min), 01-05 (~2 min), 01-02, 01-03 (parallel Wave 2), 01-04 (25 min), 01-06 (~17 min: 7 min exec + ~10 min interactive checkpoint), 01-07 (~8 min docs-only)
@@ -179,6 +179,14 @@ Key locked-in decisions affecting current work:
 - **Plan 04-03 (2026-07-05) — `WayPipeline.readerFactory` is an injectable `PbfReader Function()`.** Each of the two passes calls the factory to get a fresh reader. This is the extension point Plan 04-10 will use to swap in an isolate-pool reader without refactoring `WayPipeline` internals.
 - **Plan 04-03 (2026-07-05) — Skipped-log format: `{reason_code}\t{osm_type}/{id}`.** Grep-friendly, machine-parseable. Reason codes emitted: `no_highway_tag`, `highway_class_not_allowlisted`, `feldweg_missing_motor_vehicle`, `feldweg_service_not_driveway_or_alley`, `deleted_node_ref`. The `kExplicitFeldwegHighwayValues` constant scopes the rejection-reason disambiguator; unknown highway values collapse to `highway_class_not_allowlisted`.
 - **Plan 04-03 (2026-07-05) — CLI wired for Stage B end-to-end.** `bin/osm_pipeline.dart:run()` opens `ScratchDb`, invokes `WayPipeline`, prints a one-line filter summary (`X Kfz, Y Feldweg, Z nodes, N rejected`), and disposes the scratch DB via `finally`. Manual smoke on `test/fixtures/tiny.osm.pbf` completes in < 1 s and prints exactly `1 Kfz, 1 Feldweg, 14 nodes, 2 rejected`.
+- **Plan 04-04 (2026-07-05) — Admin filter widens to `type in {boundary, multipolygon}` + `boundary=administrative` + `admin_level ∈ {2,4,6,8,9,10}`.** OSM tagging is empirically inconsistent in DE — many Landkreise carry `type=multipolygon` despite the wiki recommending `type=boundary`. Widening keeps DE Landkreise in scope; 04-RESEARCH §12 fallback note anticipated this. Documented inline in `admin_relation_filter.dart`.
+- **Plan 04-04 (2026-07-05) — City-state dual-write is name-driven, not relation-id-driven.** `kCityStateNames = {Berlin, Hamburg, Bremen}`; the extractor writes level-4 city-state relations a SECOND time at level 6. Name lookups survive OSM ID churn; relation-id lookups do not. Pitfall #10 closed. Branch coverage: 5 dedicated tests in `city_state_dual_write_test.dart`.
+- **Plan 04-04 (2026-07-05) — Parallel-wave file ownership: `admin_scratch_schema.dart` + `scratch_db_admin_ext.dart` are 04-04-owned.** 04-04 does NOT modify `scratch_schema.dart` or `scratch_db.dart` (both owned by 04-03). Admin CREATE statements live in a separate `kAdminScratchSchema` list; 04-06 orchestrator applies both lists at scratch-open time. `AdminScratchWriter` abstract interface has `InMemoryAdminScratchWriter` (tests) + `ScratchDbAdminWriter` (prod, thin adapter over `ScratchDb.raw` — 04-03's public accessor).
+- **Plan 04-04 (2026-07-05) — Pure-Dart multipolygon assembler, no external geometry lib.** `MultipolygonAssembler.assemble()` runs: partition members by role → resolve refs (nulls → skipped.log) → stitch open fragment ways into closed rings → detect self-intersection O(N²) → correct winding (outer CCW, inner CW) → bucket inners into smallest containing outer via point-in-ring. ~250 LOC across `geometry.dart` + `multipolygon_assembler.dart`. No `dart_jts` / `spatially` dep.
+- **Plan 04-04 (2026-07-05) — WKB flat variant only (no EWKB/SRID prefix).** `encodeMultiPolygon(mp)` emits OGC WKB v1: little-endian, type=6 for MultiPolygon, type=3 for Polygon. Pre-computed exact buffer size, single `ByteData` allocation, deterministic byte-for-byte output. SQLite/SpatiaLite carries CRS at table level; we live in EPSG:4326 exclusively.
+- **Plan 04-04 (2026-07-05) — `Point.equalsCoord()` instead of `==` override.** `meta @immutable` would trip `depend_on_referenced_packages` (meta is transitive). Plain instance method `equalsCoord(Point other)` covers the only real use case (endpoint match in fragment stitching). No pubspec churn.
+- **Plan 04-04 (2026-07-05) — Three-pass streaming Stage C.** `extractAdminRegions()` re-opens the PBF three times: Pass A (admin relations + member way ids), Pass B (member ways + their node ids), Pass C (those nodes only). Clarity over throughput; 04-06 may fold passes with 04-03's Stage-B stream to save two full-file scans. Nameless relations and geometry-empty assemblies are rejected + logged.
+- **Plan 04-04 (2026-07-05) — Stage C wired between Stage B and D/E stubs.** `bin/osm_pipeline.dart` gained a Stage C block using `ScratchDbAdminWriter(scratch)` with try/finally dispose. One-line summary reports `relationsAccepted/relationsSeen`, `regionsWritten`, `dualWrites`, `rejected`. Manual smoke on tiny fixture: `1/1 admin relations accepted, 1 rows written (0 city-state dual-writes), 0 rejected`.
 
 ### Pending Todos
 
@@ -212,7 +220,7 @@ Key locked-in decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-07-05 (Plan 04-03 complete — Highway Filter + Directionality)
-Stopped at: Plan 04-03 SUMMARY committed; Wave 3 continues alongside 04-04
+Last session: 2026-07-05 (Plan 04-04 complete — Admin Boundary Extraction)
+Stopped at: Plan 04-04 SUMMARY committed; Wave 3 code-complete (04-03 + 04-04 both landed)
 Resume file: None
-Next: `/gsd:execute-phase 4` (Plan 04-04 metadata / Wave 4 — segmented intersection or admin regions depending on Wave order)
+Next: `/gsd:execute-phase 4` (Plan 04-05 — segmented intersection + way_admin join)
