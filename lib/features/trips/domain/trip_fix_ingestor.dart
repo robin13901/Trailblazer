@@ -165,6 +165,16 @@ class TripFixIngestor {
   static const _maxSeenUuids = 100;
 
   // ---------------------------------------------------------------------------
+  // Public read-only stats (for live UI updates in TrackingService)
+  // ---------------------------------------------------------------------------
+
+  /// Total distance accumulated by accepted fixes (meters).
+  double get totalDistanceMeters => _totalDistanceMeters;
+
+  /// Number of accepted fixes so far.
+  int get pointCount => _pointCount;
+
+  // ---------------------------------------------------------------------------
   // Public API
   // ---------------------------------------------------------------------------
 
