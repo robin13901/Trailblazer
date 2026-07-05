@@ -1,3 +1,4 @@
+import 'package:auto_explore/core/db/converters/trip_status_converter.dart';
 import 'package:auto_explore/core/db/tables/app_prefs_table.dart';
 import 'package:auto_explore/core/db/tables/bt_fingerprints_table.dart';
 import 'package:auto_explore/core/db/tables/coverage_cache_table.dart';
@@ -5,6 +6,9 @@ import 'package:auto_explore/core/db/tables/driven_intervals_table.dart';
 import 'package:auto_explore/core/db/tables/trip_points_table.dart';
 import 'package:auto_explore/core/db/tables/trips_table.dart';
 import 'package:auto_explore/core/db/tables/vehicles_table.dart';
+// TripStatus is referenced by the Drift-generated app_database.g.dart (part of
+// this library) — the type must be in scope for the part file to compile.
+import 'package:auto_explore/features/trips/domain/trip_status.dart';
 import 'package:drift/drift.dart';
 import 'package:drift_flutter/drift_flutter.dart';
 
@@ -25,7 +29,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase([QueryExecutor? executor]) : super(executor ?? _openConnection());
 
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 2;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -33,7 +37,13 @@ class AppDatabase extends _$AppDatabase {
       await m.createAll();
     },
     onUpgrade: (m, from, to) async {
-      // Future v1 -> v2 migrations go here in later phases.
+      if (from < 2) {
+        await m.addColumn(trips, trips.bboxMinLat);
+        await m.addColumn(trips, trips.bboxMinLon);
+        await m.addColumn(trips, trips.bboxMaxLat);
+        await m.addColumn(trips, trips.bboxMaxLon);
+        await m.addColumn(trips, trips.pointCount);
+      }
     },
     beforeOpen: (details) async {
       // Enforce referential integrity — SQLite/Drift default is OFF.
