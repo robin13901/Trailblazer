@@ -93,7 +93,14 @@ Additional research-recommended spikes: HMM parameter tuning + golden corpus rec
   3. Live-tracking overlay is visible on the map during any active trip, showing duration and distance in a glass panel.
   4. iOS whenInUse→Always permission ladder + Android `foregroundServiceType="location"` + persistent notification + battery-optimization prompt are all wired; app never assumes Always is granted.
   5. A 60-minute driving battery-drain baseline is measured on a real device and committed to the repo as the regression reference for major changes.
-**Plans:** TBD (5–8)
+**Plans:** 7 plans
+  - [ ] 03-01-drift-v2-trip-repository-PLAN.md — Drift schema v2 (bbox + pointCount) + TripsDao + TripsRepository + migration test
+  - [ ] 03-02-trip-fix-ingestor-PLAN.md — pure-Dart TripFixIngestor + Haversine + TripFixBatcher + golden fixtures
+  - [ ] 03-03-fgb-install-facade-PLAN.md — install flutter_background_geolocation 5.3.0 + native manifest cleanup + BackgroundGeolocationFacade seam
+  - [ ] 03-04-tracking-service-notifier-PLAN.md — TrackingService (manual/auto/dwell/resume/split) + Riverpod TrackingNotifier + cold-start hydration
+  - [ ] 03-05-permission-ladder-banner-PLAN.md — 3-page onboarding permission ladder + TrackingCapability + yellow denial banner
+  - [ ] 03-06-fab-morph-live-panel-PLAN.md — FAB Start↔Stop morph + LiveTrackingPanel + 30 s notification updater
+  - [ ] 03-07-phase-verification-battery-baseline-PLAN.md — tool/battery_baseline.dart + 60-min drive artifact + Phase 3 close-out (VERIFICATION + STATE + ROADMAP)
 
 ### Phase 4: OSM Pipeline
 **Goal:** A repeatable dev-machine Dart CLI produces the slim OSM artifacts the app runtime consumes.
