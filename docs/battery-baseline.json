@@ -3,8 +3,8 @@
     "device": "Samsung Galaxy S24 (SM-S921B)",
     "os": "Android 14",
     "app_version": "0.1.0+1",
-    "commit": "TBD",
-    "recorded": "TBD",
+    "commit": "PENDING: in-car drive",
+    "recorded": "PENDING: in-car drive",
     "duration_min": 60,
     "start_battery_pct": null,
     "end_battery_pct": null,
@@ -17,5 +17,6 @@
     "profile": "20 min urban + 20 min Landstraße + 20 min Autobahn"
   },
   "regression_threshold_relative_pct": 20,
+  "pending_note": "CLI shipped (tool/battery_baseline.dart). Numeric fields are null until the 60-minute in-car baseline drive is completed. Run: dart run tool/battery_baseline.dart start (before drive) and dart run tool/battery_baseline.dart stop (after drive).",
   "history": []
 }
