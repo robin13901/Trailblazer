@@ -21,7 +21,7 @@
 /// subset of protobuf wire format we need (varint + length-delimited only).
 /// zlib decompression uses `dart:io`'s built-in `ZLibCodec`.
 ///
-/// Task 2 fills in the layered implementation:
+/// Layering (each file has one job):
 ///   * `blob_reader.dart` — reads BlobHeader + Blob, decompresses payload
 ///   * `block_decoder.dart` — turns a decoded block into `OsmEntity`
 ///   * `dense_nodes.dart`  — expands the DenseNodes delta-encoded arrays
@@ -29,10 +29,51 @@
 ///   * `pbf_reader.dart`   — the public entrypoint (this file)
 library;
 
+import 'dart:io';
+
+import 'package:osm_pipeline/pbf/blob_reader.dart';
+import 'package:osm_pipeline/pbf/block_decoder.dart';
+import 'package:osm_pipeline/pbf/entities.dart';
+
 /// Streaming reader for OpenStreetMap Protocol Buffer (`.osm.pbf`) files.
 ///
-/// Task 2 fleshes out `stream(File pbf)`; today this class exists only to
-/// pin the vendor-vs-package decision (see the file-level doc comment).
+/// Yields `OsmNode`, `OsmWay`, `OsmRelation` lazily; memory-bounded regardless
+/// of PBF size — only one decompressed PrimitiveBlock is held at a time.
+///
+/// Isolate-portable: no `dart:io` globals, no static mutable state. All
+/// per-file state (the parsed OSM header) lives on the instance.
 class PbfReader {
-  // Task 2 fills this in.
+  /// Streams every OSM entity in [pbf] as a `Stream<OsmEntity>`.
+  ///
+  /// The `OSMHeader` block (always the first blob) is captured on [header]
+  /// before any entity is yielded so downstream stages can seed the
+  /// pipeline's `pbf_date` metadata (04-RESEARCH §9). Unknown blob types
+  /// and empty PrimitiveGroups are skipped without failure.
+  ///
+  /// Errors — malformed BlobHeader, truncated payload, zlib decode failure —
+  /// surface as `PipelineParseError` with the source byte offset attached.
+  Stream<OsmEntity> stream(File pbf) async* {
+    final raf = await pbf.open();
+    try {
+      while (true) {
+        final block = await BlobReader.readNext(raf);
+        if (block == null) break;
+        switch (block.type) {
+          case 'OSMHeader':
+            _header = HeaderBlockDecoder.decode(block.bytes);
+          case 'OSMData':
+            yield* BlockDecoder.decode(block.bytes);
+          default:
+            // Forward-compat: unknown blob types are ignored per PBF spec.
+            continue;
+        }
+      }
+    } finally {
+      await raf.close();
+    }
+  }
+
+  /// Populated after the first `OSMHeader` block is read. Null until then.
+  HeaderBlock? get header => _header;
+  HeaderBlock? _header;
 }

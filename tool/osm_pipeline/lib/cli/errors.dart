@@ -43,3 +43,30 @@ final class PipelineIoError extends PipelineError {
   /// Create an IO error.
   const PipelineIoError(super.message, {super.cause, super.stackTrace});
 }
+
+/// Raised when parsing a binary input (e.g. a PBF blob) fails structurally.
+///
+/// Carries the [sourceOffset] into the source file — lets downstream logs
+/// point at the exact byte at which the parse gave up, per 04-02 must_haves.
+final class PipelineParseError extends PipelineError {
+  /// Create a parse error, optionally with the byte offset of the source
+  /// file where the offending record begins.
+  const PipelineParseError(
+    super.message, {
+    this.sourceOffset,
+    super.cause,
+    super.stackTrace,
+  });
+
+  /// Byte offset into the source file where the failing record started.
+  /// `null` when the offset is not known (e.g. in-memory buffer decode).
+  final int? sourceOffset;
+
+  @override
+  String toString() {
+    final base = super.toString();
+    return sourceOffset == null
+        ? base
+        : '$base [sourceOffset: $sourceOffset]';
+  }
+}
