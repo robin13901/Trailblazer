@@ -9,8 +9,9 @@ DateTime _t(int offsetSeconds) =>
     _base.add(Duration(seconds: offsetSeconds));
 
 /// 10 fixes 1 s apart at ~40 km/h (~11.1 m/s), accuracy 8 m.
-/// Path: small steps along a road near Frankfurt, each fix ~11 m apart.
+/// Path: pure-northward steps along a Frankfurt road, each fix ~11.1 m apart.
 /// Expected: 10 FixAccepted, finalize.avgSpeedKmh ≈ 40, passes keeper.
+/// Note: lat step 0.0001° ≈ 11.1 m at lat 50 °N → distance-based avgSpeed ≈ 40 km/h.
 final goldenSuburbanDrive10Fixes = List<FixInput>.unmodifiable([
   FixInput(
     ts: _t(0),
@@ -24,7 +25,7 @@ final goldenSuburbanDrive10Fixes = List<FixInput>.unmodifiable([
   FixInput(
     ts: _t(1),
     lat: 50.111,
-    lon: 8.6822,
+    lon: 8.6821,
     accuracyMeters: 8,
     speedMps: 11.1,
     activityType: 'in_vehicle',
@@ -33,7 +34,7 @@ final goldenSuburbanDrive10Fixes = List<FixInput>.unmodifiable([
   FixInput(
     ts: _t(2),
     lat: 50.1111,
-    lon: 8.6823,
+    lon: 8.6821,
     accuracyMeters: 8,
     speedMps: 11.1,
     activityType: 'in_vehicle',
@@ -42,7 +43,7 @@ final goldenSuburbanDrive10Fixes = List<FixInput>.unmodifiable([
   FixInput(
     ts: _t(3),
     lat: 50.1112,
-    lon: 8.6824,
+    lon: 8.6821,
     accuracyMeters: 8,
     speedMps: 11.1,
     activityType: 'in_vehicle',
@@ -51,7 +52,7 @@ final goldenSuburbanDrive10Fixes = List<FixInput>.unmodifiable([
   FixInput(
     ts: _t(4),
     lat: 50.1113,
-    lon: 8.6825,
+    lon: 8.6821,
     accuracyMeters: 8,
     speedMps: 11.1,
     activityType: 'in_vehicle',
@@ -60,7 +61,7 @@ final goldenSuburbanDrive10Fixes = List<FixInput>.unmodifiable([
   FixInput(
     ts: _t(5),
     lat: 50.1114,
-    lon: 8.6826,
+    lon: 8.6821,
     accuracyMeters: 8,
     speedMps: 11.1,
     activityType: 'in_vehicle',
@@ -69,7 +70,7 @@ final goldenSuburbanDrive10Fixes = List<FixInput>.unmodifiable([
   FixInput(
     ts: _t(6),
     lat: 50.1115,
-    lon: 8.6827,
+    lon: 8.6821,
     accuracyMeters: 8,
     speedMps: 11.1,
     activityType: 'in_vehicle',
@@ -78,7 +79,7 @@ final goldenSuburbanDrive10Fixes = List<FixInput>.unmodifiable([
   FixInput(
     ts: _t(7),
     lat: 50.1116,
-    lon: 8.6828,
+    lon: 8.6821,
     accuracyMeters: 8,
     speedMps: 11.1,
     activityType: 'in_vehicle',
@@ -87,7 +88,7 @@ final goldenSuburbanDrive10Fixes = List<FixInput>.unmodifiable([
   FixInput(
     ts: _t(8),
     lat: 50.1117,
-    lon: 8.6829,
+    lon: 8.6821,
     accuracyMeters: 8,
     speedMps: 11.1,
     activityType: 'in_vehicle',
@@ -96,7 +97,7 @@ final goldenSuburbanDrive10Fixes = List<FixInput>.unmodifiable([
   FixInput(
     ts: _t(9),
     lat: 50.1118,
-    lon: 8.683,
+    lon: 8.6821,
     accuracyMeters: 8,
     speedMps: 11.1,
     activityType: 'in_vehicle',
