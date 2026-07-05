@@ -1,11 +1,13 @@
 import 'dart:io';
 
+import 'package:osm_pipeline/admin/admin_pipeline.dart';
 import 'package:osm_pipeline/cli/args.dart';
 import 'package:osm_pipeline/cli/errors.dart';
 import 'package:osm_pipeline/cli/logger.dart';
 import 'package:osm_pipeline/filter/way_pipeline.dart';
 import 'package:osm_pipeline/schema.dart';
 import 'package:osm_pipeline/scratch/scratch_db.dart';
+import 'package:osm_pipeline/scratch/scratch_db_admin_ext.dart';
 
 Future<void> main(List<String> argv) async {
   final code = await run(argv);
@@ -37,8 +39,27 @@ Future<int> run(List<String> argv) async {
       '(highway=road: ${wayStats.highwayRoad}, '
       'deleted-node-refs: ${wayStats.deletedNodeRefs}).',
     );
+
+    // Stage C — admin boundary extraction.
+    final adminWriter = ScratchDbAdminWriter(scratch);
+    try {
+      final adminSummary = await extractAdminRegions(
+        pbf: File(args.pbfPath),
+        writer: adminWriter,
+      );
+      Logger.info(
+        'Stage C (admin extraction): '
+        '${adminSummary.relationsAccepted}/${adminSummary.relationsSeen} '
+        'admin relations accepted, ${adminSummary.regionsWritten} rows '
+        'written (${adminSummary.dualWrites} city-state dual-writes), '
+        '${adminSummary.rejected} rejected.',
+      );
+    } finally {
+      adminWriter.dispose();
+    }
+
     Logger.info(
-      'Stages C/D/E not implemented yet — plans 04-04..04-10 fill this in.',
+      'Stages D/E not implemented yet — plans 04-05..04-10 fill this in.',
     );
     return 0;
   } on PipelineError catch (e) {

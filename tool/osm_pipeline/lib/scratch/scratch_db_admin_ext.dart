@@ -1,21 +1,22 @@
-/// Admin-side scratch DB contract + in-memory writer.
+/// Admin-side scratch DB contract + writer implementations.
 ///
 /// 04-04 owns the admin extraction stage. Its scratch-write path is defined
 /// here as an abstract contract so:
 ///
-///   * The stage does not depend on 04-03's `ScratchDb` type (04-03 runs in
-///     the same wave — no cross-wave-3 imports).
-///   * Tests and the CLI smoke path use [InMemoryAdminScratchWriter] without
-///     needing a real sqlite3 handle.
-///   * 04-06 (pipeline orchestrator) wires a concrete implementation on top
-///     of the real `ScratchDb` — either as an extension on `ScratchDb`
-///     implementing this interface, or as a thin wrapper class. Both shapes
-///     honor the same contract.
+///   * The stage does not depend on 04-03's `ScratchDb` type at compile time
+///     for tests (the [InMemoryAdminScratchWriter] path stays hermetic).
+///   * The CLI + pipeline orchestrator (04-06) wire [ScratchDbAdminWriter]
+///     on top of 04-03's `ScratchDb.raw` sqlite handle without 04-04
+///     modifying any file 04-03 owns.
 ///
 /// See 04-04-PLAN.md "File-ownership note" for the coordination rationale.
 library;
 
 import 'dart:typed_data';
+
+import 'package:osm_pipeline/scratch/admin_scratch_schema.dart';
+import 'package:osm_pipeline/scratch/scratch_db.dart';
+import 'package:sqlite3/sqlite3.dart';
 
 /// Sink for admin-region rows produced by the extraction stage.
 abstract interface class AdminScratchWriter {
@@ -120,5 +121,67 @@ class InMemoryAdminScratchWriter implements AdminScratchWriter {
         bboxMaxLng: bboxMaxLng,
       ),
     );
+  }
+}
+
+/// [AdminScratchWriter] backed by 04-03's [ScratchDb].
+///
+/// Uses only the public `ScratchDb.raw` accessor — does not modify any
+/// scratch_db.dart / scratch_schema.dart internals (both owned by 04-03).
+class ScratchDbAdminWriter implements AdminScratchWriter {
+  /// Create a writer that pushes rows through [scratch].
+  ScratchDbAdminWriter(this.scratch);
+
+  /// The 04-03 scratch DB whose `raw` handle we execute against.
+  final ScratchDb scratch;
+
+  PreparedStatement? _insertStmt;
+
+  @override
+  void applyAdminSchema() {
+    final db = scratch.raw;
+    for (final stmt in kAdminScratchSchema) {
+      db.execute(stmt);
+    }
+  }
+
+  @override
+  Future<void> insertAdminRegion({
+    required int regionId,
+    required int osmRelationId,
+    required int adminLevel,
+    required String name,
+    required Uint8List geometryWkb,
+    required double bboxMinLat,
+    required double bboxMaxLat,
+    required double bboxMinLng,
+    required double bboxMaxLng,
+  }) async {
+    (_insertStmt ??= scratch.raw.prepare('''
+INSERT INTO admin_regions_raw
+  (region_id, osm_relation_id, admin_level, name, geometry_wkb,
+   bbox_minlat, bbox_maxlat, bbox_minlng, bbox_maxlng)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
+'''))
+        .execute([
+      regionId,
+      osmRelationId,
+      adminLevel,
+      name,
+      geometryWkb,
+      bboxMinLat,
+      bboxMaxLat,
+      bboxMinLng,
+      bboxMaxLng,
+    ]);
+  }
+
+  /// Disposes the prepared insert statement, if any.
+  void dispose() {
+    final stmt = _insertStmt;
+    if (stmt != null) {
+      stmt.dispose();
+      _insertStmt = null;
+    }
   }
 }
