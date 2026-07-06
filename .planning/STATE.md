@@ -5,23 +5,23 @@
 See: .planning/PROJECT.md (updated 2026-07-02)
 
 **Core value:** When I open the map, I immediately see the roads I've already driven, painted onto the world — and that view keeps pulling me back to explore more.
-**Current focus:** Phase 4 — OSM Pipeline (Plan 04-06 complete 2026-07-06)
+**Current focus:** Phase 4 — OSM Pipeline (Plan 04-07 complete 2026-07-06)
 
 ## Current Position
 
 Phase: 4 of 11 (OSM Pipeline)
-Plan: 04-06 complete (osm.sqlite Finalization) — 2026-07-06
-Status: Phase 4 Wave 5 code-complete for 04-06; final osm.sqlite schema locked at denormalized L2..L8 + way_admin cross-border variant; Berlin end-to-end proof passes (84.8 MB, 176 567 ways, 118 admin regions, 555 920 rtree rows, PBF SHA matches 04-05, R-Tree spot-check returns 85 candidates near Brandenburg Gate). Pipeline test suite 177/177 green. Waves 6+ (04-07 pmtiles, 04-08 pmtiles metadata) queued.
-Last activity: 2026-07-06 — Plan 04-06 complete: osm_sqlite_writer + rtree_builder + version_stamp + pipeline_orchestrator wired end-to-end
+Plan: 04-07 complete (GeoJSONSeq Emit + tippecanoe → pmtiles) — 2026-07-06
+Status: Phase 4 Wave 6 code-complete for 04-07. tippecanoe v2.80.0 bootstrapped in Rancher WSL2. Stage F wired into pipeline_orchestrator. Berlin end-to-end proof produces germany-base.pmtiles = 14.58 MB with 4 vector_layers (roads 176 567, admin_boundaries 236, water 2 930, labels 4 788). Pipeline test suite 204/204 green. Wave 7 (04-08 pmtiles metadata + style JSON rewrite) queued next.
+Last activity: 2026-07-06 — Plan 04-07 complete: layer_schema + geojson_writer + tippecanoe_runner + pmtiles_pipeline + orchestrator Stage F wiring
 
-Progress: [███░░░░░░░] ~35% (27/77 est. plans overall — Phase 1: 7/7; Phase 2: 7/7; Phase 3: 7/7 code-complete; Phase 4: 6/N)
+Progress: [███░░░░░░░] ~36% (28/77 est. plans overall — Phase 1: 7/7; Phase 2: 7/7; Phase 3: 7/7 code-complete; Phase 4: 7/N)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 27 (01-01..01-07, 02-01..02-07, 03-01..03-07, 04-01..04-06)
-- Average duration: ~19 min (Phase 1), ~86 min (Phase 2), ~30 min (Phase 3 avg), ~25 min (Phase 4 avg over 6 plans)
-- Total execution time: ~2.2 hours (P1 est.) + ~10 hours (P2 est.) + ~3.5 hours (P3 est.) + ~151 min (P4-01..04-06)
+- Total plans completed: 28 (01-01..01-07, 02-01..02-07, 03-01..03-07, 04-01..04-07)
+- Average duration: ~19 min (Phase 1), ~86 min (Phase 2), ~30 min (Phase 3 avg), ~34 min (Phase 4 avg over 7 plans)
+- Total execution time: ~2.2 hours (P1 est.) + ~10 hours (P2 est.) + ~3.5 hours (P3 est.) + ~241 min (P4-01..04-07)
 
 **By Phase:**
 
@@ -30,7 +30,7 @@ Progress: [███░░░░░░░] ~35% (27/77 est. plans overall — Ph
 | 01-scaffolding | 7 | ~135 min | ~19 min |
 | 02-map-glass-shell | 7 | ~600 min est. | ~86 min |
 | 03-tracking-mvp | 7 | ~210 min est. | ~30 min |
-| 04-osm-pipeline | 6/N | ~151 min | ~25 min |
+| 04-osm-pipeline | 7/N | ~241 min | ~34 min |
 
 **Recent Trend:**
 - Last 7 plans: 01-01 (18 min), 01-05 (~2 min), 01-02, 01-03 (parallel Wave 2), 01-04 (25 min), 01-06 (~17 min: 7 min exec + ~10 min interactive checkpoint), 01-07 (~8 min docs-only)
@@ -206,12 +206,25 @@ Key locked-in decisions affecting current work:
 - **Plan 04-06 (2026-07-06) — Orchestrator seam for 04-07/08 (wave 6).** `pipeline_orchestrator.dart` emits `Logger.info` stubs at Stage F (GeoJSONSeq + tippecanoe) and Stage G (pmtiles metadata + style rewrite). 04-07 replaces the F stub with `runPmtilesStage()`; 04-08 replaces the G stub. Sequential wave 6 edits — no merge conflict.
 - **Plan 04-06 (2026-07-06) — CLI splits arg parsers.** `bin/osm_pipeline.dart` peels off `--allow-unverified-measurement` and `--out-dir` in its own `ArgParser` before invoking `ParsedArgs.parse(synthetic)` with only `--pbf`/`--bbox`. Keeps 04-01's `ParsedArgs` unchanged while adding 04-06 flags.
 - **Plan 04-06 (2026-07-06) — Berlin end-to-end proof (2 min 19 s):** 91 707 Kfz + 84 860 Feldweg = 176 567 ways; 118 admin regions (L4..L10 — Berlin has no L2); 180 795 way_admin cross-border rows; 555 920 ways_rtree rows; osm.sqlite = 84.8 MB. PBF SHA-256 matches 04-05 measurement (`c96a067a…f775`). PBF `osmosis_replication_timestamp` = `2026-07-05T20:21:10.000Z`. R-Tree spot-check near Brandenburg Gate returns 85 candidates. Sample way `Waldstraße` (residential, 20 pts, 214.1 m) round-trips through `decodeLineStringWkb`.
+- **Plan 04-07 (2026-07-06) — Four-layer pmtiles schema locked: `roads`, `admin_boundaries`, `water`, `labels`.** Layer names + kind vocabulary + min-zoom ladder defined in `tool/osm_pipeline/lib/pmtiles/layer_schema.dart`. This file is the single source of truth for both this plan's tippecanoe `-L` args and 04-08's style JSON `source-layer` references. `motorway_link → motorway`, `residential → minor`, unknown → `other`. Admin: `2 → country`, `4 → state`, `6 → county`, `8 → municipality`, `9 → district`, `10 → suburb`.
+- **Plan 04-07 (2026-07-06) — tippecanoe bootstrapped in Rancher Desktop's Alpine WSL2 distro.** `tippecanoe v2.80.0` at `/usr/local/bin/tippecanoe`. Bootstrap sequence: (1) fix WSL DNS `/etc/resolv.conf` → `nameserver 8.8.8.8`, (2) `apk add --no-cache build-base sqlite-dev zlib-dev git make g++ bash`, (3) `git clone --depth 1 https://github.com/felt/tippecanoe.git && make -j && make install`. Passwordless root in Rancher WSL — no user prompt required. 04-09 will document verbatim.
+- **Plan 04-07 (2026-07-06) — `TippecanoeRunner` shells out cross-platform.** Windows → `Process.start('wsl.exe', ['tippecanoe', ...args])`. macOS/Linux → `Process.start('tippecanoe', args)`. Stdout streamed to `Logger.info`, stderr to `Logger.warn` (tippecanoe emits its progress bar on stderr — expected). Non-zero exit → `PipelineIoError` carrying the failing argv. `TippecanoeRunner.preflightCheck()` runs `--version` and returns the banner; missing binary throws with an install hint pointing at 04-09's README.
+- **Plan 04-07 (2026-07-06) — `wslifyPath` is a pure transform, deterministic across host OS.** `C:\Users\me\out\x` → `/mnt/c/Users/me/out/x`. Callers on macOS/Linux gate the invocation via `Platform.isWindows` in `pmtiles_pipeline.dart`'s local path helper. Keeping `wslifyPath` unconditional lets unit tests run on any host.
+- **Plan 04-07 (2026-07-06) — Admin boundaries emit BOTH fill + outline as separate features.** `MultiPolygon` with `properties.shape = 'fill'`; `MultiLineString` (concatenated outer + inner rings) with `properties.shape = 'outline'`. Lets 04-08's style paint fills at low opacity and outlines at high opacity independently. Cost is 2× admin-boundary feature count in pmtiles (Berlin: 118 regions × 2 = 236 features).
+- **Plan 04-07 (2026-07-06) — Sea polygons deliberately excluded from water layer.** `natural=water` with `water=sea` is dropped at the writer (04-RESEARCH §12 pitfall #3). Germany's coastline requires a Daylight/OSMCoastline dataset — v2 or later. `natural=water` inland lakes + `waterway=river|stream|canal` cover 2 930 features in Berlin, no visible gap for the road-graph focus.
+- **Plan 04-07 (2026-07-06) — `writeAdminBoundaries` has a table-existence guard.** Returns 0 when `admin_regions_raw` is absent — matches "empty layer is a valid empty file" semantic and unblocks scratch-DB-only tests that skip the admin extension.
+- **Plan 04-07 (2026-07-06) — `runPipeline` gained a `runPmtiles: true` toggle.** Default `true`; CLI `--no-pmtiles` flips to `false`. Lets hosts without tippecanoe (CI, Windows dev box before this plan's bootstrap) still produce `osm.sqlite`. Additive; no plan already relies on the previous 5-required-arg signature.
+- **Plan 04-07 (2026-07-06) — tippecanoe flag set: `--maximum-zoom=11 --minimum-zoom=0 --drop-densest-as-needed --extend-zooms-if-still-dropping --no-tile-compression --force`.** `--extend-zooms-if-still-dropping` auto-bumped Berlin's maxzoom to 12 — expected when roads are too dense for z11's per-tile byte budget. `--no-tile-compression` matches Phase 2's `maplibre_gl 0.26.2` (which decompresses on the app side). If a future maplibre_gl bump requires gzipped tiles, drop this flag AND update 04-08's style JSON to match.
+- **Plan 04-07 (2026-07-06) — Berlin pmtiles proof: 14.58 MB, 4 layers, 184 521 features total.** roads 176 567 (matches osm.sqlite exactly); admin_boundaries 236 (5 admin_level values 4/6/8/9/10; 111 names incl. Berlin districts); water 2 930 (4 kinds — canal/lake/river/stream; 616 names incl. Spree/Havel); labels 4 788 (5 kinds — place_city/place_suburb/place_town/place_village/road_shield; 18 unique route refs A/B/K/L). Stage F duration alone: ~3 min 39 s.
+- **Plan 04-07 (2026-07-06) — SC4-pmtiles budget concern flagged for 04-10.** Berlin extract 14.58 MB × ~400 area-ratio = ~5.8 GB naïve full-Germany projection (upper bound — rural Germany has 10-100× lower road density than Berlin). Even density-weighted projection likely exceeds the 200 MB pmtiles budget by a meaningful margin. Same pattern as osm.sqlite's 200 → 800 MB relaxation; 04-10 close-out to decide (drop `stream` kind, drop `place_suburb`, coarsen roads at low zoom, or renegotiate budget).
 
 ### Pending Todos
 
 - **Phase 3 (iOS pod install):** `cd ios && pod repo update && pod install && cd ..` must run on macOS before the first iOS build with FGB. Expected: `Podfile.lock` gains `TSLocationManager`. Without this, iOS app crashes on FGB init.
 - **Phase 3 close-out (batched in-car drive — consolidated):** Run 03-06 Task 3 (9 on-device visual checks) AND 03-07 Task 2 (60-min battery baseline drive) in a single in-car session. Full checklist (18 items) in `.planning/phases/03-tracking-mvp/03-VERIFICATION.md` → "In-car verification checklist (deferred)". After drive: fill PENDING fields in `docs/battery-baseline.md` + `.json`, update SC5 to PASS, update REQUIREMENTS.md QUA-06 to Complete.
 - **Phase 4:** Replace `assets/tiles/dev_germany.pmtiles` (Protomaps demo bucket, generic v4 schema, maxzoom 11, 371 MB) with the custom `germany-base.pmtiles` produced by the OSM pipeline. Target: < 200 MB with Kfz-focused schema (fewer POI layers, road-graph focus). Run `tool/fetch_pmtiles.sh` to regenerate in the interim.
+- **Phase 4 (04-09):** Document tippecanoe WSL2 install verbatim from Plan 04-07 SUMMARY's "tippecanoe bootstrap" section. Alpine + Rancher WSL specifics: fix `/etc/resolv.conf` DNS first, `apk add --no-cache build-base sqlite-dev zlib-dev git make g++ bash`, `git clone --depth 1 https://github.com/felt/tippecanoe.git && make -j && make install`. Passwordless root works out of the box.
+- **Phase 4 (04-10):** Re-run 04-07 on the real Germany PBF. Measure pmtiles size against 200 MB budget. If overshoot, apply schema-shrink levers (drop `stream` water kind; drop `place_suburb` + `place_village` labels; coarsen roads at low zoom) OR renegotiate the pmtiles budget as we did for osm.sqlite (200 → 800 MB). Concern documented in 04-07 SUMMARY.
 - **Phase 3+:** Router shell tap tests rework — 4 tests in `test/features/map/router_shell_test.dart` skipped with `TODO(I551358)`. Fixed-slot layout doesn't route synthetic `tap()` calls through the correct widget on the 800×600 test surface. Works on-device. Rework when Phase 3 adds sub-routes.
 - **Chore (post-Phase 1):** Re-add `custom_lint` + `riverpod_lint` when a `custom_lint` release supports `analyzer ^13.0.0`. Also restore `analyzer.plugins: - custom_lint` in `analysis_options.yaml`.
 - **Optional:** Confirm `flutter build apk --debug` on a Windows box that has `cmdline-tools` + Android SDK licenses accepted (Plan 06 chose to leave Android build local rather than CI-gated; developer validates locally).
@@ -242,7 +255,7 @@ Key locked-in decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-07-06 (Plan 04-06 complete — osm.sqlite Finalization)
-Stopped at: Plan 04-06 SUMMARY committed; Wave 5 code-complete. Final osm.sqlite schema locked (L2..L8 denormalized + way_admin cross-border). Berlin end-to-end proof passes.
+Last session: 2026-07-06 (Plan 04-07 complete — GeoJSONSeq + tippecanoe → germany-base.pmtiles)
+Stopped at: Plan 04-07 SUMMARY committed; Wave 6 code-complete. tippecanoe v2.80.0 bootstrapped in Rancher WSL2. Berlin end-to-end pmtiles proof passes (14.58 MB, 4 layers).
 Resume file: None
-Next: `/gsd:execute-phase 4` (Plan 04-07 — GeoJSONSeq + tippecanoe → germany-base.pmtiles)
+Next: `/gsd:execute-phase 4` (Plan 04-08 — pmtiles metadata + style_light/dark.json rewrite to target the new 4-layer schema)
