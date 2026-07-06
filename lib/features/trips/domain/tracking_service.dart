@@ -688,10 +688,25 @@ class TrackingService {
   /// Calls [BackgroundGeolocationFacade.ready] exactly once per service
   /// instance. Idempotent — subsequent calls are no-ops (the facade itself
   /// also guards with its own `_ready` flag, but we avoid the extra await).
+  ///
+  /// A `ready()` failure previously disappeared silently (03-1-RESEARCH §2.4
+  /// — no log line above `Level.INFO` was ever emitted). Plan 03-1-02 wraps
+  /// the call in a `try`/`on Object catch` block: the error is logged at
+  /// `severe`, `_facadeReady` stays false (so a subsequent call retries),
+  /// and the exception is rethrown as a [DomainError] via [DomainError.wrap]
+  /// so the caller (currently the FAB path via `TrackingNotifier`) can
+  /// surface it. The facade's `currentReadyOutcome` (Plan 03-1-01) has
+  /// already recorded the failed state — the debug HUD picks that up on
+  /// its next poll.
   Future<void> _ensureFacadeReady() async {
     if (_facadeReady) return;
-    await _facade.ready();
-    _facadeReady = true;
+    try {
+      await _facade.ready();
+      _facadeReady = true;
+    } on Object catch (e, st) {
+      _log.severe('FGB ready() failed: $e', e, st);
+      throw DomainError.wrap(e, st);
+    }
   }
 
   void _emitState(TrackingState state) {

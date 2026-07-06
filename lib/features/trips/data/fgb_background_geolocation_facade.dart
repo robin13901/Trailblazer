@@ -16,6 +16,7 @@ import 'package:auto_explore/features/trips/domain/trip_fix_input.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_background_geolocation/flutter_background_geolocation.dart'
     as bg;
+import 'package:logging/logging.dart';
 
 /// FGB-backed implementation of [BackgroundGeolocationFacade].
 ///
@@ -23,6 +24,8 @@ import 'package:flutter_background_geolocation/flutter_background_geolocation.da
 /// file in lib/ may import flutter_background_geolocation directly.
 class FgbBackgroundGeolocationFacade implements BackgroundGeolocationFacade {
   FgbBackgroundGeolocationFacade();
+
+  static final _log = Logger('fgb_facade');
 
   final _locations = StreamController<FixInput>.broadcast();
   final _motions = StreamController<MotionChange>.broadcast();
@@ -152,10 +155,14 @@ class FgbBackgroundGeolocationFacade implements BackgroundGeolocationFacade {
     try {
       final req = await bg.DeviceSettings.showIgnoreBatteryOptimizations();
       await bg.DeviceSettings.show(req);
-    } on Exception {
-      // Method throws on iOS and on Android devices that don't support the
-      // battery-optimisation settings screen. Caller falls back to
-      // permission_handler's openAppSettings() if needed.
+    } on Object catch (e, st) {
+      // Plan 03-1-02 H5 fix: widened from `on Exception` to `on Object` so
+      // Error subclasses (some OEM implementations throw `PlatformException`
+      // or a Dart `Error`, not `Exception`) do not silently escape a
+      // fire-and-forget helper. Caller (permission_motion_notification_page)
+      // verifies the grant post-return via
+      // PermissionService.statusIgnoreBatteryOptimizations.
+      _log.warning('showIgnoreBatteryOptimizations failed: $e', e, st);
     }
   }
 
