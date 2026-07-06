@@ -21,11 +21,22 @@ Consumed by Phase 5 (matcher isolate) and Phase 2/7 (map rendering + coverage ov
 |----------|---------|
 | macOS    | `brew install tippecanoe` |
 | Linux    | Distro package or build from source (github.com/felt/tippecanoe) |
-| **Windows (this dev box)** | Install under WSL2. The pipeline shells out to `wsl tippecanoe ...`. See `tippecanoe/README.md` (created by plan 04-09) for detailed steps. |
+| **Windows (this dev box)** | Install under WSL2. The pipeline shells out to `wsl.exe -- tippecanoe ...`. See [`tippecanoe/README.md`](tippecanoe/README.md) for step-by-step install (Ubuntu-in-WSL2 and Rancher-Desktop-Alpine paths, DNS fix, troubleshooting). |
 
 ## Running
 
-Berlin smoke (fast dev iteration, ~60 s):
+**One-command Berlin smoke** (recommended first run — downloads the PBF from
+Geofabrik, runs the pipeline, asserts both artifacts exist, ~60 s):
+
+```bash
+# macOS / Linux / Git Bash
+./tool/osm_pipeline/smoke.sh
+
+# Windows PowerShell
+pwsh tool\osm_pipeline\smoke.ps1
+```
+
+**Manual Berlin bbox** (fast dev iteration, ~60 s):
 
 ```bash
 dart run tool/osm_pipeline \
