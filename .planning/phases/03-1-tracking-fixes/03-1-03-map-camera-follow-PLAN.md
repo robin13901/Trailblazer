@@ -8,7 +8,7 @@ depends_on: [03-1-01]
 files_modified:
   - lib/features/map/presentation/widgets/map_widget.dart
   - lib/features/map/presentation/widgets/tracking_camera_sync.dart
-  - lib/features/map/presentation/screens/map_screen.dart
+  - lib/features/map/presentation/map_screen.dart
   - test/features/map/tracking_camera_sync_test.dart
   - test/features/map/map_widget_follow_mode_test.dart
 autonomous: true
@@ -27,7 +27,7 @@ must_haves:
       provides: "New ConsumerWidget that mounts alongside MapWidget, uses ref.listen<TrackingState> to drive cameraStateProvider.notifier.setFollowMode on trip start/stop transitions. No visible UI — this is a headless listener widget."
     - path: "lib/features/map/presentation/widgets/map_widget.dart"
       provides: "The MyLocationTrackingMode mapping on line ~174 fixed: FollowMode.locationAndHeading → MyLocationTrackingMode.trackingCompass; FollowMode.location → MyLocationTrackingMode.tracking (unchanged); FollowMode.none → MyLocationTrackingMode.none (unchanged)"
-    - path: "lib/features/map/presentation/screens/map_screen.dart"
+    - path: "lib/features/map/presentation/map_screen.dart"
       provides: "TrackingCameraSync widget mounted inside the map Stack (or as a sibling in the Consumer subtree) so the listener runs whenever the map screen is alive"
   key_links:
     - from: "lib/features/map/presentation/widgets/tracking_camera_sync.dart"
@@ -38,7 +38,7 @@ must_haves:
       to: "lib/features/map/domain/follow_mode.dart"
       via: "switch-on FollowMode → MyLocationTrackingMode.{none|tracking|trackingCompass} branch table on the myLocationTrackingMode prop"
       pattern: "MyLocationTrackingMode.trackingCompass"
-    - from: "lib/features/map/presentation/screens/map_screen.dart"
+    - from: "lib/features/map/presentation/map_screen.dart"
       to: "lib/features/map/presentation/widgets/tracking_camera_sync.dart"
       via: "Stack children include TrackingCameraSync alongside MapWidget"
       pattern: "TrackingCameraSync"
@@ -68,7 +68,7 @@ Close H2 — wire `trackingStateProvider` to `cameraStateProvider` so the map ca
   <name>Task 1: TrackingCameraSync listener widget + MapScreen mount</name>
   <files>
     lib/features/map/presentation/widgets/tracking_camera_sync.dart
-    lib/features/map/presentation/screens/map_screen.dart
+    lib/features/map/presentation/map_screen.dart
     test/features/map/tracking_camera_sync_test.dart
   </files>
   <intent>Wire tracking state transitions to camera follow mode without stomping user pan-dismiss.</intent>
