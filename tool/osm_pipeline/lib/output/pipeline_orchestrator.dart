@@ -25,6 +25,7 @@ import 'package:osm_pipeline/output/osm_sqlite_writer.dart';
 import 'package:osm_pipeline/output/rtree_builder.dart';
 import 'package:osm_pipeline/output/version_stamp.dart';
 import 'package:osm_pipeline/pbf/pbf_reader.dart';
+import 'package:osm_pipeline/pmtiles/pmtiles_pipeline.dart';
 import 'package:osm_pipeline/schema.dart';
 import 'package:osm_pipeline/scratch/scratch_db.dart';
 import 'package:osm_pipeline/scratch/scratch_db_admin_ext.dart';
@@ -41,6 +42,7 @@ class PipelineRunResult {
     required this.adminSummary,
     required this.joinStats,
     required this.writeResult,
+    this.pmtilesResult,
   });
 
   /// Absolute path to the produced osm.sqlite artifact.
@@ -60,6 +62,10 @@ class PipelineRunResult {
 
   /// Stage E write summary.
   final OsmSqliteWriteResult writeResult;
+
+  /// Stage F (pmtiles) summary. `null` when the pmtiles stage was skipped
+  /// (e.g. `runPmtiles=false` in tests where tippecanoe is unavailable).
+  final PmtilesStageResult? pmtilesResult;
 }
 
 /// Runs the full pipeline against [pbf] and writes artifacts under [outDir].
@@ -72,11 +78,16 @@ class PipelineRunResult {
 /// The default [measurementFile] points at
 /// `.planning/phases/04-osm-pipeline/04-05-BERLIN-MEASUREMENT.md` relative
 /// to the current working directory.
+///
+/// [runPmtiles] toggles Stage F (GeoJSONSeq + tippecanoe → pmtiles). Defaults
+/// to `true`. Set to `false` on hosts where tippecanoe is unavailable — the
+/// osm.sqlite artifact is still produced.
 Future<PipelineRunResult> runPipeline({
   required File pbf,
   required Directory outDir,
   String? bbox,
   bool allowUnverifiedMeasurement = false,
+  bool runPmtiles = true,
   File? measurementFile,
   GitShaResolver gitShaResolver = defaultGitShaResolver,
   DateTime? nowUtc,
@@ -168,10 +179,27 @@ Future<PipelineRunResult> runPipeline({
     // Re-measure after version stamp write.
     final finalBytes = osmSqlite.lengthSync();
 
-    Logger.info('Stage F: GeoJSONSeq + tippecanoe... (deferred to 04-07)');
+    // Stage F: GeoJSONSeq + tippecanoe → germany-base.pmtiles.
+    PmtilesStageResult? pmtilesResult;
+    if (runPmtiles) {
+      Logger.info('Stage F: GeoJSONSeq + tippecanoe...');
+      pmtilesResult = await runPmtilesStage(
+        scratch: scratch,
+        pbf: pbf,
+        outDir: outDir,
+      );
+    } else {
+      Logger.info('Stage F: GeoJSONSeq + tippecanoe... (skipped)');
+    }
     Logger.info('Stage G: pmtiles metadata + style rewrite... (04-08)');
     Logger.info('Done. Artifacts:');
     Logger.info('  ${osmSqlite.path}  ($finalBytes bytes)');
+    if (pmtilesResult != null) {
+      Logger.info(
+        '  ${pmtilesResult.pmtilesFile.path}  '
+        '(${pmtilesResult.pmtilesBytes} bytes)',
+      );
+    }
 
     return PipelineRunResult(
       osmSqlitePath: osmSqlite.path,
@@ -180,6 +208,7 @@ Future<PipelineRunResult> runPipeline({
       adminSummary: adminSummary,
       joinStats: joinStats,
       writeResult: writeResult,
+      pmtilesResult: pmtilesResult,
     );
   } finally {
     adminWriter.dispose();

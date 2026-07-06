@@ -25,6 +25,11 @@ Future<int> run(List<String> argv) async {
         negatable: false,
         help: 'Bypass the 04-05 measurement gate (records risk in SUMMARY).',
       )
+      ..addFlag(
+        'no-pmtiles',
+        negatable: false,
+        help: 'Skip Stage F (tippecanoe / pmtiles emit).',
+      )
       ..addOption(
         'out-dir',
         help: 'Output directory (default: ./out).',
@@ -39,6 +44,7 @@ Future<int> run(List<String> argv) async {
       );
     final flags = extraParser.parse(argv);
     final allowUnverified = flags['allow-unverified-measurement'] as bool;
+    final skipPmtiles = flags['no-pmtiles'] as bool;
     final outDirPath = (flags['out-dir'] as String?) ??
         p.join(Directory.current.path, 'out');
 
@@ -64,11 +70,16 @@ Future<int> run(List<String> argv) async {
       outDir: Directory(outDirPath),
       bbox: args.bbox?.toString(),
       allowUnverifiedMeasurement: allowUnverified,
+      runPmtiles: !skipPmtiles,
     );
 
     Logger.info('Pipeline OK.');
     Logger.info('  osm.sqlite: ${result.osmSqlitePath}');
     Logger.info('  bytes: ${result.osmSqliteBytes}');
+    if (result.pmtilesResult != null) {
+      Logger.info('  pmtiles: ${result.pmtilesResult!.pmtilesFile.path}');
+      Logger.info('  pmtiles bytes: ${result.pmtilesResult!.pmtilesBytes}');
+    }
     return 0;
   } on PipelineError catch (e) {
     Logger.error(e.message);
