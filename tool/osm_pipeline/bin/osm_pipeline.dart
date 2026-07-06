@@ -1,13 +1,12 @@
 import 'dart:io';
 
-import 'package:osm_pipeline/admin/admin_pipeline.dart';
+import 'package:args/args.dart';
 import 'package:osm_pipeline/cli/args.dart';
 import 'package:osm_pipeline/cli/errors.dart';
 import 'package:osm_pipeline/cli/logger.dart';
-import 'package:osm_pipeline/filter/way_pipeline.dart';
+import 'package:osm_pipeline/output/pipeline_orchestrator.dart';
 import 'package:osm_pipeline/schema.dart';
-import 'package:osm_pipeline/scratch/scratch_db.dart';
-import 'package:osm_pipeline/scratch/scratch_db_admin_ext.dart';
+import 'package:path/path.dart' as p;
 
 Future<void> main(List<String> argv) async {
   final code = await run(argv);
@@ -17,50 +16,59 @@ Future<void> main(List<String> argv) async {
 /// Testable entry — returns the intended exit code instead of calling
 /// [exit], so unit tests can invoke it directly.
 Future<int> run(List<String> argv) async {
-  ScratchDb? scratch;
   try {
-    final args = ParsedArgs.parse(argv);
+    // Peel off orchestrator-specific flags before delegating to ParsedArgs so
+    // its `unrecognized argument` guard doesn't reject them.
+    final extraParser = ArgParser()
+      ..addFlag(
+        'allow-unverified-measurement',
+        negatable: false,
+        help: 'Bypass the 04-05 measurement gate (records risk in SUMMARY).',
+      )
+      ..addOption(
+        'out-dir',
+        help: 'Output directory (default: ./out).',
+      )
+      ..addOption(
+        'pbf',
+        help: 'Path to the input .osm.pbf file (required).',
+      )
+      ..addOption(
+        'bbox',
+        help: 'Optional bbox minLng,minLat,maxLng,maxLat',
+      );
+    final flags = extraParser.parse(argv);
+    final allowUnverified = flags['allow-unverified-measurement'] as bool;
+    final outDirPath = (flags['out-dir'] as String?) ??
+        p.join(Directory.current.path, 'out');
+
+    // Reuse the existing ParsedArgs for --pbf / --bbox validation. It only
+    // reads its own options; unknown ones would fail, so we hand it a
+    // synthetic argv containing just those.
+    final synthetic = <String>[
+      '--pbf=${flags['pbf'] ?? ''}',
+      if (flags['bbox'] != null) '--bbox=${flags['bbox']}',
+    ];
+    final args = ParsedArgs.parse(synthetic);
+
     Logger.info('$pipelineName v$pipelineSchemaVersion');
-    Logger.info('  pbf : ${args.pbfPath}');
+    Logger.info('  pbf: ${args.pbfPath}');
     Logger.info('  bbox: ${args.bbox ?? "(none — full extract)"}');
-
-    scratch = ScratchDb.openTempFile();
-    Logger.info('  scratch: ${scratch.file.path}');
-
-    // Stage B — highway filter + directionality normalization.
-    final wayStats = await const WayPipeline().run(
-      pbf: File(args.pbfPath),
-      scratch: scratch,
-    );
-    Logger.info(
-      'Stage B (highway filter): '
-      '${wayStats.kfzWays} Kfz, ${wayStats.feldwegWays} Feldweg, '
-      '${wayStats.nodes} nodes, ${wayStats.rejected} rejected '
-      '(highway=road: ${wayStats.highwayRoad}, '
-      'deleted-node-refs: ${wayStats.deletedNodeRefs}).',
-    );
-
-    // Stage C — admin boundary extraction.
-    final adminWriter = ScratchDbAdminWriter(scratch);
-    try {
-      final adminSummary = await extractAdminRegions(
-        pbf: File(args.pbfPath),
-        writer: adminWriter,
-      );
-      Logger.info(
-        'Stage C (admin extraction): '
-        '${adminSummary.relationsAccepted}/${adminSummary.relationsSeen} '
-        'admin relations accepted, ${adminSummary.regionsWritten} rows '
-        'written (${adminSummary.dualWrites} city-state dual-writes), '
-        '${adminSummary.rejected} rejected.',
-      );
-    } finally {
-      adminWriter.dispose();
+    Logger.info('  out: $outDirPath');
+    if (allowUnverified) {
+      Logger.warn('--allow-unverified-measurement: SC4 risk unrecorded.');
     }
 
-    Logger.info(
-      'Stages D/E not implemented yet — plans 04-05..04-10 fill this in.',
+    final result = await runPipeline(
+      pbf: File(args.pbfPath),
+      outDir: Directory(outDirPath),
+      bbox: args.bbox?.toString(),
+      allowUnverifiedMeasurement: allowUnverified,
     );
+
+    Logger.info('Pipeline OK.');
+    Logger.info('  osm.sqlite: ${result.osmSqlitePath}');
+    Logger.info('  bytes: ${result.osmSqliteBytes}');
     return 0;
   } on PipelineError catch (e) {
     Logger.error(e.message);
@@ -68,7 +76,5 @@ Future<int> run(List<String> argv) async {
       Logger.error('  cause: ${e.cause}');
     }
     return 2;
-  } finally {
-    scratch?.close(deleteFile: true);
   }
 }
