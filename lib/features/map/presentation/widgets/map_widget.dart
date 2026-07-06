@@ -147,9 +147,15 @@ class _MapWidgetState extends ConsumerState<MapWidget>
       data: (s) => s.isGranted || s.isLimited,
       orElse: () => false,
     );
-    final isFollowing =
-        cameraState.followMode == FollowMode.location ||
-        cameraState.followMode == FollowMode.locationAndHeading;
+    // Exhaustive FollowMode -> MyLocationTrackingMode mapping.
+    // Reserving locationAndHeading -> trackingCompass closes the second
+    // bug from 03-1-RESEARCH §3.3 (previously both location and
+    // locationAndHeading collapsed to .tracking).
+    final trackingMode = switch (cameraState.followMode) {
+      FollowMode.none => MyLocationTrackingMode.none,
+      FollowMode.location => MyLocationTrackingMode.tracking,
+      FollowMode.locationAndHeading => MyLocationTrackingMode.trackingCompass,
+    };
 
     return MapStyleFade(
       visible: _styleVisible,
@@ -170,10 +176,10 @@ class _MapWidgetState extends ConsumerState<MapWidget>
         myLocationRenderMode: isGranted
             ? MyLocationRenderMode.compass
             : MyLocationRenderMode.normal,
-        // Follow mode: tracking when location/locationAndHeading, else none.
-        myLocationTrackingMode: isFollowing
-            ? MyLocationTrackingMode.tracking
-            : MyLocationTrackingMode.none,
+        // Follow mode: driven by FollowMode → MyLocationTrackingMode
+        // switch above. locationAndHeading reaches .trackingCompass so
+        // the map heading-locks during a recording session.
+        myLocationTrackingMode: trackingMode,
         // Attribution: push OFF-SCREEN. OSM/Protomaps licensing requires
         // attribution to be visible OR reachable "in a common area";
         // it's now surfaced in the About section of Settings.
