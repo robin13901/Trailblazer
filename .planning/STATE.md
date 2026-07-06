@@ -5,23 +5,23 @@
 See: .planning/PROJECT.md (updated 2026-07-02)
 
 **Core value:** When I open the map, I immediately see the roads I've already driven, painted onto the world — and that view keeps pulling me back to explore more.
-**Current focus:** Phase 4 — OSM Pipeline (Plan 04-04 complete 2026-07-05)
+**Current focus:** Phase 4 — OSM Pipeline (Plan 04-05 complete 2026-07-06)
 
 ## Current Position
 
 Phase: 4 of 11 (OSM Pipeline)
-Plan: 04-04 complete (Admin Boundary Extraction) — 2026-07-05
-Status: Phase 4 Wave 3 code-complete for 04-03 + 04-04 (both parallel plans); 04-04 shipped admin filter + multipolygon assembler + WKB writer + Stage C CLI wire (42 new tests, 127 sub-package total)
-Last activity: 2026-07-05 — Plan 04-04 complete: isAdminRelation + MultipolygonAssembler + extractAdminRegions() + city-state dual-write
+Plan: 04-05 complete (Berlin Measurement + Segmented Intersection) — 2026-07-06
+Status: Phase 4 Wave 4 code-complete for 04-05; empirical Berlin measurement locked (91 707 Kfz ways, 118 admin regions L4..L10); segmented-intersection clipper + way_admin_join orchestrator + WKB decoder shipped (5 new tests, 156 sub-package total). SC4 renegotiation flagged: slim projection ~696 MB overshoots 500 MB relaxed target — 04-06 must lock a new SC4 number.
+Last activity: 2026-07-06 — Plan 04-05 complete: runBerlinRowCountProbe (three-lens projection + SC4 negotiation) + buildWayAdminJoin + decodeMultiPolygonWkb
 
-Progress: [███░░░░░░░] ~32% (25/77 est. plans overall — Phase 1: 7/7; Phase 2: 7/7; Phase 3: 7/7 code-complete; Phase 4: 4/N)
+Progress: [███░░░░░░░] ~34% (26/77 est. plans overall — Phase 1: 7/7; Phase 2: 7/7; Phase 3: 7/7 code-complete; Phase 4: 5/N)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 25 (01-01..01-07, 02-01..02-07, 03-01..03-07, 04-01..04-04)
-- Average duration: ~19 min (Phase 1), ~86 min (Phase 2), ~30 min (Phase 3 avg), ~15 min (Phase 4 avg over 4 plans)
-- Total execution time: ~2.2 hours (P1 est.) + ~10 hours (P2 est.) + ~3.5 hours (P3 est.) + ~61 min (P4-01..04-04)
+- Total plans completed: 26 (01-01..01-07, 02-01..02-07, 03-01..03-07, 04-01..04-05)
+- Average duration: ~19 min (Phase 1), ~86 min (Phase 2), ~30 min (Phase 3 avg), ~23 min (Phase 4 avg over 5 plans)
+- Total execution time: ~2.2 hours (P1 est.) + ~10 hours (P2 est.) + ~3.5 hours (P3 est.) + ~116 min (P4-01..04-05)
 
 **By Phase:**
 
@@ -30,7 +30,7 @@ Progress: [███░░░░░░░] ~32% (25/77 est. plans overall — Ph
 | 01-scaffolding | 7 | ~135 min | ~19 min |
 | 02-map-glass-shell | 7 | ~600 min est. | ~86 min |
 | 03-tracking-mvp | 7 | ~210 min est. | ~30 min |
-| 04-osm-pipeline | 4/N | ~61 min | ~15 min |
+| 04-osm-pipeline | 5/N | ~116 min | ~23 min |
 
 **Recent Trend:**
 - Last 7 plans: 01-01 (18 min), 01-05 (~2 min), 01-02, 01-03 (parallel Wave 2), 01-04 (25 min), 01-06 (~17 min: 7 min exec + ~10 min interactive checkpoint), 01-07 (~8 min docs-only)
@@ -187,6 +187,14 @@ Key locked-in decisions affecting current work:
 - **Plan 04-04 (2026-07-05) — `Point.equalsCoord()` instead of `==` override.** `meta @immutable` would trip `depend_on_referenced_packages` (meta is transitive). Plain instance method `equalsCoord(Point other)` covers the only real use case (endpoint match in fragment stitching). No pubspec churn.
 - **Plan 04-04 (2026-07-05) — Three-pass streaming Stage C.** `extractAdminRegions()` re-opens the PBF three times: Pass A (admin relations + member way ids), Pass B (member ways + their node ids), Pass C (those nodes only). Clarity over throughput; 04-06 may fold passes with 04-03's Stage-B stream to save two full-file scans. Nameless relations and geometry-empty assemblies are rejected + logged.
 - **Plan 04-04 (2026-07-05) — Stage C wired between Stage B and D/E stubs.** `bin/osm_pipeline.dart` gained a Stage C block using `ScratchDbAdminWriter(scratch)` with try/finally dispose. One-line summary reports `relationsAccepted/relationsSeen`, `regionsWritten`, `dualWrites`, `rejected`. Manual smoke on tiny fixture: `1/1 admin relations accepted, 1 rows written (0 city-state dual-writes), 0 rejected`.
+- **Plan 04-05 (2026-07-06) — Berlin PBF empirical measurement locked (94 MB extract, SHA `c96a067a…f775`).** 91 707 Kfz ways, 84 860 Feldweg ways, 538 009 nodes, 118 admin regions across L4..L10 (Berlin has no L2). Scratch DB 30.8 MB total. Anchors the slim projection model.
+- **Plan 04-05 (2026-07-06) — Three-lens projection model in `berlin_row_count_probe.dart`.** Naïve area-ratio (×401) is retained but flagged as pessimistic (contradicts 04-RESEARCH §7's ~4 M Germany Kfz figure). Slim per-table model (measured Berlin bytes × Kfz-count ratio ~44 + Germany-scale admin) is the actionable projection. Reality-check third lens (scratch × 401, table-sum × 401, ways × ratio + admin) surfaces the sanity spread. Emitted report shows all three side by side.
+- **Plan 04-05 (2026-07-06) — SC4 renegotiation REQUIRED before 04-06 schema lock.** Under the slim model NO strategy fits 200 MB, 300 MB, or 500 MB — even the slimmest (denormalized L2..L8 + way_admin_raw) projects to ~696 MB. Report recommends the slimmest variant + explicit "OVERSHOOTS 500 MB target" flag. 04-06 must decide: (a) accept ~700 MB SC4 (competitive vs Osmand slim ~800 MB, Organic Maps ~1.5 GB), (b) find further slim-down levers (drop Feldweg from osm.sqlite, varint node_ids, tighter node encoding), or (c) drop L9/L10 entirely and re-run.
+- **Plan 04-05 (2026-07-06) — Bbox-overlap cross-border heuristic is unreliable on small extracts.** Berlin returns 99.98 % — misleading, because Berlin has only 2–3 admin regions covering the entire extract at L4/L6/L8. Slim projection caps the ratio at 15 % for Germany extrapolation. Not a code bug; documented in `_projectStrategiesSlim.sized()`. Real Germany PBF will produce a more accurate cross-border ratio.
+- **Plan 04-05 (2026-07-06) — buildWayAdminJoin uses OR IGNORE on INSERT.** WITHOUT ROWID PK is (way_id, region_id, admin_level, fraction_start); OR IGNORE tolerates degenerate collisions without aborting the run. Also: bbox-overlap prefilter before every clipper call; per-way integrity check deferred to 04-06.
+- **Plan 04-05 (2026-07-06) — WKB decoder placed inside `way_admin_join.dart` (not `admin/`).** Kept as file-local helper because Plan 04-05 is the only consumer; if a second consumer emerges (e.g. 04-07 GeoJSON emit), extract to `admin/wkb_reader.dart`. Inverse of Plan 04-04's `encodeMultiPolygon`; assumes little-endian NDR MultiPolygon(6) with Polygon(3) children.
+- **Plan 04-05 (2026-07-06) — PROVISIONAL way_admin_raw schema lives in `scratch_schema.dart`.** PK(way_id, region_id, admin_level, fraction_start) WITHOUT ROWID; idx_way_admin_way + idx_way_admin_region. 04-06 promotes to the final osm.sqlite schema (either as denormalized columns on `ways` or a permanent `way_admin` table — depends on the SC4 decision above).
+- **Plan 04-05 (2026-07-06) — Wholly-contained-way roll-up deferred to 04-06 per plan spec.** This plan populates only the split-segment rows (fraction_start/fraction_end). 04-06 either promotes rows to denormalized columns or keeps the split table as-is depending on the recommendation.
 
 ### Pending Todos
 
@@ -212,6 +220,7 @@ Key locked-in decisions affecting current work:
 
 ### Blockers/Concerns
 
+- **SC4 target renegotiation OPEN (2026-07-06)** — 04-05 Berlin empirical measurement projects ~696 MB osm.sqlite for full Germany under the slimmest variant (denormalized L2..L8 + way_admin_raw). ROADMAP SC4 hard target is 200 MB. User pre-authorized 300–500 MB relaxation; measurement overshoots even 500 MB. Recommend 04-06 open with an "SC4 lock" checkpoint proposing 700–800 MB (still competitive: Osmand slim ~800 MB, Organic Maps ~1.5 GB, Google offline ~2–4 GB). Alternatives: drop L9/L10 admin denormalization; move Feldweg out of osm.sqlite into a separate asset; adopt varint LEB128 encoding for node_ids. Measurement artifact: `.planning/phases/04-osm-pipeline/04-05-BERLIN-MEASUREMENT.md`.
 - **G1 (P2):** **RESOLVED — UNCONDITIONAL PASS 2026-07-04** — `platformBlurEnabled = true` on both platforms. Android device-verified (Samsung Galaxy S24, Android 14, Impeller): LiquidGlass renders correctly over the real bundled-PMTiles MapLibre platform view. iOS assumed true (package is iOS-designed). `docs/G1_SPIKE.md` updated with Post-Integration Observations.
 - **G2 (P7):** `maplibre_gl` ^0.26.2 `setFeatureState` support unverified. Sharded-GeoJSON fallback stands by.
 - **HMM accuracy (P5):** Requires ≥ 20-trip golden corpus recorded in real driving before matcher can pass CI regression.
@@ -220,7 +229,7 @@ Key locked-in decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-07-05 (Plan 04-04 complete — Admin Boundary Extraction)
-Stopped at: Plan 04-04 SUMMARY committed; Wave 3 code-complete (04-03 + 04-04 both landed)
+Last session: 2026-07-06 (Plan 04-05 complete — Berlin Measurement + Segmented Intersection)
+Stopped at: Plan 04-05 SUMMARY committed; Wave 4 code-complete. Empirical Berlin measurement locked; SC4 renegotiation flagged.
 Resume file: None
-Next: `/gsd:execute-phase 4` (Plan 04-05 — segmented intersection + way_admin join)
+Next: `/gsd:execute-phase 4` (Plan 04-06 — osm.sqlite finalization + SC4 lock checkpoint)
