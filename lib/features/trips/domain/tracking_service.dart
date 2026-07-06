@@ -184,6 +184,10 @@ class TrackingService {
     // An in-flight trip exists — initialise the facade so FGB can resume
     // delivering location events and the FGS notification is updated.
     await _ensureFacadeReady();
+    // H1 fix (Plan 03-1-02): FGB `start()` MUST be called after `ready()` to
+    // actually enable the foreground service + fix stream. Without this, the
+    // hydrated trip would appear active in-app but no fixes would arrive.
+    await _facade.start();
     _currentTripId = trip!.id;
     _tripStartedAt = trip!.startedAt;
     _ingestor = _ingestorFactory();
@@ -208,6 +212,10 @@ class TrackingService {
     // Initialise the facade on first tracking use so the FGB nag toast does
     // not fire on every cold start — only when the user first engages tracking.
     await _ensureFacadeReady();
+    // H1 fix (Plan 03-1-02): kick FGB into the "enabled" state. Without this,
+    // `ready()` alone leaves the plugin configured-but-dark and no location
+    // events flow. Idempotent per FGB 5.3.0 docs.
+    await _facade.start();
     final now = DateTime.now();
     final result = await _repository.openTrip(
       startedAt: now,
@@ -479,6 +487,9 @@ class TrackingService {
     // Initialise the facade on first auto-trip so the FGB nag toast does not
     // fire on every cold start — only when motion is actually detected.
     await _ensureFacadeReady();
+    // H1 fix (Plan 03-1-02): kick FGB into the "enabled" state. Auto-trips
+    // depend on the same start() → onLocation stream as manual trips.
+    await _facade.start();
     final result = await _repository.openTrip(
       startedAt: ts,
       manuallyStarted: false,
