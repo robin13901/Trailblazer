@@ -3,7 +3,9 @@ import 'package:auto_explore/features/onboarding/presentation/onboarding_screen.
 import 'package:auto_explore/features/onboarding/presentation/splash_screen.dart';
 import 'package:auto_explore/features/regions/presentation/regions_screen.dart';
 import 'package:auto_explore/features/settings/presentation/settings_screen.dart';
+import 'package:auto_explore/features/settings/presentation/tracking_diagnostics_screen.dart';
 import 'package:auto_explore/features/trips/presentation/trips_screen.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -44,6 +46,14 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: '/settings',
         builder: (context, state) => const SettingsScreen(),
       ),
+      // Dev-only diagnostics route (Plan 03-1-01). Registered only in debug
+      // builds — `kDebugMode` is a const, so the route entry (and its widget
+      // reference) is tree-shaken from release APK/IPA.
+      if (kDebugMode)
+        GoRoute(
+          path: '/settings/diagnostics',
+          builder: (context, state) => const TrackingDiagnosticsScreen(),
+        ),
       StatefulShellRoute.indexedStack(
         builder: (context, state, navigationShell) =>
             MapScreen(navigationShell: navigationShell),

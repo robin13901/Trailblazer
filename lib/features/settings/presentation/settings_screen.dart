@@ -1,5 +1,7 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 /// Placeholder for the Settings screen — wired fully in Phase 10.
@@ -31,8 +33,30 @@ class SettingsScreen extends StatelessWidget {
               'raw-GPS retention, diagnostics.',
             ),
           ),
+          // Dev-only entry point (Plan 03-1-01). Compiled out of release
+          // builds — `kDebugMode` is a const, so tree-shaking removes both
+          // the tile and the route target.
+          if (kDebugMode) ...[
+            Divider(height: 1),
+            _SectionHeader('Developer'),
+            _DiagnosticsTile(),
+          ],
         ],
       ),
+    );
+  }
+}
+
+class _DiagnosticsTile extends StatelessWidget {
+  const _DiagnosticsTile();
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      title: const Text('Tracking diagnostics'),
+      subtitle: const Text('Live FGB state, fix counters, permissions'),
+      trailing: const Icon(Icons.chevron_right),
+      onTap: () => context.push('/settings/diagnostics'),
     );
   }
 }
