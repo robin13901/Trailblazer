@@ -5,23 +5,23 @@
 See: .planning/PROJECT.md (updated 2026-07-02)
 
 **Core value:** When I open the map, I immediately see the roads I've already driven, painted onto the world — and that view keeps pulling me back to explore more.
-**Current focus:** Phase 3.1 — Tracking Fixes (Plans 03-1-02 + 03-1-04 complete 2026-07-06; 03-1-03 running in parallel)
+**Current focus:** Phase 3.1 — Tracking Fixes (Wave 2 complete: Plans 03-1-02, 03-1-03, 03-1-04 all landed 2026-07-06)
 
 ## Current Position
 
 Phase: 3.1 of 11 (Tracking Fixes — inserted decimal phase between P3 and P4)
-Plan: 03-1-02 complete (FGB start() fix + battery-opt grant — closes H1 + H5) — 2026-07-06
-Status: Phase 3.1 Wave 2 partial — 03-1-02 lands the smoking-gun H1 fix (`bg.BackgroundGeolocation.start()` now called at three sites in TrackingService: startManual, _openAutoTrip, init() hydration branch) + H5 fix (TrackingCapability gates fullAuto on Android battery-opt grant) + defensive tightening (`_ensureFacadeReady()` wraps ready() in try/on Object catch and rethrows via DomainError.wrap; `showIgnoreBatteryOptimizations()` catch widened to `on Object`). 03-1-04 lands the H3/H4 regression tripwires (7 new tests, zero production code). 03-1-03 (H2 map camera-follow) still in parallel. flutter analyze clean; 94 tests green in the trips + onboarding + settings + root widget_test lanes.
-Last activity: 2026-07-06 — Plan 03-1-02 complete: H1 + H5 closed; DomainError.wrap boundary at ready() failure surfaces to HUD via FacadeReadyFailed
+Plan: 03-1-03 complete (Map Camera-Follow During Recording — closes H2) — 2026-07-06
+Status: Phase 3.1 Wave 2 complete — all three parallel plans landed. 03-1-02 = H1 + H5 (FGB start() at three call sites; TrackingCapability battery-opt gate). 03-1-04 = H3/H4 regression tripwires (7 new tests). 03-1-03 = H2 map camera-follow (TrackingCameraSync headless widget + exhaustive FollowMode -> MyLocationTrackingMode switch; pan-dismiss precedence preserved). flutter analyze clean; 178 tests green. Only Wave 3 (03-1-05: batched in-car drive + close-out) remains.
+Last activity: 2026-07-06 — Plan 03-1-03 complete: H2 closed; ref.listen inside build() drives camera on tracking transitions
 
-Progress: [████░░░░░░] ~43% (33/77 est. plans overall — Phase 1: 7/7; Phase 2: 7/7; Phase 3: 7/7 code-complete; Phase 3.1: 3/5 (Wave 2 partial: 02+04 done, 03 in flight); Phase 4: 9/N)
+Progress: [█████░░░░░] ~44% (34/77 est. plans overall — Phase 1: 7/7; Phase 2: 7/7; Phase 3: 7/7 code-complete; Phase 3.1: 4/5 (Wave 2 complete); Phase 4: 9/N)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 33 (01-01..01-07, 02-01..02-07, 03-01..03-07, 04-01..04-09, 03-1-01, 03-1-02, 03-1-04)
-- Average duration: ~19 min (Phase 1), ~86 min (Phase 2), ~30 min (Phase 3 avg), ~35 min (Phase 4 avg over 9 plans), ~19 min (Phase 3.1 avg over 3 plans: 23 + 25 + 8 min)
-- Total execution time: ~2.2 hours (P1 est.) + ~10 hours (P2 est.) + ~3.5 hours (P3 est.) + ~318 min (P4-01..04-09) + 56 min (P3.1-01 + P3.1-02 + P3.1-04)
+- Total plans completed: 34 (01-01..01-07, 02-01..02-07, 03-01..03-07, 04-01..04-09, 03-1-01, 03-1-02, 03-1-03, 03-1-04)
+- Average duration: ~19 min (Phase 1), ~86 min (Phase 2), ~30 min (Phase 3 avg), ~35 min (Phase 4 avg over 9 plans), ~19 min (Phase 3.1 avg over 4 plans: 23 + 25 + 19 + 8 min)
+- Total execution time: ~2.2 hours (P1 est.) + ~10 hours (P2 est.) + ~3.5 hours (P3 est.) + ~318 min (P4-01..04-09) + 75 min (P3.1-01 + P3.1-02 + P3.1-03 + P3.1-04)
 
 **By Phase:**
 
@@ -30,7 +30,7 @@ Progress: [████░░░░░░] ~43% (33/77 est. plans overall — Ph
 | 01-scaffolding | 7 | ~135 min | ~19 min |
 | 02-map-glass-shell | 7 | ~600 min est. | ~86 min |
 | 03-tracking-mvp | 7 | ~210 min est. | ~30 min |
-| 03-1-tracking-fixes | 3/5 | 56 min | ~19 min |
+| 03-1-tracking-fixes | 4/5 | 75 min | ~19 min |
 | 04-osm-pipeline | 9/N | ~318 min | ~35 min |
 
 **Recent Trend:**
@@ -245,6 +245,10 @@ Key locked-in decisions affecting current work:
 - **Plan 03-1-02 (2026-07-06) — `TrackingCapabilityRepository.resolveCapability(...)` is a pure static helper, not an instance method.** Signature: `resolveCapability({required PermissionStatus always, required PermissionStatus notification, required PermissionStatus ignoreBatteryOptimizations, bool? isAndroidOverride})`. Pushes the async permission-status reads to the caller (onboarding page + any future banner refresh), keeps the helper testable without I/O mocks, and lets host-agnostic tests exercise both branches via `isAndroidOverride`. Rule: `fullAuto` iff `always.isGranted` AND (on Android) `notification.isGranted` AND (on Android) `ignoreBatteryOptimizations.isGranted`. Otherwise `manualOnly`. Uses the universal `!isGranted` predicate (STATE Plan 03-05).
 - **Plan 03-1-02 (2026-07-06) — H5 fix: onboarding page 3 verifies the battery-opt grant post-dialog.** `permission_motion_notification_page.dart` reads `svc.statusIgnoreBatteryOptimizations()` after the FGB dialog returns and feeds it into `resolveCapability(...)`. Logs at `INFO` when Android battery-opt is not granted; the Plan 03-05 denial banner remains the SINGLE recovery UI — no re-issue, no Settings deep-link on page 3. iOS path unchanged (dialog is a no-op on iOS; `statusIgnoreBatteryOptimizations` returns `granted` on iOS).
 - **Plan 03-1-02 (2026-07-06) — Wave-2 parallel-execution hygiene note (repeat of 2026-07-03 issue).** Sibling agent's `docs(3.1-04)` commit `28b6d1d` silently absorbed Plan 03-1-02's Task 3 diff (3 files: `tracking_capability_repository.dart`, `permission_motion_notification_page.dart`, `tracking_capability_repository_test.dart`). Its message says "Zero production code touched" — inaccurate; the diff is my Task 3 work. Code is landed and green; only the audit trail attribution is off. Rule for future waves is unchanged from 2026-07-03 (stage files individually, no `git add -A` / `git commit -a`) but adherence needs revisiting. Non-blocking; documented in 03-1-02-SUMMARY.md.
+- **Plan 03-1-03 (2026-07-06) — H2 closed via `TrackingCameraSync` headless `ConsumerWidget` in `lib/features/map/presentation/widgets/tracking_camera_sync.dart`.** Uses `ref.listen<TrackingState>(trackingStateProvider, ...)` INSIDE `build()` (Riverpod-idempotent per widget instance; hot-reload safe; sidesteps STATE 02-03 line 92 `ref` in `dispose()` hazard). Fires ONLY on state TRANSITIONS: `TrackingIdle → TrackingRecording ⇒ setFollowMode(locationAndHeading)`; `TrackingRecording → TrackingIdle ⇒ setFollowMode(none)`. Same-state re-emits (`Recording → Recording` from per-fix `stateStream` updates that Plan 03-1-04 locked as invariant) are a NO-OP — preserves the pan-dismiss precedence contract (STATE 02-03 `onCameraTrackingDismissed → none` must survive the next fix).
+- **Plan 03-1-03 (2026-07-06) — Second-bug mapping fix in `map_widget.dart`.** Prior code collapsed BOTH `FollowMode.location` and `FollowMode.locationAndHeading` to `MyLocationTrackingMode.tracking` via a boolean `isFollowing` fold. Replaced with an exhaustive `switch (cameraState.followMode)` over the 3-variant enum: `none → .none`, `location → .tracking`, `locationAndHeading → .trackingCompass`. Analyzer enforces exhaustiveness — a future `FollowMode` variant is a compile error, no silent bug.
+- **Plan 03-1-03 (2026-07-06) — Mount pattern: zero-size Positioned wrap for headless Stack listener widgets.** `Positioned(top: 0, left: 0, width: 0, height: 0, child: TrackingCameraSync())`. Rationale: (a) a bare `TrackingCameraSync()` as a non-Positioned Stack child causes Flutter to size the Stack to that child's intrinsic size (`SizedBox.shrink()` = 0×0), collapsing all chrome layered on top; (b) a bare `Positioned(child:...)` with no anchors defaults to filling the parent and intercepts hit-tests. The zero-size rect gets both: no Stack sizing side-effect, no hit-test interception. Regression that surfaced this: router_shell_test 3 tap-based tests failed on the naïve mount; all green after the wrap.
+- **Plan 03-1-03 (2026-07-06) — Sync mounts at `MapScreen` root, not inside the map-tab-only chrome branch.** Rationale: the tracking sync must stay alive whether the user is on Map, Trips, or Regions tab mid-recording. The map is always in the widget tree (indexedStack semantics preserve state per STATE 02-06), so listening from the root keeps the camera state coherent regardless of tab switches during a trip.
 
 ### Pending Todos
 
@@ -275,13 +279,13 @@ Key locked-in decisions affecting current work:
 
 ### Blockers/Concerns
 
-- **PHASE 3 DRIVE VERIFICATION FAILED (2026-07-06) — HYPOTHESES CLOSING** — User completed the deferred in-car drive. Result: **SC1 partial, SC2 fail, SC3 partial, SC4 unverified, SC5 not measured**. Manual trip: FAB + panel + timer worked; distance/speed stuck at 0; map blue-dot did not follow position (only re-snapped on user pan); no persistent notification. Auto-trip: nothing recorded, no notification on lock screen. Hypothesis status after Wave 2 partial (03-1-02 + 03-1-04):
+- **PHASE 3 DRIVE VERIFICATION FAILED (2026-07-06) — WAVE 2 COMPLETE, ALL HYPOTHESES CLOSED OR REFUTED** — User completed the deferred in-car drive. Result: **SC1 partial, SC2 fail, SC3 partial, SC4 unverified, SC5 not measured**. Manual trip: FAB + panel + timer worked; distance/speed stuck at 0; map blue-dot did not follow position (only re-snapped on user pan); no persistent notification. Auto-trip: nothing recorded, no notification on lock screen. Hypothesis status after Wave 2 complete (03-1-02 + 03-1-03 + 03-1-04):
   - **H1 CLOSED** — Plan 03-1-02 wires `_facade.start()` at three sites. Also surfaces `ready()` failures via DomainError.wrap.
-  - **H2 IN-PROGRESS** — Plan 03-1-03 in flight (map camera-follow, `MyLocationTrackingMode.trackingCompass` activation).
+  - **H2 CLOSED** — Plan 03-1-03 lands `TrackingCameraSync` + exhaustive `FollowMode → MyLocationTrackingMode` mapping (locationAndHeading → trackingCompass).
   - **H3 REFUTED** — Plan 03-1-04 regression tests confirm TRK-01 filter runs only when idle; `_onLocation` never gates on activity.
   - **H4 REFUTED** — Plan 03-1-04 regression tests confirm `stateStream` re-emits per accepted fix with monotonic pointCount.
   - **H5 CLOSED** — Plan 03-1-02 gates `TrackingCapability.fullAuto` on Android battery-opt grant via pure `resolveCapability(...)` helper.
-  Impact: Phase 5 depends on real trips; must NOT start until 03-1-03 lands and Wave 3 (03-1-05) re-verifies on-device. Phase 4 (dev-machine) proceeds unaffected. Full report: `.planning/phases/03-tracking-mvp/03-DRIVE-VERIFICATION-2026-07-06.md`.
+  Impact: Phase 5 depends on real trips; must NOT start until Wave 3 (03-1-05) re-verifies on-device. Phase 4 (dev-machine) proceeds unaffected. Full report: `.planning/phases/03-tracking-mvp/03-DRIVE-VERIFICATION-2026-07-06.md`.
 
 - **SC4 target RESOLVED (2026-07-06)** — user approved SC4 relaxation from 200 MB → **800 MB** for `osm.sqlite`. Chosen variant: **denormalized L2..L8 + way_admin_raw** (projected ~696 MB per 04-05 Berlin measurement). Rationale: still slimmer than every routable-mapping product on the market (Osmand slim ~800 MB, Organic Maps ~1.5 GB, Google/Here offline ~2–4 GB); the 200 MB target was aspirational, not physics. ROADMAP SC4 + Plan 04-10 checkpoint text updated to reflect 800 MB budget. **04-06 LANDED with this variant.** Berlin extract measured at 84.8 MB (informational). `germany-base.pmtiles` budget remains 200 MB (separate constraint, unrelated to osm.sqlite). Measurement artifact: `.planning/phases/04-osm-pipeline/04-05-BERLIN-MEASUREMENT.md`. Real Germany SC4 verification happens at Phase 4 close-out (04-10).
 - **G1 (P2):** **RESOLVED — UNCONDITIONAL PASS 2026-07-04** — `platformBlurEnabled = true` on both platforms. Android device-verified (Samsung Galaxy S24, Android 14, Impeller): LiquidGlass renders correctly over the real bundled-PMTiles MapLibre platform view. iOS assumed true (package is iOS-designed). `docs/G1_SPIKE.md` updated with Post-Integration Observations.
@@ -292,7 +296,7 @@ Key locked-in decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-07-06 (Plan 03-1-02 complete — FGB start() fix + battery-opt grant; Wave 2 partial of Phase 3.1)
-Stopped at: Plan 03-1-02 SUMMARY committed; H1 + H5 closed. 3 tasks landed via 2 direct commits (`1facbf5`, `939f5eb`) and 1 collision-absorbed change in `28b6d1d docs(3.1-04)` (documented in SUMMARY). New test file `tracking_service_start_test.dart` (5 tests). Extended `tracking_capability_repository_test.dart` (+6 resolveCapability cases). flutter analyze clean; 94 tests green in my lanes. Still in-flight: 03-1-03 (H2 map camera-follow) — untracked working-tree changes visible in `git status` (`lib/features/map/presentation/widgets/tracking_camera_sync.dart`, `test/features/map/tracking_camera_sync_test.dart`, `lib/features/map/presentation/map_screen.dart`).
+Last session: 2026-07-06 (Plan 03-1-03 complete — Map Camera-Follow During Recording; Wave 2 fully closed)
+Stopped at: Plan 03-1-03 SUMMARY committed; H2 closed. Wave 2 complete (03-1-02 + 03-1-03 + 03-1-04 all landed). 3 task-level commits for 03-1-03: `53473e1` (TrackingCameraSync + MapScreen mount), `afc2b20` (FollowMode->MyLocationTrackingMode exhaustive switch + widget test), `33b46a2` (zero-size Positioned wrap layout fix). New test files: `test/features/map/tracking_camera_sync_test.dart` (4 tests), `test/features/map/map_widget_follow_mode_test.dart` (3 tests). flutter analyze clean; 178 tests total, all green.
 Resume file: None
-Next: Await 03-1-03 close-out, then Wave 3 (03-1-05 in-car verification + close-out). All four Wave-2 hypotheses (H1..H5, minus H2 which is 03-1-03) will be closed or refuted before Wave 3. In parallel, Phase 4 Wave 9 (04-10 Germany close-out) proceeds on the dev-machine track.
+Next: Wave 3 (03-1-05 in-car verification + close-out) is the only remaining plan in Phase 3.1. Consolidated in-car drive should now cover: 03-1-02 H1 (real trip records distance/speed/notification), 03-1-02 H5 (denial banner accurately reflects battery-opt grant), 03-1-03 H2 (camera locks to heading during recording, releases on stop, pan persists mid-trip), 03-06 deferred 9 visual checks, 03-07 60-min battery baseline. In parallel, Phase 4 Wave 9 (04-10 Germany close-out) proceeds on the dev-machine track.
