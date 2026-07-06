@@ -5,23 +5,23 @@
 See: .planning/PROJECT.md (updated 2026-07-02)
 
 **Core value:** When I open the map, I immediately see the roads I've already driven, painted onto the world — and that view keeps pulling me back to explore more.
-**Current focus:** Phase 4 — OSM Pipeline (Plan 04-07 complete 2026-07-06)
+**Current focus:** Phase 4 — OSM Pipeline (Plan 04-08 complete 2026-07-06)
 
 ## Current Position
 
 Phase: 4 of 11 (OSM Pipeline)
-Plan: 04-07 complete (GeoJSONSeq Emit + tippecanoe → pmtiles) — 2026-07-06
-Status: Phase 4 Wave 6 code-complete for 04-07. tippecanoe v2.80.0 bootstrapped in Rancher WSL2. Stage F wired into pipeline_orchestrator. Berlin end-to-end proof produces germany-base.pmtiles = 14.58 MB with 4 vector_layers (roads 176 567, admin_boundaries 236, water 2 930, labels 4 788). Pipeline test suite 204/204 green. Wave 7 (04-08 pmtiles metadata + style JSON rewrite) queued next.
-Last activity: 2026-07-06 — Plan 04-07 complete: layer_schema + geojson_writer + tippecanoe_runner + pmtiles_pipeline + orchestrator Stage F wiring
+Plan: 04-08 complete (pmtiles Metadata Patcher + Style JSON Rewrite) — 2026-07-06
+Status: Phase 4 Wave 7 code-complete for 04-08. Hand-rolled Dart PMTiles v3 metadata patcher stamps `germany-base.pmtiles` with the same 9-key version block as `osm.sqlite` + a 4-entry `vector_layers` array. Both app style JSONs rewritten from Protomaps v4 → Trailblazer's 4-layer schema (24 identically-keyed layers each; palette differs for dark). Pipeline test suite 211/211 green; flutter test 145/145 green; flutter analyze clean. Wave 8 (04-09 Berlin smoke + WSL install docs) queued next.
+Last activity: 2026-07-06 — Plan 04-08 complete: pmtiles_metadata_patcher.dart (Stage F.3) + rewritten map_style_{light,dark}.json + test/assets/map_styles_test.dart smoke contract
 
-Progress: [███░░░░░░░] ~36% (28/77 est. plans overall — Phase 1: 7/7; Phase 2: 7/7; Phase 3: 7/7 code-complete; Phase 4: 7/N)
+Progress: [███░░░░░░░] ~38% (29/77 est. plans overall — Phase 1: 7/7; Phase 2: 7/7; Phase 3: 7/7 code-complete; Phase 4: 8/N)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 28 (01-01..01-07, 02-01..02-07, 03-01..03-07, 04-01..04-07)
-- Average duration: ~19 min (Phase 1), ~86 min (Phase 2), ~30 min (Phase 3 avg), ~34 min (Phase 4 avg over 7 plans)
-- Total execution time: ~2.2 hours (P1 est.) + ~10 hours (P2 est.) + ~3.5 hours (P3 est.) + ~241 min (P4-01..04-07)
+- Total plans completed: 29 (01-01..01-07, 02-01..02-07, 03-01..03-07, 04-01..04-08)
+- Average duration: ~19 min (Phase 1), ~86 min (Phase 2), ~30 min (Phase 3 avg), ~31 min (Phase 4 avg over 8 plans)
+- Total execution time: ~2.2 hours (P1 est.) + ~10 hours (P2 est.) + ~3.5 hours (P3 est.) + ~253 min (P4-01..04-08)
 
 **By Phase:**
 
@@ -30,7 +30,7 @@ Progress: [███░░░░░░░] ~36% (28/77 est. plans overall — Ph
 | 01-scaffolding | 7 | ~135 min | ~19 min |
 | 02-map-glass-shell | 7 | ~600 min est. | ~86 min |
 | 03-tracking-mvp | 7 | ~210 min est. | ~30 min |
-| 04-osm-pipeline | 7/N | ~241 min | ~34 min |
+| 04-osm-pipeline | 8/N | ~253 min | ~31 min |
 
 **Recent Trend:**
 - Last 7 plans: 01-01 (18 min), 01-05 (~2 min), 01-02, 01-03 (parallel Wave 2), 01-04 (25 min), 01-06 (~17 min: 7 min exec + ~10 min interactive checkpoint), 01-07 (~8 min docs-only)
@@ -217,6 +217,12 @@ Key locked-in decisions affecting current work:
 - **Plan 04-07 (2026-07-06) — tippecanoe flag set: `--maximum-zoom=11 --minimum-zoom=0 --drop-densest-as-needed --extend-zooms-if-still-dropping --no-tile-compression --force`.** `--extend-zooms-if-still-dropping` auto-bumped Berlin's maxzoom to 12 — expected when roads are too dense for z11's per-tile byte budget. `--no-tile-compression` matches Phase 2's `maplibre_gl 0.26.2` (which decompresses on the app side). If a future maplibre_gl bump requires gzipped tiles, drop this flag AND update 04-08's style JSON to match.
 - **Plan 04-07 (2026-07-06) — Berlin pmtiles proof: 14.58 MB, 4 layers, 184 521 features total.** roads 176 567 (matches osm.sqlite exactly); admin_boundaries 236 (5 admin_level values 4/6/8/9/10; 111 names incl. Berlin districts); water 2 930 (4 kinds — canal/lake/river/stream; 616 names incl. Spree/Havel); labels 4 788 (5 kinds — place_city/place_suburb/place_town/place_village/road_shield; 18 unique route refs A/B/K/L). Stage F duration alone: ~3 min 39 s.
 - **Plan 04-07 (2026-07-06) — SC4-pmtiles budget concern flagged for 04-10.** Berlin extract 14.58 MB × ~400 area-ratio = ~5.8 GB naïve full-Germany projection (upper bound — rural Germany has 10-100× lower road density than Berlin). Even density-weighted projection likely exceeds the 200 MB pmtiles budget by a meaningful margin. Same pattern as osm.sqlite's 200 → 800 MB relaxation; 04-10 close-out to decide (drop `stream` kind, drop `place_suburb`, coarsen roads at low zoom, or renegotiate budget).
+- **Plan 04-08 (2026-07-06) — Hand-rolled Dart PMTiles v3 metadata patcher, no external binary.** `PmtilesMetadataPatcher.patch(File, Map)` reads the 127-byte v3 header (little-endian u64 offsets + gzip/none compression byte at [97]), decodes existing metadata (`dart:io` `gzip` codec — no `archive` dep needed), merges caller keys, recomputes offsets under canonical layout (root_dir @ 127, metadata after, leaf_dirs after, tile_data after), writes to sibling `.tmp` file then atomic rename. Full-file rewrite chosen over in-place patching for crash-safety; ~100 ms on Berlin's 14.58 MB pmtiles is negligible next to tippecanoe's ~4 min. `readMetadata()` is exposed as public API for Phase 5 integrity check + Phase 10 extract-swap.
+- **Plan 04-08 (2026-07-06) — pmtiles metadata block mirrors osm.sqlite's 9 keys + carries `vector_layers` array.** Keys stamped: `name` (`trailblazer-germany-base`), `version`, `pbf_date`, `pbf_source`, `pbf_sha256`, `bbox`, `pipeline_schema_version`, `pipeline_git_sha`, `generated_at`. Plus `vector_layers` (PMTiles v3 spec requirement for MapLibre) — the 4-entry list of layer `{id, description, fields, minzoom, maxzoom}` records. `pbf_sha256` is the runtime cross-check field — Phase 5 compares pmtiles + osm.sqlite values to detect torn upgrades.
+- **Plan 04-08 (2026-07-06) — Style JSONs rewritten with 24 layers each targeting the 4-tippecanoe-layer inventory.** Filters use MapLibre v8 expressions (`['get','kind']` + `['literal',[...]]` for `in`); `['to-number', ['get', 'admin_level'], 0]` defensively coerces the field. Road width uses `['interpolate', ['linear'], ['zoom'], ...]` per MapLibre 0.26.x's type-arg requirement. Dark shares the identical ordered layer id list with light — only paint blocks differ, preserving Phase 2's brightness-swap contract (`map_style_fade` widget assumes structural identity).
+- **Plan 04-08 (2026-07-06) — Loopback TileServer URL preserved: `http://127.0.0.1:7070/{z}/{x}/{y}.pbf`.** Plan text sketched `pmtiles://asset/germany-base.pmtiles` but real Phase 2 setup requires the loopback because `maplibre_gl 0.26.2` doesn't resolve `pmtiles://` on Android natively (STATE decision Plan 02-02). Style JSON's `sources.trailblazer.tiles[]` points at the loopback; `TileServer` still reads `assets/tiles/dev_germany.pmtiles`, which 04-10 will byte-replace with pipeline output.
+- **Plan 04-08 (2026-07-06) — sprite=null, glyphs via Protomaps CDN.** No shield sprites in v1 (road_shield rendered as plain text). `glyphs` field points at `https://protomaps.github.io/basemaps-assets/fonts/{fontstack}/{range}.pbf` — text-only labels won't render offline until Noto Sans PBFs are bundled under `assets/glyphs/`. Documented as a known cosmetic gap in 04-08 SUMMARY.
+- **Plan 04-08 (2026-07-06) — Style contract smoke tests under `test/assets/map_styles_test.dart` (4 assertions).** Pure JSON (no Flutter binding) → fast. Asserts: light + dark parse as v8 with `trailblazer` source; dark's ordered layer id list equals light's; every non-background layer's `source-layer` is one of `{roads, admin_boundaries, water, labels}`; every layer's `source` is `trailblazer`. Guards against future style drift + accidental Protomaps-v4 name leaks.
 
 ### Pending Todos
 
@@ -255,7 +261,7 @@ Key locked-in decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-07-06 (Plan 04-07 complete — GeoJSONSeq + tippecanoe → germany-base.pmtiles)
-Stopped at: Plan 04-07 SUMMARY committed; Wave 6 code-complete. tippecanoe v2.80.0 bootstrapped in Rancher WSL2. Berlin end-to-end pmtiles proof passes (14.58 MB, 4 layers).
+Last session: 2026-07-06 (Plan 04-08 complete — pmtiles metadata patcher + style JSON rewrite for 4-layer schema)
+Stopped at: Plan 04-08 SUMMARY committed; Wave 7 code-complete. Pipeline tests 211/211 green; flutter test 145/145 green; flutter analyze clean.
 Resume file: None
-Next: `/gsd:execute-phase 4` (Plan 04-08 — pmtiles metadata + style_light/dark.json rewrite to target the new 4-layer schema)
+Next: `/gsd:execute-phase 4` (Plan 04-09 — Berlin smoke + WSL2 install docs, and Plan 04-10 close-out)
