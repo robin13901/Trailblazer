@@ -19,8 +19,10 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:osm_pipeline/cli/logger.dart';
+import 'package:osm_pipeline/output/version_stamp.dart';
 import 'package:osm_pipeline/pmtiles/geojson_writer.dart';
 import 'package:osm_pipeline/pmtiles/layer_schema.dart';
+import 'package:osm_pipeline/pmtiles/pmtiles_metadata_patcher.dart';
 import 'package:osm_pipeline/pmtiles/tippecanoe_runner.dart';
 import 'package:osm_pipeline/scratch/scratch_db.dart';
 import 'package:path/path.dart' as p;
@@ -67,10 +69,16 @@ class PmtilesStageResult {
 ///
 /// Reads Kfz/Feldweg ways + admin regions from [scratch] and re-scans [pbf]
 /// once each for water and labels. Writes into [outDir]/`germany-base.pmtiles`.
+///
+/// When [versionStamp] is supplied, the produced pmtiles has its metadata
+/// JSON block patched (04-08) with the trailblazer version keys so
+/// runtime code (Phase 5, Phase 10) can verify that pmtiles and
+/// osm.sqlite were built from the same source PBF.
 Future<PmtilesStageResult> runPmtilesStage({
   required ScratchDb scratch,
   required File pbf,
   required Directory outDir,
+  VersionStamp? versionStamp,
 }) async {
   final version = await TippecanoeRunner.preflightCheck();
   Logger.info('  tippecanoe: $version');
@@ -135,6 +143,19 @@ Future<PmtilesStageResult> runPmtilesStage({
     if (f.existsSync()) f.deleteSync();
   }
 
+  // Stage F.3 — patch pmtiles metadata with trailblazer version keys.
+  // This mirrors the seven-row osm.sqlite metadata table (04-RESEARCH §9)
+  // plus the vector_layers array MapLibre needs for style rendering. Phase
+  // 5 + Phase 10 runtime code compares `pbf_sha256` here against the value
+  // in osm.sqlite to confirm both artifacts came from the same PBF.
+  if (versionStamp != null) {
+    Logger.info('Stage F.3: patch pmtiles metadata...');
+    await PmtilesMetadataPatcher.patch(
+      pmtiles,
+      _buildMetadataPatch(versionStamp),
+    );
+  }
+
   final bytes = pmtiles.lengthSync();
   Logger.info('  → ${pmtiles.path}  ($bytes bytes)');
   return PmtilesStageResult(
@@ -152,3 +173,80 @@ Future<PmtilesStageResult> runPmtilesStage({
 /// WSL2 on Windows.
 String _p(File f) =>
     Platform.isWindows ? wslifyPath(f.absolute.path) : f.absolute.path;
+
+/// Builds the pmtiles metadata patch object mirroring the osm.sqlite
+/// metadata table (04-RESEARCH §9) + the vector_layers array required by
+/// the PMTiles v3 spec / MapLibre style renderer.
+///
+/// Reflected in [PmtilesMetadataPatcher.patch] on the produced archive
+/// so runtime code (Phase 5, Phase 10) can cross-verify pmtiles and
+/// osm.sqlite were built from the same source PBF via `pbf_sha256`.
+Map<String, dynamic> _buildMetadataPatch(VersionStamp stamp) {
+  return <String, dynamic>{
+    'name': 'trailblazer-germany-base',
+    'version': '${stamp.schemaVersion}',
+    'pbf_date': stamp.pbfDate.toUtc().toIso8601String(),
+    'pbf_source': stamp.pbfSource,
+    'pbf_sha256': stamp.pbfSha256,
+    'bbox': stamp.bbox ?? '*',
+    'pipeline_schema_version': '${stamp.schemaVersion}',
+    'pipeline_git_sha': stamp.gitSha,
+    'generated_at': stamp.generatedAt.toUtc().toIso8601String(),
+    'vector_layers': kTrailblazerVectorLayers,
+  };
+}
+
+/// Static description of the 4 vector layers written by tippecanoe. Mirrors
+/// the tippecanoe `-L` invocations in [runPmtilesStage] and the runtime
+/// filters in `assets/map_style_{light,dark}.json`.
+///
+/// Field-type enums per PMTiles v3 spec: `'String' | 'Number' | 'Boolean'`.
+const List<Map<String, dynamic>> kTrailblazerVectorLayers =
+    <Map<String, dynamic>>[
+  <String, dynamic>{
+    'id': Layers.roads,
+    'description': 'Kfz + Feldweg drivable ways',
+    'fields': <String, String>{
+      'kind': 'String',
+      'name': 'String',
+      'ref': 'String',
+      'oneway': 'Boolean',
+    },
+    'minzoom': 5,
+    'maxzoom': 11,
+  },
+  <String, dynamic>{
+    'id': Layers.adminBoundaries,
+    'description': 'Admin regions (L2..L10) — both fill polygons + outlines',
+    'fields': <String, String>{
+      'admin_level': 'Number',
+      'kind': 'String',
+      'name': 'String',
+      'shape': 'String',
+    },
+    'minzoom': 0,
+    'maxzoom': 11,
+  },
+  <String, dynamic>{
+    'id': Layers.water,
+    'description': 'Inland water bodies + waterways',
+    'fields': <String, String>{
+      'kind': 'String',
+      'name': 'String',
+    },
+    'minzoom': 0,
+    'maxzoom': 11,
+  },
+  <String, dynamic>{
+    'id': Layers.labels,
+    'description': 'Place-name labels + road-shield midpoints',
+    'fields': <String, String>{
+      'kind': 'String',
+      'name': 'String',
+      'ref': 'String',
+      'population': 'Number',
+    },
+    'minzoom': 0,
+    'maxzoom': 11,
+  },
+];

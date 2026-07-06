@@ -187,11 +187,12 @@ Future<PipelineRunResult> runPipeline({
         scratch: scratch,
         pbf: pbf,
         outDir: outDir,
+        versionStamp: stamp,
       );
     } else {
       Logger.info('Stage F: GeoJSONSeq + tippecanoe... (skipped)');
     }
-    Logger.info('Stage G: pmtiles metadata + style rewrite... (04-08)');
+    Logger.info('Stage G: pmtiles metadata + style rewrite... (04-08 wired)');
     Logger.info('Done. Artifacts:');
     Logger.info('  ${osmSqlite.path}  ($finalBytes bytes)');
     if (pmtilesResult != null) {
