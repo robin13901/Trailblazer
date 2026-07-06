@@ -5,23 +5,23 @@
 See: .planning/PROJECT.md (updated 2026-07-02)
 
 **Core value:** When I open the map, I immediately see the roads I've already driven, painted onto the world — and that view keeps pulling me back to explore more.
-**Current focus:** Phase 3.1 — Tracking Fixes (Plan 03-1-01 complete 2026-07-06)
+**Current focus:** Phase 3.1 — Tracking Fixes (Plan 03-1-04 complete 2026-07-06)
 
 ## Current Position
 
 Phase: 3.1 of 11 (Tracking Fixes — inserted decimal phase between P3 and P4)
-Plan: 03-1-01 complete (Debug HUD + Diagnostic Plumbing) — 2026-07-06
-Status: Phase 3.1 Wave 1 complete. Debug HUD ships at `/settings/diagnostics` (kDebugMode-guarded), backed by TrackingDiagnostics DTO + counters (accept/reject/gap/split + last-reject-reason + last-fix-sample) on TrackingService + a new `currentReadyOutcome` signal on the FGB facade abstract interface. Three PermissionService rungs added for HUD readback (whenInUse / activityRecognition / ignoreBatteryOptimizations). 6 new domain unit tests + 2 new widget tests (153 total). Wave 2 (03-1-02, 03-1-03, 03-1-04) now unblocked and parallelizable.
-Last activity: 2026-07-06 — Plan 03-1-01 complete: TrackingDiagnostics DTO + counters + HUD screen + kDebugMode-guarded route + Settings DEV section
+Plan: 03-1-04 complete (Regression Tests — Motion Filter + StateStream Cadence) — 2026-07-06
+Status: Phase 3.1 Wave 2 partial — 03-1-04 lands the H3/H4 regression tripwires (7 new tests, zero production code). 03-1-02 (H1 FGB.start plumbing) and 03-1-03 (H2 map camera-follow) executed in parallel; their SUMMARY / STATE updates land under their own close-out. Test count 153 → 160+ once all parallel writes land.
+Last activity: 2026-07-06 — Plan 03-1-04 complete: regression tests for H3 (startManual bypasses TRK-01 activity gate — 4 tests) + H4 (stateStream re-emits per accepted fix — 3 tests); both research verdicts confirmed against live behavior on first run.
 
-Progress: [████░░░░░░] ~40% (31/77 est. plans overall — Phase 1: 7/7; Phase 2: 7/7; Phase 3: 7/7 code-complete; Phase 3.1: 1/5; Phase 4: 9/N)
+Progress: [████░░░░░░] ~42% (32/77 est. plans overall — Phase 1: 7/7; Phase 2: 7/7; Phase 3: 7/7 code-complete; Phase 3.1: 2/5 (Wave 2 partial); Phase 4: 9/N)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 31 (01-01..01-07, 02-01..02-07, 03-01..03-07, 04-01..04-09, 03-1-01)
-- Average duration: ~19 min (Phase 1), ~86 min (Phase 2), ~30 min (Phase 3 avg), ~35 min (Phase 4 avg over 9 plans), 23 min (Phase 3.1 avg over 1 plan)
-- Total execution time: ~2.2 hours (P1 est.) + ~10 hours (P2 est.) + ~3.5 hours (P3 est.) + ~318 min (P4-01..04-09) + 23 min (P3.1-01)
+- Total plans completed: 32 (01-01..01-07, 02-01..02-07, 03-01..03-07, 04-01..04-09, 03-1-01, 03-1-04)
+- Average duration: ~19 min (Phase 1), ~86 min (Phase 2), ~30 min (Phase 3 avg), ~35 min (Phase 4 avg over 9 plans), ~15 min (Phase 3.1 avg over 2 plans: 23 min + 8 min)
+- Total execution time: ~2.2 hours (P1 est.) + ~10 hours (P2 est.) + ~3.5 hours (P3 est.) + ~318 min (P4-01..04-09) + 31 min (P3.1-01 + P3.1-04)
 
 **By Phase:**
 
@@ -30,7 +30,7 @@ Progress: [████░░░░░░] ~40% (31/77 est. plans overall — Ph
 | 01-scaffolding | 7 | ~135 min | ~19 min |
 | 02-map-glass-shell | 7 | ~600 min est. | ~86 min |
 | 03-tracking-mvp | 7 | ~210 min est. | ~30 min |
-| 03-1-tracking-fixes | 1/5 | 23 min | 23 min |
+| 03-1-tracking-fixes | 2/5 | 31 min | ~15 min |
 | 04-osm-pipeline | 9/N | ~318 min | ~35 min |
 
 **Recent Trend:**
@@ -236,6 +236,9 @@ Key locked-in decisions affecting current work:
 - **Plan 03-1-01 (2026-07-06) — PermissionService gains three read-only rungs for HUD readback ONLY.** `statusWhenInUse()`, `statusActivityRecognition()`, `statusIgnoreBatteryOptimizations()`. iOS branch on the battery-opt method returns `PermissionStatus.granted` unconditionally (no equivalent concept). No production behavior change — onboarding ladder untouched; Plan 03-1-02 owns widening `TrackingCapability` to consider the battery-opt grant.
 - **Plan 03-1-01 (2026-07-06) — HUD polling pattern: sync + async off the same tick.** `Timer.periodic(500ms)` inside a `ConsumerStatefulWidget`; the tick calls `setState(() {})` to re-read `trackingDiagnosticsProvider` synchronously AND fires `unawaited(_refreshAsync())` to fetch `FgbState.currentState()` + 5 permission statuses off a microtask. Async results cached in state fields and rendered on the next tick. `facade.currentState()` is wrapped in `try/on Object catch` because iOS may throw before `ready()` completes.
 - **Plan 03-1-01 (2026-07-06) — Test surface enlargement pattern for tall diagnostics ListViews.** Default `flutter_test` surface is 800×600; the HUD ListView is ~1100 dp tall so lower ListTiles are lazily kept offstage (not just visually off-screen — they're not built). Fix: `tester.binding.setSurfaceSize(const Size(800, 3000))` + `addTearDown(() => tester.binding.setSurfaceSize(const Size(800, 600)))`. `skipOffstage: false` on finders does NOT help because the widgets are unbuilt, not offstage. Pattern captured for future inspector/settings screens.
+- **Plan 03-1-04 (2026-07-06) — H3 invariant formally locked.** TRK-01 automotive motion filter runs ONLY while `_currentState is TrackingIdle`. Any code path that reaches `TrackingRecording` (`startManual` today; future manual/auto variants tomorrow) bypasses the gate. `_onLocation` NEVER gates on activity — the ingestor's rules are accuracy/rate-limit/gap/split only. Future refactors that hoist the activity check to a shared helper must preserve this. Regression tripwires: `test/features/trips/tracking_service_motion_filter_regression_test.dart` (4 tests).
+- **Plan 03-1-04 (2026-07-06) — H4 invariant formally locked.** `stateStream` re-emits a fresh `TrackingRecording` on EVERY accepted fix (not on rejects, not on gaps except via split path, not on timer ticks). Emissions carry the ingestor's running `totalDistanceMeters` + `pointCount` and the incoming fix's `speedKmh`. `LiveTrackingPanel`'s per-tick update depends on this. Future refactors that throttle `_emitState` or move state updates behind a timer will break the panel — regression tripwires: `test/features/trips/tracking_service_state_stream_cadence_test.dart` (3 tests).
+- **Plan 03-1-04 (2026-07-06) — Regression-test pattern for REFUTED research hypotheses.** Separate test file per invariant; header docstring citing the RESEARCH.md section + verdict; action-in-fail comment stating "if this fails, the verdict was wrong — escalate as a Rule 4 architectural finding, do not silently drop the assertion". Assertions use `svc.diagnostics.acceptCount / rejectCount / lastActivityType` (Plan 03-1-01's DTO) — cleaner than reaching for private state, reads like production code. Both H3/H4 verdicts confirmed against live behavior on first run (2 lint fixes only, no assertion churn).
 
 ### Pending Todos
 
@@ -277,7 +280,7 @@ Key locked-in decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-07-06 (Plan 03-1-01 complete — Debug HUD + Diagnostic Plumbing; Wave 1 of Phase 3.1)
-Stopped at: Plan 03-1-01 SUMMARY committed; Wave 1 complete. Debug HUD reachable at `/settings/diagnostics` (kDebugMode-guarded), TrackingDiagnostics DTO + counters + facade `currentReadyOutcome` all landed. 153 tests green. Wave 2 (03-1-02 FGB start + battery-opt / 03-1-03 motion filter + live-stats regression / 03-1-04 map camera-follow) now unblocked and can execute in parallel.
+Last session: 2026-07-06 (Plan 03-1-04 complete — H3 + H4 regression tests; Wave 2 partial of Phase 3.1)
+Stopped at: Plan 03-1-04 SUMMARY committed; 7 new regression tests locking H3/H4 invariants. Both research verdicts (REFUTED) confirmed against live behavior on first run. Zero production code touched. 03-1-02 (H1 FGB.start plumbing) landed in parallel — commit 1facbf5. 03-1-03 (H2 map camera-follow) work-in-progress at commit time (uncommitted changes in `lib/features/map/`). Trips test folder green at 70/70 tests including 03-1-02's new `tracking_service_start_test.dart` (5 tests).
 Resume file: None
-Next: `/gsd:execute-phase 3-1` for Wave 2 — three parallel plans, then Wave 3 (03-1-05 in-car verification + close-out). In parallel, Phase 4 Wave 9 (04-10 Germany close-out) can proceed on the dev-machine track independently.
+Next: Await 03-1-03 close-out, then Wave 3 (03-1-05 in-car verification + close-out). Drive report can now focus on H1/H5 evidence since H3/H4 are locked as tripwires. In parallel, Phase 4 Wave 9 (04-10 Germany close-out) proceeds on the dev-machine track.

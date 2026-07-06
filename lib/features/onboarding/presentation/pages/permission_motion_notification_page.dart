@@ -2,13 +2,14 @@ import 'dart:io';
 
 import 'package:auto_explore/features/onboarding/data/onboarding_flag_repository.dart';
 import 'package:auto_explore/features/onboarding/data/permission_service_provider.dart';
-import 'package:auto_explore/features/onboarding/data/tracking_capability.dart';
 import 'package:auto_explore/features/onboarding/data/tracking_capability_providers.dart';
+import 'package:auto_explore/features/onboarding/data/tracking_capability_repository.dart';
 import 'package:auto_explore/features/onboarding/presentation/widgets/permission_rationale_page.dart';
 import 'package:auto_explore/features/trips/data/background_geolocation_facade_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:logging/logging.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 /// Onboarding page 3 (last): Motion+Fitness (iOS) or Notification+battery
@@ -24,6 +25,8 @@ class PermissionMotionNotificationPage extends ConsumerStatefulWidget {
 
 class _PermissionMotionNotificationPageState
     extends ConsumerState<PermissionMotionNotificationPage> {
+  static final _log = Logger('permission_motion_notification_page');
+
   bool _busy = false;
 
   Future<void> _onPrimary() async {
@@ -51,14 +54,28 @@ class _PermissionMotionNotificationPageState
   Future<void> _resolveAndFinish() async {
     final svc = ref.read(permissionServiceProvider);
     final always = await svc.statusAlways();
+    // On iOS, `statusNotification` is skipped in the ladder — pass
+    // `granted` to keep the pure resolver Android-agnostic.
     final notif = Platform.isAndroid
         ? await svc.statusNotification()
         : PermissionStatus.granted;
+    // Plan 03-1-02 H5 fix: consider the Samsung / OEM battery-opt grant on
+    // Android. iOS callers get `granted` from the PermissionService stub.
+    final battOpt = await svc.statusIgnoreBatteryOptimizations();
 
-    final capability =
-        (always.isGranted && notif.isGranted)
-            ? TrackingCapability.fullAuto
-            : TrackingCapability.manualOnly;
+    final capability = TrackingCapabilityRepository.resolveCapability(
+      always: always,
+      notification: notif,
+      ignoreBatteryOptimizations: battOpt,
+    );
+
+    if (Platform.isAndroid && !battOpt.isGranted) {
+      _log.info(
+        'Ignore-battery-optimizations not granted — capability degrades '
+        'to manualOnly. The permission-denial banner (Plan 03-05) is the '
+        'recovery UI.',
+      );
+    }
 
     await ref.read(trackingCapabilityRepositoryProvider).save(capability);
     await ref.read(onboardingFlagRepositoryProvider).markDone();
