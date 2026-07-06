@@ -7,6 +7,7 @@ import 'package:auto_explore/features/map/presentation/widgets/map_widget.dart';
 import 'package:auto_explore/features/map/presentation/widgets/permission_denial_banner.dart';
 import 'package:auto_explore/features/map/presentation/widgets/recenter_button.dart';
 import 'package:auto_explore/features/map/presentation/widgets/settings_glass_button.dart';
+import 'package:auto_explore/features/map/presentation/widgets/tracking_camera_sync.dart';
 import 'package:auto_explore/features/map/presentation/widgets/trip_fab.dart';
 import 'package:auto_explore/features/trips/presentation/widgets/live_tracking_panel.dart';
 import 'package:flutter/material.dart';
@@ -61,6 +62,11 @@ class MapScreen extends ConsumerWidget {
           // Full-screen map — always in the tree so MapLibre keeps its state
           // across tab switches (indexedStack semantics preserve it).
           const Positioned.fill(child: MapWidget()),
+
+          // Headless listener: drives cameraStateProvider on tracking
+          // transitions. No visible UI (SizedBox.shrink). Mounted here so
+          // it lives as long as the map screen is alive.
+          const TrackingCameraSync(),
 
           // Non-map tabs render their Scaffold (opaque background) over the
           // map when the shell index is > 0.
