@@ -44,18 +44,19 @@ $pbfMB = [math]::Round((Get-Item $pbfPath).Length / 1MB, 1)
 Write-Host "-> Berlin PBF size: $pbfMB MB"
 
 # Preflight: tippecanoe reachable via WSL2.
+# NOTE: tippecanoe --version prints its banner to STDERR. PowerShell's 2>&1
+# wraps native-command stderr into ErrorRecord objects, which Out-String
+# renders with error decoration ("wsl.exe : ..." + call-site info) even when
+# ErrorActionPreference is Continue. Route through cmd /c so the redirection
+# happens at the OS level and PowerShell only sees plain strings.
 Write-Host "-> Preflight: wsl.exe -- tippecanoe --version"
-$tippVer = $null
-try {
-    $tippVer = (& wsl.exe -- tippecanoe --version 2>&1 | Out-String).Trim()
-    if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($tippVer)) {
-        throw "wsl.exe -- tippecanoe --version exited $LASTEXITCODE (banner: '$tippVer')"
-    }
-    Write-Host "   $tippVer"
-} catch {
-    Write-Error "tippecanoe not available under WSL. See tool/osm_pipeline/tippecanoe/README.md.`n$($_.Exception.Message)"
+$tippVer = (cmd /c "wsl.exe -- tippecanoe --version 2>&1").Trim()
+if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($tippVer)) {
+    Write-Error ("tippecanoe not available under WSL (exit=$LASTEXITCODE). " +
+        "See tool/osm_pipeline/tippecanoe/README.md.`nOutput: $tippVer")
     exit 1
 }
+Write-Host "   $tippVer"
 
 Write-Host "-> Running pipeline..."
 $start = Get-Date
