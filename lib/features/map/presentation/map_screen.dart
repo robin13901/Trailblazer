@@ -64,9 +64,19 @@ class MapScreen extends ConsumerWidget {
           const Positioned.fill(child: MapWidget()),
 
           // Headless listener: drives cameraStateProvider on tracking
-          // transitions. No visible UI (SizedBox.shrink). Mounted here so
-          // it lives as long as the map screen is alive.
-          const TrackingCameraSync(),
+          // transitions. No visible UI — renders a SizedBox.shrink. Wrapped
+          // in a zero-size top-left Positioned so it does NOT (a) size the
+          // Stack (a non-Positioned Stack child would collapse the Stack
+          // to that child's size) and (b) intercept hit-testing on the
+          // chrome layered on top (a bare Positioned defaults to filling
+          // the parent).
+          const Positioned(
+            top: 0,
+            left: 0,
+            width: 0,
+            height: 0,
+            child: TrackingCameraSync(),
+          ),
 
           // Non-map tabs render their Scaffold (opaque background) over the
           // map when the shell index is > 0.
