@@ -111,7 +111,7 @@ Additional research-recommended spikes: HMM parameter tuning + golden corpus rec
   1. Running `dart run tool/osm_pipeline` against a Berlin-bbox PBF produces `osm.sqlite` (with R-Tree over Kfz-way geometries) and `germany-base.pmtiles` end-to-end on the dev machine.
   2. Output artifacts include exactly the specified Kfz + Feldweg/Fußweg `highway=*` set and admin boundaries at OSM levels 2, 4, 6, 8, 9, 10.
   3. The `way_admin` join table is populated for every Kfz way ↔ region pair whose geometries intersect.
-  4. A full-Germany run keeps `osm.sqlite` under 200 MB and `germany-base.pmtiles` under 200 MB, with a version stamp (source PBF date + pipeline schema version) in each.
+  4. A full-Germany run keeps `osm.sqlite` under **800 MB** and `germany-base.pmtiles` under 200 MB, with a version stamp (source PBF date + pipeline schema version) in each. *(SC4 relaxed 2026-07-06 from 200 MB → 800 MB after Berlin measurement projected ~696 MB for the recommended denormalized-L2..L8 + way_admin_raw variant; still slimmer than every routable-mapping product on the market — Osmand slim ~800 MB, Organic Maps ~1.5 GB, Google/Here ~2–4 GB. Details in `.planning/phases/04-osm-pipeline/04-05-BERLIN-MEASUREMENT.md`.)*
   5. Pipeline accepts an arbitrary `--bbox` flag for dev/testing without processing the full Germany extract.
 **Plans:** 10 plans
   - [ ] 04-01-reconciliation-and-cli-scaffold-PLAN.md — reconcile OSM-02 service exclusion + stand up tool/osm_pipeline sub-package + stub CLI
@@ -123,7 +123,7 @@ Additional research-recommended spikes: HMM parameter tuning + golden corpus rec
   - [ ] 04-07-geojson-emit-tippecanoe-pmtiles-PLAN.md — 4-layer GeoJSONSeq emission + tippecanoe subprocess (WSL2 on Windows)
   - [ ] 04-08-pmtiles-metadata-style-rewrite-PLAN.md — pmtiles metadata patcher + rewrite of map_style_light.json + map_style_dark.json
   - [ ] 04-09-berlin-smoke-and-wsl-docs-PLAN.md — smoke.sh + smoke.ps1 + tippecanoe/README.md WSL2 install guide (checkpoint)
-  - [ ] 04-10-full-germany-close-out-PLAN.md — full-Germany run + 200 MB budget verification + asset replacement + close-out (checkpoint)
+  - [ ] 04-10-full-germany-close-out-PLAN.md — full-Germany run + **800 MB** budget verification + asset replacement + close-out (checkpoint)
 
 ### Phase 5: OSM DB + Matcher
 **Goal:** The HMM matcher turns a confirmed trip into a correct list of driven way intervals — offline, on-device, and CI-verified against a golden corpus.
