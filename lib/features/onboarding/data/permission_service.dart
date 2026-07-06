@@ -1,3 +1,5 @@
+import 'dart:io' show Platform;
+
 import 'package:permission_handler/permission_handler.dart' as ph;
 
 /// Narrow seam over permission_handler.
@@ -20,6 +22,23 @@ abstract interface class PermissionService {
 
   Future<ph.PermissionStatus> statusAlways();
   Future<ph.PermissionStatus> statusNotification();
+
+  /// Read-only status of the WhenInUse (foreground) location grant.
+  ///
+  /// Added in Plan 03-1-01 for the debug HUD — displays every rung of the
+  /// permission ladder without triggering a request prompt.
+  Future<ph.PermissionStatus> statusWhenInUse();
+
+  /// Read-only status of the Activity Recognition grant (Android) / Motion &
+  /// Fitness (iOS). Added in Plan 03-1-01 for the debug HUD.
+  Future<ph.PermissionStatus> statusActivityRecognition();
+
+  /// Read-only status of the Android Ignore-Battery-Optimizations allowlist.
+  /// Returns [ph.PermissionStatus.granted] on iOS (no equivalent concept).
+  /// Added in Plan 03-1-01 for the debug HUD — Plan 03-1-02 will consume
+  /// this to widen `TrackingCapability` to require the grant on Android.
+  Future<ph.PermissionStatus> statusIgnoreBatteryOptimizations();
+
   Future<bool> openAppSettings();
 }
 
@@ -50,6 +69,20 @@ class PermissionHandlerService implements PermissionService {
   @override
   Future<ph.PermissionStatus> statusNotification() =>
       ph.Permission.notification.status;
+
+  @override
+  Future<ph.PermissionStatus> statusWhenInUse() =>
+      ph.Permission.locationWhenInUse.status;
+
+  @override
+  Future<ph.PermissionStatus> statusActivityRecognition() =>
+      ph.Permission.activityRecognition.status;
+
+  @override
+  Future<ph.PermissionStatus> statusIgnoreBatteryOptimizations() async {
+    if (Platform.isIOS) return ph.PermissionStatus.granted;
+    return ph.Permission.ignoreBatteryOptimizations.status;
+  }
 
   @override
   Future<bool> openAppSettings() => ph.openAppSettings();

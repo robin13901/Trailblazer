@@ -20,6 +20,9 @@ class FakePermissionService implements PermissionService {
 
   PermissionStatus? _alwaysStatusOverride;
   PermissionStatus? _notificationStatusOverride;
+  PermissionStatus? _whenInUseStatusOverride;
+  PermissionStatus? _activityRecognitionStatusOverride;
+  PermissionStatus? _ignoreBatteryOptimizationsStatusOverride;
 
   int openAppSettingsCalls = 0;
   final List<String> requestLog = [];
@@ -33,6 +36,20 @@ class FakePermissionService implements PermissionService {
   // reads go through `statusAlways()` / `statusNotification()` methods.
   // ignore: avoid_setters_without_getters
   set notificationStatus(PermissionStatus s) => _notificationStatusOverride = s;
+
+  // Setter without getter: intentional — tests only write.
+  // ignore: avoid_setters_without_getters
+  set whenInUseStatus(PermissionStatus s) => _whenInUseStatusOverride = s;
+
+  // Setter without getter: intentional — tests only write.
+  // ignore: avoid_setters_without_getters
+  set activityRecognitionStatus(PermissionStatus s) =>
+      _activityRecognitionStatusOverride = s;
+
+  // Setter without getter: intentional — tests only write.
+  // ignore: avoid_setters_without_getters
+  set ignoreBatteryOptimizationsStatus(PermissionStatus s) =>
+      _ignoreBatteryOptimizationsStatusOverride = s;
 
   @override
   Future<PermissionStatus> requestWhenInUse() async {
@@ -65,6 +82,18 @@ class FakePermissionService implements PermissionService {
   @override
   Future<PermissionStatus> statusNotification() async =>
       _notificationStatusOverride ?? notificationResult;
+
+  @override
+  Future<PermissionStatus> statusWhenInUse() async =>
+      _whenInUseStatusOverride ?? whenInUseResult;
+
+  @override
+  Future<PermissionStatus> statusActivityRecognition() async =>
+      _activityRecognitionStatusOverride ?? PermissionStatus.granted;
+
+  @override
+  Future<PermissionStatus> statusIgnoreBatteryOptimizations() async =>
+      _ignoreBatteryOptimizationsStatusOverride ?? PermissionStatus.granted;
 
   @override
   Future<bool> openAppSettings() async {
