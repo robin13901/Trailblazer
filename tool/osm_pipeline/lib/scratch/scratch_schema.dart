@@ -47,4 +47,19 @@ CREATE TABLE filter_stats (
   count INTEGER NOT NULL DEFAULT 0
 );
 ''',
+  // 04-05: PROVISIONAL join scratch table. 04-06 promotes rows into the
+  // final osm.sqlite schema (either as denormalized columns on `ways` or as
+  // a permanent `way_admin` table — depends on 04-05-BERLIN-MEASUREMENT.md).
+  '''
+CREATE TABLE way_admin_raw (
+  way_id         INTEGER NOT NULL,
+  region_id      INTEGER NOT NULL,
+  admin_level    INTEGER NOT NULL,
+  fraction_start REAL NOT NULL,
+  fraction_end   REAL NOT NULL,
+  PRIMARY KEY (way_id, region_id, admin_level, fraction_start)
+) WITHOUT ROWID;
+''',
+  'CREATE INDEX idx_way_admin_way ON way_admin_raw(way_id);',
+  'CREATE INDEX idx_way_admin_region ON way_admin_raw(region_id);',
 ];
