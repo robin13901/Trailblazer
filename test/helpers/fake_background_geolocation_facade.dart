@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:auto_explore/features/trips/data/background_geolocation_facade.dart';
+import 'package:auto_explore/features/trips/domain/tracking_diagnostics.dart';
 import 'package:auto_explore/features/trips/domain/trip_fix_input.dart';
 
 /// In-memory fake of [BackgroundGeolocationFacade] for unit tests.
@@ -21,6 +22,16 @@ class FakeBackgroundGeolocationFacade implements BackgroundGeolocationFacade {
   bool moving = false;
   bool get readyCalled => readyCalls > 0;
 
+  /// When non-null, [ready] rethrows this instance (after recording the
+  /// [FacadeReadyFailed] outcome). Lets diagnostics tests exercise the
+  /// failed-ready code path without running native FGB.
+  Object? readyError;
+
+  FacadeReadyOutcome _readyOutcome = const FacadeReadyPending();
+
+  @override
+  FacadeReadyOutcome get currentReadyOutcome => _readyOutcome;
+
   final List<String> notificationTexts = [];
   String? get lastNotificationText =>
       notificationTexts.isEmpty ? null : notificationTexts.last;
@@ -30,7 +41,18 @@ class FakeBackgroundGeolocationFacade implements BackgroundGeolocationFacade {
   final _activities = StreamController<ActivityChange>.broadcast();
 
   @override
-  Future<void> ready() async => readyCalls++;
+  Future<void> ready() async {
+    readyCalls++;
+    final err = readyError;
+    if (err != null) {
+      _readyOutcome = FacadeReadyFailed(err.toString());
+      // Rethrow arbitrary object so tests can force `_facade.ready()` failure
+      // paths (matches the FGB facade's `on Object catch (e) { … rethrow; }`).
+      // ignore: only_throw_errors
+      throw err;
+    }
+    _readyOutcome = const FacadeReadySuccess();
+  }
 
   @override
   Future<void> start() async => startCalls++;

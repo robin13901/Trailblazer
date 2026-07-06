@@ -10,6 +10,7 @@
 import 'dart:async';
 
 import 'package:auto_explore/features/trips/data/background_geolocation_facade.dart';
+import 'package:auto_explore/features/trips/domain/tracking_diagnostics.dart';
 import 'package:auto_explore/features/trips/domain/trip_fix_input.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -22,6 +23,9 @@ import 'package:flutter_test/flutter_test.dart';
 class _FakeFacade implements BackgroundGeolocationFacade {
   @override
   Future<void> ready() async {}
+
+  @override
+  FacadeReadyOutcome get currentReadyOutcome => const FacadeReadyPending();
 
   @override
   Future<void> start() async {}

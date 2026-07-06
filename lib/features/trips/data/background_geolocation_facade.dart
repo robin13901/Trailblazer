@@ -3,6 +3,7 @@
 // fgb_background_geolocation_facade.dart should import
 // package:flutter_background_geolocation/... directly.
 
+import 'package:auto_explore/features/trips/domain/tracking_diagnostics.dart';
 import 'package:auto_explore/features/trips/domain/trip_fix_input.dart';
 
 /// Thin seam that isolates every FGB call site to a single file
@@ -13,6 +14,13 @@ abstract interface class BackgroundGeolocationFacade {
   /// Initialise the plugin. Idempotent — calling twice is a no-op on the
   /// second call.
   Future<void> ready();
+
+  /// Latest outcome of the most recent [ready] invocation.
+  ///
+  /// Starts as [FacadeReadyPending] before the first call. Consumed by the
+  /// dev-only diagnostics HUD (Plan 03-1-01) — production callers must not
+  /// switch on this value.
+  FacadeReadyOutcome get currentReadyOutcome;
 
   Future<void> start();
 

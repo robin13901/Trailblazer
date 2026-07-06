@@ -11,6 +11,7 @@
 import 'dart:async';
 
 import 'package:auto_explore/features/trips/data/background_geolocation_facade.dart';
+import 'package:auto_explore/features/trips/domain/tracking_diagnostics.dart';
 import 'package:auto_explore/features/trips/domain/trip_fix_input.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_background_geolocation/flutter_background_geolocation.dart'
@@ -27,62 +28,75 @@ class FgbBackgroundGeolocationFacade implements BackgroundGeolocationFacade {
   final _motions = StreamController<MotionChange>.broadcast();
   final _activities = StreamController<ActivityChange>.broadcast();
   bool _ready = false;
+  FacadeReadyOutcome _readyOutcome = const FacadeReadyPending();
+
+  @override
+  FacadeReadyOutcome get currentReadyOutcome => _readyOutcome;
 
   @override
   Future<void> ready() async {
     if (_ready) return;
-    await bg.BackgroundGeolocation.ready(bg.Config(
-      // Accuracy & fix rate
-      desiredAccuracy: bg.Config.DESIRED_ACCURACY_HIGH,
-      distanceFilter: 0,
-      locationUpdateInterval: 1000,
-      fastestLocationUpdateInterval: 1000,
-      // Lifecycle
-      stopOnTerminate: false,
-      startOnBoot: true,
-      enableHeadless: true,
-      // Android FGS notification (iOS shows the blue location bar; text is
-      // not customisable on iOS — this config is Android-only in effect)
-      notification: bg.Notification(
-        title: 'Trailblazer',
-        text: 'Recording · 00:00 · 0.0 km · — km/h',
-        channelName: 'Trip recording',
-        channelId: 'trailblazer.tracking',
-        priority: bg.NotificationPriority.low,
-        smallIcon: 'mipmap/ic_launcher',
-        sticky: true,
-      ),
-      // iOS: show the blue background-location indicator bar
-      showsBackgroundLocationIndicator: true,
-      pausesLocationUpdatesAutomatically: false,
-      // Logging
-      debug: kDebugMode,
-      logLevel: bg.Config.LOG_LEVEL_VERBOSE,
-    ));
+    try {
+      await bg.BackgroundGeolocation.ready(bg.Config(
+        // Accuracy & fix rate
+        desiredAccuracy: bg.Config.DESIRED_ACCURACY_HIGH,
+        distanceFilter: 0,
+        locationUpdateInterval: 1000,
+        fastestLocationUpdateInterval: 1000,
+        // Lifecycle
+        stopOnTerminate: false,
+        startOnBoot: true,
+        enableHeadless: true,
+        // Android FGS notification (iOS shows the blue location bar; text is
+        // not customisable on iOS — this config is Android-only in effect)
+        notification: bg.Notification(
+          title: 'Trailblazer',
+          text: 'Recording · 00:00 · 0.0 km · — km/h',
+          channelName: 'Trip recording',
+          channelId: 'trailblazer.tracking',
+          priority: bg.NotificationPriority.low,
+          smallIcon: 'mipmap/ic_launcher',
+          sticky: true,
+        ),
+        // iOS: show the blue background-location indicator bar
+        showsBackgroundLocationIndicator: true,
+        pausesLocationUpdatesAutomatically: false,
+        // Logging
+        debug: kDebugMode,
+        logLevel: bg.Config.LOG_LEVEL_VERBOSE,
+      ));
 
-    bg.BackgroundGeolocation.onLocation(
-      (loc) {
-        _locations.add(_toFixInput(loc));
-      },
-      // Ignore location errors — FGB errors include expected states such as
-      // "user cancelled" and permission denials. Wave 2's TrackingNotifier
-      // surfaces permission issues via the permission-ladder flow.
-      (_) {},
-    );
-    bg.BackgroundGeolocation.onMotionChange((loc) {
-      _motions.add(MotionChange(
-        isMoving: loc.isMoving,
-        ts: _parseTimestamp(loc.timestamp),
-      ));
-    });
-    bg.BackgroundGeolocation.onActivityChange((e) {
-      _activities.add(ActivityChange(
-        activityType: e.activity,
-        confidence: e.confidence,
-        ts: DateTime.now(),
-      ));
-    });
-    _ready = true;
+      bg.BackgroundGeolocation.onLocation(
+        (loc) {
+          _locations.add(_toFixInput(loc));
+        },
+        // Ignore location errors — FGB errors include expected states such as
+        // "user cancelled" and permission denials. Wave 2's TrackingNotifier
+        // surfaces permission issues via the permission-ladder flow.
+        (_) {},
+      );
+      bg.BackgroundGeolocation.onMotionChange((loc) {
+        _motions.add(MotionChange(
+          isMoving: loc.isMoving,
+          ts: _parseTimestamp(loc.timestamp),
+        ));
+      });
+      bg.BackgroundGeolocation.onActivityChange((e) {
+        _activities.add(ActivityChange(
+          activityType: e.activity,
+          confidence: e.confidence,
+          ts: DateTime.now(),
+        ));
+      });
+      _ready = true;
+      _readyOutcome = const FacadeReadySuccess();
+      // The raw exception continues to bubble to the caller. Wave 2's
+      // TrackingService will add a Result<T>/DomainError boundary — this file
+      // only records the outcome for the debug HUD.
+    } on Object catch (e) {
+      _readyOutcome = FacadeReadyFailed(e.toString());
+      rethrow;
+    }
   }
 
   /// Convert a [bg.Location] into the FGB-agnostic [FixInput] DTO.

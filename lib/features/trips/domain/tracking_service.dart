@@ -5,6 +5,7 @@ import 'package:auto_explore/core/errors/domain_error.dart';
 import 'package:auto_explore/features/trips/data/background_geolocation_facade.dart';
 import 'package:auto_explore/features/trips/data/trips_repository.dart';
 import 'package:auto_explore/features/trips/domain/haversine.dart';
+import 'package:auto_explore/features/trips/domain/tracking_diagnostics.dart';
 import 'package:auto_explore/features/trips/domain/tracking_state.dart';
 import 'package:auto_explore/features/trips/domain/trip_fix_batcher.dart';
 import 'package:auto_explore/features/trips/domain/trip_fix_ingestor.dart';
@@ -72,6 +73,18 @@ class TrackingService {
   String _lastActivityType = 'unknown';
   DateTime? _lastActivityAt;
 
+  // Diagnostics counters — populated on every _onLocation outcome. Read-only
+  // via the [diagnostics] getter; consumed by the dev-only HUD (Plan 03-1-01).
+  // Live here (not on TripFixIngestor) to keep the ingestor pure — see
+  // 03-1-RESEARCH §7.1.
+  int _acceptCount = 0;
+  int _rejectCount = 0;
+  int _gapCount = 0;
+  int _splitCount = 0;
+  String? _lastRejectedReason;
+  DateTime? _lastRejectedAt;
+  LastFixSample? _lastAcceptedFixSample;
+
   // Dwell / resume timers
   Timer? _dwellTimer;
   Timer? _resumeTimer;
@@ -103,6 +116,33 @@ class TrackingService {
 
   /// Current state snapshot (synchronous read).
   TrackingState get currentState => _currentState;
+
+  /// Read-only diagnostics snapshot for the dev-only HUD.
+  ///
+  /// Constructs a fresh [TrackingDiagnostics] each call — no caching, no
+  /// stream. The HUD polls this via [Timer.periodic] at ~2 Hz.
+  ///
+  /// The `facadeCurrentState` field is intentionally `null` — the HUD reads
+  /// it directly via [BackgroundGeolocationFacade.currentState] since that
+  /// call is async. See 03-1-RESEARCH §7 for the full data-source map.
+  TrackingDiagnostics get diagnostics {
+    final st = _currentState;
+    final currentTripId = st is TrackingRecording ? st.tripId : null;
+    return TrackingDiagnostics(
+      facadeReadyOutcome: _facade.currentReadyOutcome,
+      facadeCurrentState: null,
+      lastAcceptedFix: _lastAcceptedFixSample,
+      lastRejectedReason: _lastRejectedReason,
+      lastRejectedAt: _lastRejectedAt,
+      lastActivityType: _lastActivityType,
+      lastActivityAt: _lastActivityAt,
+      acceptCount: _acceptCount,
+      rejectCount: _rejectCount,
+      gapCount: _gapCount,
+      splitCount: _splitCount,
+      currentTripId: currentTripId,
+    );
+  }
 
   /// Called once at app boot. Wires event listeners and hydrates state from the
   /// repository if a trip is already in flight.
@@ -257,6 +297,14 @@ class TrackingService {
           motionType: outcome.motionType,
         );
         _lastAcceptedFix = outcome;
+        _acceptCount++;
+        _lastAcceptedFixSample = LastFixSample(
+          ts: outcome.ts,
+          lat: outcome.lat,
+          lon: outcome.lon,
+          accuracyMeters: outcome.accuracyMeters,
+          speedKmh: outcome.speedKmh,
+        );
         // Batcher.add is async but we don't await here — the method returns
         // Future<void> which means the batcher auto-flush may happen later.
         // We use unawaited intentionally; errors are swallowed by the sink.
@@ -276,13 +324,18 @@ class TrackingService {
         }
 
       case FixRejected():
+        _rejectCount++;
+        _lastRejectedReason = outcome.reason;
+        _lastRejectedAt = DateTime.now();
         _log.fine('fix rejected: ${outcome.reason}');
 
       case GapObserved():
+        _gapCount++;
         // Natural checkpoint — flush batcher.
         unawaited(_batcher!.flush());
 
       case SplitRequired():
+        _splitCount++;
         // Close current trip, open a new one with the recovered fix.
         unawaited(_handleSplit(outcome));
     }
