@@ -15,6 +15,7 @@ Depth: **comprehensive** — 11 phases, driven by the 119 v1 requirements (FND, 
 - [x] **Phase 1: Scaffolding** — CI, lints, App DB skeleton, routing, error/logging, permission plumbing
 - [x] **Phase 2: Map + Glass Shell** — MapLibre + PMTiles + Liquid Glass chrome (rendering spike gate)
 - [x] **Phase 3: Tracking MVP** — background GPS + motion state machine + manual/auto trip capture
+- [ ] **Phase 3.1: Tracking Fixes** — gap-closure phase inserted 2026-07-06 after failed in-car drive verification (FGB fixes not arriving, map dot frozen, no notification, no auto-trip). Blocks Phase 5.
 - [ ] **Phase 4: OSM Pipeline** — dev-machine PBF → slim `osm.sqlite` + `germany-base.pmtiles`
 - [ ] **Phase 5: OSM DB + Matcher** — OSM DB runtime, HMM engine, matcher isolate, golden corpus
 - [ ] **Phase 6: Inbox + Match Wire-Up** — trip inbox, confirm/reject, matching enqueue, coverage cache infra
@@ -102,6 +103,21 @@ Additional research-recommended spikes: HMM parameter tuning + golden corpus rec
   - [x] 03-05-permission-ladder-banner-PLAN.md — permission ladder + yellow banner
   - [x] 03-06-fab-morph-live-panel-PLAN.md — FAB morph + live panel + 30 s notification
   - [x] 03-07-phase-verification-battery-baseline-PLAN.md — battery baseline CLI + phase close-out (in-car drive deferred)
+
+### Phase 3.1: Tracking Fixes
+**Goal:** The app records trips end-to-end in the real world — manual and auto trips both capture GPS fixes, live stats stream to the UI, the map camera follows the driver, the persistent notification shows, and OEM battery killers don't silently kill the foreground service. Verified by a passing in-car drive.
+**Depends on:** Phase 3
+**Blocks:** Phase 5 (matcher's golden corpus depends on real captured trips)
+**Requirements:** *(gap closure — no new requirement IDs; makes TRK-01..11 verifiable in the real world)*
+**Trigger:** Failed in-car drive verification 2026-07-06 on Samsung Galaxy S24 (Android 14). Full report: `.planning/phases/03-tracking-mvp/03-DRIVE-VERIFICATION-2026-07-06.md`.
+**Success Criteria** (what must be TRUE):
+  1. In-app debug HUD (dev-only, reachable from Settings) shows live: FGB ready state, last-fix timestamp + lat/lng/speed/accuracy, last activity type + timestamp, ingestor accept/reject counts + last reject reason, persistent-notification state, POST_NOTIFICATIONS + battery-optimization grant status.
+  2. Manual trip: tapping the FAB starts fix intake within 3 s; the LiveTrackingPanel's distance and speed fields update at least once every 5 s during the drive; the polyline persists to the App DB on stop with non-zero distance.
+  3. Auto trip: driving in a car with the app backgrounded (screen locked) produces a `pending` auto-trip within 60 s of `in_vehicle` motion; auto-terminates after 2 min of non-automotive dwell as designed.
+  4. Persistent notification is visible in the notification bar during any active trip on both platforms (Android channel + POST_NOTIFICATIONS grant verified via HUD); notification text updates at the 30 s cadence.
+  5. Map camera follows the current location (`MyLocationTrackingMode.trackingCompass`) while a trip is active; releases to free-pan on trip stop or user pan gesture.
+  6. **In-car drive verification passes:** re-drive the failed 2026-07-06 route (or equivalent), observe all four fail modes fixed via the HUD, and record a passing verification report at `.planning/phases/03-1-tracking-fixes/03-1-DRIVE-VERIFICATION-<date>.md`.
+**Plans:** TBD (3–5 — planning follows)
 
 ### Phase 4: OSM Pipeline
 **Goal:** A repeatable dev-machine Dart CLI produces the slim OSM artifacts the app runtime consumes.
@@ -218,8 +234,9 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 |-------|----------------|--------|-----------|
 | 1. Scaffolding | 7/7 | ✓ Complete | 2026-07-03 |
 | 2. Map + Glass Shell | 7/7 | ✓ Complete | 2026-07-04 |
-| 3. Tracking MVP | 7/7 | ✓ Code-complete (drive deferred) | 2026-07-05 |
-| 4. OSM Pipeline | 0/10 | Planned | - |
+| 3. Tracking MVP | 7/7 | ✓ Code-complete (drive failed 2026-07-06 → Phase 3.1) | 2026-07-05 |
+| 3.1. Tracking Fixes | 0/TBD | Planning | - |
+| 4. OSM Pipeline | 8/10 | ◆ In progress (Wave 9 checkpoint — full-Germany run pending) | - |
 | 5. OSM DB + Matcher | 0/TBD | Not started | - |
 | 6. Inbox + Match Wire-Up | 0/TBD | Not started | - |
 | 7. Coverage Rendering | 0/TBD | Not started | - |
