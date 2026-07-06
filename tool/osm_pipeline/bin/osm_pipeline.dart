@@ -41,12 +41,21 @@ Future<int> run(List<String> argv) async {
       ..addOption(
         'bbox',
         help: 'Optional bbox minLng,minLat,maxLng,maxLat',
+      )
+      ..addOption(
+        'measurement',
+        help: 'Path to 04-05-BERLIN-MEASUREMENT.md (default: auto-detected '
+            'by walking up from CWD to find .planning/phases/04-osm-pipeline).',
       );
     final flags = extraParser.parse(argv);
     final allowUnverified = flags['allow-unverified-measurement'] as bool;
     final skipPmtiles = flags['no-pmtiles'] as bool;
     final outDirPath = (flags['out-dir'] as String?) ??
         p.join(Directory.current.path, 'out');
+    final measurementPath = flags['measurement'] as String?;
+    final measurementFile = measurementPath != null
+        ? File(measurementPath)
+        : _autoDetectMeasurement();
 
     // Reuse the existing ParsedArgs for --pbf / --bbox validation. It only
     // reads its own options; unknown ones would fail, so we hand it a
@@ -71,6 +80,7 @@ Future<int> run(List<String> argv) async {
       bbox: args.bbox?.toString(),
       allowUnverifiedMeasurement: allowUnverified,
       runPmtiles: !skipPmtiles,
+      measurementFile: measurementFile,
     );
 
     Logger.info('Pipeline OK.');
@@ -88,4 +98,24 @@ Future<int> run(List<String> argv) async {
     }
     return 2;
   }
+}
+
+/// Locates `.planning/phases/04-osm-pipeline/04-05-BERLIN-MEASUREMENT.md` by
+/// walking up from CWD until a `.planning` directory is found. Falls back to
+/// the CWD-relative default (which fails loudly at the writer's preflight
+/// gate with an actionable message) if no repo root is discovered.
+File _autoDetectMeasurement() {
+  const relPath =
+      '.planning/phases/04-osm-pipeline/04-05-BERLIN-MEASUREMENT.md';
+  Directory? dir = Directory.current;
+  while (dir != null) {
+    final probe = Directory(p.join(dir.path, '.planning'));
+    if (probe.existsSync()) {
+      return File(p.join(dir.path, relPath));
+    }
+    final parent = dir.parent;
+    if (parent.path == dir.path) break;
+    dir = parent;
+  }
+  return File(p.join(Directory.current.path, relPath));
 }
