@@ -16,7 +16,7 @@ void main() {
     test('initial sentinel has correct defaults', () {
       expect(CameraState.initial.latitude, 0);
       expect(CameraState.initial.longitude, 0);
-      expect(CameraState.initial.zoom, 15);
+      expect(CameraState.initial.zoom, 16);
       expect(CameraState.initial.bearing, 0);
       // Default: FollowMode.location so the camera tracks the user's fix
       // as soon as it arrives. Changed from FollowMode.none in Wave 7.

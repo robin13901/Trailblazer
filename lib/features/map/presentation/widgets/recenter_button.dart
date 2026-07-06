@@ -9,10 +9,11 @@ import 'package:maplibre_gl/maplibre_gl.dart';
 
 final _log = Logger('RecenterButton');
 
-/// Street-level zoom target for the recenter tap. z=15 shows a ~1 km
-/// radius around the user — you can see the current street, neighboring
-/// streets, and the block context. Tunable per Phase 3+ needs.
-const double _recenterZoom = 15;
+/// Street-level zoom target for the recenter tap. z=16 shows an ~500 m
+/// radius around the user — individual buildings resolve, current street +
+/// immediate neighbors visible. One step closer than the Phase-2 default
+/// (was z=15) — bumped 2026-07-06 based on on-road driving feedback.
+const double _recenterZoom = 16;
 
 /// Circular glass button — same size as `TripFab`.
 ///

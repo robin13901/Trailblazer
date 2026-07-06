@@ -19,13 +19,14 @@ class CameraState {
   final double bearing;
   final FollowMode followMode;
 
-  /// Phase-2 default: unknown position, zoom 15 (address-level),
-  /// follow-mode = location. On launch, MapLibre's tracking mode will snap
-  /// the camera to the user's fix as soon as it arrives.
+  /// Phase-2 default: unknown position, zoom 16 (one step closer than
+  /// address-level; buildings resolve individually), follow-mode = location.
+  /// On launch, MapLibre's tracking mode will snap the camera to the user's
+  /// fix as soon as it arrives.
   static const CameraState initial = CameraState(
     latitude: 0,
     longitude: 0,
-    zoom: 15,
+    zoom: 16,
     followMode: FollowMode.location,
   );
 
