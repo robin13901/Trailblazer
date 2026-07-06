@@ -61,9 +61,14 @@ Write-Host "   $tippVer"
 Write-Host "-> Running pipeline..."
 $start = Get-Date
 
-Push-Location $repoRoot
+# Run from inside the sub-package. `dart run tool/osm_pipeline` from repo root
+# does not work: the root pubspec's drift_dev ^2.34 pins sqlite3 ^3.0.0 while
+# tool/osm_pipeline pins sqlite3 ^2.4.0, so pub resolution fails at the root.
+# The sub-package has its own pubspec.lock; running there is the supported path.
+$pkgDir = Join-Path $repoRoot "tool\osm_pipeline"
+Push-Location $pkgDir
 try {
-    & dart run tool/osm_pipeline --pbf="$pbfPath" --bbox=$bbox --out-dir="$outDir"
+    & dart run bin/osm_pipeline.dart --pbf="$pbfPath" --bbox=$bbox --out-dir="$outDir"
     if ($LASTEXITCODE -ne 0) {
         throw "Pipeline exited with code $LASTEXITCODE"
     }

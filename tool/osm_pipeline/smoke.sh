@@ -37,8 +37,12 @@ echo "-> Berlin PBF size: $(du -h "${PBF_PATH}" | cut -f1)"
 echo "-> Running pipeline..."
 START=$(date +%s)
 
-cd "${REPO_ROOT}"
-dart run tool/osm_pipeline \
+# Run from inside the sub-package. `dart run tool/osm_pipeline` from repo root
+# fails because the root pubspec's drift_dev ^2.34 pins sqlite3 ^3.0.0 while
+# tool/osm_pipeline pins sqlite3 ^2.4.0, so pub resolution errors at the root.
+# The sub-package has its own pubspec.lock; running there is the supported path.
+cd "${REPO_ROOT}/tool/osm_pipeline"
+dart run bin/osm_pipeline.dart \
   --pbf="${PBF_PATH}" \
   --bbox="${BBOX}" \
   --out-dir="${OUT_DIR}"
