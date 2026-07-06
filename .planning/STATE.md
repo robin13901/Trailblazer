@@ -5,23 +5,23 @@
 See: .planning/PROJECT.md (updated 2026-07-02)
 
 **Core value:** When I open the map, I immediately see the roads I've already driven, painted onto the world — and that view keeps pulling me back to explore more.
-**Current focus:** Phase 4 — OSM Pipeline (Plan 04-08 complete 2026-07-06)
+**Current focus:** Phase 4 — OSM Pipeline (Plan 04-09 complete 2026-07-06)
 
 ## Current Position
 
 Phase: 4 of 11 (OSM Pipeline)
-Plan: 04-08 complete (pmtiles Metadata Patcher + Style JSON Rewrite) — 2026-07-06
-Status: Phase 4 Wave 7 code-complete for 04-08. Hand-rolled Dart PMTiles v3 metadata patcher stamps `germany-base.pmtiles` with the same 9-key version block as `osm.sqlite` + a 4-entry `vector_layers` array. Both app style JSONs rewritten from Protomaps v4 → Trailblazer's 4-layer schema (24 identically-keyed layers each; palette differs for dark). Pipeline test suite 211/211 green; flutter test 145/145 green; flutter analyze clean. Wave 8 (04-09 Berlin smoke + WSL install docs) queued next.
-Last activity: 2026-07-06 — Plan 04-08 complete: pmtiles_metadata_patcher.dart (Stage F.3) + rewritten map_style_{light,dark}.json + test/assets/map_styles_test.dart smoke contract
+Plan: 04-09 complete (Berlin Smoke + WSL2 Docs) — 2026-07-06
+Status: Phase 4 Wave 8 complete. One-command Berlin bbox smoke ships for both platforms (`smoke.sh` bash + `smoke.ps1` PowerShell); WSL2 tippecanoe install guide at `tool/osm_pipeline/tippecanoe/README.md`; measurement-doc preflight is now CWD-independent + accepts `--measurement=<path>`. Dev-box smoke verified by user (Windows 11 + Rancher Desktop Alpine WSL2): SMOKE PASS in 374.8 s producing osm.sqlite 80.9 MB + germany-base.pmtiles 13.9 MB. Both size targets are soft-WARN, both expected (04-05 measurement matches; SC4 pre-relaxed to 800 MB). SC1 (Berlin-bbox → both artifacts) + SC5 (arbitrary `--bbox`) PASS on developer's dev box. Wave 9 (04-10 Germany close-out) queued next.
+Last activity: 2026-07-06 — Plan 04-09 complete: smoke.sh + smoke.ps1 + tippecanoe/README.md + CLI `--measurement=<path>` flag + CWD-independent `.planning/` auto-detect; user SMOKE PASS on Windows 11 + Rancher Alpine WSL2
 
-Progress: [███░░░░░░░] ~38% (29/77 est. plans overall — Phase 1: 7/7; Phase 2: 7/7; Phase 3: 7/7 code-complete; Phase 4: 8/N)
+Progress: [████░░░░░░] ~39% (30/77 est. plans overall — Phase 1: 7/7; Phase 2: 7/7; Phase 3: 7/7 code-complete; Phase 4: 9/N)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 29 (01-01..01-07, 02-01..02-07, 03-01..03-07, 04-01..04-08)
-- Average duration: ~19 min (Phase 1), ~86 min (Phase 2), ~30 min (Phase 3 avg), ~31 min (Phase 4 avg over 8 plans)
-- Total execution time: ~2.2 hours (P1 est.) + ~10 hours (P2 est.) + ~3.5 hours (P3 est.) + ~253 min (P4-01..04-08)
+- Total plans completed: 30 (01-01..01-07, 02-01..02-07, 03-01..03-07, 04-01..04-09)
+- Average duration: ~19 min (Phase 1), ~86 min (Phase 2), ~30 min (Phase 3 avg), ~35 min (Phase 4 avg over 9 plans)
+- Total execution time: ~2.2 hours (P1 est.) + ~10 hours (P2 est.) + ~3.5 hours (P3 est.) + ~318 min (P4-01..04-09)
 
 **By Phase:**
 
@@ -30,7 +30,7 @@ Progress: [███░░░░░░░] ~38% (29/77 est. plans overall — Ph
 | 01-scaffolding | 7 | ~135 min | ~19 min |
 | 02-map-glass-shell | 7 | ~600 min est. | ~86 min |
 | 03-tracking-mvp | 7 | ~210 min est. | ~30 min |
-| 04-osm-pipeline | 8/N | ~253 min | ~31 min |
+| 04-osm-pipeline | 9/N | ~318 min | ~35 min |
 
 **Recent Trend:**
 - Last 7 plans: 01-01 (18 min), 01-05 (~2 min), 01-02, 01-03 (parallel Wave 2), 01-04 (25 min), 01-06 (~17 min: 7 min exec + ~10 min interactive checkpoint), 01-07 (~8 min docs-only)
@@ -223,13 +223,22 @@ Key locked-in decisions affecting current work:
 - **Plan 04-08 (2026-07-06) — Loopback TileServer URL preserved: `http://127.0.0.1:7070/{z}/{x}/{y}.pbf`.** Plan text sketched `pmtiles://asset/germany-base.pmtiles` but real Phase 2 setup requires the loopback because `maplibre_gl 0.26.2` doesn't resolve `pmtiles://` on Android natively (STATE decision Plan 02-02). Style JSON's `sources.trailblazer.tiles[]` points at the loopback; `TileServer` still reads `assets/tiles/dev_germany.pmtiles`, which 04-10 will byte-replace with pipeline output.
 - **Plan 04-08 (2026-07-06) — sprite=null, glyphs via Protomaps CDN.** No shield sprites in v1 (road_shield rendered as plain text). `glyphs` field points at `https://protomaps.github.io/basemaps-assets/fonts/{fontstack}/{range}.pbf` — text-only labels won't render offline until Noto Sans PBFs are bundled under `assets/glyphs/`. Documented as a known cosmetic gap in 04-08 SUMMARY.
 - **Plan 04-08 (2026-07-06) — Style contract smoke tests under `test/assets/map_styles_test.dart` (4 assertions).** Pure JSON (no Flutter binding) → fast. Asserts: light + dark parse as v8 with `trailblazer` source; dark's ordered layer id list equals light's; every non-background layer's `source-layer` is one of `{roads, admin_boundaries, water, labels}`; every layer's `source` is `trailblazer`. Guards against future style drift + accidental Protomaps-v4 name leaks.
+- **Plan 04-09 (2026-07-06) — Berlin smoke user-verified end-to-end on Windows 11 + Rancher Alpine WSL2.** Result: SMOKE PASS in 374.8 s producing osm.sqlite 80.9 MB + germany-base.pmtiles 13.9 MB. Wall-clock + osm.sqlite both soft-WARN (expected: plan's 60 s / 20 MB targets sized for the sub-package unit-test fixture, not real Berlin PBF; SC4 pre-relaxed to 800 MB); pmtiles clears its 15 MB ceiling. SC1 (Berlin bbox → both artifacts) and SC5 (arbitrary `--bbox`) PASS on the developer's dev box.
+- **Plan 04-09 (2026-07-06) — smoke.ps1 preflight wraps external calls in `cmd /c "... 2>&1"`.** PowerShell's native `2>&1` merges stderr as ErrorRecord objects; `wsl.exe -- tippecanoe --version` writes to stderr; the naïve `try { ... } catch { ... }` block therefore treated a successful preflight as a failure. Fixed by routing through `cmd /c` so stderr survives as plain text. Pattern applies to any Windows external process whose progress output lands on stderr.
+- **Plan 04-09 (2026-07-06) — Pipeline is invoked from inside the sub-package, not from repo root.** `cd tool/osm_pipeline && dart run bin/osm_pipeline.dart` — repo-root `dart run tool/osm_pipeline` fails because root `pubspec.yaml`'s `drift_dev ^3.0.0` wants sqlite3 ^3.0.0 and the sub-package pins sqlite3 ^2.4.0 for Dart 3.5 SDK compat. Both smoke scripts `cd` into the sub-package before invoking `dart run`. This CONTRADICTS Plan 04-01's SUMMARY claim that root invocation works — flagged as a follow-up correction.
+- **Plan 04-09 (2026-07-06) — `.planning/` measurement-doc preflight is CWD-independent.** `bin/osm_pipeline.dart` walks upward from `Directory.current` until it finds a `.planning/` directory, then constructs the measurement-doc path relative to that. Also added `--measurement=<path>` CLI flag as an explicit override. Makes the pipeline work identically whether invoked from repo root or from inside `tool/osm_pipeline/`.
+- **Plan 04-09 (2026-07-06) — PowerShell 5.1 supported for `smoke.ps1`.** Stock Windows 11 only ships `powershell` (5.1); `pwsh` (7+) requires `winget install Microsoft.PowerShell`. The smoke script's syntax uses no PowerShell-7-exclusive features, so `powershell -ExecutionPolicy Bypass -File tool\osm_pipeline\smoke.ps1` works on unmodified Windows 11. Documented as such in follow-up TODOs; not a code fix.
+- **Plan 04-09 (2026-07-06) — Process rule: smoke scripts need at least one real-launch verification in the plan itself, not deferred to checkpoint.** Three code bugs + one docs gap shipped through green `dart analyze` / `flutter analyze` and all surfaced in the first minute of the user's checkpoint smoke run (stderr-as-ErrorRecord, sqlite3 constraint conflict, CWD-relative preflight, `pwsh`-only assumption). Root cause: a smoke script's correctness isn't syntactic — it involves shell semantics, CWD assumptions, real external commands, and cross-tool version constraints, which static analysis cannot detect. **Rule for future plans**: when shipping a user-facing script (smoke test, install script, CLI), include one `type="auto"` task that executes the script end-to-end against a minimum-viable input, not just static-checks it. Checkpoint's role is UX verification, not first-run. Fold into PROJECT.md Key Decisions or an equivalent engineering-practices section.
 
 ### Pending Todos
 
 - **Phase 3 (iOS pod install):** `cd ios && pod repo update && pod install && cd ..` must run on macOS before the first iOS build with FGB. Expected: `Podfile.lock` gains `TSLocationManager`. Without this, iOS app crashes on FGB init.
 - **Phase 3 close-out (batched in-car drive — consolidated):** Run 03-06 Task 3 (9 on-device visual checks) AND 03-07 Task 2 (60-min battery baseline drive) in a single in-car session. Full checklist (18 items) in `.planning/phases/03-tracking-mvp/03-VERIFICATION.md` → "In-car verification checklist (deferred)". After drive: fill PENDING fields in `docs/battery-baseline.md` + `.json`, update SC5 to PASS, update REQUIREMENTS.md QUA-06 to Complete.
 - **Phase 4:** Replace `assets/tiles/dev_germany.pmtiles` (Protomaps demo bucket, generic v4 schema, maxzoom 11, 371 MB) with the custom `germany-base.pmtiles` produced by the OSM pipeline. Target: < 200 MB with Kfz-focused schema (fewer POI layers, road-graph focus). Run `tool/fetch_pmtiles.sh` to regenerate in the interim.
-- **Phase 4 (04-09):** Document tippecanoe WSL2 install verbatim from Plan 04-07 SUMMARY's "tippecanoe bootstrap" section. Alpine + Rancher WSL specifics: fix `/etc/resolv.conf` DNS first, `apk add --no-cache build-base sqlite-dev zlib-dev git make g++ bash`, `git clone --depth 1 https://github.com/felt/tippecanoe.git && make -j && make install`. Passwordless root works out of the box.
+- **Phase 4 (04-09):** Document tippecanoe WSL2 install verbatim from Plan 04-07 SUMMARY's "tippecanoe bootstrap" section. Alpine + Rancher WSL specifics: fix `/etc/resolv.conf` DNS first, `apk add --no-cache build-base sqlite-dev zlib-dev git make g++ bash`, `git clone --depth 1 https://github.com/felt/tippecanoe.git && make -j && make install`. Passwordless root works out of the box. **DONE 2026-07-06** — `tool/osm_pipeline/tippecanoe/README.md` covers Ubuntu (primary) + Rancher Alpine (documented) + Docker fallback (deferred) + 4-row troubleshooting table.
+- **Phase 4 (04-09 follow-up):** Correct Plan 04-01's SUMMARY.md claim that `dart run tool/osm_pipeline` works from repo root. It does NOT — sqlite3 constraint conflict (root drift_dev ^3.0.0 vs sub-package sqlite3 ^2.4.0). Correct invocation is `cd tool/osm_pipeline && dart run bin/osm_pipeline.dart`. Amend 04-01-SUMMARY.md OR add a correction note at the top pointing at 04-09-SUMMARY.md.
+- **Phase 4 (04-09 follow-up):** Add a tippecanoe preflight to `smoke.sh` mirroring `smoke.ps1`'s. Currently `smoke.sh` has no `command -v tippecanoe` check, so a fresh bash user without tippecanoe on PATH fails deep in Stage F instead of at the preflight boundary. Small one-line addition.
+- **Phase 4 (04-09 follow-up):** Docs — mention `powershell` (5.1) works as well as `pwsh` (7+) for `smoke.ps1`. Recommend `winget install Microsoft.PowerShell` for developers who want modern PowerShell. Update Step 4 in `tool/osm_pipeline/tippecanoe/README.md` and any mention in `tool/osm_pipeline/README.md`.
 - **Phase 4 (04-10):** Re-run 04-07 on the real Germany PBF. Measure pmtiles size against 200 MB budget. If overshoot, apply schema-shrink levers (drop `stream` water kind; drop `place_suburb` + `place_village` labels; coarsen roads at low zoom) OR renegotiate the pmtiles budget as we did for osm.sqlite (200 → 800 MB). Concern documented in 04-07 SUMMARY.
 - **Phase 3+:** Router shell tap tests rework — 4 tests in `test/features/map/router_shell_test.dart` skipped with `TODO(I551358)`. Fixed-slot layout doesn't route synthetic `tap()` calls through the correct widget on the 800×600 test surface. Works on-device. Rework when Phase 3 adds sub-routes.
 - **Chore (post-Phase 1):** Re-add `custom_lint` + `riverpod_lint` when a `custom_lint` release supports `analyzer ^13.0.0`. Also restore `analyzer.plugins: - custom_lint` in `analysis_options.yaml`.
@@ -261,7 +270,7 @@ Key locked-in decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-07-06 (Plan 04-08 complete — pmtiles metadata patcher + style JSON rewrite for 4-layer schema)
-Stopped at: Plan 04-08 SUMMARY committed; Wave 7 code-complete. Pipeline tests 211/211 green; flutter test 145/145 green; flutter analyze clean.
+Last session: 2026-07-06 (Plan 04-09 complete — Berlin smoke + WSL2 docs + CLI hardening; user SMOKE PASS on Windows 11 + Rancher Alpine WSL2)
+Stopped at: Plan 04-09 SUMMARY committed; Wave 8 complete. Berlin bbox verified end-to-end: 374.8 s, osm.sqlite 80.9 MB, germany-base.pmtiles 13.9 MB. SC1 + SC5 PASS on developer's dev box.
 Resume file: None
-Next: `/gsd:execute-phase 4` (Plan 04-09 — Berlin smoke + WSL2 install docs, and Plan 04-10 close-out)
+Next: `/gsd:execute-phase 4` (Plan 04-10 — Germany close-out: full-Germany PBF run, SC4-pmtiles measurement, asset swap into `assets/tiles/dev_germany.pmtiles`, in-car verification triage batched with Phase 3 drive)
