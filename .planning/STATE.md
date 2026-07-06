@@ -5,23 +5,23 @@
 See: .planning/PROJECT.md (updated 2026-07-02)
 
 **Core value:** When I open the map, I immediately see the roads I've already driven, painted onto the world — and that view keeps pulling me back to explore more.
-**Current focus:** Phase 4 — OSM Pipeline (Plan 04-09 complete 2026-07-06)
+**Current focus:** Phase 3.1 — Tracking Fixes (Plan 03-1-01 complete 2026-07-06)
 
 ## Current Position
 
-Phase: 4 of 11 (OSM Pipeline)
-Plan: 04-09 complete (Berlin Smoke + WSL2 Docs) — 2026-07-06
-Status: Phase 4 Wave 8 complete. One-command Berlin bbox smoke ships for both platforms (`smoke.sh` bash + `smoke.ps1` PowerShell); WSL2 tippecanoe install guide at `tool/osm_pipeline/tippecanoe/README.md`; measurement-doc preflight is now CWD-independent + accepts `--measurement=<path>`. Dev-box smoke verified by user (Windows 11 + Rancher Desktop Alpine WSL2): SMOKE PASS in 374.8 s producing osm.sqlite 80.9 MB + germany-base.pmtiles 13.9 MB. Both size targets are soft-WARN, both expected (04-05 measurement matches; SC4 pre-relaxed to 800 MB). SC1 (Berlin-bbox → both artifacts) + SC5 (arbitrary `--bbox`) PASS on developer's dev box. Wave 9 (04-10 Germany close-out) queued next.
-Last activity: 2026-07-06 — Plan 04-09 complete: smoke.sh + smoke.ps1 + tippecanoe/README.md + CLI `--measurement=<path>` flag + CWD-independent `.planning/` auto-detect; user SMOKE PASS on Windows 11 + Rancher Alpine WSL2
+Phase: 3.1 of 11 (Tracking Fixes — inserted decimal phase between P3 and P4)
+Plan: 03-1-01 complete (Debug HUD + Diagnostic Plumbing) — 2026-07-06
+Status: Phase 3.1 Wave 1 complete. Debug HUD ships at `/settings/diagnostics` (kDebugMode-guarded), backed by TrackingDiagnostics DTO + counters (accept/reject/gap/split + last-reject-reason + last-fix-sample) on TrackingService + a new `currentReadyOutcome` signal on the FGB facade abstract interface. Three PermissionService rungs added for HUD readback (whenInUse / activityRecognition / ignoreBatteryOptimizations). 6 new domain unit tests + 2 new widget tests (153 total). Wave 2 (03-1-02, 03-1-03, 03-1-04) now unblocked and parallelizable.
+Last activity: 2026-07-06 — Plan 03-1-01 complete: TrackingDiagnostics DTO + counters + HUD screen + kDebugMode-guarded route + Settings DEV section
 
-Progress: [████░░░░░░] ~39% (30/77 est. plans overall — Phase 1: 7/7; Phase 2: 7/7; Phase 3: 7/7 code-complete; Phase 4: 9/N)
+Progress: [████░░░░░░] ~40% (31/77 est. plans overall — Phase 1: 7/7; Phase 2: 7/7; Phase 3: 7/7 code-complete; Phase 3.1: 1/5; Phase 4: 9/N)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 30 (01-01..01-07, 02-01..02-07, 03-01..03-07, 04-01..04-09)
-- Average duration: ~19 min (Phase 1), ~86 min (Phase 2), ~30 min (Phase 3 avg), ~35 min (Phase 4 avg over 9 plans)
-- Total execution time: ~2.2 hours (P1 est.) + ~10 hours (P2 est.) + ~3.5 hours (P3 est.) + ~318 min (P4-01..04-09)
+- Total plans completed: 31 (01-01..01-07, 02-01..02-07, 03-01..03-07, 04-01..04-09, 03-1-01)
+- Average duration: ~19 min (Phase 1), ~86 min (Phase 2), ~30 min (Phase 3 avg), ~35 min (Phase 4 avg over 9 plans), 23 min (Phase 3.1 avg over 1 plan)
+- Total execution time: ~2.2 hours (P1 est.) + ~10 hours (P2 est.) + ~3.5 hours (P3 est.) + ~318 min (P4-01..04-09) + 23 min (P3.1-01)
 
 **By Phase:**
 
@@ -30,6 +30,7 @@ Progress: [████░░░░░░] ~39% (30/77 est. plans overall — Ph
 | 01-scaffolding | 7 | ~135 min | ~19 min |
 | 02-map-glass-shell | 7 | ~600 min est. | ~86 min |
 | 03-tracking-mvp | 7 | ~210 min est. | ~30 min |
+| 03-1-tracking-fixes | 1/5 | 23 min | 23 min |
 | 04-osm-pipeline | 9/N | ~318 min | ~35 min |
 
 **Recent Trend:**
@@ -229,6 +230,12 @@ Key locked-in decisions affecting current work:
 - **Plan 04-09 (2026-07-06) — `.planning/` measurement-doc preflight is CWD-independent.** `bin/osm_pipeline.dart` walks upward from `Directory.current` until it finds a `.planning/` directory, then constructs the measurement-doc path relative to that. Also added `--measurement=<path>` CLI flag as an explicit override. Makes the pipeline work identically whether invoked from repo root or from inside `tool/osm_pipeline/`.
 - **Plan 04-09 (2026-07-06) — PowerShell 5.1 supported for `smoke.ps1`.** Stock Windows 11 only ships `powershell` (5.1); `pwsh` (7+) requires `winget install Microsoft.PowerShell`. The smoke script's syntax uses no PowerShell-7-exclusive features, so `powershell -ExecutionPolicy Bypass -File tool\osm_pipeline\smoke.ps1` works on unmodified Windows 11. Documented as such in follow-up TODOs; not a code fix.
 - **Plan 04-09 (2026-07-06) — Process rule: smoke scripts need at least one real-launch verification in the plan itself, not deferred to checkpoint.** Three code bugs + one docs gap shipped through green `dart analyze` / `flutter analyze` and all surfaced in the first minute of the user's checkpoint smoke run (stderr-as-ErrorRecord, sqlite3 constraint conflict, CWD-relative preflight, `pwsh`-only assumption). Root cause: a smoke script's correctness isn't syntactic — it involves shell semantics, CWD assumptions, real external commands, and cross-tool version constraints, which static analysis cannot detect. **Rule for future plans**: when shipping a user-facing script (smoke test, install script, CLI), include one `type="auto"` task that executes the script end-to-end against a minimum-viable input, not just static-checks it. Checkpoint's role is UX verification, not first-run. Fold into PROJECT.md Key Decisions or an equivalent engineering-practices section.
+- **Plan 03-1-01 (2026-07-06) — TrackingDiagnostics DTO is the single seam.** Domain-pure snapshot class carrying 12 fields (facadeReadyOutcome, facadeCurrentState, lastAcceptedFix, lastRejectedReason/At, lastActivityType/At, four counters, currentTripId). Constructed fresh by `TrackingService.diagnostics` getter on each call — no caching, no broadcast stream. HUD polls at 500 ms via Timer.periodic. Counters live on TrackingService (not TripFixIngestor per 03-1-RESEARCH §7.1 — keeps the 22-test ingestor pure).
+- **Plan 03-1-01 (2026-07-06) — `BackgroundGeolocationFacade.currentReadyOutcome` getter added as additive abstract member.** `FacadeReadyOutcome` sealed hierarchy: `FacadeReadyPending` (initial) / `FacadeReadySuccess` / `FacadeReadyFailed(String message)`. FGB prod impl wraps `ready()` in try/catch/rethrow — records outcome without altering the exception contract (Wave 2's `_facade.start()` fix + `DomainError.wrap` at the notifier boundary is Plan 03-1-02's job, not this plan). `FakeBackgroundGeolocationFacade` mirrors the outcome shape with a `readyError` hook so diagnostics tests can force ready() failure without native code.
+- **Plan 03-1-01 (2026-07-06) — kDebugMode gating is const-elided at TWO sites.** Route entry in `app_router.dart` and Settings ListTile in `settings_screen.dart` both wrap the diagnostics reference in `if (kDebugMode)`. Because `kDebugMode` is a `const bool`, tree-shaking removes both the route target widget reference and the tile from release builds. A defensive `_ReleaseModeShortCircuit` inside the HUD widget's `build()` acts as belt-and-braces (cost: ~40 bytes frozen bytecode).
+- **Plan 03-1-01 (2026-07-06) — PermissionService gains three read-only rungs for HUD readback ONLY.** `statusWhenInUse()`, `statusActivityRecognition()`, `statusIgnoreBatteryOptimizations()`. iOS branch on the battery-opt method returns `PermissionStatus.granted` unconditionally (no equivalent concept). No production behavior change — onboarding ladder untouched; Plan 03-1-02 owns widening `TrackingCapability` to consider the battery-opt grant.
+- **Plan 03-1-01 (2026-07-06) — HUD polling pattern: sync + async off the same tick.** `Timer.periodic(500ms)` inside a `ConsumerStatefulWidget`; the tick calls `setState(() {})` to re-read `trackingDiagnosticsProvider` synchronously AND fires `unawaited(_refreshAsync())` to fetch `FgbState.currentState()` + 5 permission statuses off a microtask. Async results cached in state fields and rendered on the next tick. `facade.currentState()` is wrapped in `try/on Object catch` because iOS may throw before `ready()` completes.
+- **Plan 03-1-01 (2026-07-06) — Test surface enlargement pattern for tall diagnostics ListViews.** Default `flutter_test` surface is 800×600; the HUD ListView is ~1100 dp tall so lower ListTiles are lazily kept offstage (not just visually off-screen — they're not built). Fix: `tester.binding.setSurfaceSize(const Size(800, 3000))` + `addTearDown(() => tester.binding.setSurfaceSize(const Size(800, 600)))`. `skipOffstage: false` on finders does NOT help because the widgets are unbuilt, not offstage. Pattern captured for future inspector/settings screens.
 
 ### Pending Todos
 
@@ -270,7 +277,7 @@ Key locked-in decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-07-06 (Plan 04-09 complete — Berlin smoke + WSL2 docs + CLI hardening; user SMOKE PASS on Windows 11 + Rancher Alpine WSL2)
-Stopped at: Plan 04-09 SUMMARY committed; Wave 8 complete. Berlin bbox verified end-to-end: 374.8 s, osm.sqlite 80.9 MB, germany-base.pmtiles 13.9 MB. SC1 + SC5 PASS on developer's dev box.
+Last session: 2026-07-06 (Plan 03-1-01 complete — Debug HUD + Diagnostic Plumbing; Wave 1 of Phase 3.1)
+Stopped at: Plan 03-1-01 SUMMARY committed; Wave 1 complete. Debug HUD reachable at `/settings/diagnostics` (kDebugMode-guarded), TrackingDiagnostics DTO + counters + facade `currentReadyOutcome` all landed. 153 tests green. Wave 2 (03-1-02 FGB start + battery-opt / 03-1-03 motion filter + live-stats regression / 03-1-04 map camera-follow) now unblocked and can execute in parallel.
 Resume file: None
-Next: `/gsd:execute-phase 4` (Plan 04-10 — Germany close-out: full-Germany PBF run, SC4-pmtiles measurement, asset swap into `assets/tiles/dev_germany.pmtiles`, in-car verification triage batched with Phase 3 drive)
+Next: `/gsd:execute-phase 3-1` for Wave 2 — three parallel plans, then Wave 3 (03-1-05 in-car verification + close-out). In parallel, Phase 4 Wave 9 (04-10 Germany close-out) can proceed on the dev-machine track independently.
