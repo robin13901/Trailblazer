@@ -5,23 +5,23 @@
 See: .planning/PROJECT.md (updated 2026-07-02)
 
 **Core value:** When I open the map, I immediately see the roads I've already driven, painted onto the world — and that view keeps pulling me back to explore more.
-**Current focus:** Phase 4 — OSM Pipeline (Plan 04-05 complete 2026-07-06)
+**Current focus:** Phase 4 — OSM Pipeline (Plan 04-06 complete 2026-07-06)
 
 ## Current Position
 
 Phase: 4 of 11 (OSM Pipeline)
-Plan: 04-05 complete (Berlin Measurement + Segmented Intersection) — 2026-07-06
-Status: Phase 4 Wave 4 code-complete for 04-05; empirical Berlin measurement locked (91 707 Kfz ways, 118 admin regions L4..L10); segmented-intersection clipper + way_admin_join orchestrator + WKB decoder shipped (5 new tests, 156 sub-package total). SC4 renegotiation flagged: slim projection ~696 MB overshoots 500 MB relaxed target — 04-06 must lock a new SC4 number.
-Last activity: 2026-07-06 — Plan 04-05 complete: runBerlinRowCountProbe (three-lens projection + SC4 negotiation) + buildWayAdminJoin + decodeMultiPolygonWkb
+Plan: 04-06 complete (osm.sqlite Finalization) — 2026-07-06
+Status: Phase 4 Wave 5 code-complete for 04-06; final osm.sqlite schema locked at denormalized L2..L8 + way_admin cross-border variant; Berlin end-to-end proof passes (84.8 MB, 176 567 ways, 118 admin regions, 555 920 rtree rows, PBF SHA matches 04-05, R-Tree spot-check returns 85 candidates near Brandenburg Gate). Pipeline test suite 177/177 green. Waves 6+ (04-07 pmtiles, 04-08 pmtiles metadata) queued.
+Last activity: 2026-07-06 — Plan 04-06 complete: osm_sqlite_writer + rtree_builder + version_stamp + pipeline_orchestrator wired end-to-end
 
-Progress: [███░░░░░░░] ~34% (26/77 est. plans overall — Phase 1: 7/7; Phase 2: 7/7; Phase 3: 7/7 code-complete; Phase 4: 5/N)
+Progress: [███░░░░░░░] ~35% (27/77 est. plans overall — Phase 1: 7/7; Phase 2: 7/7; Phase 3: 7/7 code-complete; Phase 4: 6/N)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 26 (01-01..01-07, 02-01..02-07, 03-01..03-07, 04-01..04-05)
-- Average duration: ~19 min (Phase 1), ~86 min (Phase 2), ~30 min (Phase 3 avg), ~23 min (Phase 4 avg over 5 plans)
-- Total execution time: ~2.2 hours (P1 est.) + ~10 hours (P2 est.) + ~3.5 hours (P3 est.) + ~116 min (P4-01..04-05)
+- Total plans completed: 27 (01-01..01-07, 02-01..02-07, 03-01..03-07, 04-01..04-06)
+- Average duration: ~19 min (Phase 1), ~86 min (Phase 2), ~30 min (Phase 3 avg), ~25 min (Phase 4 avg over 6 plans)
+- Total execution time: ~2.2 hours (P1 est.) + ~10 hours (P2 est.) + ~3.5 hours (P3 est.) + ~151 min (P4-01..04-06)
 
 **By Phase:**
 
@@ -30,7 +30,7 @@ Progress: [███░░░░░░░] ~34% (26/77 est. plans overall — Ph
 | 01-scaffolding | 7 | ~135 min | ~19 min |
 | 02-map-glass-shell | 7 | ~600 min est. | ~86 min |
 | 03-tracking-mvp | 7 | ~210 min est. | ~30 min |
-| 04-osm-pipeline | 5/N | ~116 min | ~23 min |
+| 04-osm-pipeline | 6/N | ~151 min | ~25 min |
 
 **Recent Trend:**
 - Last 7 plans: 01-01 (18 min), 01-05 (~2 min), 01-02, 01-03 (parallel Wave 2), 01-04 (25 min), 01-06 (~17 min: 7 min exec + ~10 min interactive checkpoint), 01-07 (~8 min docs-only)
@@ -195,6 +195,17 @@ Key locked-in decisions affecting current work:
 - **Plan 04-05 (2026-07-06) — WKB decoder placed inside `way_admin_join.dart` (not `admin/`).** Kept as file-local helper because Plan 04-05 is the only consumer; if a second consumer emerges (e.g. 04-07 GeoJSON emit), extract to `admin/wkb_reader.dart`. Inverse of Plan 04-04's `encodeMultiPolygon`; assumes little-endian NDR MultiPolygon(6) with Polygon(3) children.
 - **Plan 04-05 (2026-07-06) — PROVISIONAL way_admin_raw schema lives in `scratch_schema.dart`.** PK(way_id, region_id, admin_level, fraction_start) WITHOUT ROWID; idx_way_admin_way + idx_way_admin_region. 04-06 promotes to the final osm.sqlite schema (either as denormalized columns on `ways` or a permanent `way_admin` table — depends on the SC4 decision above).
 - **Plan 04-05 (2026-07-06) — Wholly-contained-way roll-up deferred to 04-06 per plan spec.** This plan populates only the split-segment rows (fraction_start/fraction_end). 04-06 either promotes rows to denormalized columns or keeps the split table as-is depending on the recommendation.
+- **Plan 04-06 (2026-07-06) — Final osm.sqlite schema locked: denormalized `admin_region_id_l{2,4,6,8}` on `ways` + `way_admin` cross-border join.** L9/L10 intentionally dropped from denormalized columns per 04-05 slim projection (Germany projected ~696 MB with L2..L8 vs ~775 MB with L2..L10). Roll-up rule: if exactly one way_admin_raw row exists at a level with `fraction_start ≤ 1e-9 AND fraction_end ≥ 1 − 1e-9` → wholly-contained → write to `admin_region_id_l{level}` column and DELETE the row from `way_admin_raw`. Cross-border rows survive to the final `way_admin` table.
+- **Plan 04-06 (2026-07-06) — SC4 relaxed 200 MB → 800 MB (user decision, commit `b7540ce`, pre-04-06).** The plan text's "SC4 lock checkpoint" was downgraded to a no-op — the decision was final before execution. Chosen variant: denormalized L2..L8 + way_admin_raw (~696 MB projected Germany). `germany-base.pmtiles` retains its separate 200 MB budget (unrelated constraint).
+- **Plan 04-06 (2026-07-06) — Inline LineString-WKB per way (`ways.geometry_wkb BLOB`), no `nodes` join table in final osm.sqlite.** Matcher's read path is a single indexed lookup — no N+1 across a nodes table. `nodes_raw` stays in scratch and dies with it. `decodeLineStringWkb` in `osm_sqlite_writer.dart` is the inverse of the writer's internal encoder — exposed for tests + future 04-07 GeoJSONSeq consumer.
+- **Plan 04-06 (2026-07-06) — Runtime PRAGMAs on `osm.sqlite`: `page_size=4096`, `journal_mode=WAL`, `synchronous=NORMAL` per 04-RESEARCH §10.** Distinct from scratch DB's write-optimised pragmas (page_size 64 KiB, journal_mode OFF, synchronous OFF). `PRAGMA wal_checkpoint(TRUNCATE)` is run twice — once after Stage E write, once after version stamp — so `File.lengthSync` reports accurate final on-disk bytes (WAL sidecar otherwise holds most of the payload).
+- **Plan 04-06 (2026-07-06) — `crypto ^3.0.0` added as pipeline dep.** First-party Dart, prebuilt binaries, streamed API. PBF SHA-256 uses `file.openRead().transform(crypto.sha256).single` — no full read into RAM (Germany PBF is ~4 GB).
+- **Plan 04-06 (2026-07-06) — R-Tree granularity default is per-segment; per-way is a fallback under measurement recommendation.** Berlin produced 555 920 rtree rows for 176 567 ways (~3.15 seg/way). `RtreeBuilder.loadFromMeasurement(File)` returns `perWay` iff the measurement mentions `per-way` (case-sensitive), else `perSegment`. Zero-length segments (duplicate consecutive nodes) are skipped so degenerate ways don't bloat the R-Tree. SQLite's `rtree` module stores single-precision floats — bbox equality tests use ~1e-4 tolerance.
+- **Plan 04-06 (2026-07-06) — VersionStamp writes 7 metadata rows via `INSERT OR REPLACE`.** Keys: `pbf_date`, `pbf_source`, `pbf_sha256`, `bbox` (or `'*'`), `pipeline_schema_version`, `pipeline_git_sha` (or `'unknown'`), `generated_at`. `PRAGMA user_version = pipelineSchemaVersion` is stamped in the same call. Re-writing the stamp on an existing DB is idempotent (REPLACE, not INSERT).
+- **Plan 04-06 (2026-07-06) — Hard preflight gate on 04-05-BERLIN-MEASUREMENT.md.** Missing file → `PipelineIoError`. Contains "not empirically verified" → `PipelineArgsError` unless caller sets `allowUnverifiedMeasurement=true` (also exposed as `--allow-unverified-measurement` CLI flag). No silent fallback. The `runPipeline` orchestrator takes an optional `measurementFile` param so tests inject a stub-or-good file via temp dir without polluting the real repo.
+- **Plan 04-06 (2026-07-06) — Orchestrator seam for 04-07/08 (wave 6).** `pipeline_orchestrator.dart` emits `Logger.info` stubs at Stage F (GeoJSONSeq + tippecanoe) and Stage G (pmtiles metadata + style rewrite). 04-07 replaces the F stub with `runPmtilesStage()`; 04-08 replaces the G stub. Sequential wave 6 edits — no merge conflict.
+- **Plan 04-06 (2026-07-06) — CLI splits arg parsers.** `bin/osm_pipeline.dart` peels off `--allow-unverified-measurement` and `--out-dir` in its own `ArgParser` before invoking `ParsedArgs.parse(synthetic)` with only `--pbf`/`--bbox`. Keeps 04-01's `ParsedArgs` unchanged while adding 04-06 flags.
+- **Plan 04-06 (2026-07-06) — Berlin end-to-end proof (2 min 19 s):** 91 707 Kfz + 84 860 Feldweg = 176 567 ways; 118 admin regions (L4..L10 — Berlin has no L2); 180 795 way_admin cross-border rows; 555 920 ways_rtree rows; osm.sqlite = 84.8 MB. PBF SHA-256 matches 04-05 measurement (`c96a067a…f775`). PBF `osmosis_replication_timestamp` = `2026-07-05T20:21:10.000Z`. R-Tree spot-check near Brandenburg Gate returns 85 candidates. Sample way `Waldstraße` (residential, 20 pts, 214.1 m) round-trips through `decodeLineStringWkb`.
 
 ### Pending Todos
 
@@ -222,7 +233,7 @@ Key locked-in decisions affecting current work:
 
 - **PHASE 3 DRIVE VERIFICATION FAILED (2026-07-06)** — User completed the deferred in-car drive. Result: **SC1 partial, SC2 fail, SC3 partial, SC4 unverified, SC5 not measured**. Manual trip: FAB + panel + timer worked; distance/speed stuck at 0; map blue-dot did not follow position (only re-snapped on user pan); no persistent notification. Auto-trip: nothing recorded, no notification on lock screen. Working hypotheses: (H1) FGB not emitting fixes on-device — `_facade.ready()` may fail silently, `bg.Config` may lack `stopOnTerminate=false` / notification channel, Android 13+ POST_NOTIFICATIONS runtime grant may be missing; (H2) map camera-follow not enabled during recording (Plan 03-06 chrome landed but `MyLocationTrackingMode.trackingCompass` may not activate on trip start); (H3) TRK-01 motion filter gating manual trips; (H4) `stateStream` not re-emitting on each accepted fix; (H5) Samsung OEM battery killer if ignore-battery-opt was dismissed rather than granted. **Impact:** Phase 5 depends on real trips; must NOT start until Phase 3.1 fixes land. Phase 4 (dev-machine) proceeds unaffected. Full report: `.planning/phases/03-tracking-mvp/03-DRIVE-VERIFICATION-2026-07-06.md`. Next: create Phase 3.1 (Tracking Fixes) after Phase 4 close-out, before Phase 5.
 
-- **SC4 target RESOLVED (2026-07-06)** — user approved SC4 relaxation from 200 MB → **800 MB** for `osm.sqlite`. Chosen variant: **denormalized L2..L8 + way_admin_raw** (projected ~696 MB per 04-05 Berlin measurement). Rationale: still slimmer than every routable-mapping product on the market (Osmand slim ~800 MB, Organic Maps ~1.5 GB, Google/Here offline ~2–4 GB); the 200 MB target was aspirational, not physics. ROADMAP SC4 + Plan 04-10 checkpoint text updated to reflect 800 MB budget. 04-06 proceeds with the L2..L8 variant WITHOUT an SC4 lock checkpoint. `germany-base.pmtiles` budget remains 200 MB (separate constraint, unrelated to osm.sqlite). Measurement artifact: `.planning/phases/04-osm-pipeline/04-05-BERLIN-MEASUREMENT.md`.
+- **SC4 target RESOLVED (2026-07-06)** — user approved SC4 relaxation from 200 MB → **800 MB** for `osm.sqlite`. Chosen variant: **denormalized L2..L8 + way_admin_raw** (projected ~696 MB per 04-05 Berlin measurement). Rationale: still slimmer than every routable-mapping product on the market (Osmand slim ~800 MB, Organic Maps ~1.5 GB, Google/Here offline ~2–4 GB); the 200 MB target was aspirational, not physics. ROADMAP SC4 + Plan 04-10 checkpoint text updated to reflect 800 MB budget. **04-06 LANDED with this variant.** Berlin extract measured at 84.8 MB (informational). `germany-base.pmtiles` budget remains 200 MB (separate constraint, unrelated to osm.sqlite). Measurement artifact: `.planning/phases/04-osm-pipeline/04-05-BERLIN-MEASUREMENT.md`. Real Germany SC4 verification happens at Phase 4 close-out (04-10).
 - **G1 (P2):** **RESOLVED — UNCONDITIONAL PASS 2026-07-04** — `platformBlurEnabled = true` on both platforms. Android device-verified (Samsung Galaxy S24, Android 14, Impeller): LiquidGlass renders correctly over the real bundled-PMTiles MapLibre platform view. iOS assumed true (package is iOS-designed). `docs/G1_SPIKE.md` updated with Post-Integration Observations.
 - **G2 (P7):** `maplibre_gl` ^0.26.2 `setFeatureState` support unverified. Sharded-GeoJSON fallback stands by.
 - **HMM accuracy (P5):** Requires ≥ 20-trip golden corpus recorded in real driving before matcher can pass CI regression.
@@ -231,7 +242,7 @@ Key locked-in decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-07-06 (Plan 04-05 complete — Berlin Measurement + Segmented Intersection)
-Stopped at: Plan 04-05 SUMMARY committed; Wave 4 code-complete. Empirical Berlin measurement locked; SC4 renegotiation flagged.
+Last session: 2026-07-06 (Plan 04-06 complete — osm.sqlite Finalization)
+Stopped at: Plan 04-06 SUMMARY committed; Wave 5 code-complete. Final osm.sqlite schema locked (L2..L8 denormalized + way_admin cross-border). Berlin end-to-end proof passes.
 Resume file: None
-Next: `/gsd:execute-phase 4` (Plan 04-06 — osm.sqlite finalization + SC4 lock checkpoint)
+Next: `/gsd:execute-phase 4` (Plan 04-07 — GeoJSONSeq + tippecanoe → germany-base.pmtiles)
