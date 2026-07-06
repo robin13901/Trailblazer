@@ -13,7 +13,6 @@ import 'dart:async';
 import 'package:auto_explore/features/trips/data/background_geolocation_facade.dart';
 import 'package:auto_explore/features/trips/domain/tracking_diagnostics.dart';
 import 'package:auto_explore/features/trips/domain/trip_fix_input.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter_background_geolocation/flutter_background_geolocation.dart'
     as bg;
 import 'package:logging/logging.dart';
@@ -65,7 +64,10 @@ class FgbBackgroundGeolocationFacade implements BackgroundGeolocationFacade {
         showsBackgroundLocationIndicator: true,
         pausesLocationUpdatesAutomatically: false,
         // Logging
-        debug: kDebugMode,
+        // NOTE: FGB's `debug: true` plays audible diagnostic tones on every
+        // location fix, motion change, and activity change. Off unconditionally
+        // — the HUD (Plan 3.1-01) is the visual replacement.
+        debug: false,
         logLevel: bg.Config.LOG_LEVEL_VERBOSE,
       ));
 
