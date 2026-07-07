@@ -24,6 +24,7 @@ import 'dart:typed_data';
 
 import 'package:osm_pipeline/cli/errors.dart';
 import 'package:osm_pipeline/cli/logger.dart';
+import 'package:osm_pipeline/cli/progress_logger.dart';
 import 'package:osm_pipeline/intersect/vec2.dart';
 import 'package:osm_pipeline/output/osm_sqlite_schema.dart';
 import 'package:osm_pipeline/output/rtree_builder.dart';
@@ -264,9 +265,19 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
     var waysWritten = 0;
     var rtreeRowsWritten = 0;
 
+    final total = scratchDb
+        .select('SELECT COUNT(*) AS n FROM ways_raw;')
+        .first['n'] as int;
+    final progress = ProgressLogger(
+      'Stage E',
+      total: total,
+      unit: 'ways',
+    );
+
     out.execute('BEGIN;');
     try {
       for (final row in wayRows) {
+        progress.tick();
         final wayId = row['id'] as int;
         final blob = row['node_ids'] as Uint8List;
         final nodeIds = decodeNodeIds(blob);
@@ -352,6 +363,7 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
       insertWay.dispose();
       nodeSelect.dispose();
     }
+    progress.finish();
 
     // Strip rolled-up rows from scratch's way_admin_raw so the way_admin
     // final table only receives cross-border rows in the next stage.

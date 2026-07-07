@@ -25,6 +25,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:osm_pipeline/cli/progress_logger.dart';
 import 'package:osm_pipeline/intersect/way_admin_join.dart'
     show decodeMultiPolygonWkb;
 import 'package:osm_pipeline/pbf/entities.dart';
@@ -64,6 +65,14 @@ abstract final class GeoJsonSeqWriter {
   /// skipped silently — they wouldn't render anyway.
   static Future<int> writeRoads(ScratchDb scratch, IOSink out) async {
     final db = scratch.raw;
+    final total = db
+        .select('SELECT COUNT(*) AS n FROM ways_raw;')
+        .first['n'] as int;
+    final progress = ProgressLogger(
+      'Stage F.1 roads',
+      total: total,
+      unit: 'ways',
+    );
     final nodeSelect = db.prepare(
       'SELECT lat, lng FROM nodes_raw WHERE id = ?;',
     );
@@ -73,6 +82,7 @@ abstract final class GeoJsonSeqWriter {
     var written = 0;
     try {
       for (final row in wayRows) {
+        progress.tick();
         final nodeIds = decodeNodeIds(row['node_ids'] as Uint8List);
         final coords = <List<double>>[];
         for (final nid in nodeIds) {
@@ -98,6 +108,7 @@ abstract final class GeoJsonSeqWriter {
     } finally {
       nodeSelect.dispose();
     }
+    progress.finish();
     return written;
   }
 
@@ -120,8 +131,14 @@ abstract final class GeoJsonSeqWriter {
       'SELECT region_id, admin_level, name, geometry_wkb '
       'FROM admin_regions_raw;',
     );
+    final progress = ProgressLogger(
+      'Stage F.1 admin_boundaries',
+      total: rows.length,
+      unit: 'regions',
+    );
     var written = 0;
     for (final row in rows) {
+      progress.tick();
       final level = row['admin_level'] as int;
       final name = row['name'] as String;
       final mp = decodeMultiPolygonWkb(row['geometry_wkb'] as Uint8List);
@@ -178,6 +195,7 @@ abstract final class GeoJsonSeqWriter {
 
       written += 2;
     }
+    progress.finish();
     return written;
   }
 
@@ -196,6 +214,11 @@ abstract final class GeoJsonSeqWriter {
   ///   * C: emit features.
   static Future<int> writeWater(File pbf, ScratchDb scratch, IOSink out) async {
     // Pass A: identify water ways + their nodes.
+    final waterProgress = ProgressLogger(
+      'Stage F.1 water',
+      total: 0,
+      unit: 'ways',
+    );
     final waterWays = <int, _WaterWay>{};
     final wantedNodes = <int>{};
     await for (final e in PbfReader().stream(pbf)) {
@@ -209,9 +232,13 @@ abstract final class GeoJsonSeqWriter {
             e.tags['waterway'] == 'riverbank',
       );
       wantedNodes.addAll(e.nodeRefs);
+      waterProgress.tick();
     }
 
-    if (waterWays.isEmpty) return 0;
+    if (waterWays.isEmpty) {
+      waterProgress.finish();
+      return 0;
+    }
 
     // Pass B: resolve nodes.
     final nodes = <int, ({double lat, double lng})>{};
@@ -256,6 +283,7 @@ abstract final class GeoJsonSeqWriter {
       }
       written++;
     }
+    waterProgress.finish();
     return written;
   }
 
@@ -273,6 +301,11 @@ abstract final class GeoJsonSeqWriter {
     IOSink out,
   ) async {
     // Pass A: collect place nodes AND shield-way ids.
+    final progress = ProgressLogger(
+      'Stage F.1 labels',
+      total: 0,
+      unit: 'candidates',
+    );
     final placeNodes = <_LabelPlaceNode>[];
     final shieldWays = <int, ({String ref, List<int> nodeRefs})>{};
     final shieldNodeIds = <int>{};
@@ -292,6 +325,7 @@ abstract final class GeoJsonSeqWriter {
               population: pop,
             ),
           );
+          progress.tick();
         }
       } else if (e is OsmWay) {
         final hw = e.tags['highway'];
@@ -302,6 +336,7 @@ abstract final class GeoJsonSeqWriter {
         if (ref == null || ref.isEmpty) continue;
         shieldWays[e.id] = (ref: ref, nodeRefs: e.nodeRefs);
         shieldNodeIds.addAll(e.nodeRefs);
+        progress.tick();
       }
     }
 
@@ -347,6 +382,7 @@ abstract final class GeoJsonSeqWriter {
       written++;
     }
 
+    progress.finish();
     return written;
   }
 }

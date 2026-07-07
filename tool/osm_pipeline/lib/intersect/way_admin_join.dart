@@ -14,6 +14,7 @@ library;
 
 import 'dart:typed_data';
 
+import 'package:osm_pipeline/cli/progress_logger.dart';
 import 'package:osm_pipeline/intersect/polygon_clip.dart';
 import 'package:osm_pipeline/intersect/vec2.dart';
 import 'package:osm_pipeline/scratch/scratch_db.dart';
@@ -74,6 +75,16 @@ VALUES (?, ?, ?, ?, ?);
   var rowsWritten = 0;
   var candidatePairsProbed = 0;
 
+  // Total = Kfz way count. Cheap: hits the ways_raw index.
+  final totalKfz = db
+      .select("SELECT COUNT(*) AS n FROM ways_raw WHERE source = 'kfz';")
+      .first['n'] as int;
+  final progress = ProgressLogger(
+    'Stage D',
+    total: totalKfz,
+    unit: 'ways',
+  );
+
   db.execute('BEGIN;');
   try {
     final wayRows = db.select(
@@ -81,6 +92,7 @@ VALUES (?, ?, ?, ?, ?);
     );
     for (final row in wayRows) {
       waysProcessed++;
+      progress.tick();
       final wayId = row['id'] as int;
       final nodeIds = decodeNodeIds(row['node_ids'] as Uint8List);
       final linePoints = <Vec2>[];
@@ -122,6 +134,7 @@ VALUES (?, ?, ?, ?, ?);
     insert.dispose();
     nodeSelect.dispose();
   }
+  progress.finish();
 
   return WayAdminJoinStats(
     waysProcessed: waysProcessed,

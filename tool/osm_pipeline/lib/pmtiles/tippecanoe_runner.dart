@@ -42,12 +42,12 @@ abstract final class TippecanoeRunner {
     final stdoutDone = proc.stdout
         .transform(utf8.decoder)
         .transform(const LineSplitter())
-        .listen(Logger.info)
+        .listen((line) => Logger.info('[Stage F.2] $line'))
         .asFuture<void>();
     final stderrDone = proc.stderr
         .transform(utf8.decoder)
         .transform(const LineSplitter())
-        .listen(Logger.warn)
+        .listen((line) => Logger.warn('[Stage F.2] $line'))
         .asFuture<void>();
 
     final code = await proc.exitCode;

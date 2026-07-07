@@ -19,6 +19,7 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:osm_pipeline/cli/logger.dart';
+import 'package:osm_pipeline/cli/progress_logger.dart';
 import 'package:osm_pipeline/filter/directionality.dart';
 import 'package:osm_pipeline/filter/feldweg_filter.dart';
 import 'package:osm_pipeline/filter/kfz_filter.dart';
@@ -94,9 +95,15 @@ class WayPipeline {
     var highwayRoad = 0;
 
     // --- Pass A: select Kfz + Feldweg ways.
+    final passA = ProgressLogger(
+      'Stage B pass A (ways)',
+      total: 0,
+      unit: 'ways',
+    );
     final relevantNodeIds = <int>{};
     await for (final e in readerFactory().stream(pbf)) {
       if (e is! OsmWay) continue;
+      passA.tick();
       final hw = e.tags['highway'];
       if (hw == null) {
         rejectedCount++;
@@ -144,15 +151,23 @@ class WayPipeline {
       logSkip(reason, e.id);
     }
     scratch.flush();
+    passA.finish();
 
     // --- Pass B: ingest only referenced nodes.
     if (relevantNodeIds.isNotEmpty) {
+      final passB = ProgressLogger(
+        'Stage B pass B (nodes)',
+        total: relevantNodeIds.length,
+        unit: 'nodes',
+      );
       await for (final e in readerFactory().stream(pbf)) {
         if (e is! OsmNode) continue;
         if (!relevantNodeIds.contains(e.id)) continue;
         scratch.insertNode(id: e.id, lat: e.lat, lng: e.lng);
+        passB.tick();
       }
       scratch.flush();
+      passB.finish();
     }
 
     // --- Post-pass integrity check: drop ways whose nodes went missing.

@@ -16,6 +16,7 @@ import 'dart:io';
 import 'package:osm_pipeline/admin/admin_relation_filter.dart';
 import 'package:osm_pipeline/admin/multipolygon_assembler.dart';
 import 'package:osm_pipeline/admin/wkb_writer.dart';
+import 'package:osm_pipeline/cli/progress_logger.dart';
 import 'package:osm_pipeline/pbf/entities.dart';
 import 'package:osm_pipeline/pbf/pbf_reader.dart';
 import 'package:osm_pipeline/scratch/scratch_db_admin_ext.dart';
@@ -61,9 +62,15 @@ Future<AdminExtractionSummary> extractAdminRegions({
   final admins = <OsmRelation>[];
   final relevantWayIds = <int>{};
   var relationsSeen = 0;
+  final passA = ProgressLogger(
+    'Stage C pass A (relations)',
+    total: 0,
+    unit: 'relations',
+  );
   await for (final e in PbfReader().stream(pbf)) {
     if (e is OsmRelation) {
       relationsSeen++;
+      passA.tick();
       if (isAdminRelation(e)) {
         admins.add(e);
         for (final m in e.members) {
@@ -72,6 +79,7 @@ Future<AdminExtractionSummary> extractAdminRegions({
       }
     }
   }
+  passA.finish();
 
   if (admins.isEmpty) {
     return AdminExtractionSummary(
@@ -86,27 +94,47 @@ Future<AdminExtractionSummary> extractAdminRegions({
   // --- Pass B: collect member ways referenced by admin relations. ---
   final waysById = <int, OsmWay>{};
   final relevantNodeIds = <int>{};
+  final passB = ProgressLogger(
+    'Stage C pass B (admin ways)',
+    total: relevantWayIds.length,
+    unit: 'ways',
+  );
   await for (final e in PbfReader().stream(pbf)) {
     if (e is OsmWay && relevantWayIds.contains(e.id)) {
       waysById[e.id] = e;
       relevantNodeIds.addAll(e.nodeRefs);
+      passB.tick();
     }
   }
+  passB.finish();
 
   // --- Pass C: collect nodes referenced by admin ways. ---
   final nodesById = <int, ({double lat, double lng})>{};
+  final passC = ProgressLogger(
+    'Stage C pass C (admin nodes)',
+    total: relevantNodeIds.length,
+    unit: 'nodes',
+  );
   await for (final e in PbfReader().stream(pbf)) {
     if (e is OsmNode && relevantNodeIds.contains(e.id)) {
       nodesById[e.id] = (lat: e.lat, lng: e.lng);
+      passC.tick();
     }
   }
+  passC.finish();
 
   // --- Pass D: assemble + write. ---
   writer.applyAdminSchema();
   var regionId = 0;
   var dualWrites = 0;
   var rejected = 0;
+  final passD = ProgressLogger(
+    'Stage C pass D (assemble)',
+    total: admins.length,
+    unit: 'regions',
+  );
   for (final rel in admins) {
+    passD.tick();
     try {
       final mp = MultipolygonAssembler.assemble(
         rel,
@@ -172,6 +200,7 @@ Future<AdminExtractionSummary> extractAdminRegions({
       _log(skippedLog, st.toString());
     }
   }
+  passD.finish();
 
   return AdminExtractionSummary(
     relationsSeen: relationsSeen,
