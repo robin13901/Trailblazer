@@ -28,6 +28,7 @@ must_haves:
     - "Stage E writes only Kfz ways to osm.sqlite via a WHERE clause on `ways_raw`."
     - "`pipelineSchemaVersion` = 2. Phase 5 integrity check will detect version=1 → version=2 as a mandatory re-download / re-generate boundary."
     - "REQUIREMENTS.md OSM-02 rewrite lands verbatim per research §1.6. REN-02 clarifying note lands. ROADMAP P4-SC2 rewords to reflect Feldweg-in-pmtiles-only. ROADMAP P7-SC1 clarifies Feldwege as static base geometry."
+    - "REQUIREMENTS.md MMT-05 gains an explicit NOTE (2026-07-07) that Feldweg-drop narrows matcher scope; STATE.md Pending Todos gains a Phase-5-facing entry so the Phase 5 planner sees the scope narrowing during discovery."
     - "Berlin smoke: osm.sqlite drops from 84.8 MB baseline by at least 40% (target: < 50 MB); `SELECT COUNT(*) FROM ways` = 91 707 (Kfz-only)."
   artifacts:
     - path: "tool/osm_pipeline/lib/schema.dart"
@@ -182,6 +183,31 @@ Drop Feldweg ways from the final `osm.sqlite` while keeping them visible in the 
     ```
 
     **Update REQUIREMENTS.md COV-04:** leave unchanged (Feldweg was already excluded from coverage math).
+
+    **REQUIREMENTS.md MMT-05 (matcher scope narrowing):** append a NOTE below the existing MMT-05 line:
+
+    ```
+      NOTE (2026-07-07): Feldweg ways are not in osm.sqlite (see OSM-02);
+      GPS traces over Feldwege will produce points that the matcher cannot
+      snap to a road — these register as trip gaps or "points that cannot be
+      matched confidently are dropped" per this requirement. Intended v1
+      scope per Plan 04-10.1. If future work restores Feldweg matching,
+      this note is deleted.
+    ```
+
+    Rationale: research §1.5 flags that Feldweg-drop is an implicit scope narrowing for MMT-05 ("Points that cannot be matched confidently are dropped"). Making that narrowing explicit here prevents a Phase 5 planner from being surprised by rural GPS gaps and keeps the reversibility scoping clean.
+
+    Also append to `.planning/STATE.md` "Pending Todos" a matching entry so the Phase 5 planner sees it during discovery:
+
+    ```
+    - **Phase 5 (matcher scope):** Feldweg ways were removed from osm.sqlite
+      in Plan 04-10.1 (2026-07-07). MMT-05's "points that cannot be matched
+      confidently are dropped" now includes any GPS point over a Feldweg —
+      the matcher never sees Feldweg candidates in `findWaysNear`. Phase 5
+      golden corpus must not include Feldweg-heavy routes unless we choose
+      to restore Feldweg indexing (add a Phase 5.1 gap-closure).
+    ```
+
 
     **Update REQUIREMENTS.md SET-04:** leave wording unchanged (semantic narrowing only, no text change).
 

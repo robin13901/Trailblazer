@@ -20,9 +20,11 @@ must_haves:
   truths:
     - "Stage D (way_admin join) runs across N worker isolates. Coordinator loads admin_regions once, partitions Kfz way_ids N-ways, spawns workers, receives result tuples, writes way_admin_raw serially."
     - "New CLI flag `--workers=N` (default: `Platform.numberOfProcessors - 2`, clamped to [1, 16]). N=1 keeps the current serial code-path (safe fallback)."
-    - "Multi-worker output is BIT-IDENTICAL to serial output: same set of way_admin_raw tuples (identical (way_id, region_id, admin_level, fraction_start, fraction_end) rows), row-count parity."
+    - "Multi-worker output is CONTENT-IDENTICAL to serial output: `sqlite3 osm.sqlite '.dump {table}' | sha256sum` matches between --workers=1 and --workers=6 for each of ways, ways_rtree, ways_rtree_lookup, way_admin, admin_regions. (SQLite file bytes may differ due to page-allocation ordering; logical dump hashes must match.) COUNT(*) parity per table asserted explicitly to catch any silently-swallowed duplicate INSERTs."
     - "Workers open the scratch DB read-only inside their own isolate (sqlite3 handles are not sendable) — verified safe per research §5.2."
-    - "ProgressLogger from Wave 1 receives per-worker WorkerTick messages via SendPort; the coordinator's ProgressLogger aggregates."
+    - "Coordinator INSERTs into way_admin_raw use PLAIN INSERT (fail-loud on constraint violation) — never `OR IGNORE`. Partition-by-way_id makes duplicate rows impossible under correct partitioning; masking them would hide bugs."
+    - "Workers propagate errors via `Isolate.spawn(..., onError: sendPort, errorsAreFatal: true, onExit: sendPort)`. Coordinator's message loop matches WorkerBatch, WorkerDone, and IsolateExit/IsolateError variants and Rule-4-escalates on any error: kill remaining workers, close the DB, exit with code 2 + actionable message. A worker crash MUST NOT deadlock the coordinator on a bare ReceivePort.wait."
+    - "ProgressLogger from Wave 1 receives per-worker WorkerTick messages via SendPort; the coordinator's ProgressLogger aggregates. Coordinator synthesises WorkerTick.elapsedMs from a coordinator-local Stopwatch since WorkerBatch payload omits it — documented in Task 2."
     - "Berlin gate: Stage D wall-clock drops by ≥ 2× with --workers=4 vs --workers=1 (isolate overhead dominates at Berlin scale but the invariant is monotonicity)."
   artifacts:
     - path: "tool/osm_pipeline/lib/intersect/way_admin_join_isolate.dart"
@@ -181,14 +183,17 @@ Parallelize Stage D across N worker isolates to drop the full-Germany Stage D wa
     1. Read all Kfz way ids: `SELECT id FROM ways_raw WHERE source='kfz' ORDER BY id;` — this partitioning input must be deterministic.
     2. Partition round-robin: worker `i` gets `ids where index % N == i`. Round-robin balances load if geometries cluster by id.
     3. Open a ReceivePort on the coordinator.
-    4. For each worker index i: `Isolate.spawn(wayAdminJoinWorkerEntry, WorkerArgs(workerId: i, scratchDbPath: scratch.path, wayIds: partition[i], sendPort: rp.sendPort))`.
-    5. Prepare INSERT statement + BEGIN TRANSACTION on the scratch DB (coordinator owns the writer).
-    6. Drain messages from ReceivePort:
-       - WorkerBatch: for each tuple, `insert.execute([...])`. Forward `tickDelta` to `progress?.absorb(WorkerTick(workerId, tickDelta, elapsedMs))`.
-       - WorkerDone: mark worker complete. When all N have signalled done: `COMMIT` + break the loop.
+    4. For each worker index i: `Isolate.spawn(wayAdminJoinWorkerEntry, WorkerArgs(workerId: i, scratchDbPath: scratch.path, wayIds: partition[i], sendPort: rp.sendPort), onError: rp.sendPort, errorsAreFatal: true, onExit: rp.sendPort)`. Retain each `Isolate` handle in a `List<Isolate> spawned` so the coordinator can kill survivors on any peer's failure.
+    5. Prepare INSERT statement on the scratch DB using **plain `INSERT INTO way_admin_raw(...) VALUES(?,...)` — NOT `INSERT OR IGNORE`.** A partitioning bug that produces duplicate (way_id, region_id, admin_level, fraction_start) tuples MUST blow up loud on the PK/unique constraint, not be silently swallowed. Also BEGIN TRANSACTION on the coordinator (coordinator owns the writer).
+    6. Start a coordinator-local Stopwatch `swElapsed` at spawn-time. Drain messages from ReceivePort:
+       - **WorkerBatch** (well-typed payload): for each tuple, `insert.execute([...])`. Compute `elapsedMs = swElapsed.elapsedMilliseconds` and forward `tickDelta` to `progress?.absorb(WorkerTick(workerId, tickDelta, elapsedMs))`. (`WorkerBatch` payload does not carry elapsedMs — coordinator synthesizes it from its own Stopwatch. Wave 1 Task 1 truth explicitly allows this.)
+       - **WorkerDone**: mark worker complete. When all N have signalled done: `COMMIT` + break the loop.
+       - **`List<Object?>` of size 2** (i.e. `[errorString, stackTraceString]` — this is Dart's canonical `onError` message shape): a worker threw. Kill remaining live workers via `for (final iso in spawned) iso.kill(priority: Isolate.immediate);`. `ROLLBACK` the coordinator transaction. Close the DB. Throw a `PipelineError` with the worker's error + stack. This becomes CLI exit code 2 via the standard `run()` handler in `bin/osm_pipeline.dart`. **A worker error MUST NOT let the coordinator wait indefinitely on the ReceivePort.**
+       - **`null`** (this is Dart's canonical `onExit` message shape): a worker exited. If it hadn't yet sent WorkerDone → treat as an unclean exit (kill peers, ROLLBACK, throw `PipelineError('Worker $i exited without WorkerDone signal')`). If it had already signalled WorkerDone, ignore this message (clean shutdown).
+       - **Unknown message type**: log a warning, ignore. Do not crash the coordinator on unexpected but non-fatal messages.
     7. Dispose port + return WayAdminJoinStats.
 
-    Fallback: if workers == 1, execute the original serial path unchanged. This preserves the existing behavior for tests + tiny-fixture runs.
+    Fallback: if workers == 1, execute the original serial path unchanged (no isolate spawn, no ReceivePort). This preserves the existing behavior for tests + tiny-fixture runs.
 
     **`args.dart`:** add `--workers` option:
     - Default value: `null` (orchestrator decides).
@@ -218,12 +223,12 @@ Parallelize Stage D across N worker isolates to drop the full-Germany Stage D wa
   <files>
     tool/osm_pipeline/test/intersect/way_admin_join_test.dart
   </files>
-  <intent>Bit-identical row set between workers=1 and workers=4 on a realistic fixture.</intent>
+  <intent>Content-identical way_admin_raw between workers=1 and workers=6, plus COUNT(*) parity to catch silently-swallowed inserts.</intent>
   <action>
     Add a test group `'multi-worker correctness'`:
 
     ```dart
-    test('workers=4 produces same way_admin_raw as workers=1', () async {
+    test('workers=6 produces same way_admin_raw as workers=1', () async {
       // Seed a scratch DB with a fixture (reuse existing fixture builder or
       // spin up one with ~50 ways spanning ~3 admin regions).
       final scratchSerial = _makeFixture();
@@ -232,21 +237,33 @@ Parallelize Stage D across N worker isolates to drop the full-Germany Stage D wa
         'SELECT way_id, region_id, admin_level, fraction_start, fraction_end '
         'FROM way_admin_raw ORDER BY way_id, region_id, admin_level, fraction_start;'
       ).map((r) => r.toString()).toList();
+      final serialCount = scratchSerial.raw
+          .select('SELECT COUNT(*) AS c FROM way_admin_raw;')
+          .first['c'] as int;
 
       final scratchParallel = _makeFixture();
-      buildWayAdminJoin(scratchParallel, workers: 4);
+      buildWayAdminJoin(scratchParallel, workers: 6);
       final parallelRows = scratchParallel.raw.select(
         'SELECT way_id, region_id, admin_level, fraction_start, fraction_end '
         'FROM way_admin_raw ORDER BY way_id, region_id, admin_level, fraction_start;'
       ).map((r) => r.toString()).toList();
+      final parallelCount = scratchParallel.raw
+          .select('SELECT COUNT(*) AS c FROM way_admin_raw;')
+          .first['c'] as int;
 
-      expect(parallelRows, equals(serialRows));
+      // Order-independent equality via sorted-list comparison PLUS explicit
+      // COUNT parity — if a worker's INSERT ever silently drops a row (e.g.
+      // future code accidentally uses OR IGNORE), row-set equality alone can
+      // still pass while count differs. Test both.
+      expect(parallelRows, equals(serialRows), reason: 'row set differs');
+      expect(parallelCount, equals(serialCount), reason: 'COUNT(*) differs');
     });
     ```
 
     Also add:
     - `test('workers=1 still hits serial fast-path (no isolates spawned)')` — check via a spy or by asserting Isolate.current is the same before/after (subtle; may need to skip if the test framework can't observe).
     - `test('workers clamps to [1, 16]')` — pass 0 → runs as 1; pass 32 → runs as 16.
+    - `test('worker crash escalates as PipelineError, not deadlock')` — inject a poison way_id that makes the worker throw; assert coordinator throws PipelineError (or exits with code 2 in the CLI harness) within ≤5s rather than hanging indefinitely.
 
     Fixture builder: reuse whatever `way_admin_join_test.dart` currently uses.
     If none, use a tiny synthetic (5-10 ways × 3 admin regions).
@@ -254,6 +271,17 @@ Parallelize Stage D across N worker isolates to drop the full-Germany Stage D wa
     Note: on Windows CI/local, `Isolate.spawn` with entry point functions
     must be top-level or static — verify `wayAdminJoinWorkerEntry` is a
     top-level function (not a class method).
+
+    Note on the byte-identical invariant: `sqlite3` file bytes are NOT
+    deterministic across write orderings (page-allocation order varies).
+    Comparing `sha256sum osm.sqlite` between two runs will fail even on
+    logically-identical content. The correct invariant is CONTENT-identical
+    via canonical dump hashes per table — the `ORDER BY` in the SELECT above
+    achieves this at the row-set level for way_admin_raw. Wave 4 Task 4 (Berlin
+    verify) applies the same principle at the full-osm.sqlite level via:
+    `sqlite3 osm.sqlite '.dump {table}' | sha256sum` for each of ways,
+    ways_rtree, ways_rtree_lookup, way_admin, admin_regions — hashes must
+    match between --workers=1 and --workers=6 runs.
   </action>
   <verify>
     ```bash
@@ -271,36 +299,49 @@ Parallelize Stage D across N worker isolates to drop the full-Germany Stage D wa
   </files>
   <intent>Prove the isolate machinery pays off on real Berlin data and remains correct.</intent>
   <action>
-    Run Berlin twice:
+    Run Berlin twice, into distinct output directories so we can diff:
     ```bash
-    time dart run bin/osm_pipeline.dart --pbf=<berlin-pbf> --bbox=... --workers=1
+    OUT_S=out/berlin-workers1
+    OUT_P=out/berlin-workers6
+    time dart run bin/osm_pipeline.dart --pbf=<berlin-pbf> --bbox=... --workers=1 --out-dir=$OUT_S
     # capture: T_serial, way_admin_raw row count, osm.sqlite bytes
-    time dart run bin/osm_pipeline.dart --pbf=<berlin-pbf> --bbox=... --workers=4
+    time dart run bin/osm_pipeline.dart --pbf=<berlin-pbf> --bbox=... --workers=6 --out-dir=$OUT_P
     # capture: T_parallel, way_admin_raw row count, osm.sqlite bytes
     ```
 
-    Assert:
-    - `way_admin_raw` row count identical between the two runs.
-    - `T_parallel <= T_serial / 2` (Berlin gate — monotonicity is the real property; 2× is a hopeful floor).
-    - osm.sqlite bytes identical between the two runs.
+    Content-identical assertion (SQLite file bytes may differ due to page-allocation ordering — that's expected):
+    ```bash
+    for T in ways ways_rtree ways_rtree_lookup way_admin admin_regions; do
+      SHA_S=$(sqlite3 $OUT_S/osm.sqlite ".dump $T" | sha256sum | cut -d' ' -f1)
+      SHA_P=$(sqlite3 $OUT_P/osm.sqlite ".dump $T" | sha256sum | cut -d' ' -f1)
+      [ "$SHA_S" = "$SHA_P" ] || { echo "MISMATCH on table $T"; exit 1; }
+      COUNT_S=$(sqlite3 $OUT_S/osm.sqlite "SELECT COUNT(*) FROM $T;")
+      COUNT_P=$(sqlite3 $OUT_P/osm.sqlite "SELECT COUNT(*) FROM $T;")
+      [ "$COUNT_S" = "$COUNT_P" ] || { echo "COUNT mismatch on $T: $COUNT_S vs $COUNT_P"; exit 1; }
+    done
+    echo "All 5 tables content-identical between --workers=1 and --workers=6."
+    ```
 
-    Also observe: progress lines from Stage D interleave worker contributions
-    correctly (cadence gate holds, throughput reflects aggregate).
+    Additional assertions:
+    - `T_parallel <= T_serial / 2` (Berlin gate — monotonicity is the real property; 2× is a hopeful floor).
+    - Progress lines from Stage D interleave worker contributions correctly (cadence gate holds, throughput reflects aggregate).
   </action>
   <verify>
-    Manual: capture times + row counts. Fail-close if row counts differ.
-    Speedup < 2× is a warn (Berlin scale is too small for isolate overhead
-    to amortize) but does NOT block progression to Wave 5 — the real proof is
-    on Germany.
+    Manual: capture times + row counts + per-table SHA256 pairs. Fail-close if ANY table's dump-SHA differs OR any COUNT(*) differs — those indicate a real correctness bug in the isolate coordination.
+
+    Speedup < 2× is a warn (Berlin scale is too small for isolate overhead to amortize) but does NOT block progression to Wave 5 — the real proof is on Germany.
+
+    File-byte differences between the two osm.sqlite files are EXPECTED and MUST NOT trigger failure. SQLite page allocation is not deterministic across write orderings; only logical content is.
   </verify>
 </task>
 
 ## Success Criteria
 
 - `--workers=N` flag parses and forwards correctly.
-- workers=1 default: existing tests unchanged, output byte-identical to pre-plan behavior.
-- workers=4 correctness test: identical way_admin_raw row set to workers=1.
-- Berlin verify: row counts identical; wall-clock ≤ half at N=4 (target — soft on Berlin, will re-prove on Germany).
+- workers=1 default: existing tests unchanged, output content-identical (per-table `.dump` SHA256) to pre-plan behavior.
+- workers=6 correctness test: identical way_admin_raw row set AND identical COUNT(*) to workers=1 (dual assertion catches silent duplicate-swallow).
+- Worker-crash test: coordinator escalates to `PipelineError` within ≤5s of poison-way-id injection, does not deadlock.
+- Berlin verify: per-table `.dump | sha256sum` identical between --workers=1 and --workers=6 for all 5 tables (ways, ways_rtree, ways_rtree_lookup, way_admin, admin_regions); wall-clock ≤ half at N=6 (target — soft on Berlin, will re-prove on Germany).
 - `dart analyze` clean; all tests green.
 
 ## Ralph Loop
