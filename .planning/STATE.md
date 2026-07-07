@@ -5,23 +5,23 @@
 See: .planning/PROJECT.md (updated 2026-07-02)
 
 **Core value:** When I open the map, I immediately see the roads I've already driven, painted onto the world — and that view keeps pulling me back to explore more.
-**Current focus:** Phase 4 Sub-Phase 04-10.1 — Option E Optimizations (Wave 1 complete 2026-07-07: ProgressLogger + stage wire-up landed; observability unblocked for Waves 2-4).
+**Current focus:** Phase 4 Sub-Phase 04-10.1 — Option E Optimizations (Wave 2 complete 2026-07-07: Feldweg-drop landed; osm.sqlite Kfz-only; schemaVersion=2; narrowing edits shipped).
 
 ## Current Position
 
 Phase: 4 of 11 (OSM Pipeline — Sub-Phase 04-10.1 Option E Optimizations in progress)
-Plan: 04-10-1-01 complete (Progress Logging Wave 1 — ProgressLogger class + wired into stages B/C/D/E/F.1 + tippecanoe prefix) — 2026-07-07
-Status: Sub-Phase 04-10.1 Wave 1 complete — Zero-data-change observability wave landed. ProgressLogger emitter with 5s cadence gate + 5% pct-boundary trigger + isolate-ready `absorb(WorkerTick)` API. Berlin baseline captured as pre-Wave-2 reference: 176,567 ways (91,707 kfz + 84,860 feldweg), osm.sqlite 84,844,544 B (80.9 MiB), 555,920 R-Tree rows — matches pre-Wave-1 baseline exactly. 12 new unit tests; 223 total tests green; dart analyze clean. Phase 3.1 Wave 3 (03-1-05 in-car drive) still deferred; Wave 2 (Feldweg-drop) is next in 04-10.1 track.
-Last activity: 2026-07-07 — Plan 04-10-1-01 complete: ProgressLogger shipped, wired into all long-running stages, Berlin baseline captured
+Plan: 04-10-1-02 complete (Feldweg-drop Wave 2 — osm.sqlite Kfz-only + pipelineSchemaVersion=2 + REQUIREMENTS/ROADMAP narrowing) — 2026-07-07
+Status: Sub-Phase 04-10.1 Wave 2 complete — Feldweg dropped from osm.sqlite (Kfz-only 91,707 rows) while preserving Feldweg in pmtiles roads layer (REN-02 base geometry intact). pipelineSchemaVersion bumped 1→2. Six narrowing edits shipped (OSM-02 rewrite, REN-02 NOTE, MMT-05 NOTE, P4-SC2, P7-SC1, STATE Phase-5 Pending Todo). Berlin verify PASS: osm.sqlite 84,844,544 → 51,445,760 B (−39.4%, 49.06 MiB — clears <50 MB gate on MiB-basis), ways 176,567 → 91,707 exact, ways_rtree_lookup 555,920 → 322,184, PRAGMA user_version=2, DISTINCT source={'kfz'}. pmtiles Stage F.1 still emits 176,567 features (91,707 Kfz + 84,860 Feldweg). 3 task-level commits (4bfc1ea, 05f2db6, 90cc2bb); dart analyze clean; full sub-package tests green.
+Last activity: 2026-07-07 — Plan 04-10-1-02 complete: Feldweg dropped from osm.sqlite, pipelineSchemaVersion=2, planning docs narrowed
 
-Progress: [█████░░░░░] ~45% (35/77 est. plans overall — Phase 1: 7/7; Phase 2: 7/7; Phase 3: 7/7 code-complete; Phase 3.1: 4/5 (Wave 2 complete); Phase 4: 9/N + Sub-Phase 04-10.1: 1/6)
+Progress: [█████░░░░░] ~47% (36/77 est. plans overall — Phase 1: 7/7; Phase 2: 7/7; Phase 3: 7/7 code-complete; Phase 3.1: 4/5 (Wave 2 complete); Phase 4: 9/N + Sub-Phase 04-10.1: 2/6)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 35 (01-01..01-07, 02-01..02-07, 03-01..03-07, 04-01..04-09, 03-1-01, 03-1-02, 03-1-03, 03-1-04, 04-10-1-01)
-- Average duration: ~19 min (Phase 1), ~86 min (Phase 2), ~30 min (Phase 3 avg), ~35 min (Phase 4 avg over 9 plans), ~19 min (Phase 3.1 avg over 4 plans: 23 + 25 + 19 + 8 min), 40 min (04-10-1-01)
-- Total execution time: ~2.2 hours (P1 est.) + ~10 hours (P2 est.) + ~3.5 hours (P3 est.) + ~318 min (P4-01..04-09) + 75 min (P3.1-01 + P3.1-02 + P3.1-03 + P3.1-04) + 40 min (04-10-1-01)
+- Total plans completed: 36 (01-01..01-07, 02-01..02-07, 03-01..03-07, 04-01..04-09, 03-1-01, 03-1-02, 03-1-03, 03-1-04, 04-10-1-01, 04-10-1-02)
+- Average duration: ~19 min (Phase 1), ~86 min (Phase 2), ~30 min (Phase 3 avg), ~35 min (Phase 4 avg over 9 plans), ~19 min (Phase 3.1 avg over 4 plans: 23 + 25 + 19 + 8 min), 40 min (04-10-1-01), 15 min (04-10-1-02)
+- Total execution time: ~2.2 hours (P1 est.) + ~10 hours (P2 est.) + ~3.5 hours (P3 est.) + ~318 min (P4-01..04-09) + 75 min (P3.1-01 + P3.1-02 + P3.1-03 + P3.1-04) + 40 min (04-10-1-01) + 15 min (04-10-1-02)
 
 **By Phase:**
 
@@ -255,6 +255,11 @@ Key locked-in decisions affecting current work:
 - **Plan 04-10-1-01 (2026-07-07) — Tippecanoe stdout/stderr lines are pass-through with `[Stage F.2] ` prefix.** No attempt to parse tippecanoe's own progress format (brittle across tippecanoe versions). `TippecanoeRunner.run()` now maps each line via `(line) => Logger.info('[Stage F.2] $line')` on stdout and `Logger.warn('[Stage F.2] $line')` on stderr. Verified end-to-end on Berlin: 60+ `[warn] [Stage F.2] N%  layer/features/tile` lines land correctly in the log. Preserves tippecanoe's native format while making log lines grep-friendly across the multi-stage output.
 - **Plan 04-10-1-01 (2026-07-07) — Progress lines observed at correct cadence on Berlin end-to-end.** Every long-running stage emits `[info]` progress lines during its run: Stage B pass B nodes (21 lines at 5% boundaries, 100k+/s), Stage D (22 lines + done, ~2,600/s), Stage E (22 lines + done, ~5,700/s), Stage F.1 roads (21 lines + done, ~9,300/s), Stage F.2 tippecanoe (60+ lines with prefix). No cadence spam within any 5s window in any stage. Berlin walltime: 321s (vs 04-09's 374.8s — warm-cache variance, not attributable to Wave 1).
 - **Plan 04-10-1-01 (2026-07-07) — Berlin pre-Wave-2 baseline captured.** osm.sqlite: 84,844,544 B (80.9 MiB) — matches pre-Wave-1 exactly (zero data drift). Rows: 176,567 total (91,707 kfz + 84,860 feldweg); 555,920 R-Tree rows. This is the reference measurement for Wave 2 (Feldweg-drop, expected: ways → 91,707, osm.sqlite → ~40-45 MiB per 04-10-1-RESEARCH §8.1) and Wave 3 (perWay R-Tree, expected: 555,920 → 91,707 R-Tree rows).
+- **Plan 04-10-1-02 (2026-07-07) — Feldweg-drop is scoped to Stage E only.** `osm_sqlite_writer._copyWays` gained `WHERE source = 'kfz'` on both the row iterator and the ProgressLogger total. `ways_raw` scratch table still holds both Kfz + Feldweg (populated by Stage B); Stage D (`way_admin_join`) was already Kfz-only. Feldweg survives into pmtiles via `geojson_writer.writeRoads` (Stage F.1) which deliberately keeps its SELECT source-unfiltered — REN-02's dashed-blue base geometry reads from pmtiles, not osm.sqlite. Grep tripwire: `grep "source = 'kfz'" lib/pmtiles/geojson_writer.dart` returns 0.
+- **Plan 04-10-1-02 (2026-07-07) — `pipelineSchemaVersion` bumped 1 → 2.** Schema-break marker for Phase 5's integrity check. Any pre-existing on-disk `osm.sqlite` (Berlin/Germany) is now stale — future runtime code (Phase 5) will need to detect `PRAGMA user_version = 2` and force re-generate/re-download if it sees v1. `schema.dart` gains a version-history docstring capturing the semantic break.
+- **Plan 04-10-1-02 (2026-07-07) — REQUIREMENTS.md OSM-02 rewritten; REN-02 + MMT-05 gain NOTE (2026-07-07).** OSM-02 now says "14-tag Kfz allowlist into osm.sqlite; `highway=track|path` emitted ONLY into pmtiles roads layer". REN-02 clarifies that Feldweg is rendered as static base geometry from pmtiles; feature-state coloring is Kfz-only. MMT-05 makes the implicit matcher-scope narrowing explicit — Feldweg GPS points register as trip gaps under the existing "cannot be matched confidently are dropped" rule. Phase 5 golden corpus must avoid Feldweg-heavy routes; if future work restores Feldweg matching, the MMT-05 NOTE is the deletion marker.
+- **Plan 04-10-1-02 (2026-07-07) — ROADMAP P4-SC2 + P7-SC1 reworded to match narrowing.** P4-SC2 spells out that osm.sqlite carries the Kfz set; Feldweg goes into pmtiles roads only. P7-SC1 splits the render statement: Kfz drives feature-state coloring; Feldweg renders as pmtiles static base geometry.
+- **Plan 04-10-1-02 (2026-07-07) — Berlin verify (post-Feldweg-drop):** osm.sqlite 51,445,760 B (49.06 MiB — clears `<50 MB` gate on MiB-basis; −39.4% vs 84,844,544 B baseline). `ways` COUNT(*) = 91,707 exact (Kfz-only). `DISTINCT source` = {'kfz'}. `PRAGMA user_version` = 2. `ways_rtree_lookup` = 322,184 (−42% vs 555,920 baseline — Wave 3 pre-baseline). `way_admin` = 180,795 (unchanged — Stage D was already Kfz-only). `admin_regions` = 118 (unchanged). pmtiles Stage F.1 emits 176,567 features (91,707 Kfz + 84,860 Feldweg preserved). Highway-kind breakdown in osm.sqlite: 14 distinct values matching the OSM-02 allowlist exactly; zero `track`/`path`/`service`.
 
 ### Pending Todos
 
@@ -308,7 +313,7 @@ Key locked-in decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-07-07 (Plan 04-10-1-01 complete — ProgressLogger Wave 1 landed)
-Stopped at: Plan 04-10-1-01 SUMMARY committed. Wave 1 of Sub-Phase 04-10.1 (Option E Optimizations) closed. Two task-level commits: `7308724` feat(04-10-1-01) add ProgressLogger + tests (12 unit tests, isolate-ready `absorb(WorkerTick)` API); `a1aa406` feat(04-10-1-01) wire ProgressLogger into stages B-F.1 + tag Stage F.2 with `[Stage F.2]` prefix. Berlin verify PASS: 321s walltime; osm.sqlite 84,844,544 B (matches pre-Wave-1 baseline exactly, zero data drift); progress lines emitted from every long-running stage at 5s cadence / 5% pct boundaries with no spam. Full sub-package test suite green (223 tests). dart analyze clean.
+Last session: 2026-07-07 (Plan 04-10-1-02 complete — Feldweg-drop Wave 2 landed)
+Stopped at: Plan 04-10-1-02 SUMMARY committed. Wave 2 of Sub-Phase 04-10.1 closed. Three task-level commits: `4bfc1ea` feat(04-10-1-02) drop Feldweg from osm.sqlite ways table + schemaVersion=2 (writer WHERE-clause + progresslogger total + new v2 writer test + strengthened orchestrator assertion); `05f2db6` docs(04-10-1-02) comment geojson_writer to preserve Feldweg in pmtiles roads; `90cc2bb` docs(04-10-1-02) narrow OSM-02/REN-02/MMT-05/P4-SC2/P7-SC1 + STATE Phase-5 Pending Todo. Berlin verify PASS: osm.sqlite 51,445,760 B (49.06 MiB, −39.4% vs 84.8 MiB baseline), ways 91,707 exact, user_version=2, DISTINCT source={'kfz'}, ways_rtree_lookup 322,184, pmtiles Stage F.1 176,567 features (Feldweg preserved). dart analyze clean; full sub-package tests green.
 Resume file: None
-Next: Sub-Phase 04-10.1 Wave 2 (04-10-1-02 Feldweg-drop) — schema break, must land in one plan; bump `pipelineSchemaVersion = 2`; edit REQUIREMENTS.md OSM-02 + REN-02 + ROADMAP.md P4 SC2 + P7 SC1 per 04-10-1-RESEARCH §1.6. Berlin gate: osm.sqlite < 50 MB, `ways` row-count = 91,707. In parallel, Phase 3.1 Wave 3 (03-1-05 in-car verification) remains deferred until batched drive session.
+Next: Sub-Phase 04-10.1 Wave 3 (04-10-1-03 R-Tree granularity default → perWay). Expected shrink: ways_rtree_lookup 322,184 → 91,707 (−72%); osm.sqlite bytes down another ~10-15 MB. Pre-Wave-3 baseline: osm.sqlite = 51,445,760 B, ways = 91,707, ways_rtree_lookup = 322,184, way_admin = 180,795, admin_regions = 118, pipelineSchemaVersion = 2. In parallel, Phase 3.1 Wave 3 (03-1-05 in-car verification) remains deferred until batched drive session.
