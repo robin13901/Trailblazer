@@ -5,23 +5,23 @@
 See: .planning/PROJECT.md (updated 2026-07-02)
 
 **Core value:** When I open the map, I immediately see the roads I've already driven, painted onto the world — and that view keeps pulling me back to explore more.
-**Current focus:** Phase 3.1 — Tracking Fixes (Wave 2 complete: Plans 03-1-02, 03-1-03, 03-1-04 all landed 2026-07-06)
+**Current focus:** Phase 4 Sub-Phase 04-10.1 — Option E Optimizations (Wave 1 complete 2026-07-07: ProgressLogger + stage wire-up landed; observability unblocked for Waves 2-4).
 
 ## Current Position
 
-Phase: 3.1 of 11 (Tracking Fixes — inserted decimal phase between P3 and P4)
-Plan: 03-1-03 complete (Map Camera-Follow During Recording — closes H2) — 2026-07-06
-Status: Phase 3.1 Wave 2 complete — all three parallel plans landed. 03-1-02 = H1 + H5 (FGB start() at three call sites; TrackingCapability battery-opt gate). 03-1-04 = H3/H4 regression tripwires (7 new tests). 03-1-03 = H2 map camera-follow (TrackingCameraSync headless widget + exhaustive FollowMode -> MyLocationTrackingMode switch; pan-dismiss precedence preserved). flutter analyze clean; 178 tests green. Only Wave 3 (03-1-05: batched in-car drive + close-out) remains.
-Last activity: 2026-07-06 — Plan 03-1-03 complete: H2 closed; ref.listen inside build() drives camera on tracking transitions
+Phase: 4 of 11 (OSM Pipeline — Sub-Phase 04-10.1 Option E Optimizations in progress)
+Plan: 04-10-1-01 complete (Progress Logging Wave 1 — ProgressLogger class + wired into stages B/C/D/E/F.1 + tippecanoe prefix) — 2026-07-07
+Status: Sub-Phase 04-10.1 Wave 1 complete — Zero-data-change observability wave landed. ProgressLogger emitter with 5s cadence gate + 5% pct-boundary trigger + isolate-ready `absorb(WorkerTick)` API. Berlin baseline captured as pre-Wave-2 reference: 176,567 ways (91,707 kfz + 84,860 feldweg), osm.sqlite 84,844,544 B (80.9 MiB), 555,920 R-Tree rows — matches pre-Wave-1 baseline exactly. 12 new unit tests; 223 total tests green; dart analyze clean. Phase 3.1 Wave 3 (03-1-05 in-car drive) still deferred; Wave 2 (Feldweg-drop) is next in 04-10.1 track.
+Last activity: 2026-07-07 — Plan 04-10-1-01 complete: ProgressLogger shipped, wired into all long-running stages, Berlin baseline captured
 
-Progress: [█████░░░░░] ~44% (34/77 est. plans overall — Phase 1: 7/7; Phase 2: 7/7; Phase 3: 7/7 code-complete; Phase 3.1: 4/5 (Wave 2 complete); Phase 4: 9/N)
+Progress: [█████░░░░░] ~45% (35/77 est. plans overall — Phase 1: 7/7; Phase 2: 7/7; Phase 3: 7/7 code-complete; Phase 3.1: 4/5 (Wave 2 complete); Phase 4: 9/N + Sub-Phase 04-10.1: 1/6)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 34 (01-01..01-07, 02-01..02-07, 03-01..03-07, 04-01..04-09, 03-1-01, 03-1-02, 03-1-03, 03-1-04)
-- Average duration: ~19 min (Phase 1), ~86 min (Phase 2), ~30 min (Phase 3 avg), ~35 min (Phase 4 avg over 9 plans), ~19 min (Phase 3.1 avg over 4 plans: 23 + 25 + 19 + 8 min)
-- Total execution time: ~2.2 hours (P1 est.) + ~10 hours (P2 est.) + ~3.5 hours (P3 est.) + ~318 min (P4-01..04-09) + 75 min (P3.1-01 + P3.1-02 + P3.1-03 + P3.1-04)
+- Total plans completed: 35 (01-01..01-07, 02-01..02-07, 03-01..03-07, 04-01..04-09, 03-1-01, 03-1-02, 03-1-03, 03-1-04, 04-10-1-01)
+- Average duration: ~19 min (Phase 1), ~86 min (Phase 2), ~30 min (Phase 3 avg), ~35 min (Phase 4 avg over 9 plans), ~19 min (Phase 3.1 avg over 4 plans: 23 + 25 + 19 + 8 min), 40 min (04-10-1-01)
+- Total execution time: ~2.2 hours (P1 est.) + ~10 hours (P2 est.) + ~3.5 hours (P3 est.) + ~318 min (P4-01..04-09) + 75 min (P3.1-01 + P3.1-02 + P3.1-03 + P3.1-04) + 40 min (04-10-1-01)
 
 **By Phase:**
 
@@ -249,6 +249,12 @@ Key locked-in decisions affecting current work:
 - **Plan 03-1-03 (2026-07-06) — Second-bug mapping fix in `map_widget.dart`.** Prior code collapsed BOTH `FollowMode.location` and `FollowMode.locationAndHeading` to `MyLocationTrackingMode.tracking` via a boolean `isFollowing` fold. Replaced with an exhaustive `switch (cameraState.followMode)` over the 3-variant enum: `none → .none`, `location → .tracking`, `locationAndHeading → .trackingCompass`. Analyzer enforces exhaustiveness — a future `FollowMode` variant is a compile error, no silent bug.
 - **Plan 03-1-03 (2026-07-06) — Mount pattern: zero-size Positioned wrap for headless Stack listener widgets.** `Positioned(top: 0, left: 0, width: 0, height: 0, child: TrackingCameraSync())`. Rationale: (a) a bare `TrackingCameraSync()` as a non-Positioned Stack child causes Flutter to size the Stack to that child's intrinsic size (`SizedBox.shrink()` = 0×0), collapsing all chrome layered on top; (b) a bare `Positioned(child:...)` with no anchors defaults to filling the parent and intercepts hit-tests. The zero-size rect gets both: no Stack sizing side-effect, no hit-test interception. Regression that surfaced this: router_shell_test 3 tap-based tests failed on the naïve mount; all green after the wrap.
 - **Plan 03-1-03 (2026-07-06) — Sync mounts at `MapScreen` root, not inside the map-tab-only chrome branch.** Rationale: the tracking sync must stay alive whether the user is on Map, Trips, or Regions tab mid-recording. The map is always in the widget tree (indexedStack semantics preserve state per STATE 02-06), so listening from the root keeps the camera state coherent regardless of tab switches during a trip.
+- **Plan 04-10-1-01 (2026-07-07) — `ProgressLogger` is a sibling stateful helper next to the stateless `Logger` static class.** Lives in `tool/osm_pipeline/lib/cli/progress_logger.dart`. `Logger` (23 lines, three static methods `info/warn/error`) stays untouched — many call sites depend on it. `ProgressLogger` adds stateful cadence + rate + ETA awareness without disrupting the existing API surface. Constructor: `ProgressLogger(stage, {required total, unit='items', everyMs=5000, everyPct=5, now, emit})`. Emit sink is injectable (`void Function(String)?`, defaults to `Logger.info`) — production output routes through `Logger`; tests capture into a `List<String>` without stderr redirection ceremony. Clock is injectable (`DateTime Function()`) for deterministic cadence-gate tests.
+- **Plan 04-10-1-01 (2026-07-07) — SendPort isolate ingestion API present from Wave 1.** `class WorkerTick { const WorkerTick(this.workerId, this.deltaTicks, this.elapsedMs); }` is the marshalable message shape workers post through their `SendPort`. Coordinator listens on a `ReceivePort` and forwards each message to `progressLogger.absorb(msg)` on the main isolate. `absorb` accumulates `deltaTicks` into `_done` (per-tick delta, NOT cumulative) and runs the same cadence gate as direct `tick()` — so N workers contribute correctly to a single aggregate progress line, and Wave 4 (Stage D isolates) wires workers in without refactoring the emitter. `elapsedMs` is informational for future per-worker rate reporting; not displayed in Wave 1.
+- **Plan 04-10-1-01 (2026-07-07) — `total=0` is the sentinel for "unknown total up front".** Stage B pass A (streaming PBF, count-of-ways not known), Stage C pass A (relations, count-of-admin-relations not known), Stage F.1 water + labels (PBF passes, feature-count not known) all use `total=0`. Emitter falls back to rate-only format: `{stage} progress: {done} {unit} — {rate}/s (total unknown)`. Ugly-looking format is deliberate per the plan's §Deviations — the rate line is the useful signal on those stages.
+- **Plan 04-10-1-01 (2026-07-07) — Tippecanoe stdout/stderr lines are pass-through with `[Stage F.2] ` prefix.** No attempt to parse tippecanoe's own progress format (brittle across tippecanoe versions). `TippecanoeRunner.run()` now maps each line via `(line) => Logger.info('[Stage F.2] $line')` on stdout and `Logger.warn('[Stage F.2] $line')` on stderr. Verified end-to-end on Berlin: 60+ `[warn] [Stage F.2] N%  layer/features/tile` lines land correctly in the log. Preserves tippecanoe's native format while making log lines grep-friendly across the multi-stage output.
+- **Plan 04-10-1-01 (2026-07-07) — Progress lines observed at correct cadence on Berlin end-to-end.** Every long-running stage emits `[info]` progress lines during its run: Stage B pass B nodes (21 lines at 5% boundaries, 100k+/s), Stage D (22 lines + done, ~2,600/s), Stage E (22 lines + done, ~5,700/s), Stage F.1 roads (21 lines + done, ~9,300/s), Stage F.2 tippecanoe (60+ lines with prefix). No cadence spam within any 5s window in any stage. Berlin walltime: 321s (vs 04-09's 374.8s — warm-cache variance, not attributable to Wave 1).
+- **Plan 04-10-1-01 (2026-07-07) — Berlin pre-Wave-2 baseline captured.** osm.sqlite: 84,844,544 B (80.9 MiB) — matches pre-Wave-1 exactly (zero data drift). Rows: 176,567 total (91,707 kfz + 84,860 feldweg); 555,920 R-Tree rows. This is the reference measurement for Wave 2 (Feldweg-drop, expected: ways → 91,707, osm.sqlite → ~40-45 MiB per 04-10-1-RESEARCH §8.1) and Wave 3 (perWay R-Tree, expected: 555,920 → 91,707 R-Tree rows).
 
 ### Pending Todos
 
@@ -296,7 +302,7 @@ Key locked-in decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-07-06 (Plan 03-1-03 complete — Map Camera-Follow During Recording; Wave 2 fully closed)
-Stopped at: Plan 03-1-03 SUMMARY committed; H2 closed. Wave 2 complete (03-1-02 + 03-1-03 + 03-1-04 all landed). 3 task-level commits for 03-1-03: `53473e1` (TrackingCameraSync + MapScreen mount), `afc2b20` (FollowMode->MyLocationTrackingMode exhaustive switch + widget test), `33b46a2` (zero-size Positioned wrap layout fix). New test files: `test/features/map/tracking_camera_sync_test.dart` (4 tests), `test/features/map/map_widget_follow_mode_test.dart` (3 tests). flutter analyze clean; 178 tests total, all green.
+Last session: 2026-07-07 (Plan 04-10-1-01 complete — ProgressLogger Wave 1 landed)
+Stopped at: Plan 04-10-1-01 SUMMARY committed. Wave 1 of Sub-Phase 04-10.1 (Option E Optimizations) closed. Two task-level commits: `7308724` feat(04-10-1-01) add ProgressLogger + tests (12 unit tests, isolate-ready `absorb(WorkerTick)` API); `a1aa406` feat(04-10-1-01) wire ProgressLogger into stages B-F.1 + tag Stage F.2 with `[Stage F.2]` prefix. Berlin verify PASS: 321s walltime; osm.sqlite 84,844,544 B (matches pre-Wave-1 baseline exactly, zero data drift); progress lines emitted from every long-running stage at 5s cadence / 5% pct boundaries with no spam. Full sub-package test suite green (223 tests). dart analyze clean.
 Resume file: None
-Next: Wave 3 (03-1-05 in-car verification + close-out) is the only remaining plan in Phase 3.1. Consolidated in-car drive should now cover: 03-1-02 H1 (real trip records distance/speed/notification), 03-1-02 H5 (denial banner accurately reflects battery-opt grant), 03-1-03 H2 (camera locks to heading during recording, releases on stop, pan persists mid-trip), 03-06 deferred 9 visual checks, 03-07 60-min battery baseline. In parallel, Phase 4 Wave 9 (04-10 Germany close-out) proceeds on the dev-machine track.
+Next: Sub-Phase 04-10.1 Wave 2 (04-10-1-02 Feldweg-drop) — schema break, must land in one plan; bump `pipelineSchemaVersion = 2`; edit REQUIREMENTS.md OSM-02 + REN-02 + ROADMAP.md P4 SC2 + P7 SC1 per 04-10-1-RESEARCH §1.6. Berlin gate: osm.sqlite < 50 MB, `ways` row-count = 91,707. In parallel, Phase 3.1 Wave 3 (03-1-05 in-car verification) remains deferred until batched drive session.
