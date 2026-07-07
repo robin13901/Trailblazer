@@ -235,10 +235,16 @@ VALUES (?, ?, ?, ?, ?);
     RtreeBuilder rtree,
   ) {
     final scratchDb = scratch.raw;
+    // v2 (2026-07-07 · Plan 04-10-1-02): Kfz-only in osm.sqlite.
+    // Feldweg rows stay in `ways_raw` (they still feed the pmtiles
+    // `roads` layer via geojson_writer) but do NOT land here.
+    // REN-02 renders Feldweg as static base geometry from pmtiles;
+    // per-way driven-state coloring applies to Kfz only.
     final wayRows = scratchDb.select('''
 SELECT id, source, is_counting, is_directional, oneway_tag, highway,
        name, ref, maxspeed, surface, node_ids
-FROM ways_raw;
+FROM ways_raw
+WHERE source = 'kfz';
 ''');
     if (wayRows.isEmpty) {
       return const _WayCopyStats(waysWritten: 0, rtreeRowsWritten: 0);
@@ -266,7 +272,7 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
     var rtreeRowsWritten = 0;
 
     final total = scratchDb
-        .select('SELECT COUNT(*) AS n FROM ways_raw;')
+        .select("SELECT COUNT(*) AS n FROM ways_raw WHERE source = 'kfz';")
         .first['n'] as int;
     final progress = ProgressLogger(
       'Stage E',

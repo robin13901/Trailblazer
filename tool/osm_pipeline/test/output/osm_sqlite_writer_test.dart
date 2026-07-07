@@ -352,6 +352,70 @@ void main() {
       }
     });
 
+    test(
+      'v2 (2026-07-07): Feldweg rows in ways_raw are NOT written to '
+      'output ways table',
+      () {
+        // 1 Kfz way + 1 Feldweg way sharing the node pool.
+        _insertNode(scratch, 1, 13.410, 52.510);
+        _insertNode(scratch, 2, 13.411, 52.511);
+        _insertNode(scratch, 3, 13.412, 52.512);
+        _insertKfzWay(
+          scratch,
+          id: 100,
+          nodeIds: [1, 2],
+          name: 'Kfz-Straße',
+        );
+        scratch
+          ..insertWayFeldweg(
+            id: 200,
+            nodeIds: [2, 3],
+            highway: 'track',
+            name: 'Feldweg 1',
+            surface: 'gravel',
+            motorVehicle: 'yes',
+            service: null,
+          )
+          ..flush();
+
+        final outFile = File('${tmp.path}/osm.sqlite');
+        final result = OsmSqliteWriter.write(
+          scratch: scratch,
+          outFile: outFile,
+        );
+        // Only the Kfz way should have been written.
+        expect(result.waysWritten, 1);
+
+        final db = sqlite3.open(outFile.path);
+        try {
+          final total = db
+              .select('SELECT COUNT(*) AS c FROM ways;')
+              .first['c'] as int;
+          expect(total, 1);
+          // Kfz row present.
+          expect(
+            db.select('SELECT COUNT(*) AS c FROM ways WHERE way_id = 100;')
+                .first['c'] as int,
+            1,
+          );
+          // Feldweg row NOT present.
+          expect(
+            db.select('SELECT COUNT(*) AS c FROM ways WHERE way_id = 200;')
+                .first['c'] as int,
+            0,
+          );
+          // Only 'kfz' source in output.
+          final sources = db
+              .select('SELECT DISTINCT source FROM ways;')
+              .map((r) => r['source'] as String)
+              .toSet();
+          expect(sources, {'kfz'});
+        } finally {
+          db.dispose();
+        }
+      },
+    );
+
     test('user_version is stamped to pipelineSchemaVersion via VersionStamp',
         () {
       // Left here to be filled by Task 3; for this task we just verify the

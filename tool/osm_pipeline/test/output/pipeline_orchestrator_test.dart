@@ -72,6 +72,18 @@ void main() {
           db.select('SELECT COUNT(*) AS c FROM ways;').first['c'] as int,
           greaterThanOrEqualTo(1),
         );
+        // v2 (2026-07-07 · Plan 04-10-1-02): osm.sqlite is Kfz-only. The
+        // tiny fixture has 1 Kfz + 1 Feldweg way — the output must have
+        // exactly 1 way row, all source='kfz'.
+        expect(
+          db.select('SELECT COUNT(*) AS c FROM ways;').first['c'] as int,
+          1,
+        );
+        final sources = db
+            .select('SELECT DISTINCT source FROM ways;')
+            .map((r) => r['source'] as String)
+            .toSet();
+        expect(sources, {'kfz'});
         expect(
           db.select('SELECT COUNT(*) AS c FROM admin_regions;').first['c']
               as int,
