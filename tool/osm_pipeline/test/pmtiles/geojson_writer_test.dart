@@ -91,7 +91,9 @@ void main() {
     });
 
     test(
-      'emits one feature per Kfz + Feldweg way with correct kind + oneway',
+      'emits one feature per Kfz + Feldweg way with correct kind + oneway '
+      '(v2 invariant: Feldweg MUST land in pmtiles roads.geojsonl even '
+      'though it is dropped from osm.sqlite — REN-02)',
       () async {
         // Two nodes shared by both ways.
         scratch

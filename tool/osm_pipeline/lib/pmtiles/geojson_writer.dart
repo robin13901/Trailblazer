@@ -76,6 +76,10 @@ abstract final class GeoJsonSeqWriter {
     final nodeSelect = db.prepare(
       'SELECT lat, lng FROM nodes_raw WHERE id = ?;',
     );
+    // v2 (2026-07-07 · Plan 04-10-1-02): Feldweg is INCLUDED here on purpose.
+    // osm.sqlite drops Feldweg (Kfz-only after 04-10-1-02) but the pmtiles
+    // roads layer must retain both — REN-02's visual base geometry (dashed
+    // blue Feldweg tracks) reads from the pmtiles, not osm.sqlite.
     final wayRows = db.select(
       'SELECT id, highway, name, ref, is_directional, node_ids FROM ways_raw;',
     );
