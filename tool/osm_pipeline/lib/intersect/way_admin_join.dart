@@ -225,8 +225,21 @@ VALUES (?, ?, ?, ?, ?);
   db.execute('BEGIN;');
   var rowsWritten = 0;
   var doneCount = 0;
+  var exitCount = 0;
   final completedWorkers = <int>{};
   final completer = Completer<void>();
+  // Set when the coordinator has resolved (via success or failure); the
+  // message loop then only counts down onExit signals so we can drain the
+  // ReceivePort until every isolate has terminated. This is what lets us
+  // safely delete the scratch DB temp dir on Windows — sqlite3 FDs held
+  // by workers must be released before the OS lets us unlink the file.
+  final allExited = Completer<void>();
+
+  void checkAllExited() {
+    if (exitCount >= workers && !allExited.isCompleted) {
+      allExited.complete();
+    }
+  }
 
   StreamSubscription<dynamic>? sub;
 
@@ -234,8 +247,15 @@ VALUES (?, ?, ?, ?, ?);
     // Idempotent: multiple onError messages may arrive; only the first
     // triggers rollback + throw.
     if (completer.isCompleted) return;
+    // Use `beforeNextEvent` (NOT `immediate`) so peers get a chance to
+    // finish their current statement + run their `finally` block (which
+    // disposes the sqlite3 read-only Database handle). Immediate kills
+    // leak native FDs on Windows, which then blocks the scratch temp-dir
+    // teardown.
     for (final iso in spawned) {
-      iso.kill(priority: Isolate.immediate);
+      // beforeNextEvent (default) is used explicitly here — see doc above.
+      // ignore: avoid_redundant_argument_values
+      iso.kill(priority: Isolate.beforeNextEvent);
     }
     try {
       db.execute('ROLLBACK;');
@@ -249,6 +269,24 @@ VALUES (?, ?, ?, ?, ?);
   }
 
   sub = rp.listen((dynamic msg) {
+    // onExit (null) must be counted even after the coordinator has
+    // resolved — the outer try/finally awaits `allExited` to be sure
+    // all worker sqlite3 FDs have been released before we let the caller
+    // touch the scratch DB. Failing to count late-arriving nulls would
+    // wedge the drain until its timeout expires.
+    if (msg == null) {
+      exitCount++;
+      if (exitCount > doneCount && !completer.isCompleted) {
+        unawaited(
+          failFast(
+            'Stage D worker exited without WorkerDone signal '
+            '(exits=$exitCount, dones=$doneCount)',
+          ),
+        );
+      }
+      checkAllExited();
+      return;
+    }
     if (completer.isCompleted) return;
     if (msg is WorkerBatch) {
       // Insert each tuple. Plain INSERT — a duplicate PK here surfaces as a
@@ -303,22 +341,6 @@ VALUES (?, ?, ?, ?, ?);
       );
       return;
     }
-    if (msg == null) {
-      // Dart canonical onExit — one per isolate when it terminates. If the
-      // worker had already sent WorkerDone this is a clean shutdown; ignore.
-      // Otherwise it exited without signalling done: treat as unclean.
-      final anyPending = spawned.asMap().keys
-          .where((i) => !completedWorkers.contains(i))
-          .toList();
-      if (anyPending.isNotEmpty && !completer.isCompleted) {
-        unawaited(
-          failFast(
-            'Stage D worker(s) $anyPending exited without WorkerDone signal',
-          ),
-        );
-      }
-      return;
-    }
     // Unknown message: log a warning, ignore (do not crash coordinator).
     // ignore: avoid_print
     // (Using stderr-free path via progress emitter is out of scope here;
@@ -346,7 +368,23 @@ VALUES (?, ?, ?, ?, ?);
       // truth 6 (Isolate.spawn contract explicit at spawn site).
       spawned.add(iso);
     }
-    await completer.future;
+    try {
+      await completer.future;
+    } finally {
+      // Drain onExit signals from all workers before we let the caller
+      // touch the scratch DB again. On failure we've already sent
+      // Isolate.kill; on success the workers' own return path yields
+      // an onExit. Either way we must not delete the temp dir until
+      // every worker's sqlite3 read-only handle has been released.
+      //
+      // Use a short timeout so a truly-hung isolate doesn't wedge the
+      // coordinator indefinitely (this shouldn't happen — Dart guarantees
+      // onExit on every isolate that has ever been alive).
+      await allExited.future.timeout(
+        const Duration(seconds: 3),
+        onTimeout: () {},
+      );
+    }
     progress.finish();
     return WayAdminJoinStats(
       waysProcessed: totalKfz,
