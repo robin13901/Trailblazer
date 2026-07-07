@@ -1,15 +1,23 @@
 /// R-Tree builder for ways in the final osm.sqlite artifact.
 ///
-/// Encapsulates the per-segment vs per-way granularity decision. Per-segment
-/// (default) keeps candidate bboxes tight so Phase 5's `findWaysNear(lat, lng,
-/// radius)` doesn't flood the candidate set on long autobahn segments; per-way
-/// stays as a fallback if the 04-05 Berlin measurement projects the
-/// per-segment rtree over 150 MB for full Germany (04-RESEARCH §8).
+/// Encapsulates the per-segment vs per-way granularity decision. Default is
+/// **per-way** (Plan 04-10-1-03 · 2026-07-07) — one bbox per way, ~65 % fewer
+/// rtree rows at Germany scale (research §4). Per-segment is retained as an
+/// opt-in via `--rtree-granularity=perSegment` on the CLI, or by writing
+/// `per-segment` into `04-05-BERLIN-MEASUREMENT.md` (the measurement file is
+/// consulted as a fallback when the CLI flag is unset).
 ///
 /// The builder appends one row per bbox to both `ways_rtree` (the r*tree
 /// virtual table) and `ways_rtree_lookup` (the way_id + segment_idx map).
 /// It assigns rtree ids sequentially — starts at 1 and increments on every
 /// insert.
+///
+// TODO(phase-5): perWay R-Tree returns 1 candidate row per way. The
+// returned bbox is the full-way bounding box — a query point can be
+// inside the bbox but far from the actual polyline. The HMM matcher
+// MUST line-clip each candidate (walk the LineString-WKB and take
+// the nearest point) before feeding it to Viterbi. This was
+// intentional per Plan 04-10.1 research §4.
 library;
 
 import 'dart:io';
@@ -19,11 +27,14 @@ import 'package:sqlite3/sqlite3.dart';
 
 /// Granularity of the ways R-Tree.
 enum RtreeGranularity {
-  /// One rtree row per two-point segment of every way. Default.
+  /// One rtree row per two-point segment of every way. Opt-in fallback via
+  /// `--rtree-granularity=perSegment` (Plan 04-10-1-03 flipped the default
+  /// to [perWay]).
   perSegment,
 
-  /// One rtree row per way, using the full-way bbox. Fallback when
-  /// per-segment blows the SC4 osm.sqlite budget.
+  /// One rtree row per way, using the full-way bbox. **Default** since
+  /// Plan 04-10-1-03. Bbox hits require the Phase 5 matcher to line-clip
+  /// each candidate — see the file-level phase-5 note.
   perWay,
 }
 
@@ -78,18 +89,27 @@ class RtreeBuilder {
 
   /// Reads the 04-05 measurement recommendation to decide granularity.
   ///
-  /// Returns `RtreeGranularity.perWay` iff the file mentions `per-way`
-  /// (case-sensitive). Missing file or no matching phrase → default
-  /// `RtreeGranularity.perSegment`.
+  /// **Default is [RtreeGranularity.perWay]** (Plan 04-10-1-03 · 2026-07-07).
+  ///
+  /// The lookup is retained as a fallback / historical override — if the
+  /// file explicitly mentions `per-segment` (case-insensitive) the caller
+  /// gets [RtreeGranularity.perSegment]. Missing file or no matching phrase
+  /// → [RtreeGranularity.perWay].
+  ///
+  /// Callers that need to force a granularity should use the CLI's
+  /// `--rtree-granularity=perSegment|perWay` flag instead of editing the
+  /// measurement doc (the measurement doc is a historical record, not a
+  /// config file).
   static Future<RtreeGranularity> loadFromMeasurement(
     File measurementMd,
   ) async {
-    if (!measurementMd.existsSync()) return RtreeGranularity.perSegment;
+    if (!measurementMd.existsSync()) return RtreeGranularity.perWay;
     final txt = await measurementMd.readAsString();
-    if (RegExp('per-way|per_way').hasMatch(txt)) {
-      return RtreeGranularity.perWay;
+    if (RegExp('per-segment|per_segment', caseSensitive: false)
+        .hasMatch(txt)) {
+      return RtreeGranularity.perSegment;
     }
-    return RtreeGranularity.perSegment;
+    return RtreeGranularity.perWay;
   }
 
   /// Emits R-Tree rows for [wayId] with polyline [line]. Returns the number

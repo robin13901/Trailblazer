@@ -46,6 +46,11 @@ Future<int> run(List<String> argv) async {
         'measurement',
         help: 'Path to 04-05-BERLIN-MEASUREMENT.md (default: auto-detected '
             'by walking up from CWD to find .planning/phases/04-osm-pipeline).',
+      )
+      ..addOption(
+        'rtree-granularity',
+        help: 'Override R-Tree granularity: perSegment | perWay. '
+            'Default when omitted is perWay (Plan 04-10-1-03).',
       );
     final flags = extraParser.parse(argv);
     final allowUnverified = flags['allow-unverified-measurement'] as bool;
@@ -57,12 +62,14 @@ Future<int> run(List<String> argv) async {
         ? File(measurementPath)
         : _autoDetectMeasurement();
 
-    // Reuse the existing ParsedArgs for --pbf / --bbox validation. It only
-    // reads its own options; unknown ones would fail, so we hand it a
-    // synthetic argv containing just those.
+    // Reuse the existing ParsedArgs for --pbf / --bbox / --rtree-granularity
+    // validation. It only reads its own options; unknown ones would fail, so
+    // we hand it a synthetic argv containing just those.
     final synthetic = <String>[
       '--pbf=${flags['pbf'] ?? ''}',
       if (flags['bbox'] != null) '--bbox=${flags['bbox']}',
+      if (flags['rtree-granularity'] != null)
+        '--rtree-granularity=${flags['rtree-granularity']}',
     ];
     final args = ParsedArgs.parse(synthetic);
 
@@ -81,6 +88,7 @@ Future<int> run(List<String> argv) async {
       allowUnverifiedMeasurement: allowUnverified,
       runPmtiles: !skipPmtiles,
       measurementFile: measurementFile,
+      granularityOverride: args.rtreeGranularity,
     );
 
     Logger.info('Pipeline OK.');

@@ -89,6 +89,7 @@ Future<PipelineRunResult> runPipeline({
   bool allowUnverifiedMeasurement = false,
   bool runPmtiles = true,
   File? measurementFile,
+  RtreeGranularity? granularityOverride,
   GitShaResolver gitShaResolver = defaultGitShaResolver,
   DateTime? nowUtc,
 }) async {
@@ -141,10 +142,21 @@ Future<PipelineRunResult> runPipeline({
       '${joinStats.rowsWritten} way_admin_raw rows.',
     );
 
-    // R-Tree granularity: read from the measurement file (default: perSegment
-    // when the file doesn't mention per-way).
-    final granularity =
-        await RtreeBuilder.loadFromMeasurement(measurement);
+    // R-Tree granularity selection order (Plan 04-10-1-03):
+    //   1. Explicit CLI override (`--rtree-granularity=...`) wins.
+    //   2. Otherwise, if the measurement file exists, ask it.
+    //      `loadFromMeasurement` now defaults to perWay and only returns
+    //      perSegment when the file explicitly says so.
+    //   3. Otherwise, hard-default to perWay.
+    final RtreeGranularity granularity;
+    if (granularityOverride != null) {
+      granularity = granularityOverride;
+    } else if (measurement.existsSync()) {
+      granularity = await RtreeBuilder.loadFromMeasurement(measurement);
+    } else {
+      granularity = RtreeGranularity.perWay;
+    }
+    Logger.info('R-Tree granularity: ${granularity.name}');
 
     Logger.info('Stage E: write osm.sqlite...');
     final osmSqlite = File(p.join(outDir.path, 'osm.sqlite'));

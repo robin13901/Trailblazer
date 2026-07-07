@@ -2,11 +2,16 @@ import 'dart:io';
 
 import 'package:args/args.dart';
 import 'package:osm_pipeline/cli/errors.dart';
+import 'package:osm_pipeline/output/rtree_builder.dart';
 
 /// Parsed CLI arguments for `dart run tool/osm_pipeline`.
 class ParsedArgs {
   /// Create a parsed args value.
-  const ParsedArgs({required this.pbfPath, required this.bbox});
+  const ParsedArgs({
+    required this.pbfPath,
+    required this.bbox,
+    this.rtreeGranularity,
+  });
 
   /// Parse [argv] and validate. Throws [PipelineError] on invalid input.
   ///
@@ -24,6 +29,13 @@ class ParsedArgs {
       ..addOption(
         'bbox',
         help: 'Optional bbox: minLng,minLat,maxLng,maxLat',
+      )
+      ..addOption(
+        'rtree-granularity',
+        help: 'Override R-Tree granularity: perSegment | perWay. '
+            'When omitted the orchestrator picks perWay by default '
+            '(Plan 04-10-1-03), falling back to the 04-05 measurement '
+            'file if it explicitly requests perSegment.',
       );
 
     final ArgResults parsed;
@@ -50,7 +62,29 @@ class ParsedArgs {
         ? null
         : BoundingBox.parse(bboxRaw);
 
-    return ParsedArgs(pbfPath: pbfPath, bbox: bbox);
+    final granRaw = parsed['rtree-granularity'] as String?;
+    final rtreeGranularity = _parseGranularity(granRaw);
+
+    return ParsedArgs(
+      pbfPath: pbfPath,
+      bbox: bbox,
+      rtreeGranularity: rtreeGranularity,
+    );
+  }
+
+  static RtreeGranularity? _parseGranularity(String? raw) {
+    if (raw == null || raw.isEmpty) return null;
+    switch (raw) {
+      case 'perSegment':
+        return RtreeGranularity.perSegment;
+      case 'perWay':
+        return RtreeGranularity.perWay;
+      default:
+        throw PipelineArgsError(
+          'Invalid --rtree-granularity "$raw": '
+          'must be one of perSegment | perWay',
+        );
+    }
   }
 
   /// Path to the input `*.osm.pbf` file. Verified to exist at parse time.
@@ -59,6 +93,11 @@ class ParsedArgs {
   /// Optional bounding box (minLng, minLat, maxLng, maxLat). Null means the
   /// pipeline runs over the full extract.
   final BoundingBox? bbox;
+
+  /// Optional R-Tree granularity override. `null` means "orchestrator
+  /// picks" (which today means: measurement file if present, else
+  /// [RtreeGranularity.perWay]).
+  final RtreeGranularity? rtreeGranularity;
 }
 
 /// Geographic bounding box, in decimal degrees.
