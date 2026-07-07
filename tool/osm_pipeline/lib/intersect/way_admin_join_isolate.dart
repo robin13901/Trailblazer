@@ -147,6 +147,14 @@ class WorkerDone {
 /// convert this to a class method or closure.
 Future<void> wayAdminJoinWorkerEntry(WorkerArgs args) async {
   final db = sqlite3.open(args.scratchDbPath, mode: OpenMode.readOnly);
+  // Coordinator may hold brief EXCLUSIVE locks during INSERTs into
+  // way_admin_raw while workers are reading nodes_raw / ways_raw /
+  // admin_regions_raw. `busy_timeout` makes reads wait up to N ms for a
+  // lock rather than immediately erroring with SQLITE_BUSY. journal_mode=OFF
+  // is set at scratch-open time on the writer connection; readers inherit
+  // the file-level pragma.
+  // ignore: cascade_invocations
+  db.execute('PRAGMA busy_timeout = 30000;');
   try {
     // Load admin regions once per worker. Sending them across the SendPort
     // would double memory (each geometry is decoded MultiPolygon-WKB with

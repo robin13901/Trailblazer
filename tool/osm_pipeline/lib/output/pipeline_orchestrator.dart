@@ -15,6 +15,7 @@ library;
 
 import 'dart:async';
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:crypto/crypto.dart' as crypto;
 import 'package:osm_pipeline/admin/admin_pipeline.dart';
@@ -90,6 +91,7 @@ Future<PipelineRunResult> runPipeline({
   bool runPmtiles = true,
   File? measurementFile,
   RtreeGranularity? granularityOverride,
+  int? workers,
   GitShaResolver gitShaResolver = defaultGitShaResolver,
   DateTime? nowUtc,
 }) async {
@@ -135,7 +137,12 @@ Future<PipelineRunResult> runPipeline({
     );
 
     Logger.info('Stage D: segmented-intersection way_admin join...');
-    final joinStats = buildWayAdminJoin(scratch);
+    final effectiveWorkers = _resolveWorkers(workers);
+    if (effectiveWorkers > 1) {
+      Logger.info('Stage D: N=$effectiveWorkers workers');
+    }
+    final joinStats =
+        await buildWayAdminJoin(scratch, workers: effectiveWorkers);
     Logger.info(
       '  ${joinStats.waysProcessed} ways probed, '
       '${joinStats.candidatePairsProbed} candidate pairs, '
@@ -236,6 +243,20 @@ Future<PipelineRunResult> runPipeline({
 Future<String> _sha256OfFile(File file) async {
   final digest = await file.openRead().transform(crypto.sha256).single;
   return digest.toString();
+}
+
+/// Resolve the effective Stage D worker count.
+///
+///   * Explicit [workers] wins, clamped to `[1, 16]`.
+///   * Otherwise: `min(Platform.numberOfProcessors - 2, 16)` clamped to
+///     `>= 1`. Two-core reserve keeps room for the coordinator + OS.
+int _resolveWorkers(int? workers) {
+  if (workers != null) {
+    return workers.clamp(1, 16);
+  }
+  final cpus = Platform.numberOfProcessors;
+  final auto = math.min(cpus - 2, 16);
+  return auto < 1 ? 1 : auto;
 }
 
 Future<DateTime?> _readHeaderDate(File pbf) async {

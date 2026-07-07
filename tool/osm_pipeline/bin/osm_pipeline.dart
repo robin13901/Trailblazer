@@ -51,6 +51,12 @@ Future<int> run(List<String> argv) async {
         'rtree-granularity',
         help: 'Override R-Tree granularity: perSegment | perWay. '
             'Default when omitted is perWay (Plan 04-10-1-03).',
+      )
+      ..addOption(
+        'workers',
+        help: 'Stage D worker isolate count [1, 16]. Default: '
+            'Platform.numberOfProcessors - 2 (Plan 04-10-1-04). '
+            'workers=1 runs the serial fast-path.',
       );
     final flags = extraParser.parse(argv);
     final allowUnverified = flags['allow-unverified-measurement'] as bool;
@@ -70,6 +76,7 @@ Future<int> run(List<String> argv) async {
       if (flags['bbox'] != null) '--bbox=${flags['bbox']}',
       if (flags['rtree-granularity'] != null)
         '--rtree-granularity=${flags['rtree-granularity']}',
+      if (flags['workers'] != null) '--workers=${flags['workers']}',
     ];
     final args = ParsedArgs.parse(synthetic);
 
@@ -89,6 +96,7 @@ Future<int> run(List<String> argv) async {
       runPmtiles: !skipPmtiles,
       measurementFile: measurementFile,
       granularityOverride: args.rtreeGranularity,
+      workers: args.workers,
     );
 
     Logger.info('Pipeline OK.');

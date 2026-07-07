@@ -194,7 +194,7 @@ void main() {
       scratch.close(deleteFile: true);
     });
 
-    test('way wholly inside one region at all six levels → 6 rows', () {
+    test('way wholly inside one region at all six levels → 6 rows', () async {
       // A single admin region at every level covers the box; way sits inside.
       for (final lvl in [2, 4, 6, 8, 9, 10]) {
         _insertAdmin(
@@ -211,7 +211,7 @@ void main() {
       _insertNode(scratch, 2, 13.4015, 52.5010);
       _insertKfzWay(scratch, id: 100, nodeIds: [1, 2]);
 
-      final stats = buildWayAdminJoin(scratch);
+      final stats = await buildWayAdminJoin(scratch);
       expect(stats.rowsWritten, 6);
       expect(stats.waysProcessed, 1);
 
@@ -227,7 +227,8 @@ void main() {
       }
     });
 
-    test('way crossing border between two L=8 regions → 2 rows at L=8', () {
+    test('way crossing border between two L=8 regions → 2 rows at L=8',
+        () async {
       _insertAdmin(
         scratch,
         regionId: 1,
@@ -251,7 +252,7 @@ void main() {
       _insertNode(scratch, 2, 13.4030, 52.5008);
       _insertKfzWay(scratch, id: 100, nodeIds: [1, 2]);
 
-      buildWayAdminJoin(scratch);
+      await buildWayAdminJoin(scratch);
       final rows = _selectRows(
         scratch,
         'SELECT region_id, fraction_start, fraction_end FROM way_admin_raw '
@@ -267,7 +268,7 @@ void main() {
     });
 
     test('way entering and re-entering same region → 2 rows for that region',
-        () {
+        () async {
       _insertAdmin(
         scratch,
         regionId: 1,
@@ -285,7 +286,7 @@ void main() {
       _insertNode(scratch, 5, 13.3990, 52.5008); // outside west again
       _insertKfzWay(scratch, id: 100, nodeIds: [1, 2, 3, 4, 5]);
 
-      buildWayAdminJoin(scratch);
+      await buildWayAdminJoin(scratch);
       final rows = _selectRows(
         scratch,
         'SELECT fraction_start, fraction_end FROM way_admin_raw '
@@ -299,7 +300,7 @@ void main() {
       }
     });
 
-    test('way not intersecting any region → 0 rows', () {
+    test('way not intersecting any region → 0 rows', () async {
       _insertAdmin(
         scratch,
         regionId: 1,
@@ -313,13 +314,13 @@ void main() {
       _insertNode(scratch, 2, 14.001, 53.001);
       _insertKfzWay(scratch, id: 100, nodeIds: [1, 2]);
 
-      final stats = buildWayAdminJoin(scratch);
+      final stats = await buildWayAdminJoin(scratch);
       expect(stats.rowsWritten, 0);
       expect(scratch.countRows('way_admin_raw'), 0);
     });
 
     test('multipolygon with hole: way crossing the hole → no row for hole',
-        () {
+        () async {
       // Outer 13.400..13.404 × 52.500..52.5015; hole in the middle:
       // 13.4015..13.4025 × 52.5006..52.5009.
       _insertAdminWithHole(
@@ -340,7 +341,7 @@ void main() {
       _insertNode(scratch, 2, 13.4035, 52.50075);
       _insertKfzWay(scratch, id: 100, nodeIds: [1, 2]);
 
-      buildWayAdminJoin(scratch);
+      await buildWayAdminJoin(scratch);
       final rows = _selectRows(
         scratch,
         'SELECT fraction_start, fraction_end FROM way_admin_raw '

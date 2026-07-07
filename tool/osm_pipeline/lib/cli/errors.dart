@@ -44,6 +44,18 @@ final class PipelineIoError extends PipelineError {
   const PipelineIoError(super.message, {super.cause, super.stackTrace});
 }
 
+/// Raised when a background isolate (e.g. Stage D worker) crashes or exits
+/// uncleanly. The coordinator kills any remaining peers, ROLLBACKs its
+/// transaction, and throws this so the CLI can exit with code 2.
+final class PipelineRuntimeError extends PipelineError {
+  /// Create a runtime error.
+  const PipelineRuntimeError(
+    super.message, {
+    super.cause,
+    super.stackTrace,
+  });
+}
+
 /// Raised when parsing a binary input (e.g. a PBF blob) fails structurally.
 ///
 /// Carries the [sourceOffset] into the source file — lets downstream logs

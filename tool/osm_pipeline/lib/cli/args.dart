@@ -11,6 +11,7 @@ class ParsedArgs {
     required this.pbfPath,
     required this.bbox,
     this.rtreeGranularity,
+    this.workers,
   });
 
   /// Parse [argv] and validate. Throws [PipelineError] on invalid input.
@@ -36,6 +37,12 @@ class ParsedArgs {
             'When omitted the orchestrator picks perWay by default '
             '(Plan 04-10-1-03), falling back to the 04-05 measurement '
             'file if it explicitly requests perSegment.',
+      )
+      ..addOption(
+        'workers',
+        help: 'Stage D worker isolate count [1, 16]. When omitted the '
+            'orchestrator picks Platform.numberOfProcessors - 2 clamped to '
+            '[1, 16] (Plan 04-10-1-04). workers=1 runs the serial fast-path.',
       );
 
     final ArgResults parsed;
@@ -65,11 +72,26 @@ class ParsedArgs {
     final granRaw = parsed['rtree-granularity'] as String?;
     final rtreeGranularity = _parseGranularity(granRaw);
 
+    final workersRaw = parsed['workers'] as String?;
+    final workers = _parseWorkers(workersRaw);
+
     return ParsedArgs(
       pbfPath: pbfPath,
       bbox: bbox,
       rtreeGranularity: rtreeGranularity,
+      workers: workers,
     );
+  }
+
+  static int? _parseWorkers(String? raw) {
+    if (raw == null || raw.isEmpty) return null;
+    final n = int.tryParse(raw);
+    if (n == null) {
+      throw PipelineArgsError(
+        'Invalid --workers "$raw": must be an integer in [1, 16]',
+      );
+    }
+    return n;
   }
 
   static RtreeGranularity? _parseGranularity(String? raw) {
@@ -98,6 +120,11 @@ class ParsedArgs {
   /// picks" (which today means: measurement file if present, else
   /// [RtreeGranularity.perWay]).
   final RtreeGranularity? rtreeGranularity;
+
+  /// Optional Stage D worker count. `null` means "orchestrator picks"
+  /// (Platform.numberOfProcessors - 2 clamped to [1, 16]). Explicit values
+  /// are clamped to [1, 16] downstream.
+  final int? workers;
 }
 
 /// Geographic bounding box, in decimal degrees.
