@@ -125,7 +125,9 @@ Additional research-recommended spikes: HMM parameter tuning + golden corpus rec
 **Requirements:** OSM-01, OSM-02, OSM-03, OSM-04, OSM-05, OSM-06, OSM-07, OSM-08
 **Success Criteria** (what must be TRUE):
   1. Running `dart run tool/osm_pipeline` against a Berlin-bbox PBF produces `osm.sqlite` (with R-Tree over Kfz-way geometries) and `germany-base.pmtiles` end-to-end on the dev machine.
-  2. Output artifacts include exactly the specified Kfz + Feldweg/Fußweg `highway=*` set and admin boundaries at OSM levels 2, 4, 6, 8, 9, 10.
+  2. Output artifacts include the Kfz `highway=*` set in osm.sqlite;
+     Feldweg/Fußweg (`highway=track|path`) are emitted into the pmtiles `roads`
+     layer only. Admin boundaries at OSM levels 2, 4, 6, 8, 9, 10.
   3. The `way_admin` join table is populated for every Kfz way ↔ region pair whose geometries intersect.
   4. A full-Germany run keeps `osm.sqlite` under **800 MB** and `germany-base.pmtiles` under 200 MB, with a version stamp (source PBF date + pipeline schema version) in each. *(SC4 relaxed 2026-07-06 from 200 MB → 800 MB after Berlin measurement projected ~696 MB for the recommended denormalized-L2..L8 + way_admin_raw variant; still slimmer than every routable-mapping product on the market — Osmand slim ~800 MB, Organic Maps ~1.5 GB, Google/Here ~2–4 GB. Details in `.planning/phases/04-osm-pipeline/04-05-BERLIN-MEASUREMENT.md`.)*
   5. Pipeline accepts an arbitrary `--bbox` flag for dev/testing without processing the full Germany extract.
@@ -170,7 +172,7 @@ Additional research-recommended spikes: HMM parameter tuning + golden corpus rec
 **Depends on:** Phases 2, 6
 **Requirements:** REN-01, REN-02, REN-03, REN-04, REN-05, REN-06, COV-02, COV-03
 **Success Criteria** (what must be TRUE):
-  1. Driven Kfz-ways render in the primary "explored" color (default warm green); driven Feldweg/Fußweg ways render in the distinct secondary color (default dashed blue).
+  1. Driven Kfz-ways render in the primary "explored" color (default warm green); Feldweg/Fußweg ways render as static base geometry from the pmtiles roads layer in a distinct secondary color (default: dashed blue). Per-way driven-state coloring applies to Kfz ways only (see REN-02 note dated 2026-07-07).
   2. A way flips to "fully explored" only when merged intervals cover ≥ (length − 15 m start buffer − 15 m end buffer); partially-driven ways render with proportional gradient or documented reduced-opacity fallback.
   3. Map maintains ≥ 30 fps on target devices with 50 000 driven segments loaded (stress-tested against faked coverage).
   4. Coverage renders via MapLibre `feature-state` — or the sharded-GeoJSON-per-5×5-km-tile fallback (Gate G2) is active and documented.

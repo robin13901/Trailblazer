@@ -258,6 +258,12 @@ Key locked-in decisions affecting current work:
 
 ### Pending Todos
 
+- **Phase 5 (matcher scope):** Feldweg ways were removed from osm.sqlite
+  in Plan 04-10.1 (2026-07-07). MMT-05's "points that cannot be matched
+  confidently are dropped" now includes any GPS point over a Feldweg —
+  the matcher never sees Feldweg candidates in `findWaysNear`. Phase 5
+  golden corpus must not include Feldweg-heavy routes unless we choose
+  to restore Feldweg indexing (add a Phase 5.1 gap-closure).
 - **Phase 3 (iOS pod install):** `cd ios && pod repo update && pod install && cd ..` must run on macOS before the first iOS build with FGB. Expected: `Podfile.lock` gains `TSLocationManager`. Without this, iOS app crashes on FGB init.
 - **Phase 3 close-out (batched in-car drive — consolidated):** Run 03-06 Task 3 (9 on-device visual checks) AND 03-07 Task 2 (60-min battery baseline drive) in a single in-car session. Full checklist (18 items) in `.planning/phases/03-tracking-mvp/03-VERIFICATION.md` → "In-car verification checklist (deferred)". After drive: fill PENDING fields in `docs/battery-baseline.md` + `.json`, update SC5 to PASS, update REQUIREMENTS.md QUA-06 to Complete.
 - **Phase 4:** Replace `assets/tiles/dev_germany.pmtiles` (Protomaps demo bucket, generic v4 schema, maxzoom 11, 371 MB) with the custom `germany-base.pmtiles` produced by the OSM pipeline. Target: < 200 MB with Kfz-focused schema (fewer POI layers, road-graph focus). Run `tool/fetch_pmtiles.sh` to regenerate in the interim.

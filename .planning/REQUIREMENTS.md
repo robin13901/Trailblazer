@@ -42,7 +42,7 @@
 ### OSM Data Pipeline (OSM)
 
 - [ ] **OSM-01**: Dev-machine Dart CLI in `tool/osm_pipeline/` converts a Geofabrik `germany-latest.osm.pbf` into a slim artifact
-- [ ] **OSM-02**: Pipeline extracts only ways with `highway=motorway|trunk|primary|secondary|tertiary|residential|unclassified|living_street|road|motorway_link|trunk_link|primary_link|secondary_link|tertiary_link` (14-tag Kfz allowlist — `service` excluded per Phase 4 CONTEXT §Highway filter, see decision log 2026-07-05) + `highway=track|path` filtered per Phase 4 RESEARCH §4 (Feldweg/Fußweg, stored `is_counting=0`, non-counting for coverage).
+- [ ] **OSM-02**: Pipeline extracts only ways with `highway=motorway|trunk|primary|secondary|tertiary|residential|unclassified|living_street|road|motorway_link|trunk_link|primary_link|secondary_link|tertiary_link` (14-tag Kfz allowlist) into osm.sqlite. `highway=track|path` (Feldweg/Fußweg) are emitted ONLY into the pmtiles `roads` layer for map rendering — they do NOT appear in osm.sqlite. See Plan 04-10.1 decision log 2026-07-07.
 - [ ] **OSM-03**: Pipeline extracts admin boundaries at OSM levels 2, 4, 6, 8, 9, 10 (Land, Bundesland, Landkreis, Gemeinde, Stadtteil, Ortsteil)
 - [ ] **OSM-04**: Pipeline pre-computes way ↔ admin region associations (join table `way_admin`) for all Kfz-way ↔ region pairs where the way's geometry intersects the region
 - [ ] **OSM-05**: Pipeline produces two output artifacts: (a) `osm.sqlite` (indexed SQLite with R-Tree over Kfz-way geometries) and (b) `germany-base.pmtiles` (rendered vector tiles)
@@ -101,6 +101,12 @@
 - [ ] **MMT-03**: Matcher performs full retrospective match on trip end (not live during driving) — single authoritative pass
 - [ ] **MMT-04**: R-Tree candidate query per GPS point returns top-5 candidates within an adaptive radius (25 m base, expands with HDOP)
 - [ ] **MMT-05**: Points that cannot be matched confidently are dropped (not force-snapped) — trips may have gaps
+  NOTE (2026-07-07): Feldweg ways are not in osm.sqlite (see OSM-02);
+  GPS traces over Feldwege will produce points that the matcher cannot
+  snap to a road — these register as trip gaps or "points that cannot be
+  matched confidently are dropped" per this requirement. Intended v1
+  scope per Plan 04-10.1. If future work restores Feldweg matching,
+  this note is deleted.
 - [ ] **MMT-06**: Matcher output: list of `driven_way_intervals(way_id, start_m, end_m, direction, trip_id, timestamp)` written to App DB
 - [ ] **MMT-07**: Autobahn / Bundesstraße parallel-road smearing mitigated by min-speed 15 km/h threshold for high-class ways + Viterbi lookahead of ≥ 5 emissions
 - [ ] **MMT-08**: Matcher is cancellable (user deleting an in-flight trip cancels its match job)
@@ -131,7 +137,7 @@
 ### Coverage Rendering (REN)
 
 - [ ] **REN-01**: Driven Kfz-ways are rendered on the map in a distinctive color (default: warm green) using MapLibre `feature-state` API
-- [ ] **REN-02**: Driven Feldweg/Fußweg ways are rendered in a distinct secondary color (default: dashed blue) — clearly not the same "explored" visual language
+- [ ] **REN-02**: Driven Feldweg/Fußweg ways are rendered in a distinct secondary color (default: dashed blue). NOTE (2026-07-07): Feldwege are rendered as static base geometry from the pmtiles roads layer; per-way driven-state coloring (feature-state) applies to Kfz ways only.
 - [ ] **REN-03**: Partial coverage on a way is rendered with a proportional gradient or reduced opacity (fallback if per-segment coloring impossible)
 - [ ] **REN-04**: Rendering scales to ≥ 50 000 driven segments without dropping below 30 fps on target devices (stress test in P7)
 - [ ] **REN-05**: **P7 gate**: if `maplibre_gl` `setFeatureState` is unavailable, fall back to sharded GeoJSON sources per 5×5 km tile
@@ -366,4 +372,4 @@ Every requirement maps to exactly one phase. Phase Gates in ROADMAP.md carry two
 
 ---
 *Requirements defined: 2026-07-02*
-*Last updated: 2026-07-05 — Phase 3 (Tracking MVP) code-complete; TRK-01..11 + QUA-06 moved to Code-Complete (drive-deferred)*
+*Last updated: 2026-07-07 (Plan 04-10.1)*
