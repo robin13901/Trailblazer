@@ -31,6 +31,7 @@ import 'dart:isolate';
 import 'dart:typed_data';
 
 import 'package:osm_pipeline/cli/errors.dart';
+import 'package:osm_pipeline/cli/logger.dart';
 import 'package:osm_pipeline/cli/progress_logger.dart';
 import 'package:osm_pipeline/intersect/polygon_clip.dart';
 import 'package:osm_pipeline/intersect/vec2.dart';
@@ -227,6 +228,10 @@ VALUES (?, ?, ?, ?, ?);
   var doneCount = 0;
   var exitCount = 0;
   final completedWorkers = <int>{};
+  // Wave 5 crash telemetry: track per-worker batch count so we can log
+  // every 100 batches on a per-worker basis and correlate the last
+  // successful batch with any subsequent crash.
+  final batchCountByWorker = <int, int>{};
   final completer = Completer<void>();
   // Set when the coordinator has resolved (via success or failure); the
   // message loop then only counts down onExit signals so we can drain the
@@ -276,6 +281,14 @@ VALUES (?, ?, ?, ?, ?);
     // wedge the drain until its timeout expires.
     if (msg == null) {
       exitCount++;
+      // Wave 5 crash telemetry: log every worker exit so we can see which
+      // worker died and whether it had already signaled Done.
+      final hadDone = completedWorkers.contains(exitCount - 1);
+      Logger.info(
+        'Stage D coord: onExit received '
+        '(exitCount=$exitCount/$workers, doneCount=$doneCount, '
+        'hadDoneBefore=$hadDone)',
+      );
       if (exitCount > doneCount && !completer.isCompleted) {
         unawaited(
           failFast(
@@ -291,15 +304,35 @@ VALUES (?, ?, ?, ?, ?);
     if (msg is WorkerBatch) {
       // Insert each tuple. Plain INSERT — a duplicate PK here surfaces as a
       // sqlite3 exception which cascades to failFast via the outer catch.
+      // Wave 5 crash telemetry: log every N batches with running row count
+      // and the last way_id we saw so we can pinpoint the crash boundary.
+      batchCountByWorker[msg.workerId] =
+          (batchCountByWorker[msg.workerId] ?? 0) + 1;
+      final batchCount = batchCountByWorker[msg.workerId]!;
+      int? lastWayIdInBatch;
       try {
         for (final t in msg.tuples) {
-          insert.execute([
-            t.wayId,
-            t.regionId,
-            t.adminLevel,
-            t.fractionStart,
-            t.fractionEnd,
-          ]);
+          lastWayIdInBatch = t.wayId;
+          try {
+            insert.execute([
+              t.wayId,
+              t.regionId,
+              t.adminLevel,
+              t.fractionStart,
+              t.fractionEnd,
+            ]);
+          } on Object catch (e, st) {
+            // Wave 5: log the exact way_id + region_id that triggered
+            // the INSERT failure before rethrowing.
+            Logger.error(
+              'Stage D coord: INSERT failed for '
+              'way_id=${t.wayId} region_id=${t.regionId} '
+              'level=${t.adminLevel} fs=${t.fractionStart} '
+              'fe=${t.fractionEnd} worker=${msg.workerId}: $e',
+            );
+            Logger.error('Stage D coord: INSERT stack: $st');
+            rethrow;
+          }
           rowsWritten++;
         }
       } on Object catch (e, st) {
@@ -307,6 +340,14 @@ VALUES (?, ?, ?, ?, ?);
           failFast('INSERT into way_admin_raw failed: $e', e, st),
         );
         return;
+      }
+      // Every 100 batches, log worker-scoped state with running total.
+      if (batchCount % 100 == 0) {
+        Logger.info(
+          'Stage D coord: WorkerBatch #$batchCount from worker=${msg.workerId} '
+          '(rowsWritten=$rowsWritten, lastWayId=$lastWayIdInBatch, '
+          'batchSize=${msg.tuples.length}, tickDelta=${msg.tickDelta})',
+        );
       }
       // Forward tick delta into the progress logger. elapsedMs is
       // synthesized coordinator-side (WorkerBatch payload does not carry
@@ -317,16 +358,26 @@ VALUES (?, ?, ?, ?, ?);
       return;
     }
     if (msg is WorkerDone) {
+      // Wave 5 crash telemetry: log every WorkerDone immediately.
+      Logger.info(
+        'Stage D coord: WorkerDone from worker=${msg.workerId} '
+        '(doneCount will become ${doneCount + 1}/$workers)',
+      );
       if (completedWorkers.add(msg.workerId)) {
         doneCount++;
       }
       if (doneCount == workers) {
+        Logger.info(
+          'Stage D coord: all $workers workers done — issuing COMMIT '
+          '(rowsWritten=$rowsWritten)',
+        );
         try {
           db.execute('COMMIT;');
         } on Object catch (e, st) {
           unawaited(failFast('COMMIT failed: $e', e, st));
           return;
         }
+        Logger.info('Stage D coord: COMMIT successful');
         if (!completer.isCompleted) completer.complete();
       }
       return;
@@ -335,6 +386,13 @@ VALUES (?, ?, ?, ?, ?);
       // Dart canonical onError: [errorString, stackTraceString].
       final err = msg[0]?.toString() ?? '(unknown error)';
       final stkStr = msg[1]?.toString();
+      // Wave 5 crash telemetry: log the full error + stack immediately.
+      Logger.error(
+        'Stage D coord: onError from worker isolate: $err',
+      );
+      if (stkStr != null) {
+        Logger.error('Stage D coord: worker stack:\n$stkStr');
+      }
       final st = stkStr == null ? null : StackTrace.fromString(stkStr);
       unawaited(
         failFast('Stage D worker crashed: $err', err, st),
@@ -342,9 +400,16 @@ VALUES (?, ?, ?, ?, ?);
       return;
     }
     // Unknown message: log a warning, ignore (do not crash coordinator).
-    // ignore: avoid_print
-    // (Using stderr-free path via progress emitter is out of scope here;
-    // this branch is a defensive catch-all.)
+    // Wave 5 crash telemetry: log unknown message runtimeType with a small
+    // preview of its toString so we can diagnose a corrupt port payload.
+    final preview = msg.toString();
+    final shortPreview = preview.length > 200
+        ? '${preview.substring(0, 200)}...'
+        : preview;
+    Logger.warn(
+      'Stage D coord: unknown message on port '
+      '(runtimeType=${msg.runtimeType}, preview=$shortPreview)',
+    );
   });
 
   try {

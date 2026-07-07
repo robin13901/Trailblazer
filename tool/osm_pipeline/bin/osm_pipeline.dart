@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:args/args.dart';
@@ -9,14 +10,30 @@ import 'package:osm_pipeline/schema.dart';
 import 'package:path/path.dart' as p;
 
 Future<void> main(List<String> argv) async {
-  final code = await run(argv);
-  exit(code);
+  // Wrap main() in runZonedGuarded so any uncaught zone error (including
+  // errors surfacing from Isolate.spawn'd workers whose onError we may have
+  // missed) lands in the durable log with an actual stack trace before we
+  // exit. Silent Germany crash at Stage D 52.8% (2026-07-07) motivated this
+  // trap — without it the process just vanished. Exit code 3 distinguishes
+  // "top-level uncaught" from the existing exit(2) for PipelineError.
+  await runZonedGuarded<Future<void>>(
+    () async {
+      final code = await run(argv);
+      exit(code);
+    },
+    (error, stack) {
+      // Best-effort — Logger.error flushes synchronously on the durable sink
+      // (see logger.dart Wave 5 crash-telemetry).
+      Logger.error('TOP-LEVEL UNCAUGHT: $error');
+      Logger.error('STACK: $stack');
+      exit(3);
+    },
+  );
 }
 
 /// Testable entry — returns the intended exit code instead of calling
 /// [exit], so unit tests can invoke it directly.
 Future<int> run(List<String> argv) async {
-  IOSink? logFileSink;
   try {
     // Peel off orchestrator-specific flags before delegating to ParsedArgs so
     // its `unrecognized argument` guard doesn't reject them.
@@ -64,7 +81,9 @@ Future<int> run(List<String> argv) async {
         help: 'Duplicate every Logger info/warn/error line into <path>. '
             'Survives regardless of what the invoking shell does — use for '
             'long-running Germany runs launched from a bash pipe that the '
-            'harness may kill (Wave 1 corrective fix, 2026-07-07).',
+            'harness may kill (Wave 1 corrective fix, 2026-07-07). '
+            'Wave 5 (2026-07-07): backed by a RandomAccessFile with '
+            'flushSync per line so the log survives a silent process death.',
       );
     final flags = extraParser.parse(argv);
     final allowUnverified = flags['allow-unverified-measurement'] as bool;
@@ -80,10 +99,7 @@ Future<int> run(List<String> argv) async {
     // banner lines land in the file too.
     final logFilePath = flags['log-file'] as String?;
     if (logFilePath != null && logFilePath.isNotEmpty) {
-      final logFile = File(logFilePath);
-      logFile.parent.createSync(recursive: true);
-      logFileSink = logFile.openWrite(mode: FileMode.writeOnly);
-      Logger.setFileSink(logFileSink);
+      Logger.openLogFile(logFilePath);
     }
 
     // Reuse the existing ParsedArgs for --pbf / --bbox / --rtree-granularity
@@ -132,19 +148,8 @@ Future<int> run(List<String> argv) async {
     }
     return 2;
   } finally {
-    // Detach + flush + close the durable log sink. Runs on both the happy
-    // path and the PipelineError catch — losing the tail of a log because
-    // the process exited without flushing is exactly what --log-file was
-    // added to prevent.
-    if (logFileSink != null) {
-      Logger.setFileSink(null);
-      try {
-        await logFileSink.flush();
-      } on Object catch (_) {
-        // Best-effort — a failed flush must not mask a real exit code.
-      }
-      await logFileSink.close();
-    }
+    // Close the synchronous durable log file (idempotent).
+    Logger.closeLogFile();
   }
 }
 

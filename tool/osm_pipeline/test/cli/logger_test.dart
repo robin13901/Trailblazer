@@ -100,4 +100,75 @@ void main() {
       await sink.close();
     });
   });
+
+  group('Logger.openLogFile (synchronous durable path)', () {
+    late Directory tempDir;
+
+    setUp(() {
+      tempDir = Directory.systemTemp.createTempSync('trailblazer_logsync_');
+    });
+
+    tearDown(() {
+      Logger.closeLogFile();
+      try {
+        if (tempDir.existsSync()) {
+          tempDir.deleteSync(recursive: true);
+        }
+      } on FileSystemException {
+        // ignore
+      }
+    });
+
+    test('writes info/warn/error lines synchronously with flushSync', () {
+      final logPath =
+          '${tempDir.path}${Platform.pathSeparator}durable.log';
+      Logger.openLogFile(logPath);
+      expect(Logger.hasDurableLogFile, isTrue);
+
+      Logger.info('sync-hello');
+      Logger.warn('sync-careful');
+      Logger.error('sync-boom');
+
+      // The critical guarantee — bytes are on disk BEFORE closeLogFile
+      // runs. Reading right now must see all three lines.
+      final captured = File(logPath).readAsStringSync();
+      expect(captured, contains('[info] sync-hello'));
+      expect(captured, contains('[warn] sync-careful'));
+      expect(captured, contains('[error] sync-boom'));
+
+      Logger.closeLogFile();
+      expect(Logger.hasDurableLogFile, isFalse);
+    });
+
+    test('closeLogFile is idempotent', () {
+      Logger.closeLogFile(); // safe with no file open
+      Logger.openLogFile(
+        '${tempDir.path}${Platform.pathSeparator}idem.log',
+      );
+      Logger.closeLogFile();
+      Logger.closeLogFile(); // safe to call again
+      expect(Logger.hasDurableLogFile, isFalse);
+    });
+
+    test('openLogFile replaces a previously-opened durable file', () {
+      final firstPath =
+          '${tempDir.path}${Platform.pathSeparator}first.log';
+      final secondPath =
+          '${tempDir.path}${Platform.pathSeparator}second.log';
+
+      Logger.openLogFile(firstPath);
+      Logger.info('first-line');
+
+      Logger.openLogFile(secondPath); // implicit close of first
+      Logger.info('second-line');
+      Logger.closeLogFile();
+
+      final firstCaptured = File(firstPath).readAsStringSync();
+      final secondCaptured = File(secondPath).readAsStringSync();
+      expect(firstCaptured, contains('[info] first-line'));
+      expect(firstCaptured, isNot(contains('[info] second-line')));
+      expect(secondCaptured, contains('[info] second-line'));
+      expect(secondCaptured, isNot(contains('[info] first-line')));
+    });
+  });
 }
