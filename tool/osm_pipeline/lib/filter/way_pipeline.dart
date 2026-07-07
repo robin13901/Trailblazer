@@ -172,48 +172,16 @@ class WayPipeline {
 
     // --- Post-pass integrity check: drop ways whose nodes went missing.
     //
-    // Runs as a single set-difference query: for every way in ways_raw,
-    // scan its node_ids BLOB and check each id against nodes_raw. Missing
-    // nodes → drop the way. Log per dropped way.
-    //
-    // O(ways_raw * avg_nodes_per_way) — fine for the tiny fixture. Berlin
-    // smoke (04-09) may reveal we need a temporary index; deferred.
-    final wayRows = scratch.raw
-        .select('SELECT id, node_ids FROM ways_raw;');
-    final droppedIds = <int>[];
-    final nodeCheck = scratch.raw
-        .prepare('SELECT 1 FROM nodes_raw WHERE id = ? LIMIT 1;');
-    try {
-      for (final row in wayRows) {
-        final wayId = row['id'] as int;
-        final blob = row['node_ids'] as Uint8List;
-        final ids = decodeNodeIds(blob);
-        var missing = false;
-        for (final nid in ids) {
-          if (nodeCheck.select([nid]).isEmpty) {
-            missing = true;
-            break;
-          }
-        }
-        if (missing) {
-          droppedIds.add(wayId);
-          scratch.bumpStat('deleted_node_ref');
-          logSkip('deleted_node_ref', wayId);
-        }
-      }
-    } finally {
-      nodeCheck.dispose();
-    }
-    if (droppedIds.isNotEmpty) {
-      final del = scratch.raw.prepare('DELETE FROM ways_raw WHERE id = ?;');
-      try {
-        for (final id in droppedIds) {
-          del.execute([id]);
-        }
-      } finally {
-        del.dispose();
-      }
-    }
+    // Rewritten 2026-07-07 as a Wave-1 corrective patch (see 04-10-1-01
+    // SUMMARY §Post-close corrective fix). The prior implementation loaded
+    // every row of ways_raw eagerly via db.select() then did per-node SELECT
+    // lookups against nodes_raw (O(N ways × M nodes/way) — ~40M prepared-
+    // statement calls on the full-Germany extract, silently running for
+    // 30-60+ min with no ProgressLogger tick).
+    final droppedIds = runWayIntegrityCheck(
+      scratch: scratch,
+      onDrop: (wayId) => logSkip('deleted_node_ref', wayId),
+    );
 
     // --- highway=road ratio warning per 04-RESEARCH §12 pitfall #9.
     final totalKfz = kfzCount;
@@ -269,3 +237,110 @@ const Set<String> kExplicitFeldwegHighwayValues = {
   'path',
   'service',
 };
+
+/// Runs Stage B's post-pass integrity check: for every way in `ways_raw`,
+/// confirm every referenced node id exists in `nodes_raw`. Any way with a
+/// missing reference is DELETEd, `filter_stats.deleted_node_ref` is
+/// incremented once per dropped way, and [onDrop] is invoked (production
+/// wires it to the `skipped.log` sink).
+///
+/// Rewritten 2026-07-07 as a Wave-1 corrective patch (see 04-10-1-01
+/// SUMMARY §Post-close corrective fix). The prior implementation loaded
+/// every row of ways_raw eagerly via `db.select()` then did per-node
+/// point-lookup `SELECT 1 FROM nodes_raw WHERE id=?` calls (O(N ways × M
+/// nodes/way) — ~40M prepared-statement calls on the full-Germany extract,
+/// silently running for 30-60+ min with no ProgressLogger tick).
+///
+/// The rewrite:
+///   1. Streams `ways_raw` via `selectCursor()` — bounded memory.
+///   2. Inserts each `(way_id, node_id)` pair into a TEMP table inside a
+///      committed-every-100k-ways transaction.
+///   3. Runs a single `LEFT JOIN nodes_raw` to find ways referencing any
+///      missing node — replaces N×M point-lookups with one set-based query.
+///   4. Ticks a [ProgressLogger] on the streaming pass (`total = COUNT(*)
+///      FROM ways_raw`) so long runs emit 5% / 5s progress lines.
+///
+/// Returns the list of dropped way ids for downstream reporting.
+List<int> runWayIntegrityCheck({
+  required ScratchDb scratch,
+  required void Function(int wayId) onDrop,
+}) {
+  final integrityTotal = scratch.raw
+      .select('SELECT COUNT(*) AS n FROM ways_raw;')
+      .first['n'] as int;
+  final integrity = ProgressLogger(
+    'Stage B integrity',
+    total: integrityTotal,
+    unit: 'ways',
+  );
+  final droppedIds = <int>[];
+
+  scratch.raw.execute(
+    'CREATE TEMP TABLE way_node_refs '
+    '(way_id INTEGER NOT NULL, node_id INTEGER NOT NULL);',
+  );
+  final wayCursor =
+      scratch.raw.prepare('SELECT id, node_ids FROM ways_raw;');
+  final insertRef = scratch.raw
+      .prepare('INSERT INTO way_node_refs (way_id, node_id) VALUES (?, ?);');
+  try {
+    scratch.raw.execute('BEGIN;');
+    var sinceCommit = 0;
+    final cursor = wayCursor.selectCursor();
+    while (cursor.moveNext()) {
+      final row = cursor.current;
+      final wayId = row['id'] as int;
+      final blob = row['node_ids'] as Uint8List;
+      final ids = decodeNodeIds(blob);
+      for (final nid in ids) {
+        insertRef.execute([wayId, nid]);
+      }
+      integrity.tick();
+      sinceCommit++;
+      // Amortise transaction size — commit every 100k ways so a mid-loop
+      // failure doesn't roll back the entire pass.
+      if (sinceCommit >= 100000) {
+        scratch.raw
+          ..execute('COMMIT;')
+          ..execute('BEGIN;');
+        sinceCommit = 0;
+      }
+    }
+    scratch.raw.execute('COMMIT;');
+  } finally {
+    insertRef.dispose();
+    wayCursor.dispose();
+  }
+  integrity.finish();
+
+  // Single LEFT JOIN — find ways referencing any node absent from
+  // nodes_raw. `DISTINCT` collapses ways with multiple missing refs to
+  // one row so the emitted log has one entry per dropped way.
+  Logger.info('Stage B integrity: JOIN against nodes_raw…');
+  final missing = scratch.raw.select(
+    'SELECT DISTINCT wn.way_id AS way_id '
+    'FROM way_node_refs wn '
+    'LEFT JOIN nodes_raw n ON n.id = wn.node_id '
+    'WHERE n.id IS NULL;',
+  );
+  for (final row in missing) {
+    final wayId = row['way_id'] as int;
+    droppedIds.add(wayId);
+    scratch.bumpStat('deleted_node_ref');
+    onDrop(wayId);
+  }
+  scratch.raw.execute('DROP TABLE way_node_refs;');
+
+  if (droppedIds.isNotEmpty) {
+    final del = scratch.raw.prepare('DELETE FROM ways_raw WHERE id = ?;');
+    try {
+      for (final id in droppedIds) {
+        del.execute([id]);
+      }
+    } finally {
+      del.dispose();
+    }
+  }
+
+  return droppedIds;
+}
