@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:osm_pipeline/cli/args.dart';
 import 'package:osm_pipeline/cli/errors.dart';
+import 'package:osm_pipeline/output/rtree_builder.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
@@ -129,6 +130,40 @@ void main() {
             (e) => e.message,
             'message',
             contains('minLat'),
+          ),
+        ),
+      );
+    });
+
+    test('--rtree-granularity=perSegment parses to perSegment', () {
+      final args = ParsedArgs.parse(
+        ['--pbf=${pbf.path}', '--rtree-granularity=perSegment'],
+      );
+      expect(args.rtreeGranularity, RtreeGranularity.perSegment);
+    });
+
+    test('--rtree-granularity=perWay parses to perWay', () {
+      final args = ParsedArgs.parse(
+        ['--pbf=${pbf.path}', '--rtree-granularity=perWay'],
+      );
+      expect(args.rtreeGranularity, RtreeGranularity.perWay);
+    });
+
+    test('no --rtree-granularity flag → null', () {
+      final args = ParsedArgs.parse(['--pbf=${pbf.path}']);
+      expect(args.rtreeGranularity, isNull);
+    });
+
+    test('--rtree-granularity=invalid throws PipelineArgsError', () {
+      expect(
+        () => ParsedArgs.parse(
+          ['--pbf=${pbf.path}', '--rtree-granularity=bogus'],
+        ),
+        throwsA(
+          isA<PipelineArgsError>().having(
+            (e) => e.message,
+            'message',
+            contains('rtree-granularity'),
           ),
         ),
       );

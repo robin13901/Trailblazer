@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:osm_pipeline/cli/errors.dart';
 import 'package:osm_pipeline/output/osm_sqlite_writer.dart';
 import 'package:osm_pipeline/output/pipeline_orchestrator.dart';
+import 'package:osm_pipeline/output/rtree_builder.dart';
 import 'package:osm_pipeline/schema.dart';
 import 'package:sqlite3/sqlite3.dart';
 import 'package:test/test.dart';
@@ -94,8 +95,25 @@ void main() {
           greaterThanOrEqualTo(1),
         );
 
-        // One way is Kfz Musterstraße with 10 nodes → 9 segments → 9 rtree
-        // rows for it (per-segment default).
+        // Plan 04-10-1-03: default granularity is perWay → exactly 1 rtree
+        // row per way. The tiny fixture yields 1 Kfz way after the
+        // Feldweg-drop; ways_rtree row count must equal ways row count.
+        final wayCount = db
+            .select('SELECT COUNT(*) AS c FROM ways;')
+            .first['c'] as int;
+        final rtreeCount = db
+            .select('SELECT COUNT(*) AS c FROM ways_rtree;')
+            .first['c'] as int;
+        expect(rtreeCount, wayCount);
+        final segIdxRows = db
+            .select('SELECT DISTINCT segment_idx FROM ways_rtree_lookup;')
+            .map((r) => r['segment_idx'] as int)
+            .toSet();
+        expect(segIdxRows, {-1});
+
+        // One way is Kfz Musterstraße with 10 nodes → 9 segments. Under the
+        // perWay default we get 1 rtree row (asserted above); the geometry
+        // still round-trips to 10 points.
         final kfz = db.select(
           "SELECT way_id, geometry_wkb FROM ways WHERE source='kfz';",
         ).first;
@@ -105,6 +123,40 @@ void main() {
         db.dispose();
       }
     });
+
+    test(
+      'granularityOverride: perSegment produces > 1 rtree row per '
+      'multi-segment way',
+      () async {
+        final result = await runPipeline(
+          pbf: File(_tinyFixturePath),
+          outDir: tmpOut,
+          measurementFile: goodMeasurement,
+          granularityOverride: RtreeGranularity.perSegment,
+          gitShaResolver: () => 'fixture-sha',
+          nowUtc: DateTime.utc(2026, 7, 6, 10),
+        );
+        final db = sqlite3.open(result.osmSqlitePath);
+        try {
+          final wayCount = db
+              .select('SELECT COUNT(*) AS c FROM ways;')
+              .first['c'] as int;
+          final rtreeCount = db
+              .select('SELECT COUNT(*) AS c FROM ways_rtree;')
+              .first['c'] as int;
+          // Tiny fixture Kfz way has 10 nodes → 9 segments per way.
+          expect(rtreeCount, greaterThan(wayCount));
+          final segs = db
+              .select('SELECT DISTINCT segment_idx FROM ways_rtree_lookup;')
+              .map((r) => r['segment_idx'] as int)
+              .toSet();
+          // Per-segment uses non-negative segment indices.
+          expect(segs.every((s) => s >= 0), isTrue);
+        } finally {
+          db.dispose();
+        }
+      },
+    );
 
     test('preflight gate rejects when measurement file is a stub', () async {
       final stub = File('${tmpOut.path}/stub.md')
