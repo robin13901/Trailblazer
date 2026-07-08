@@ -15,7 +15,7 @@ Depth: **comprehensive** — 11 phases, driven by the 112 v1 requirements (FND, 
 - [x] **Phase 1: Scaffolding** — CI, lints, App DB skeleton, routing, error/logging, permission plumbing
 - [x] **Phase 2: Map + Glass Shell** — MapLibre + PMTiles + Liquid Glass chrome (rendering spike gate)
 - [x] **Phase 3: Tracking MVP** — background GPS + motion state machine + manual/auto trip capture
-- [ ] **Phase 3.1: Tracking Fixes** — gap-closure phase inserted 2026-07-06 after failed in-car drive verification (FGB fixes not arriving, map dot frozen, no notification, no auto-trip). Blocks Phase 5.
+- [x] **Phase 3.1: Tracking Fixes** — gap-closure phase inserted 2026-07-06 after failed in-car drive verification; closed 2026-07-08 with user-attested drive PASS (H1 facade.start(), H2 camera follow, H5 battery-opt gate). Phase 5 unblocked.
 - [ ] **Phase 4: Map & Matching Data Sources** — MapTiler-hosted vector tiles + on-demand Overpass road data (cached + retry-safe) + bundled admin polygons (rescoped 2026-07-08 from the original bundled-`osm.sqlite` pipeline)
 - [ ] **Phase 5: Overpass-Backed Matcher + Golden Corpus** — HMM matcher consumes `WayCandidateSource` (Phase 4), matches confirmed trip polylines to driven way intervals, CI-verified against a golden corpus
 - [ ] **Phase 6: Inbox + Match Wire-Up** — trip inbox, confirm/reject, matching enqueue, coverage cache infra
@@ -88,7 +88,7 @@ Additional research-recommended spikes: HMM parameter tuning + golden corpus rec
 **Goal:** The app records trips automatically and manually, in the background, on both platforms, with battery baseline established.
 **Depends on:** Phase 1
 **Requirements:** TRK-01, TRK-02, TRK-03, TRK-04, TRK-05, TRK-06, TRK-07, TRK-08, TRK-09, TRK-10, TRK-11, QUA-06
-**Completed (code-complete, in-car verification deferred):** 2026-07-05
+**Completed:** 2026-07-05 (code-complete) → SC1..SC4 drive-verified 2026-07-08 via Phase 3.1 (user-attested — see `.planning/phases/03-1-tracking-fixes/03-1-DRIVE-VERIFICATION-2026-07-08.md`). SC5 (QUA-06 60-min battery baseline) still drive-deferred.
 **Success Criteria** (what must be TRUE):
   1. User taps the FAB, drives, then taps Stop — a `pending` trip with GPS polyline, speeds (avg + max), distance, duration, and per-fix motion activity type is written to the App DB.
   2. User closes the app, drives more than 60 s in a car — a `pending` auto-trip is recorded via `flutter_background_geolocation` and auto-terminates after 2 minutes of non-automotive dwell.
@@ -107,9 +107,10 @@ Additional research-recommended spikes: HMM parameter tuning + golden corpus rec
 ### Phase 3.1: Tracking Fixes
 **Goal:** The app records trips end-to-end in the real world — manual and auto trips both capture GPS fixes, live stats stream to the UI, the map camera follows the driver, the persistent notification shows, and OEM battery killers don't silently kill the foreground service. Verified by a passing in-car drive.
 **Depends on:** Phase 3
-**Blocks:** Phase 5 (matcher's golden corpus depends on real captured trips)
+**Blocks:** *(RESOLVED 2026-07-08 — Phase 5 unblocked via user-attested drive verification)*
 **Requirements:** *(gap closure — no new requirement IDs; makes TRK-01..11 verifiable in the real world)*
 **Trigger:** Failed in-car drive verification 2026-07-06 on Samsung Galaxy S24 (Android 14). Full report: `.planning/phases/03-tracking-mvp/03-DRIVE-VERIFICATION-2026-07-06.md`.
+**Completed:** 2026-07-08 (user-attested drive PASS — see `.planning/phases/03-1-tracking-fixes/03-1-DRIVE-VERIFICATION-2026-07-08.md`)
 **Success Criteria** (what must be TRUE):
   1. In-app debug HUD (dev-only, reachable from Settings) shows live: FGB ready state, last-fix timestamp + lat/lng/speed/accuracy, last activity type + timestamp, ingestor accept/reject counts + last reject reason, persistent-notification state, POST_NOTIFICATIONS + battery-optimization grant status.
   2. Manual trip: tapping the FAB starts fix intake within 3 s; the LiveTrackingPanel's distance and speed fields update at least once every 5 s during the drive; the polyline persists to the App DB on stop with non-zero distance.
@@ -117,7 +118,12 @@ Additional research-recommended spikes: HMM parameter tuning + golden corpus rec
   4. Persistent notification is visible in the notification bar during any active trip on both platforms (Android channel + POST_NOTIFICATIONS grant verified via HUD); notification text updates at the 30 s cadence.
   5. Map camera follows the current location (`MyLocationTrackingMode.trackingCompass`) while a trip is active; releases to free-pan on trip stop or user pan gesture.
   6. **In-car drive verification passes:** re-drive the failed 2026-07-06 route (or equivalent), observe all four fail modes fixed via the HUD, and record a passing verification report at `.planning/phases/03-1-tracking-fixes/03-1-DRIVE-VERIFICATION-<date>.md`.
-**Plans:** TBD (3–5 — planning follows)
+**Plans:** 5 plans
+  - [x] 03-1-01-debug-hud-diagnostics-PLAN.md — diagnostics DTO + HUD + counters
+  - [x] 03-1-02-fgb-start-and-battery-opt-PLAN.md — H1 (`_facade.start()` at three sites) + H5 (battery-opt grant in TrackingCapability) fix
+  - [x] 03-1-03-map-camera-follow-PLAN.md — H2 fix (TrackingCameraSync + exhaustive FollowMode mapping)
+  - [x] 03-1-04-regression-tests-motion-filter-and-cadence-PLAN.md — H3 + H4 regression tripwires (both invariants REFUTED per research)
+  - [x] 03-1-05-in-car-verification-and-close-out-PLAN.md — drive verification + close-out (user-attested PASS 2026-07-08)
 
 ### Phase 4: Map & Matching Data Sources
 **Goal:** The app renders live MapTiler tiles, fetches on-demand Overpass road data per trip (cached + retry-safe when offline), and answers admin-region name lookups from a bundled polygon asset.
@@ -234,8 +240,8 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 |-------|----------------|--------|-----------|
 | 1. Scaffolding | 7/7 | ✓ Complete | 2026-07-03 |
 | 2. Map + Glass Shell | 7/7 | ✓ Complete | 2026-07-04 |
-| 3. Tracking MVP | 7/7 | ✓ Code-complete (drive failed 2026-07-06 → Phase 3.1) | 2026-07-05 |
-| 3.1. Tracking Fixes | 0/TBD | Planning | - |
+| 3. Tracking MVP | 7/7 | ✓ Complete (SC1..SC4 drive-verified via Phase 3.1 2026-07-08; SC5 QUA-06 60-min battery baseline still drive-deferred) | 2026-07-05 code-complete / 2026-07-08 drive-verified |
+| 3.1. Tracking Fixes | 5/5 | ✓ Complete | 2026-07-08 |
 | 4. Map & Matching Data Sources | 8/8 | ✓ Code-complete (drive-verify pending combined Phase-4 close-out session) — 8 rescoped plans (04-11..04-17 + 04-16-1); original 04-01..04-10 + 04-10-1-* archived on disk | 2026-07-08 |
 | 5. Overpass-Backed Matcher + Golden Corpus | 0/TBD | Not started | - |
 | 6. Inbox + Match Wire-Up | 0/TBD | Not started | - |
