@@ -120,6 +120,32 @@ Everything else in the app exists to make that view accurate, satisfying, and wo
 
 ## Key Decisions
 
+### 2026-07-08 — Phase 4 rescope: fetched tiles + on-demand Overpass matching
+
+**Abandoned:** The bundled-`osm.sqlite` architecture from the original Phase 4
+(200 MB → 800 MB → projected 2.5 GB for full Germany at Berlin-derived densities)
+after the user rejected the artifact size as unshippable.
+
+**Adopted:**
+- **Map tiles:** MapTiler Cloud (free tier `dataviz` / `dataviz-dark`; API key delivered via `--dart-define=MAPTILER_KEY=...` or `--dart-define-from-file=env/dev.json`; never in source or logs)
+- **Road data:** on-demand Overpass fetches per trip's bbox, cached in App DB (Drift v3 table `overpass_way_cache` — composite PK (tileZ, tileX, tileY), gzipped payload, LRU 50 MB / 40 MB low water, 30-day TTL)
+- **Tile granularity:** MANDATORY z12 slippy-tile splitting per the 04-13 payload probe (Nuremberg 100×100 km bbox returned 294.76 MiB / 45.22 MiB gzipped / 3.7 s Dart parse on dev box — both plan thresholds failed by 60×)
+- **Admin polygons:** bundled `assets/admin/germany_admin.geojson.gz` (11.90 MB gzipped, 30 819 features across L2..L10; refreshable via Settings > Data > "Refresh admin regions")
+- **`WayCandidateSource` interface** with runtime `OverpassWayCandidateSource` (cache-first) + test-only `FixtureWayCandidateSource`; Phase 5's matcher consumes it
+- **Offline trips** transition to a new `pendingRoadData` state (between `recording` and `pending`) and retry on `AppLifecycleState.resumed` via a `pending_road_fetches` queue with exponential backoff (5m/30m/2h/12h/24h → abandon at 5 attempts)
+- **`tool/osm_pipeline/`** retained as a dev-only fixture generator for Phase 5 golden-corpus tests — NOT invoked at app runtime
+
+**Consequence:** Original Phase 4 plans 04-01..04-10 + Sub-Phase 04-10.1 Waves 1-4
+are archived on-disk-only (SUMMARY docs preserved for archaeology under
+`.planning/phases/04-osm-pipeline/`). The rescope-plan artifacts are 04-11..04-17 + 04-16-1.
+
+- `04-10-1-05-germany-close-out-PLAN.md`: DELETED at session start (commit `e475ad8` 2026-07-08) — was superseded by the rescope before ever executing.
+- `04-10-full-germany-close-out-PLAN.md`: DELETED at the same commit — was the original Phase-4 close-out plan.
+- REQUIREMENTS.md OSMDB-01..OSMDB-07 rows deleted (119 → 112 total; a forward-reference HTML comment now stands in their place pointing at Phase 5 planning).
+- ROADMAP.md Phase 4 renamed to "Map & Matching Data Sources"; Phase 5 renamed to "Overpass-Backed Matcher + Golden Corpus".
+
+## Historical Decisions
+
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
 | Flutter (not native) | Cross-platform iOS + Android from one codebase; developer already fluent | — Pending |
