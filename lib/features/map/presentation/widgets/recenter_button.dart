@@ -1,3 +1,4 @@
+import 'package:auto_explore/features/map/domain/camera_state.dart';
 import 'package:auto_explore/features/map/domain/follow_mode.dart';
 import 'package:auto_explore/features/map/presentation/providers/camera_state_provider.dart';
 import 'package:auto_explore/features/map/presentation/providers/map_controller_provider.dart';
@@ -9,12 +10,6 @@ import 'package:maplibre_gl/maplibre_gl.dart';
 
 final _log = Logger('RecenterButton');
 
-/// Street-level zoom target for the recenter tap. z=16 shows an ~500 m
-/// radius around the user — individual buildings resolve, current street +
-/// immediate neighbors visible. One step closer than the Phase-2 default
-/// (was z=15) — bumped 2026-07-06 based on on-road driving feedback.
-const double _recenterZoom = 16;
-
 /// Circular glass button — same size as `TripFab`.
 ///
 /// Visible only when the user has panned away from their location
@@ -24,7 +19,9 @@ const double _recenterZoom = 16;
 ///
 /// Behavior on tap:
 ///   1. Read the last-known device location.
-///   2. Animate the camera to (user, [_recenterZoom]) over ~500 ms.
+///   2. Animate the camera to (user, `CameraState.initial.zoom`) over ~500 ms.
+///      Uses the shared default so recenter always returns to the same zoom
+///      as cold-start regardless of where the user zoomed to.
 ///   3. Enable MapLibre's `tracking` mode so subsequent GPS ticks
 ///      continue to follow the user without further user input.
 ///
@@ -60,9 +57,17 @@ class RecenterButton extends ConsumerWidget {
             final userLocation = await controller.requestMyLocationLatLng();
 
             if (userLocation != null) {
-              // Animate to user @ street-level zoom.
+              // Plan 04-18 (2026-07-08 drive feedback): recenter tap now
+              // ALWAYS zooms back to CameraState.initial.zoom, so the tap
+              // is a "reset view" — recenter + zoom-to-default in one
+              // animation. Previously the button had a local
+              // _recenterZoom constant; unified with the cold-start
+              // default so they can never diverge again.
               await controller.animateCamera(
-                CameraUpdate.newLatLngZoom(userLocation, _recenterZoom),
+                CameraUpdate.newLatLngZoom(
+                  userLocation,
+                  CameraState.initial.zoom,
+                ),
                 duration: const Duration(milliseconds: 500),
               );
             }
