@@ -29,3 +29,7 @@ tool/osm_pipeline/out/
 tool/osm_pipeline/**/*.osm.pbf
 # ...except the hand-crafted tiny fixture used by pbf_reader_test.dart
 !tool/osm_pipeline/test/fixtures/tiny.osm.pbf
+
+# Personal API key file for --dart-define-from-file (MapTiler etc.)
+# See env/dev.json.example for the shape. Real env/dev.json is gitignored.
+env/dev.json

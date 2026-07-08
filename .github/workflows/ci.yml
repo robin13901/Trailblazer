@@ -52,7 +52,11 @@ jobs:
         run: flutter analyze --fatal-infos
 
       - name: Run tests with coverage
-        run: flutter test --coverage
+        # MAPTILER_KEY is injected from the GitHub Actions secret. Fork PRs
+        # + local `act` runs have no access to the secret; the empty-key
+        # path is tolerated — `TileProviderConfig.hasKey` returns false and
+        # tests must not depend on a real key at runtime.
+        run: flutter test --coverage --dart-define=MAPTILER_KEY=${{ secrets.MAPTILER_KEY }}
 
       - name: Strip generated files from coverage
         run: |

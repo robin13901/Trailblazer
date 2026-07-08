@@ -58,6 +58,20 @@ Outputs land in `android/app/src/main/res/mipmap-*/ic_launcher.png` (all densiti
 - iOS: Xcode 15+ (for local iOS builds).
 - Android: Android SDK + `cmdline-tools` with licenses accepted (for local Android debug builds).
 
+## MapTiler key setup
+
+The map layer streams vector tiles from [MapTiler Cloud](https://cloud.maptiler.com). Every developer needs a **personal free-tier key** — the key is never committed.
+
+```bash
+# 1. Get a free key from https://cloud.maptiler.com/account/keys/
+# 2. Copy the template and paste your key into env/dev.json (gitignored)
+cp env/dev.json.example env/dev.json
+# 3. Run with the key injected as a --dart-define:
+flutter run --dart-define-from-file=env/dev.json
+```
+
+If you skip this step the app still boots but the map renders blank tiles (a warning is logged to `Logger('main')`). CI injects the key from the `MAPTILER_KEY` GitHub Actions secret; fork PRs run without it and the empty-key path is intentionally tolerated. See [`.planning/phases/04-osm-pipeline/04-11-STYLE-SPIKE.md`](./.planning/phases/04-osm-pipeline/04-11-STYLE-SPIKE.md) for the chosen style catalog.
+
 ## Quickstart
 
 ```bash
@@ -79,8 +93,8 @@ dart format --set-exit-if-changed .
 # 5. Test with coverage
 flutter test --coverage
 
-# 6. Run on a device / simulator
-flutter run
+# 6. Run on a device / simulator (with MapTiler key from env/dev.json)
+flutter run --dart-define-from-file=env/dev.json
 ```
 
 > **Why codegen runs first:** `.g.dart` (Drift/Riverpod) files and `test/generated_migrations/` are gitignored to keep diffs clean. A fresh checkout will fail `flutter analyze` and `flutter test` until steps 2 + 3 have been run. CI runs both before analyze/test — see [`.github/workflows/ci.yml`](./.github/workflows/ci.yml).

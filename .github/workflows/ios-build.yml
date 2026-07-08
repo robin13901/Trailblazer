@@ -27,7 +27,10 @@ jobs:
           mkdir -p test/generated_migrations
           dart run drift_dev schema generate drift_schemas/ test/generated_migrations/
       - name: Build iOS (unsigned .ipa)
-        run: flutter build ipa --no-codesign
+        # MAPTILER_KEY is injected from the GitHub Actions secret. Local
+        # workflow_dispatch triggers from forks (rare) will have an empty
+        # key; the app boots with blank tiles instead of crashing.
+        run: flutter build ipa --no-codesign --dart-define=MAPTILER_KEY=${{ secrets.MAPTILER_KEY }}
       - name: Upload iOS build artifact
         uses: actions/upload-artifact@v4
         with:

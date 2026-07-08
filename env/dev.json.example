@@ -1,0 +1,4 @@
+{
+  "MAPTILER_KEY": "your-personal-free-tier-key-here",
+  "_comment": "Copy to env/dev.json (gitignored). Get a free key at https://cloud.maptiler.com/account/keys/ then run: flutter run --dart-define-from-file=env/dev.json"
+}
