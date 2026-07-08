@@ -39,26 +39,24 @@
 - [x] **UI-06**: App uses no traditional `AppBar` on the map screen; focus-area pill is the only top-of-screen chrome
 - [x] **UI-07**: Light + dark themes both use the shared `LiquidGlassSettings` singleton pattern from XFin reference
 
-### OSM Data Pipeline (OSM)
+### Map & Matching Data Sources (OSM) — rescoped 2026-07-08
 
-- [ ] **OSM-01**: Dev-machine Dart CLI in `tool/osm_pipeline/` converts a Geofabrik `germany-latest.osm.pbf` into a slim artifact
-- [ ] **OSM-02**: Pipeline extracts only ways with `highway=motorway|trunk|primary|secondary|tertiary|residential|unclassified|living_street|road|motorway_link|trunk_link|primary_link|secondary_link|tertiary_link` (14-tag Kfz allowlist) into osm.sqlite. `highway=track|path` (Feldweg/Fußweg) are emitted ONLY into the pmtiles `roads` layer for map rendering — they do NOT appear in osm.sqlite. See Plan 04-10.1 decision log 2026-07-07.
-- [ ] **OSM-03**: Pipeline extracts admin boundaries at OSM levels 2, 4, 6, 8, 9, 10 (Land, Bundesland, Landkreis, Gemeinde, Stadtteil, Ortsteil)
-- [ ] **OSM-04**: Pipeline pre-computes way ↔ admin region associations (join table `way_admin`) for all Kfz-way ↔ region pairs where the way's geometry intersects the region
-- [ ] **OSM-05**: Pipeline produces two output artifacts: (a) `osm.sqlite` (indexed SQLite with R-Tree over Kfz-way geometries) and (b) `germany-base.pmtiles` (rendered vector tiles)
-- [ ] **OSM-06**: `osm.sqlite` total size stays under 200 MB; `germany-base.pmtiles` under 200 MB
-- [ ] **OSM-07**: Pipeline output has a version stamp (source PBF date + pipeline schema version)
-- [ ] **OSM-08**: Pipeline can run on a Berlin bounding box (or arbitrary bbox) for dev/testing without full Germany data
+- [x] **OSM-01**: App uses MapTiler Cloud for vector tiles (API key delivered via `--dart-define=MAPTILER_KEY=...` or `--dart-define-from-file=env/dev.json`; never checked into source or logs); light + dark styles switch with system theme
+- [x] **OSM-02**: Trip completion triggers an on-demand Overpass fetch for the trip's bbox (partitioned by z12 slippy tiles per the 04-13 payload-probe MANDATORY tile-split verdict); Kfz 14-tag allowlist applied at parser boundary
+- [x] **OSM-03**: Overpass responses cached in the App DB (Drift v3 table `overpass_way_cache`, composite PK `(tileZ, tileX, tileY)`, gzipped payload, LRU eviction at 50 MB high water / 40 MB low water, 30-day TTL)
+- [x] **OSM-04**: Admin polygons (levels 2, 4, 6, 8, 9, 10) bundled as `assets/admin/germany_admin.geojson.gz` (~11.90 MB gzipped, well under the 15 MB budget); refreshable via Settings > Data > "Refresh admin regions" (writes to `<AppDocsDir>/admin/germany_admin.geojson.gz` and takes precedence over the bundled asset)
+- [x] **OSM-05**: `WayCandidateSource` abstract interface abstracts the road-data source for the Phase 5 matcher; two working impls — `OverpassWayCandidateSource` (runtime, cache-first via `OverpassWayCacheDao`) and `FixtureWayCandidateSource` (test-only, gzipped-JSON-backed)
+- [x] **OSM-06**: Trips completed offline transition to a new `pendingRoadData` state (between `recording` and `pending`); a `pending_road_fetches` queue (FK cascade on trip) is drained on `AppLifecycleState.resumed` with exponential backoff (5m/30m/2h/12h/24h) → abandon at 5 attempts
+- [x] **OSM-07**: `tool/osm_pipeline/` is retained as a dev-only fixture generator for Phase 5 golden-corpus tests (NOT invoked at app runtime); the pipeline's outputs (`osm.sqlite`, `germany-base.pmtiles`) are no longer bundled with the app
+- [x] **OSM-08**: MapTiler + OpenStreetMap attribution is visible and clickable in Settings > About (links to https://www.maptiler.com/copyright/ and https://www.openstreetmap.org/copyright); MapTiler free-tier TOS + ODbL compliance verified
 
-### OSM DB Runtime (OSMDB)
-
-- [ ] **OSMDB-01**: On first launch, app prompts user to download OSM DB over Wi-Fi (~200 MB); download can be resumed if interrupted
-- [ ] **OSMDB-02**: OSM DB is stored separately from App DB and treated as read-only
-- [ ] **OSMDB-03**: OSM DB is opened in its own Drift isolate with statement caching warm-up
-- [ ] **OSMDB-04**: App verifies OSM DB integrity (schema version + row-count sanity check) on open; broken artifact triggers re-download
-- [ ] **OSMDB-05**: OSM DB updates are swap-in-place: new artifact downloaded to a temp path, atomically swapped into place, old file deleted
-- [ ] **OSMDB-06**: OSM DB updates invalidate the coverage cache; drivenway intervals remain valid (way IDs are stable across Geofabrik snapshots)
-- [ ] **OSMDB-07**: R-Tree candidate query (`findWaysNear(lat, lng, radius)`) returns top-N candidates in p95 < 30 ms on target devices
+<!--
+  OSMDB-01..OSMDB-07 were phrased around a bundled-osm.sqlite architecture
+  that was abandoned 2026-07-08 (see PROJECT.md Key Decisions). Runtime
+  road-data now comes from Overpass via WayCandidateSource (OSM-02, OSM-05).
+  Matcher-consumption requirements move to Phase 5's requirements block —
+  to be authored during Phase 5 planning.
+-->
 
 ### Vehicles (VEH)
 
@@ -242,8 +240,8 @@ Explicitly excluded. Documented to prevent scope creep.
 ## Traceability
 
 **Coverage:**
-- v1 requirements: 119 total
-- Mapped to phases: 119 / 119 (100 %)
+- v1 requirements: 112 total (was 119 pre-rescope; OSMDB-01..OSMDB-07 deleted 2026-07-08 — see PROJECT.md Key Decisions)
+- Mapped to phases: 112 / 112 (100 %)
 - Unmapped: 0
 
 Every requirement maps to exactly one phase. Phase Gates in ROADMAP.md carry two open decisions (G1 = UI-05 fallback; G2 = REN-05 fallback) that will resolve when their spike phase runs.
@@ -286,31 +284,24 @@ Every requirement maps to exactly one phase. Phase Gates in ROADMAP.md carry two
 | TRK-09 | Phase 3: Tracking MVP | Code-Complete (drive-deferred) |
 | TRK-10 | Phase 3: Tracking MVP | Code-Complete (drive-deferred) |
 | TRK-11 | Phase 3: Tracking MVP | Code-Complete (drive-deferred) |
-| OSM-01 | Phase 4: OSM Pipeline | Pending |
-| OSM-02 | Phase 4: OSM Pipeline | Pending |
-| OSM-03 | Phase 4: OSM Pipeline | Pending |
-| OSM-04 | Phase 4: OSM Pipeline | Pending |
-| OSM-05 | Phase 4: OSM Pipeline | Pending |
-| OSM-06 | Phase 4: OSM Pipeline | Pending |
-| OSM-07 | Phase 4: OSM Pipeline | Pending |
-| OSM-08 | Phase 4: OSM Pipeline | Pending |
-| OSMDB-01 | Phase 5: OSM DB + Matcher | Pending |
-| OSMDB-02 | Phase 5: OSM DB + Matcher | Pending |
-| OSMDB-03 | Phase 5: OSM DB + Matcher | Pending |
-| OSMDB-04 | Phase 5: OSM DB + Matcher | Pending |
-| OSMDB-05 | Phase 5: OSM DB + Matcher | Pending |
-| OSMDB-06 | Phase 5: OSM DB + Matcher | Pending |
-| OSMDB-07 | Phase 5: OSM DB + Matcher | Pending |
-| MMT-01 | Phase 5: OSM DB + Matcher | Pending |
-| MMT-02 | Phase 5: OSM DB + Matcher | Pending |
-| MMT-03 | Phase 5: OSM DB + Matcher | Pending |
-| MMT-04 | Phase 5: OSM DB + Matcher | Pending |
-| MMT-05 | Phase 5: OSM DB + Matcher | Pending |
-| MMT-06 | Phase 5: OSM DB + Matcher | Pending |
-| MMT-07 | Phase 5: OSM DB + Matcher | Pending |
-| MMT-08 | Phase 5: OSM DB + Matcher | Pending |
-| MMT-09 | Phase 5: OSM DB + Matcher | Pending |
-| MMT-10 | Phase 5: OSM DB + Matcher | Pending |
+| OSM-01 | Phase 4: Map & Matching Data Sources | Complete (drive-verify pending combined Phase-4 close-out) |
+| OSM-02 | Phase 4: Map & Matching Data Sources | Complete (drive-verify pending combined Phase-4 close-out) |
+| OSM-03 | Phase 4: Map & Matching Data Sources | Complete (drive-verify pending combined Phase-4 close-out) |
+| OSM-04 | Phase 4: Map & Matching Data Sources | Complete (drive-verify pending combined Phase-4 close-out) |
+| OSM-05 | Phase 4: Map & Matching Data Sources | Complete (drive-verify pending combined Phase-4 close-out) |
+| OSM-06 | Phase 4: Map & Matching Data Sources | Complete (drive-verify pending combined Phase-4 close-out) |
+| OSM-07 | Phase 4: Map & Matching Data Sources | Complete (drive-verify pending combined Phase-4 close-out) |
+| OSM-08 | Phase 4: Map & Matching Data Sources | Complete |
+| MMT-01 | Phase 5: Overpass-Backed Matcher + Golden Corpus | Pending |
+| MMT-02 | Phase 5: Overpass-Backed Matcher + Golden Corpus | Pending |
+| MMT-03 | Phase 5: Overpass-Backed Matcher + Golden Corpus | Pending |
+| MMT-04 | Phase 5: Overpass-Backed Matcher + Golden Corpus | Pending |
+| MMT-05 | Phase 5: Overpass-Backed Matcher + Golden Corpus | Pending |
+| MMT-06 | Phase 5: Overpass-Backed Matcher + Golden Corpus | Pending |
+| MMT-07 | Phase 5: Overpass-Backed Matcher + Golden Corpus | Pending |
+| MMT-08 | Phase 5: Overpass-Backed Matcher + Golden Corpus | Pending |
+| MMT-09 | Phase 5: Overpass-Backed Matcher + Golden Corpus | Pending |
+| MMT-10 | Phase 5: Overpass-Backed Matcher + Golden Corpus | Pending |
 | INB-01 | Phase 6: Inbox + Match Wire-Up | Pending |
 | INB-02 | Phase 6: Inbox + Match Wire-Up | Pending |
 | INB-03 | Phase 6: Inbox + Match Wire-Up | Pending |
@@ -363,7 +354,7 @@ Every requirement maps to exactly one phase. Phase Gates in ROADMAP.md carry two
 | SET-08 | Phase 10: Settings + Backup | Pending |
 | SET-09 | Phase 10: Settings + Backup | Pending |
 | QUA-01 | Phase 11: Hardening | Pending |
-| QUA-02 | Phase 5: OSM DB + Matcher | Pending |
+| QUA-02 | Phase 5: Overpass-Backed Matcher + Golden Corpus | Pending |
 | QUA-03 | Phase 1: Scaffolding | Complete |
 | QUA-04 | Phase 11: Hardening | Pending |
 | QUA-05 | Phase 1: Scaffolding | Complete |
@@ -372,4 +363,4 @@ Every requirement maps to exactly one phase. Phase Gates in ROADMAP.md carry two
 
 ---
 *Requirements defined: 2026-07-02*
-*Last updated: 2026-07-07 (Plan 04-10.1)*
+*Last updated: 2026-07-08 (Plan 04-17 rescope close-out — OSM-01..OSM-08 rephrased for MapTiler + Overpass architecture; OSMDB-01..OSMDB-07 deleted; total 119 → 112)*
