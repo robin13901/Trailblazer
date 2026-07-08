@@ -5,16 +5,16 @@
 See: .planning/PROJECT.md (updated 2026-07-02)
 
 **Core value:** When I open the map, I immediately see the roads I've already driven, painted onto the world — and that view keeps pulling me back to explore more.
-**Current focus:** Phase 5 EXECUTING (Wave 1 in progress — plans 05-01, 05-02, 05-03 running in parallel). Phase 4 rescope code-complete; combined Phase-4 close-out drive-verify still pending.
+**Current focus:** Phase 5 EXECUTING (Wave 2 started — plan 05-04 Viterbi decoder DONE). Phase 4 rescope code-complete; combined Phase-4 close-out drive-verify still pending.
 
 ## Current Position
 
-Phase: 5 of 11 (Overpass-Backed Matcher + Golden Corpus — Wave 1 executing 2026-07-08)
-Plan: 05-03 complete (WaySegmentIndex + WaySegment + rbush R-Tree) — 2026-07-08
-Status: Phase 5 Wave 1 in progress. Plans 05-01 + 05-03 DONE. Phase 4 rescope COMPLETE (code-complete; drive-verify pending combined Phase-4 close-out).
-Last activity: 2026-07-08 — Plan 05-03 complete: WaySegment value type + WaySegmentIndex (rbush R-Tree, radius query, top-K query with exact perp-distance ranking; 24 tests)
+Phase: 5 of 11 (Overpass-Backed Matcher + Golden Corpus — Wave 2 executing 2026-07-08)
+Plan: 05-04 complete (ViterbiDecoder + GpsFix + MatchedStep) — 2026-07-08
+Status: Phase 5 Wave 2 started. Plans 05-01 + 05-02 + 05-03 + 05-04 DONE. Phase 4 rescope COMPLETE (code-complete; drive-verify pending combined Phase-4 close-out).
+Last activity: 2026-07-08 — Plan 05-04 complete: GpsFix + MatchedStep value types + ViterbiDecoder (log-space, top-K beam, gap detection, MMT-07 speed guard, one-way constraint; 22 tests)
 
-Progress: [███████░░░] ~58% (45/77 est. plans overall — Phase 1: 7/7; Phase 2: 7/7; Phase 3: 7/7 code-complete; Phase 3.1: 5/5 COMPLETE; Phase 4: 10/N + Sub-Phase 04-10.1: 4/6 archived + rescope: 8/8 complete; Phase 5: 2+/N in progress)
+Progress: [███████░░░] ~59% (46/77 est. plans overall — Phase 1: 7/7; Phase 2: 7/7; Phase 3: 7/7 code-complete; Phase 3.1: 5/5 COMPLETE; Phase 4: 10/N + Sub-Phase 04-10.1: 4/6 archived + rescope: 8/8 complete; Phase 5: 4/N — 05-01 + 05-02 + 05-03 + 05-04 DONE)
 
 ## Performance Metrics
 
@@ -395,6 +395,10 @@ Key locked-in decisions affecting current work:
 - **Phase 2 close-out (2026-07-04): tilt disabled.** `tiltGesturesEnabled: false` per `02-CONTEXT.md` ("flat 2D only — tilt is not a navigation gesture"). Documented deviation from ROADMAP.md SC1 wording. No regression; intentional product decision.
 - **Plan 05-03 (2026-07-08): rbush 1.1.1 pinned.** `dart pub add rbush` resolved to `rbush: ^1.1.1` (research §11 open question #7 resolved). Alphabetized between `permission_handler` and `riverpod_annotation` in `pubspec.yaml`. `WaySegmentIndex` wraps `RBushBase<WaySegment>` with bulk STR load; `queryTopK` uses exact `perpDistanceToSegmentMeters` reranking; ties broken by `(wayId, segIdx)` for Viterbi reproducibility.
 - **Plan 05-03 (2026-07-08): WaySegment equality by (wayId, segIdx) slot only.** Coordinate changes on re-densified geometry do not break segment identity — two candidates with the same (way, index) slot are considered equal even if their coordinates differ upstream. This is intentional: the matcher's match result is identified by slot, not by exact geometry bytes.
+- **Plan 05-04 (2026-07-08): ViterbiDecoder direction uses segIdx first, then projectionFraction.** Comparing fractions alone across segment boundaries gives wrong results because fraction resets 0→1 on each segment. Using `segIdx` change as the primary directional signal, then `projectionFraction` within the same segment, correctly identifies forward vs backward motion. Epsilon guard 0.001 on dfrac before enforcing oneway violation penalty (floating-point guard per plan §Deviations).
+- **Plan 05-04 (2026-07-08): Sub-track traceback is per-sub-track.** Each `(lo, hi)` pair is traced back independently. Prevents a later sub-track's higher `totalLogP` from clobbering earlier sub-track matches when writing `result[step]` entries.
+- **Plan 05-04 (2026-07-08): gapThresholdSeconds exposed as ViterbiDecoder constructor param.** Default 60 s preserved; override path for tests that need smaller intervals (per plan §Deviations guidance). `kBeamWidth=5` is the default beamWidth value; tests with `beamWidth: 5` trigger `avoid_redundant_argument_values`, so k=5 tests use `const ViterbiDecoder()`.
+- **Plan 05-04 (2026-07-08): GpsFix + MatchedStep deliberately non-const.** `GpsFix` holds a `DateTime` field which is not const-constructible in Dart (DateTime.utc() is not a const constructor). Tests must use `final` not `const` for GpsFix instances. `MatchedStep` has no DateTime but imports `WayCandidate.dart` for `OnewayDirection`; the `LatLng` in `WayCandidate.geometry` lists is not const either.
 
 ### Blockers/Concerns
 
@@ -410,7 +414,7 @@ Key locked-in decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-07-08 (Plan 05-03 WaySegment + WaySegmentIndex + rbush — Phase 5 Wave 1)
-Stopped at: Plan 05-03 COMPLETE. Task commits: `8c3e333` WaySegment value type; `5d4c6a3` WaySegmentIndex (rbush). Metadata commit follows (SUMMARY.md + STATE.md).
+Last session: 2026-07-08 (Plan 05-04 ViterbiDecoder + GpsFix + MatchedStep — Phase 5 Wave 2)
+Stopped at: Plan 05-04 COMPLETE. Task commits: `c9f946f` GpsFix + MatchedStep value types; `b2588c8` Viterbi HMM decoder (22 tests). Metadata commit follows (SUMMARY.md + STATE.md).
 Resume file: None
-Next: Phase 5 Wave 1 continues (plan 05-02 HMM probability + segment geometry may still be in flight). After Wave 1 completes, Phase 5 Wave 2 (05-04 Viterbi decoder, 05-05 matcher) will consume WaySegmentIndex.queryTopK. Combined Phase-4 close-out drive still pending.
+Next: Phase 5 Wave 2 continues (05-05 HmmMatcher orchestrator, 05-06 matcher isolate). ViterbiDecoder is ready for consumption by 05-05. Combined Phase-4 close-out drive still pending.
