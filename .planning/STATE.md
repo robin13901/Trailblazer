@@ -5,16 +5,16 @@
 See: .planning/PROJECT.md (updated 2026-07-02)
 
 **Core value:** When I open the map, I immediately see the roads I've already driven, painted onto the world — and that view keeps pulling me back to explore more.
-**Current focus:** Phase 5 EXECUTING (Wave 2 started — plan 05-04 Viterbi decoder DONE). Phase 4 rescope code-complete; combined Phase-4 close-out drive-verify still pending.
+**Current focus:** Phase 5 EXECUTING (Wave 2 continuing — plan 05-05 HmmMatcher DONE). Phase 4 rescope code-complete; combined Phase-4 close-out drive-verify still pending.
 
 ## Current Position
 
 Phase: 5 of 11 (Overpass-Backed Matcher + Golden Corpus — Wave 2 executing 2026-07-08)
-Plan: 05-04 complete (ViterbiDecoder + GpsFix + MatchedStep) — 2026-07-08
-Status: Phase 5 Wave 2 started. Plans 05-01 + 05-02 + 05-03 + 05-04 DONE. Phase 4 rescope COMPLETE (code-complete; drive-verify pending combined Phase-4 close-out).
-Last activity: 2026-07-08 — Plan 05-04 complete: GpsFix + MatchedStep value types + ViterbiDecoder (log-space, top-K beam, gap detection, MMT-07 speed guard, one-way constraint; 22 tests)
+Plan: 05-05 complete (HmmMatcher orchestrator + DrivenWayIntervalDraft + MatchResult) — 2026-07-08
+Status: Phase 5 Wave 2 in progress. Plans 05-01 + 05-02 + 05-03 + 05-04 + 05-05 DONE. Phase 4 rescope COMPLETE (code-complete; drive-verify pending combined Phase-4 close-out).
+Last activity: 2026-07-08 — Plan 05-05 complete: DrivenWayIntervalDraft + MatchResult value types + HmmMatcher orchestrator (index build, Viterbi decode, interval merging, meter accumulation; 10 tests)
 
-Progress: [███████░░░] ~59% (46/77 est. plans overall — Phase 1: 7/7; Phase 2: 7/7; Phase 3: 7/7 code-complete; Phase 3.1: 5/5 COMPLETE; Phase 4: 10/N + Sub-Phase 04-10.1: 4/6 archived + rescope: 8/8 complete; Phase 5: 4/N — 05-01 + 05-02 + 05-03 + 05-04 DONE)
+Progress: [███████░░░] ~60% (47/77 est. plans overall — Phase 1: 7/7; Phase 2: 7/7; Phase 3: 7/7 code-complete; Phase 3.1: 5/5 COMPLETE; Phase 4: 10/N + Sub-Phase 04-10.1: 4/6 archived + rescope: 8/8 complete; Phase 5: 5/N — 05-01 + 05-02 + 05-03 + 05-04 + 05-05 DONE)
 
 ## Performance Metrics
 
@@ -399,6 +399,9 @@ Key locked-in decisions affecting current work:
 - **Plan 05-04 (2026-07-08): Sub-track traceback is per-sub-track.** Each `(lo, hi)` pair is traced back independently. Prevents a later sub-track's higher `totalLogP` from clobbering earlier sub-track matches when writing `result[step]` entries.
 - **Plan 05-04 (2026-07-08): gapThresholdSeconds exposed as ViterbiDecoder constructor param.** Default 60 s preserved; override path for tests that need smaller intervals (per plan §Deviations guidance). `kBeamWidth=5` is the default beamWidth value; tests with `beamWidth: 5` trigger `avoid_redundant_argument_values`, so k=5 tests use `const ViterbiDecoder()`.
 - **Plan 05-04 (2026-07-08): GpsFix + MatchedStep deliberately non-const.** `GpsFix` holds a `DateTime` field which is not const-constructible in Dart (DateTime.utc() is not a const constructor). Tests must use `final` not `const` for GpsFix instances. `MatchedStep` has no DateTime but imports `WayCandidate.dart` for `OnewayDirection`; the `LatLng` in `WayCandidate.geometry` lists is not const either.
+- **Plan 05-05 (2026-07-08): Intra-way direction flip is NOT split into two intervals.** `HmmMatcher._collapseToIntervals` flushes only on wayId change or null (confidence) gap. A direction reversal on the same way produces one interval with `direction = sign(lastMeters - firstMeters)` and `startMeters = min, endMeters = max`. Phase 6 aggregation concern; Plan 05-05 §Deviations locks this behavior.
+- **Plan 05-05 (2026-07-08): `_mPerDegLon` in test file uses `// ignore: prefer_const_declarations`.** Float multiplication `_mPerDegLat * 0.6427876097` is not const in Dart; the variable is effectively constant. `prefer_const_declarations` lint suppressed with an inline comment explaining why.
+- **Plan 05-05 (2026-07-08): `DrivenWayIntervalDraft` + `MatchResult` are Drift-free and isolate-safe.** No `import 'package:drift'` in either file — matcher can run on the matcher isolate (Plan 05-06) without a Drift handle crossing the isolate boundary. Coordinator (05-07) attaches `tripId` before calling `DrivenWayIntervalsDao.insertBatch`.
 
 ### Blockers/Concerns
 
@@ -414,7 +417,7 @@ Key locked-in decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-07-08 (Plan 05-04 ViterbiDecoder + GpsFix + MatchedStep — Phase 5 Wave 2)
-Stopped at: Plan 05-04 COMPLETE. Task commits: `c9f946f` GpsFix + MatchedStep value types; `b2588c8` Viterbi HMM decoder (22 tests). Metadata commit follows (SUMMARY.md + STATE.md).
+Last session: 2026-07-08 (Plan 05-05 HmmMatcher orchestrator — Phase 5 Wave 2)
+Stopped at: Plan 05-05 COMPLETE. Task commits: `c4c1a3e` DrivenWayIntervalDraft + MatchResult value types; `f82745a` HmmMatcher orchestrator with interval merging (10 tests). Metadata commit follows (SUMMARY.md + STATE.md).
 Resume file: None
-Next: Phase 5 Wave 2 continues (05-05 HmmMatcher orchestrator, 05-06 matcher isolate). ViterbiDecoder is ready for consumption by 05-05. Combined Phase-4 close-out drive still pending.
+Next: Phase 5 Wave 2 continues (05-06 matcher isolate, 05-07 coordinator). HmmMatcher is ready for consumption by 05-06/05-07. Combined Phase-4 close-out drive still pending.
