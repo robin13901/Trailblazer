@@ -10,9 +10,9 @@ See: .planning/PROJECT.md (updated 2026-07-02)
 ## Current Position
 
 Phase: 5 of 11 (Overpass-Backed Matcher + Golden Corpus — Wave 2 executing 2026-07-08)
-Plan: 05-05 complete (HmmMatcher orchestrator + DrivenWayIntervalDraft + MatchResult) — 2026-07-08
-Status: Phase 5 Wave 2 in progress. Plans 05-01 + 05-02 + 05-03 + 05-04 + 05-05 DONE. Phase 4 rescope COMPLETE (code-complete; drive-verify pending combined Phase-4 close-out).
-Last activity: 2026-07-08 — Plan 05-05 complete: DrivenWayIntervalDraft + MatchResult value types + HmmMatcher orchestrator (index build, Viterbi decode, interval merging, meter accumulation; 10 tests)
+Plan: 05-08 complete (golden corpus scaffolding + seed fixture + CI coverage gate) — 2026-07-08
+Status: Phase 5 Wave 4 in progress. Plans 05-01 + 05-02 + 05-03 + 05-04 + 05-05 + 05-08 DONE. Phase 4 rescope COMPLETE (code-complete; drive-verify pending combined Phase-4 close-out). 05-06 + 05-07 executing in parallel Wave 4.
+Last activity: 2026-07-08 — Plan 05-08 complete: golden corpus scaffolding + seed fixture 001_synthetic_straight_east + CI coverage gate (check_matcher_coverage.dart ≥90% + save_trip_fixture CLI)
 
 Progress: [███████░░░] ~60% (47/77 est. plans overall — Phase 1: 7/7; Phase 2: 7/7; Phase 3: 7/7 code-complete; Phase 3.1: 5/5 COMPLETE; Phase 4: 10/N + Sub-Phase 04-10.1: 4/6 archived + rescope: 8/8 complete; Phase 5: 5/N — 05-01 + 05-02 + 05-03 + 05-04 + 05-05 DONE)
 
@@ -356,6 +356,14 @@ Key locked-in decisions affecting current work:
 
 ### Pending Todos
 
+- **Phase 5 golden-corpus real-drive batch (deferred 2026-07-08):**
+  4 real-drive fixtures needed to bring corpus from 1 synthetic seed
+  to 5 seeds (Phase 5 SC3). Scenarios + workflow documented in
+  `test/fixtures/golden_trips/README.md` "Phase 5 close-out follow-up
+  drives" section. Batch alongside pending Phase 4 combined close-out
+  drive. Does NOT block Phase 6 planning (Phase 6 inherits corpus
+  expansion to ≥ 20 per roadmap SC3 amendment 2026-07-08).
+
 - **Phase 4 (04-13 follow-up):** Wave-3 backlog — Overpass query optimization. Switch from `out geom qt;` to a two-shot `out ids qt;` + `node(w); out geom qt;` pattern to shed the redundant `nodes` array in each way element (~30-40% bandwidth waste per response). Cost: two round-trips instead of one. Consider once tile-cache is in place and network cost dominates.
 - **Phase 4 (04-14 input contract):** Tile-cache schema is MANDATORY per 04-13 payload probe (verdict: mandatory tile-splitting for v1). Table shape: `overpass_tile_cache(z12_tile_key PK, fetched_at, way_ids BLOB, expires_at)` + `way_candidates(way_id PK, geometry BLOB or JSON, highway_class TEXT, name, ref, oneway TEXT, maxspeed_kmh INT)`. Mirror the `WayCandidate` model's field shape. Cache-key = z12 slippy tile coords. **RESOLVED 2026-07-08 (04-14)** — `overpass_way_cache` composite PK (tileZ, tileX, tileY) + gzipped raw JSON payload; `pending_road_fetches` FK cascade on trip. Payload format chosen over normalized way_candidates: decouples storage from parser evolution. Schema-v3 lives; DAOs shipped.
 - **Phase 4 (04-15 input contract):** WayCandidateSource consumes the two 04-14 DAOs. Cache-hit: `OverpassWayCacheDao.getByTile(z, x, y)` returns the gzipped payload; parse on read via `OverpassResponseParser.parseWays(...)`. Cache-miss: call `OverpassClient.fetchWaysInBbox(...)` (04-13), then `put(z, x, y, payloadGzip, wayCount)`. Slippy tile-bbox math lives in 04-15. Trip-start pre-fetch coordinator uses `PendingRoadFetchesDao.enqueue` on network failure; drain worker walks `listPending()` (oldest-first) with `incrementAttempts` on retry, `removeByTrip` on success. 04-15 will also add `TripStatus.pendingRoadData` enum value, re-dumping `drift_schemas/drift_schema_v3.json` — that re-dump is a legitimate 04-15 commit (per 04-14 plan frontmatter note). **RESOLVED 2026-07-08 (04-15 code-complete)** — WayCandidateSource + TileBboxMath + OverpassWayCandidateSource + FixtureWayCandidateSource all shipped; TripStatus.pendingRoadData inserted; drift_schema_v3.json re-dump byte-identical (TripStatus lives in Dart via TripStatusConverter). Coalescing branch NOT built (04-13 MANDATORY verdict). Task 4 device drive deferred to combined Phase-4 close-out session.
@@ -417,7 +425,7 @@ Key locked-in decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-07-08 (Plan 05-05 HmmMatcher orchestrator — Phase 5 Wave 2)
-Stopped at: Plan 05-05 COMPLETE. Task commits: `c4c1a3e` DrivenWayIntervalDraft + MatchResult value types; `f82745a` HmmMatcher orchestrator with interval merging (10 tests). Metadata commit follows (SUMMARY.md + STATE.md).
+Last session: 2026-07-08 (Plan 05-08 golden corpus + CI coverage gate — Phase 5 Wave 4)
+Stopped at: Plan 05-08 COMPLETE. Task commits: `8a966d8` golden corpus scaffolding + seed; `0d0af68` save_trip_fixture CLI + check_matcher_coverage; `fb0dde7` CI coverage gate. SUMMARY.md + STATE.md follow.
 Resume file: None
-Next: Phase 5 Wave 2 continues (05-06 matcher isolate, 05-07 coordinator). HmmMatcher is ready for consumption by 05-06/05-07. Combined Phase-4 close-out drive still pending.
+Next: Phase 5 Wave 4 completes (05-06 matcher isolate + 05-07 coordinator executing in parallel). Real-drive corpus fixtures deferred — batch with Phase 4 close-out drive. Phase 6 unblocked for planning.

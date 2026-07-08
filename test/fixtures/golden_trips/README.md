@@ -94,3 +94,23 @@ wayId sequence matches this list exactly.
 | 16–17 | `NNN_citygrid_*` | Dense city grid |
 | 18–19 | `NNN_roundabout_*` | Roundabout with straight exit |
 | 20 | `NNN_einbahn_*` | One-way pair |
+
+## Phase 5 close-out follow-up drives (deferred)
+
+Phase 5 SC3 requires ≥ 5 seed fixtures at close-out. Task 1 shipped
+fixture `001_synthetic_straight_east/` (synthetic). The remaining 4
+real-drive fixtures are deferred to an out-of-band drive-batch so
+Phase 5 could run end-to-end unattended (overnight execution).
+
+Scenarios to record (one fixture each — bring corpus to 5 total):
+
+| Slug | Scenario | Estimated drive |
+|------|----------|-----------------|
+| `002_autobahn_forward` | Autobahn forward, ≥ 5 min at ≥ 100 km/h | A3 or A45 nearest ramp |
+| `003_kreisel_entry_exit` | Kreisverkehr entry + full-loop + exit | Any nearby Kreisel; loop twice |
+| `004_city_grid` | Dense city grid (≥ 20 turns) | Aschaffenburg / Frankfurt centre |
+| `005_bundesstrasse_mixed` | Bundesstraße with mixed class transitions | B26 or B469 |
+
+For each fixture, follow the "Adding a new fixture" workflow above.
+Once all 4 land, Phase 5 SC3 (≥ 5 seeds) is satisfied. Corpus growth
+to ≥ 20 continues in Phase 6+ per roadmap.
