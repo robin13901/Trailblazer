@@ -11,15 +11,18 @@ files_modified:
   - tool/osm_pipeline/bin/save_trip_fixture.dart
   - tool/check_matcher_coverage.dart
   - .github/workflows/ci.yml
-autonomous: false
+  - .planning/STATE.md
+autonomous: true
 requirements: [MMT-09, QUA-02]
 
-user_setup:
-  - service: golden-corpus-drives
-    why: "Real recorded drives across the 8 required scenarios (autobahn, Kreisel, tunnel, parking, U-turn, city grid, roundabout, one-way)."
-    dashboard_config:
-      - task: "Drive each scenario and record GPS trace via the app; export as gps_trace.json per fixture layout."
-        location: "Local device + phone; export via existing debug HUD or manual Drift dump."
+# NOTE (2026-07-08 overnight-execution adjustment):
+# Autonomous flipped false → true. Real-drive fixtures (originally Task 4
+# checkpoint:human-action) moved to a documented post-phase follow-up so the
+# entire phase can run end-to-end without halting. Task 4 is now an auto
+# task that records the deferral in STATE.md and README.md. The 4 real drives
+# stay in scope for Phase 5 SC3 but are executed after overnight completion,
+# batched with any other pending device checkpoints — matches the existing
+# "defer in-car verification" pattern used at the end of Phase 3.
 
 must_haves:
   truths:
@@ -29,7 +32,7 @@ must_haves:
     - "`tool/osm_pipeline/bin/save_trip_fixture.dart` is a CLI that, given a GPS trace JSON path and a live network, calls `OverpassWayCandidateSource.fetchWaysInBbox` for the trace's bbox and writes `ways.json.gz` next to the trace."
     - "`tool/check_matcher_coverage.dart` reads `coverage/lcov.info` (post-`remove_from_coverage`), computes line coverage for `lib/features/matching/domain/**` + `lib/core/db/daos/driven_way_intervals_dao.dart`, prints the percentage, and exits 1 when < 90% (QUA-02)."
     - "`.github/workflows/ci.yml` runs the coverage-gate script AFTER the existing `Strip generated files from coverage` step and BEFORE the Codecov upload."
-    - "The corpus test includes at least 1 seed fixture (a synthetic hand-authored trip); expansion to ≥ 20 real-drive fixtures happens over subsequent PRs. Roadmap Phase 5 SC3 requires ≥ 20; this plan lays the scaffolding + first seed, with a follow-up checkpoint capturing the drive schedule."
+    - "The corpus test includes at least 1 seed fixture (a synthetic hand-authored trip). The additional 4 real-drive fixtures required by roadmap SC3 (≥ 5 at Phase 5 close-out) are captured as a follow-up drive-batch documented in `test/fixtures/golden_trips/README.md` and `.planning/STATE.md` — same pattern as Phase 3 in-car verification deferral (see `.planning/phases/03-tracking-mvp/` close-out)."
   artifacts:
     - path: "test/fixtures/golden_trips/README.md"
       provides: "Fixture-layout spec + workflow for recording new trips."
@@ -66,11 +69,11 @@ must_haves:
 Ship the golden-corpus scaffolding + first seed fixture + CI coverage gate. The scaffolding is what MMT-09 + QUA-02 verify against; the seed proves the harness works. Real-drive fixtures accumulate over subsequent PRs (research §5 + §11.5).
 
 Resolves research §11 open questions:
-- **#5 Corpus seeding strategy:** 1 synthetic seed at plan-close (proves the harness); real-drive fixtures added in a follow-up (checkpoint at end of plan blocks phase completion until 5 seeds land).
+- **#5 Corpus seeding strategy:** 1 synthetic seed at plan-close (proves the harness); 4 real-drive fixtures deferred to a follow-up drive-batch (documented in README + STATE.md by Task 4) to bring the corpus to the 5 seeds Phase 5 SC3 requires at close-out. Overnight-execution mode: this plan runs end-to-end and produces the deferral record; the actual drives happen out-of-band and land as a follow-up PR.
 - **#9 CI failure mode:** the golden-corpus test IS a required CI step; algorithm tuning must include fixture updates. If a legitimate tuning breaks a fixture, the fix is to update `expected_ways.json` in the same PR after eyeballing the new sequence.
 - **#10 build_runner ordering:** existing CI already runs build_runner before analyze/test — confirmed in `.github/workflows/ci.yml`.
 
-Autonomous = false because it ends with a checkpoint: user must record 4 more real-drive fixtures to bring the corpus to the 5 seeds the roadmap expects at close-out.
+Autonomous = true (2026-07-08 overnight-execution adjustment). The user-action drive-batch is captured as an auto Task 4 that writes the deferral into STATE.md + README.md — the physical drives happen after overnight completion, batched with any other pending device checkpoints.
 
 ## Context
 
@@ -472,48 +475,98 @@ Autonomous = false because it ends with a checkpoint: user must record 4 more re
   <done>CI step inserted; step will fail the CI job if coverage < 90%.</done>
 </task>
 
-<task type="checkpoint:human-action">
-  <name>Task 4: Record 4 additional real-drive fixtures to bring corpus to 5 seeds</name>
-  <files></files>
-  <what-built>
-    Golden-corpus scaffolding + 1 synthetic seed + CI coverage gate (≥ 90 % on the matcher module). Fixture layout + generator CLI + coverage-gate script + CI step all committed.
+<task type="auto">
+  <name>Task 4: Record deferred-drive-batch follow-up in README + STATE.md</name>
+  <files>
+    test/fixtures/golden_trips/README.md
+    .planning/STATE.md
+  </files>
+  <intent>
+    Overnight-execution mode: the 4 real-drive fixtures required by roadmap
+    SC3 (≥ 5 seeds at Phase 5 close-out) cannot be recorded during unattended
+    execution. Capture them as a documented follow-up drive-batch — same
+    pattern the project used for Phase 3 in-car verification and Phase 4
+    combined close-out drive.
+  </intent>
+  <action>
+    **1) Append to `test/fixtures/golden_trips/README.md`:**
 
-    What's missing: 4 more seed fixtures across real scenarios so the corpus meaningfully validates the matcher on real GPS.
-  </what-built>
-  <how-to-verify>
-    User records 4 real-drive fixtures — one per scenario category (autobahn, Kreisel, city grid, Bundesstraße). For each:
+    Add a new section at the END of the file (below any existing content
+    Task 1 wrote):
 
-    1. Drive the scenario; record via Trailblazer app.
-    2. From the app (or Drift dump), export `gps_trace.json` for the trip.
-    3. Create fixture directory: `test/fixtures/golden_trips/{NNN}_{scenario_slug}/` (increment NNN).
-    4. Place `gps_trace.json` in the directory.
-    5. Run: `dart run tool/osm_pipeline/bin/save_trip_fixture.dart --trace test/fixtures/golden_trips/{NNN}_{scenario_slug}/gps_trace.json` — writes `ways.json.gz`.
-    6. Run: `flutter test test/features/matching/golden_corpus_test.dart` — expect the new fixture to FAIL initially because `expected_ways.json` doesn't exist yet.
-    7. Inspect the actual output printed by the failing assertion; if the sequence looks plausible for the drive, write it verbatim into `expected_ways.json`.
-    8. Add `metadata.json` with scenario slug + notes + recorded_at.
-    9. Re-run the corpus test — now green.
-    10. Commit all four files as one commit per fixture.
+    ```markdown
 
-    Once 4 additional fixtures land (5 total corpora), the phase is code-complete. The remaining 15 fixtures (to reach the roadmap's ≥ 20) can accrete over Phase 6+ drives — Phase 5 sign-off does NOT require the full 20, per research §5 and §11.5.
+    ## Phase 5 close-out follow-up drives (deferred)
 
-    **Approve on 5 total green fixtures; describe blockers otherwise.**
-  </how-to-verify>
-  <resume-signal>Type "approved" or describe blockers.</resume-signal>
+    Phase 5 SC3 requires ≥ 5 seed fixtures at close-out. Task 1 shipped
+    fixture `001_synthetic_straight_east/` (synthetic). The remaining 4
+    real-drive fixtures are deferred to an out-of-band drive-batch so
+    Phase 5 could run end-to-end unattended (overnight execution).
+
+    Scenarios to record (one fixture each — bring corpus to 5 total):
+
+    | Slug | Scenario | Estimated drive |
+    |------|----------|-----------------|
+    | `002_autobahn_forward` | Autobahn forward, ≥ 5 min at ≥ 100 km/h | A3 or A45 nearest ramp |
+    | `003_kreisel_entry_exit` | Kreisverkehr entry + full-loop + exit | Any nearby Kreisel; loop twice |
+    | `004_city_grid` | Dense city grid (≥ 20 turns) | Aschaffenburg / Frankfurt centre |
+    | `005_bundesstrasse_mixed` | Bundesstraße with mixed class transitions | B26 or B469 |
+
+    For each fixture, follow the "Adding a new fixture" workflow above.
+    Once all 4 land, Phase 5 SC3 (≥ 5 seeds) is satisfied. Corpus growth
+    to ≥ 20 continues in Phase 6+ per roadmap.
+    ```
+
+    **2) Append a follow-up entry to `.planning/STATE.md`:**
+
+    Locate the "## Follow-ups / Deferred" section (or the "## Current
+    Position" block if no dedicated deferred-work section exists), and add
+    a bullet:
+
+    ```markdown
+    - **Phase 5 golden-corpus real-drive batch (deferred 2026-07-08):**
+      4 real-drive fixtures needed to bring corpus from 1 synthetic seed
+      to 5 seeds (Phase 5 SC3). Scenarios + workflow documented in
+      `test/fixtures/golden_trips/README.md` "Phase 5 close-out follow-up
+      drives" section. Batch alongside pending Phase 4 combined close-out
+      drive. Does NOT block Phase 6 planning (Phase 6 inherits corpus
+      expansion to ≥ 20 per roadmap SC3 amendment 2026-07-08).
+    ```
+
+    If STATE.md has no such section, add it near the top under "## Current
+    Position" as a new `### Deferred / Follow-ups` heading.
+
+    **3) Grep-verify:**
+    ```bash
+    grep -c "Phase 5 close-out follow-up drives" test/fixtures/golden_trips/README.md
+    grep -c "Phase 5 golden-corpus real-drive batch" .planning/STATE.md
+    ```
+    Both return 1.
+  </action>
+  <verify>
+    ```bash
+    grep -A2 "Phase 5 close-out follow-up drives" test/fixtures/golden_trips/README.md
+    grep -A2 "Phase 5 golden-corpus real-drive batch" .planning/STATE.md
+    ```
+    Both print the appended sections. `flutter analyze` still clean
+    (markdown files aren't analyzed).
+  </verify>
+  <done>Deferral documented in both README.md and STATE.md; Phase 5 close-out is code-complete with 1 seed shipped and 4 real drives queued for the next drive-batch.</done>
 </task>
 
 ## Success Criteria
 
 - `flutter analyze` clean.
-- `flutter test test/features/matching/golden_corpus_test.dart` passes on the seed fixture (post-Task 1) and on the additional 4 fixtures (post-Task 4).
+- `flutter test test/features/matching/golden_corpus_test.dart` passes on the 1 synthetic seed fixture (post-Task 1).
 - `dart run tool/check_matcher_coverage.dart` prints a percentage and exits 0 when the matcher domain files have ≥ 90 % coverage.
 - CI workflow contains the `Enforce matcher coverage` step.
-- 5 fixture directories exist under `test/fixtures/golden_trips/` at phase close-out.
+- 1 fixture directory (`001_synthetic_straight_east/`) exists under `test/fixtures/golden_trips/` at plan close (Task 1); the 4 real-drive follow-ups are documented as a deferred drive-batch in README + STATE.md (Task 4).
 
 ## Ralph Loop
 
-- Tight loop: `flutter analyze` (Tasks 1–3).
-- Behavior-sensitive: `flutter test test/features/matching/golden_corpus_test.dart` after Task 1 and after each fixture is added.
-- Task 4 is a real-world checkpoint; no CI iteration until the drives happen.
+- Tight loop: `flutter analyze` (Tasks 1–4).
+- Behavior-sensitive: `flutter test test/features/matching/golden_corpus_test.dart` after Task 1.
+- Task 4 is markdown-only (no Dart change) — analyze is sufficient.
 
 ## Deviations
 
@@ -526,5 +579,5 @@ Autonomous = false because it ends with a checkpoint: user must record 4 more re
 - Task 1 commit: `feat(05-08): golden corpus scaffolding + first synthetic seed`
 - Task 2 commit: `feat(05-08): save_trip_fixture CLI + check_matcher_coverage script`
 - Task 3 commit: `ci(05-08): enforce matcher coverage >= 90% on CI`
-- Task 4 commits: `test(05-08): add {scenario} golden fixture` (one per fixture)
-- Phase close-out commit (after Task 4): `docs(05-08): Phase 5 golden corpus at 5 seed fixtures`
+- Task 4 commit: `docs(05-08): defer 4 real-drive fixtures to follow-up drive-batch`
+- Phase close-out commit (after Task 4): `docs(05-08): Phase 5 code-complete — 1 synthetic seed + 4 drives deferred`
