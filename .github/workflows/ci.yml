@@ -67,6 +67,9 @@ jobs:
             -r '\.drift\.dart$' \
             -r 'test/generated_migrations'
 
+      - name: Enforce matcher coverage >= 90% (QUA-02)
+        run: dart run tool/check_matcher_coverage.dart
+
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v5
         with:
