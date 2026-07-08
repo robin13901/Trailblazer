@@ -1,4 +1,5 @@
 import 'package:auto_explore/features/settings/presentation/widgets/about_section.dart';
+import 'package:auto_explore/features/settings/presentation/widgets/data_management_section.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -23,6 +24,9 @@ class SettingsScreen extends StatelessWidget {
         children: const [
           _SectionHeader('About'),
           AboutSection(),
+          Divider(height: 1),
+          _SectionHeader('Data'),
+          DataManagementSection(),
           Divider(height: 1),
           _SectionHeader('Coming later'),
           ListTile(
