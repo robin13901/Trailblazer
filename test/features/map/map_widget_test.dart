@@ -184,7 +184,7 @@ void main() {
       },
     );
 
-    testWidgets('initial camera targets Berlin at zoom 15', (tester) async {
+    testWidgets('initial camera targets Berlin at zoom 16', (tester) async {
       await pumpMapWidget(tester);
 
       final map = tester.widget<MapLibreMap>(find.byType(MapLibreMap));
@@ -197,9 +197,9 @@ void main() {
         map.initialCameraPosition!.target.longitude,
         closeTo(13.40, 0.01),
       );
-      // Plan 04-16-1 (2026-07-08 UX polish): zoom 15 = neighborhood-street
-      // detail (was 11 Wave-7 legacy). Mirrors CameraState.initial.zoom.
-      expect(map.initialCameraPosition!.zoom, 15);
+      // Plan 04-18 (2026-07-08 drive feedback): zoom 16 = one level in from
+      // 04-16-1's 15 per user request. Mirrors CameraState.initial.zoom.
+      expect(map.initialCameraPosition!.zoom, 16);
     });
 
     testWidgets(

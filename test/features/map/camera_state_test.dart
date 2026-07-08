@@ -16,10 +16,9 @@ void main() {
     test('initial sentinel has correct defaults', () {
       expect(CameraState.initial.latitude, 0);
       expect(CameraState.initial.longitude, 0);
-      // Plan 04-16-1 (2026-07-08 UX polish): zoom 15 = neighborhood-street
-      // detail matching the user's reference screenshot. Was 16 pre-04-16-1;
-      // was 11 pre-Wave-7. MapWidget.initialZoom mirrors this.
-      expect(CameraState.initial.zoom, 15);
+      // Plan 04-18 (2026-07-08 drive feedback): zoom 16 = one level in from
+      // 04-16-1's 15 per user request. MapWidget.initialZoom mirrors this.
+      expect(CameraState.initial.zoom, 16);
       expect(CameraState.initial.bearing, 0);
       // Default: FollowMode.location so the camera tracks the user's fix
       // as soon as it arrives. Changed from FollowMode.none in Wave 7.

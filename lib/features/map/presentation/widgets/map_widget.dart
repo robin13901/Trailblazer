@@ -41,10 +41,9 @@ class MapWidget extends ConsumerStatefulWidget {
   const MapWidget({
     super.key,
     this.initialTarget = const LatLng(52.52, 13.40), // Berlin fallback
-    // Plan 04-16-1 (2026-07-08 UX polish): 15 = neighborhood-street detail
-    // matching the user's reference screenshot. Was 11 (Wave-7 legacy).
-    // Mirrors CameraState.initial.zoom.
-    this.initialZoom = 15,
+    // Plan 04-18 (2026-07-08 drive feedback): 16 = one level in from
+    // 04-16-1's 15 per user request. Mirrors CameraState.initial.zoom.
+    this.initialZoom = 16,
     this.onMapCreated,
     this.onStyleLoaded,
   });

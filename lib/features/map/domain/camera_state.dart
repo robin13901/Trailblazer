@@ -21,15 +21,14 @@ class CameraState {
 
   /// Default camera state on cold start.
   ///
-  /// Plan 04-16-1 (2026-07-08 UX polish): `zoom = 15` — neighborhood-street
-  /// detail matching the user's reference screenshot (was 16 pre-04-16-1;
-  /// was 11 pre-Wave-7 initial-sentinel refactor). MapWidget.initialZoom
-  /// mirrors this value. Follow-mode = `location` so MapLibre's tracking
-  /// mode snaps the camera to the user's fix as soon as it arrives.
+  /// Plan 04-18 (2026-07-08 drive feedback): `zoom = 16` — one level in
+  /// from 04-16-1's 15 per user request. MapWidget.initialZoom mirrors this
+  /// value. Follow-mode = `location` so MapLibre's tracking mode snaps the
+  /// camera to the user's fix as soon as it arrives.
   static const CameraState initial = CameraState(
     latitude: 0,
     longitude: 0,
-    zoom: 15,
+    zoom: 16,
     followMode: FollowMode.location,
   );
 
