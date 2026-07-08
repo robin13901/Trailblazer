@@ -5,16 +5,16 @@
 See: .planning/PROJECT.md (updated 2026-07-02)
 
 **Core value:** When I open the map, I immediately see the roads I've already driven, painted onto the world — and that view keeps pulling me back to explore more.
-**Current focus:** Phase 5 EXECUTING (Wave 2 continuing — plan 05-05 HmmMatcher DONE). Phase 4 rescope code-complete; combined Phase-4 close-out drive-verify still pending.
+**Current focus:** Phase 5 CODE-COMPLETE (all 8 plans landed: 05-01 through 05-08). Phase 4 rescope code-complete; combined Phase-4 close-out drive-verify still pending.
 
 ## Current Position
 
-Phase: 5 of 11 (Overpass-Backed Matcher + Golden Corpus — Wave 2 executing 2026-07-08)
-Plan: 05-06 + 05-08 complete (matcher isolate + golden corpus — Wave 4 parallel) — 2026-07-08
-Status: Phase 5 Wave 4 in progress. Plans 05-01 + 05-02 + 05-03 + 05-04 + 05-05 + 05-06 + 05-08 DONE. Phase 4 rescope COMPLETE (code-complete; drive-verify pending combined Phase-4 close-out). 05-07 still executing.
-Last activity: 2026-07-08 — Plan 05-06 complete: MatcherIsolate (long-lived warm worker isolate, jobSeq-keyed concurrent futures, pre-start cancel-set, matcherIsolateProvider)
+Phase: 5 of 11 (Overpass-Backed Matcher + Golden Corpus — CODE-COMPLETE 2026-07-08)
+Plan: 05-07 of 8 complete (trip-match coordinator — all 8 plans landed)
+Status: Phase 5 CODE-COMPLETE. Plans 05-01 + 05-02 + 05-03 + 05-04 + 05-05 + 05-06 + 05-07 + 05-08 DONE. Phase 4 rescope COMPLETE (code-complete; drive-verify pending combined Phase-4 close-out).
+Last activity: 2026-07-08 — Plan 05-07 complete: TripMatchCoordinator (end-to-end pipeline: pending→matched, processPending, cancel, retention-sweep resume hook)
 
-Progress: [███████░░░] ~60% (47/77 est. plans overall — Phase 1: 7/7; Phase 2: 7/7; Phase 3: 7/7 code-complete; Phase 3.1: 5/5 COMPLETE; Phase 4: 10/N + Sub-Phase 04-10.1: 4/6 archived + rescope: 8/8 complete; Phase 5: 5/N — 05-01 + 05-02 + 05-03 + 05-04 + 05-05 DONE)
+Progress: [████████░░] ~65% (53/77 est. plans overall — Phase 1: 7/7; Phase 2: 7/7; Phase 3: 7/7 code-complete; Phase 3.1: 5/5 COMPLETE; Phase 4: 10/N + Sub-Phase 04-10.1: 4/6 archived + rescope: 8/8 complete; Phase 5: 8/8 CODE-COMPLETE)
 
 ## Performance Metrics
 
@@ -415,6 +415,12 @@ Key locked-in decisions affecting current work:
 - **Plan 05-06 (2026-07-08) — `matcherIsolateProvider` fire-and-forget start.** Uses `unawaited(isolate.start())` — Riverpod provider construction is synchronous; the async start is fire-and-forget. The coordinator (05-07) must call `await isolate.start()` before its first `match()` call to ensure the worker is warm.
 - **Plan 05-06 (2026-07-08) — Worker entry function is top-level `_matcherWorker`.** `Isolate.spawn` requires a top-level or static function on all platforms (including Windows). Inlining as a lambda or method fails. Named `_matcherWorker` (private, top-level, same file as `MatcherIsolate`).
 - **Plan 05-06 (2026-07-08) — Test suite 377/377 green; 4 new isolate tests.** Roundtrip + concurrent-keying + cancel-race + dispose-clean. Cancel test accepts both `MatcherCancelledException` and successful completion (v1 race outcome not deterministic) — documents the v1 behaviour contract without coupling to a specific outcome.
+- **Plan 05-07 (2026-07-08) — TripMatchCoordinator injected into TripRoadFetchCoordinator via optional constructor param.** Nullable to avoid breaking the 141 pre-Phase-5 tests that build the fetch coordinator without a match coordinator. Phase 5 production wiring passes `matchCoordinator: ref.watch(tripMatchCoordinatorProvider)` in `matching_providers.dart`.
+- **Plan 05-07 (2026-07-08) — Empty ways / null bbox / no points all take fast-path to `matched`.** Degenerate trips (no bbox, no GPS points, no road candidates) are moved to `matched` immediately with 0 intervals — they should not clog the `pending` queue. These are defensive guards, not error paths; they produce a valid (empty) match result.
+- **Plan 05-07 (2026-07-08) — MatcherCancelledException leaves trip in `pending` (retryable).** The coordinator's `onTripReadyForMatching` catches `MatcherCancelledException` (and general Object errors) and leaves the trip in `pending` — `processPending` on the next resume will retry. No DomainError wrapping at this boundary; cancellation is a control-flow signal.
+- **Plan 05-07 (2026-07-08) — `tripMatchCoordinatorProvider` constructs TripsDao + DrivenWayIntervalsDao inline.** Pattern: `TripsDao(ref.watch(appDatabaseProvider))` / `DrivenWayIntervalsDao(ref.watch(appDatabaseProvider))` — matches Plan 03-01's rationale that `@DriftAccessor` on `TripsDao` hits circular imports; plain DatabaseAccessor construction inline in the provider avoids the issue.
+- **Plan 05-07 (2026-07-08) — tracking_notifier_test expected status updated pending → matched.** Phase 5 empty-ways path (`_NoopWayCandidateSource`) immediately transitions the trip to `matched` after fetch-coordinator fires the match coordinator. Test assertion + description updated to reflect the correct Phase 5 behavior. This is a test correctness fix (Rule 1 auto-fix), not a spec deviation.
+- **Plan 05-07 (2026-07-08) — Phase 5 CODE-COMPLETE.** All 8 plans (05-01..05-08) landed. 383/383 tests green. `flutter analyze` clean. End-to-end pipeline: trip close → pendingRoadData → pending → matched. Next: Phase 6 (trip review + coverage layer) can read `driven_way_intervals` rows keyed by `tripId` + `wayId`; `TripMatchCoordinator.cancel(tripId)` is the cleanup path for user-deleted in-flight trips.
 
 ### Blockers/Concerns
 
@@ -430,7 +436,7 @@ Key locked-in decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-07-08 (Plans 05-06 + 05-08 — Phase 5 Wave 4 parallel)
-Stopped at: Plan 05-06 COMPLETE. Task commits: `fbd2bde` MatchJob/MatchJobReply payloads; `22054ce` MatcherIsolate + provider + 4 tests. SUMMARY.md + STATE.md follow.
+Last session: 2026-07-08 (Plan 05-07 — Phase 5 Trip Match Coordinator — CODE-COMPLETE)
+Stopped at: Plan 05-07 COMPLETE. Phase 5 CODE-COMPLETE (all 8 plans: 05-01..05-08). Task commits: `caf8eee` TripsDao+Repo; `98f622b` TripMatchCoordinator+wiring+tests; `0a9d0f6` app.dart resume hook. SUMMARY.md + STATE.md follow.
 Resume file: None
-Next: Phase 5 Wave 4 continues with 05-07 (trip-match coordinator). 05-06 MatcherIsolate is ready for consumption. Real-drive corpus fixtures deferred — batch with Phase 4 close-out drive.
+Next: Phase 6 (trip review + coverage layer). Reads `driven_way_intervals` keyed by `tripId`+`wayId`; `TripMatchCoordinator.cancel(tripId)` is the user-delete cleanup path.
