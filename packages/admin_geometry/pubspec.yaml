@@ -1,0 +1,19 @@
+name: admin_geometry
+description: >
+  Shared pure-Dart geometry code for Trailblazer's Germany admin-polygon
+  bundle. Consumed by both the main Flutter app (runtime AdminBundleRefresher)
+  and the `tool/osm_pipeline/bin/fetch_admin_polygons.dart` dev CLI so both
+  paths share ONE Overpass fetch + Douglas-Peucker simplifier implementation.
+  Leaf package (no Flutter dep) so pure-Dart sub-packages can depend on it.
+publish_to: 'none'
+version: 0.1.0
+
+environment:
+  sdk: ^3.5.0
+
+dependencies:
+  http: ^1.2.0
+
+dev_dependencies:
+  test: ^1.25.0
+  very_good_analysis: ^7.0.0

@@ -8,6 +8,8 @@ environment:
   flutter: ">=3.44.0"
 
 dependencies:
+  admin_geometry:
+    path: packages/admin_geometry
   connectivity_plus: ^7.0.0
   cupertino_icons: ^1.0.8
   drift: ^2.34.0
@@ -74,6 +76,7 @@ flutter:
   uses-material-design: true
   generate: true
   assets:
+    - assets/admin/
     - assets/icons/
     - assets/tiles/
 
