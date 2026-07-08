@@ -1,0 +1,12 @@
+Gateway Timeout
+
+The gateway timed out while waiting for a response from the Overpass API
+upstream. The query may have exceeded the requested `[timeout:25]` budget
+or the server may be under load.
+
+Please try again in a moment. If the problem persists, consider narrowing
+the query bbox or increasing the QL `[timeout:N]` directive.
+
+Synthetic fixture — Overpass returns a plain-text 504 body under nginx/apache.
+Format follows RESEARCH.md §2 and matches the reverse-proxy 504 responses
+observed on public Overpass mirrors under stress.

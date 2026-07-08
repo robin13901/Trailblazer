@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<osm version="0.6" generator="Overpass API 0.7.62.11">
+<remark> runtime error: Query run out of memory in "recurse" at line 1. It would need at least 2048 MB of RAM to continue. </remark>
+</osm>
+
+Runtime error: Query timed out in "query" at line 1 after 25 seconds.
+
+429 Too Many Requests
+
+Your IP is blocked. Please wait before retrying.
+
+The API is currently overloaded. There are already too many parallel requests
+being processed. Please try again in a few seconds or minutes.
+
+Synthetic fixture — Overpass did not naturally 429 us during Task 1 fixture
+generation. Format follows RESEARCH.md §2 and the public Overpass documentation
+at https://dev.overpass-api.de/overpass-doc/en/preface/rate_limiting.html
