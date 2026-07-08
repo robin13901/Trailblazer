@@ -3,7 +3,7 @@ id: 05-07
 phase: 05-overpass-matcher-and-golden-corpus
 plan: 07
 type: execute
-wave: 3
+wave: 5
 depends_on: [05-01, 05-05, 05-06]
 files_modified:
   - lib/features/matching/data/trip_match_coordinator.dart
@@ -11,6 +11,7 @@ files_modified:
   - lib/features/trips/data/trips_dao.dart
   - lib/features/trips/data/trips_repository.dart
   - lib/app.dart
+  - lib/features/matching/data/trip_road_fetch_coordinator.dart
   - test/features/matching/data/trip_match_coordinator_test.dart
 autonomous: true
 requirements: [MMT-01, MMT-03, MMT-05, MMT-06, MMT-08, MMT-10]
@@ -193,8 +194,6 @@ Resolves research §11 open questions:
         _log.info('trip $tripId ready for matching');
         await _isolate.start(); // idempotent
 
-        final trip = await _tripsDao.trips.select().getSingleOrNull(); // TODO fetch by id
-        // ... (fetch trip row by id via a small select; add DAO helper if missing)
         final tripRow = await (_tripsDao.select(_tripsDao.trips)
               ..where((t) => t.id.equals(tripId)))
             .getSingleOrNull();
@@ -299,8 +298,6 @@ Resolves research §11 open questions:
     }
     ```
 
-    (The TODO at the top of `onTripReadyForMatching` — the placeholder line `final trip = await ...getSingleOrNull(); // TODO`  — was a scratch-note; delete it. Use only the second, correct `tripRow` fetch.)
-
     **`matching_providers.dart` addition (after `matcherIsolateProvider`):**
     ```dart
     /// Phase 5 (Plan 05-07): coordinator wiring pending trips into the
@@ -399,7 +396,6 @@ Resolves research §11 open questions:
 
 ## Deviations
 
-- If the placeholder `getSingleOrNull()` line accidentally lands in `onTripReadyForMatching` (I scratched it in the pseudocode), delete it. Only the correctly-filtered `tripRow` fetch should remain.
 - If `TripsDao` cannot expose `.trips` and `.select()` from outside the class (Drift generates protected accessors in some cases), replace the inline `select(trips)..where(...)` with a new `TripsDao.getTripById(int)` helper and call that.
 - If the resume hook's three `unawaited` calls trigger CI test flakiness (some ProviderContainers time out), guard the block behind `if (!kDebugMode || _resumeHookEnabled)` and expose a test seam.
 

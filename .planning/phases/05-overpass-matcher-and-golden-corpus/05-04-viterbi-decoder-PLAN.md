@@ -332,28 +332,83 @@ Resolves research §11 open questions:
       trellis.add(states)
     ```
 
-    **Backward traceback:**
+    **Backward traceback — per-sub-track walk:**
+
+    Sub-tracks are contiguous non-empty runs of `trellis` separated by (a) empty
+    steps (low-confidence drops / no candidates in radius) or (b) gap-reset
+    boundaries where the state's `backptr` is `null` even though the prior
+    step is non-empty. Each sub-track's Viterbi state array is independent —
+    walk each one separately, tail-first, and write MatchedSteps into `result`.
+
     ```
     result = List<MatchedStep?>.filled(fixes.length, null)
-    # Find the last non-empty step and its best state.
-    for step in reverse(range(len(fixes))):
-      if trellis[step] is empty: continue
-      bestIdx = argmax(trellis[step], key=totalLogP)
-      # Walk backwards until we hit a null backptr or an empty step.
+
+    # 1. Identify sub-track boundaries.
+    # A sub-track is a maximal contiguous run [lo..hi] where:
+    #   * trellis[i] is non-empty for every i in [lo..hi], AND
+    #   * for i in [lo+1..hi], at least one state in trellis[i] has a
+    #     non-null backptr (i.e. a real transition, not a gap-reset start).
+    # Equivalently: start a new sub-track at any step where either trellis[step]
+    # is the first non-empty step, or every state in trellis[step] has backptr
+    # == null (this is the gap-reset marker).
+
+    subTracks = []               # List of (lo, hi) inclusive pairs
+    curLo = null
+    for step in range(len(fixes)):
+      if trellis[step] is empty:
+        if curLo is not null: subTracks.append((curLo, step-1)); curLo = null
+        continue
+      if curLo is null:
+        curLo = step
+        continue
+      # Check gap-reset: if every state at this step has backptr == null,
+      # this step starts a new sub-track.
+      if all(state.backptr is null for state in trellis[step]):
+        subTracks.append((curLo, step-1))
+        curLo = step
+    if curLo is not null: subTracks.append((curLo, len(fixes)-1))
+
+    # 2. Walk each sub-track independently.
+    for (lo, hi) in subTracks:
+      bestIdx = argmax(range(len(trellis[hi])), key=lambda i: trellis[hi][i].totalLogP)
       cur = bestIdx
-      s = step
-      while s >= 0 and trellis[s] is not empty and cur is not null:
-        state = trellis[s][cur]
-        direction = _directionFrom(state, priorMatchedStepIfAny)
-        result[s] = MatchedStep(state ...)
-        cur = state.backptr
+      s = hi
+      priorStep = null   # for _directionFrom on next iteration
+      # Local pass writes in reverse; direction resolved in a second forward
+      # pass over the sub-track since 'forward'/'backward' depends on the
+      # PRIOR step (chronologically earlier) on the same wayId.
+      chain = []         # (step, stateIdx) pairs, tail-first
+      while s >= lo and cur is not null:
+        chain.append((s, cur))
+        cur = trellis[s][cur].backptr
         s -= 1
-      break  # Only traceback the last non-empty sub-track's tail — the gap
-              # handling above already reset totalLogP so an earlier sub-track
-              # will have been traced back when its own tail's backptr chain
-              # was walked.
+      # Reverse the chain to walk chronologically for direction resolution.
+      chain.reverse()
+      priorStep = null
+      for (step, stateIdx) in chain:
+        state = trellis[step][stateIdx]
+        direction = _directionFrom(state, priorStep)
+        result[step] = MatchedStep(
+          wayId=state.segment.wayId,
+          segIdx=state.segment.segIdx,
+          projectionFraction=state.projectionFraction,
+          perpDistMeters=state.perpDistMeters,
+          emissionLogP=state.emissionLogP,
+          direction=direction,
+          highwayClass=state.segment.highwayClass,
+          oneway=state.segment.oneway,
+        )
+        priorStep = state
     ```
-    (Correction: run traceback per-sub-track. Walk each contiguous non-empty block of trellis independently; the gap-boundary state has `backptr = null`.)
+
+    Rationale: (a) per-sub-track traceback keeps earlier sub-tracks'
+    matches from being clobbered when the tail of a later sub-track has a
+    higher total-logP; (b) walking chronologically after backptr-chase
+    lets `_directionFrom` see the actual prior step on the same wayId (not
+    the forward-pass `_State`); (c) any step whose backptr chain doesn't
+    reach `lo` (defensive — should not happen if sub-track detection is
+    correct) leaves `result[step]` as null, which is the correct
+    low-confidence output.
 
     **`_directionFrom(state, priorSameWayFraction)`:**
     - `null` prior → default 'forward'.

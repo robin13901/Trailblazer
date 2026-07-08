@@ -3,7 +3,7 @@ id: 05-08
 phase: 05-overpass-matcher-and-golden-corpus
 plan: 08
 type: execute
-wave: 3
+wave: 4
 depends_on: [05-05]
 files_modified:
   - test/fixtures/golden_trips/README.md

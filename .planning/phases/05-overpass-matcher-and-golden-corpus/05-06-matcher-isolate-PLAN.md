@@ -3,7 +3,7 @@ id: 05-06
 phase: 05-overpass-matcher-and-golden-corpus
 plan: 06
 type: execute
-wave: 3
+wave: 4
 depends_on: [05-05]
 files_modified:
   - lib/features/matching/data/matcher_isolate.dart
@@ -167,7 +167,12 @@ Wrap the pure-Dart `HmmMatcher` (05-05) in a long-lived, warm `MatcherIsolate` t
       SendPort? _workerPort;
       final _mainPort = ReceivePort();
       final _pending = <int, Completer<MatchResult>>{};
-      final _cancelledTripIds = <int, int>{}; // tripId -> jobSeq
+      // NOTE: no main-side cancel-set is kept — the worker owns the
+      // authoritative cancel state (see `cancelled` in _matcherWorker
+      // below). If we later need to short-circuit `match()` on the main
+      // side (e.g. for zero-latency cancel of an unstarted job), reintroduce
+      // a `Map<int, int> _cancelledTripIds` here and consult it inside
+      // match().
       int _seq = 0;
       bool _started = false;
 
@@ -215,7 +220,6 @@ Wrap the pure-Dart `HmmMatcher` (05-05) in a long-lived, warm `MatcherIsolate` t
         final comp = Completer<MatchResult>();
         _pending[seq] = comp;
         _workerPort!.send(job);
-        _cancelledTripIds.remove(tripId);
         return comp.future;
       }
 
