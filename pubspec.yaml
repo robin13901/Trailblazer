@@ -54,6 +54,20 @@ dev_dependencies:
   # drift_dev 2.34 requires analyzer ^13, custom_lint 0.8.1 pins analyzer ^8
   # — no overlapping resolution as of 2026-07. Re-add when custom_lint bumps analyzer.
 
+# Reconcile sqlite3 across app vs. path-imported osm_pipeline sub-package.
+# - App side: drift_flutter ^0.3.0 wants sqlite3 ^3.0.0.
+# - Sub-package tool/osm_pipeline pins sqlite3 ^2.4.0 (Dart 3.5 SDK compat).
+# 04-11-1 landed pmtiles/shelf/shelf_router deps whose transitive resolution
+# incidentally papered over the constraint. 04-12 deleted those deps and
+# fresh `flutter pub get` surfaced the conflict.
+# Override forces sqlite3 3.x for the full app resolution. The sub-package's
+# own lockfile is unaffected when it's invoked standalone via
+# `cd tool/osm_pipeline && dart run bin/osm_pipeline.dart`.
+# Bump when tool/osm_pipeline can move to sqlite3 ^3.0.0 (needs Dart >= 3.10,
+# which the top-level SDK now requires anyway — the ^2.4.0 pin is stale).
+dependency_overrides:
+  sqlite3: ^3.0.0
+
 flutter:
   uses-material-design: true
   generate: true
