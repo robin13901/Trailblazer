@@ -69,14 +69,6 @@ class FgbBackgroundGeolocationFacade implements BackgroundGeolocationFacade {
         // — the HUD (Plan 3.1-01) is the visual replacement.
         debug: false,
         logLevel: bg.Config.LOG_LEVEL_VERBOSE,
-        // Plan 04-16-1 Task 1 (2026-07-08 UX polish): drop FGB's persisted
-        // config on every cold start. This suppresses the "LICENSE
-        // VALIDATION FAILURE" nag toast that FGB re-emits on Android whenever
-        // it re-reads a stale license-warning state from persistent storage.
-        // We reapply the full config on every ready() anyway, so losing the
-        // persisted copy is a no-op for tracking behavior. Verified against
-        // FGB 5.3.0's Config (see field on line 552 of config.dart).
-        reset: true,
       ));
 
       bg.BackgroundGeolocation.onLocation(

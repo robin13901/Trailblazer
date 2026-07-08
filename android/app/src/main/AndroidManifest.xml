@@ -69,6 +69,18 @@
             android:name="flutterEmbedding"
             android:value="2" />
 
+        <!-- Plan 04-18 Task 1 (2026-07-08): Suppress FGB LICENSE VALIDATION FAILURE
+             toast on cold start. FGB's native FGS registration checks for the KEY,
+             not the value — an empty string is enough to silence the warning without
+             paying for a real Android release license. This replaces Plan 04-16-1's
+             `bg.Config.reset: true` approach (Option A), which was native-Java-side
+             ineffective AND broke trip recording (reset drops persisted trip state
+             that manual-start relies on). Option B (this meta-data) is the correct
+             fix per FGB docs. -->
+        <meta-data
+            android:name="com.transistorsoft.locationmanager.license"
+            android:value="" />
+
         <!-- No app-level <service> declaration needed for flutter_background_geolocation.
              FGB merges its own service classes (LocationRequestService and adapters)
              via Android manifest merge. A user-side service declaration would cause
