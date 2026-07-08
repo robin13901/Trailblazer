@@ -3,6 +3,8 @@ import 'package:auto_explore/core/db/tables/app_prefs_table.dart';
 import 'package:auto_explore/core/db/tables/bt_fingerprints_table.dart';
 import 'package:auto_explore/core/db/tables/coverage_cache_table.dart';
 import 'package:auto_explore/core/db/tables/driven_intervals_table.dart';
+import 'package:auto_explore/core/db/tables/overpass_way_cache_table.dart';
+import 'package:auto_explore/core/db/tables/pending_road_fetches_table.dart';
 import 'package:auto_explore/core/db/tables/trip_points_table.dart';
 import 'package:auto_explore/core/db/tables/trips_table.dart';
 import 'package:auto_explore/core/db/tables/vehicles_table.dart';
@@ -23,13 +25,15 @@ part 'app_database.g.dart';
     BtFingerprints,
     CoverageCache,
     AppPrefs,
+    OverpassWayCache,
+    PendingRoadFetches,
   ],
 )
 class AppDatabase extends _$AppDatabase {
   AppDatabase([QueryExecutor? executor]) : super(executor ?? _openConnection());
 
   @override
-  int get schemaVersion => 2;
+  int get schemaVersion => 3;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -43,6 +47,10 @@ class AppDatabase extends _$AppDatabase {
         await m.addColumn(trips, trips.bboxMaxLat);
         await m.addColumn(trips, trips.bboxMaxLon);
         await m.addColumn(trips, trips.pointCount);
+      }
+      if (from < 3) {
+        await m.createTable(overpassWayCache);
+        await m.createTable(pendingRoadFetches);
       }
     },
     beforeOpen: (details) async {
