@@ -1,3 +1,4 @@
+import 'package:auto_explore/features/map/data/tile_provider_config.dart';
 import 'package:auto_explore/features/map/presentation/map_screen.dart';
 import 'package:auto_explore/features/map/presentation/providers/location_permission_provider.dart';
 import 'package:auto_explore/features/map/presentation/providers/map_style_provider.dart';
@@ -28,8 +29,17 @@ Future<void> pumpMapScreen(WidgetTester tester) async {
         locationPermissionProvider.overrideWith(
           _FakeLocationPermissionNotifier.new,
         ),
-        mapStyleAssetProvider.overrideWith(
-          () => _FixedMapStyleNotifier('assets/map_style_light.json'),
+        tileProviderConfigProvider.overrideWithValue(
+          const TileProviderConfig(
+            lightStyle: MapTilerStyle.dataviz,
+            darkStyle: MapTilerStyle.datavizDark,
+            apiKey: 'test-key',
+          ),
+        ),
+        mapStyleUrlProvider.overrideWith(
+          () => _FixedMapStyleUrlNotifier(
+            'https://api.maptiler.com/maps/dataviz/style.json?key=test-key',
+          ),
         ),
         trackingStateProvider.overrideWith(_FakeTrackingNotifier.new),
       ],
@@ -52,13 +62,13 @@ class _FakeLocationPermissionNotifier extends AsyncNotifier<PermissionStatus>
   Future<void> refresh() async {}
 }
 
-class _FixedMapStyleNotifier extends MapStyleAssetNotifier {
-  _FixedMapStyleNotifier(this._asset);
+class _FixedMapStyleUrlNotifier extends MapStyleUrlNotifier {
+  _FixedMapStyleUrlNotifier(this._url);
 
-  final String _asset;
+  final String _url;
 
   @override
-  String build() => _asset;
+  String build() => _url;
 }
 
 /// Fake TrackingNotifier that stays Idle and records call counts.

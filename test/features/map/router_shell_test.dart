@@ -1,6 +1,7 @@
 import 'package:auto_explore/app.dart';
-import 'package:auto_explore/features/map/data/tile_server_providers.dart';
+import 'package:auto_explore/features/map/data/tile_provider_config.dart';
 import 'package:auto_explore/features/map/presentation/providers/location_permission_provider.dart';
+import 'package:auto_explore/features/map/presentation/providers/map_style_provider.dart';
 import 'package:auto_explore/features/map/presentation/widgets/bottom_nav_shell.dart';
 import 'package:auto_explore/features/map/presentation/widgets/focus_area_pill.dart';
 import 'package:auto_explore/features/onboarding/data/onboarding_flag_repository.dart';
@@ -13,7 +14,6 @@ import 'package:shared_preferences_platform_interface/in_memory_shared_preferenc
 import 'package:shared_preferences_platform_interface/shared_preferences_async_platform_interface.dart';
 
 import '../../helpers/fake_maplibre_platform.dart';
-import '../../helpers/fake_tile_server.dart';
 
 /// Stub notifier that returns [PermissionStatus.granted] without hitting the
 /// permission_handler platform channel.
@@ -46,13 +46,15 @@ Future<void> pumpAppAtMapShell(WidgetTester tester) async {
         locationPermissionProvider.overrideWith(
           _FakeLocationPermissionNotifier.new,
         ),
-        // Provide a fake tile server so MapWidget's tileServerProvider.when()
-        // resolves immediately without binding a real socket.
-        tileServerProvider.overrideWith((_) async {
-          final server = FakeTileServer();
-          await server.start();
-          return server;
-        }),
+        // Fixture MapTiler config with a non-empty key so mapStyleUrlProvider
+        // returns a well-formed URL (no debug assertion trip).
+        tileProviderConfigProvider.overrideWithValue(
+          const TileProviderConfig(
+            lightStyle: MapTilerStyle.dataviz,
+            darkStyle: MapTilerStyle.datavizDark,
+            apiKey: 'test-key',
+          ),
+        ),
       ],
       child: const App(),
     ),

@@ -1,4 +1,4 @@
-import 'package:auto_explore/features/map/data/tile_server_providers.dart';
+import 'package:auto_explore/features/map/data/tile_provider_config.dart';
 import 'package:auto_explore/features/map/domain/camera_state.dart';
 import 'package:auto_explore/features/map/domain/follow_mode.dart';
 import 'package:auto_explore/features/map/presentation/providers/camera_state_provider.dart';
@@ -12,7 +12,6 @@ import 'package:maplibre_gl/maplibre_gl.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 import '../../helpers/fake_maplibre_platform.dart';
-import '../../helpers/fake_tile_server.dart';
 
 /// Fixed [CameraState] notifier used to force a specific [FollowMode]
 /// for each mapping-branch assertion.
@@ -41,13 +40,13 @@ class _FakeLocationPermissionNotifier extends AsyncNotifier<PermissionStatus>
   Future<void> refresh() async {}
 }
 
-class _FixedMapStyleNotifier extends MapStyleAssetNotifier {
-  _FixedMapStyleNotifier(this._asset);
+class _FixedMapStyleUrlNotifier extends MapStyleUrlNotifier {
+  _FixedMapStyleUrlNotifier(this._url);
 
-  final String _asset;
+  final String _url;
 
   @override
-  String build() => _asset;
+  String build() => _url;
 }
 
 Future<MapLibreMap> _pumpAndReadMap(
@@ -60,19 +59,24 @@ Future<MapLibreMap> _pumpAndReadMap(
     zoom: 15,
   ).copyWith(followMode: followMode);
 
+  const styleUrl =
+      'https://api.maptiler.com/maps/dataviz/style.json?key=test-key';
+
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
         locationPermissionProvider.overrideWith(
           () => _FakeLocationPermissionNotifier(PermissionStatus.granted),
         ),
-        tileServerProvider.overrideWith((_) async {
-          final server = FakeTileServer();
-          await server.start();
-          return server;
-        }),
-        mapStyleAssetProvider.overrideWith(
-          () => _FixedMapStyleNotifier('assets/map_style_light.json'),
+        tileProviderConfigProvider.overrideWithValue(
+          const TileProviderConfig(
+            lightStyle: MapTilerStyle.dataviz,
+            darkStyle: MapTilerStyle.datavizDark,
+            apiKey: 'test-key',
+          ),
+        ),
+        mapStyleUrlProvider.overrideWith(
+          () => _FixedMapStyleUrlNotifier(styleUrl),
         ),
         cameraStateProvider.overrideWith(
           () => _FixedCameraStateNotifier(camera),
@@ -81,7 +85,7 @@ Future<MapLibreMap> _pumpAndReadMap(
       child: const MaterialApp(home: Scaffold(body: MapWidget())),
     ),
   );
-  // Resolve the tileServerProvider FutureProvider.
+  // Let overrides settle.
   await tester.pump();
   return tester.widget<MapLibreMap>(find.byType(MapLibreMap));
 }

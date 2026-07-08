@@ -1,79 +1,68 @@
-# Dev Tile: dev_germany.pmtiles
+# Tile provider notes — MapTiler Cloud
 
-## What This File Is
+## Runtime tile source
 
-A bundled PMTiles v4 vector tile archive covering all of Germany. Used for offline
-map rendering during development. This is the tile source for `MapWidget` in debug builds.
+Trailblazer's basemap is served by **MapTiler Cloud** (https://cloud.maptiler.com).
+No PMTiles archive is bundled with the app. MapLibre fetches vector tiles + styles
+directly from the MapTiler-hosted style URL at runtime.
 
-**Git policy:** This file **is gitignored**. Run `tool/fetch_pmtiles.sh` (Unix/Git Bash)
-or `tool/fetch_pmtiles.ps1` (Windows PowerShell) after cloning to fetch.
-Phase 4 replaces this with a custom-built `germany-base.pmtiles` from the OSM pipeline.
+- **Provider:** MapTiler Cloud (free tier: 100k tile requests / month, 5k map sessions / month).
+- **Default styles:** `dataviz` (light) and `dataviz-dark` (dark) — see
+  `.planning/phases/04-osm-pipeline/04-11-STYLE-SPIKE.md` for the spike results
+  and fallback (`streets-v2` / `streets-v2-dark`) if MapTiler ever gates dataviz on
+  a fresh account.
+- **Selection lives in Dart:** `TileProviderConfig` (`lib/features/map/data/tile_provider_config.dart`)
+  owns the enum + URL formatter. The Riverpod plumbing (`tileProviderConfigProvider`
+  + `mapStyleUrlProvider`) is in `lib/features/map/presentation/providers/map_style_provider.dart`.
 
-## Source
+## API key delivery
 
-- **Provider:** Protomaps demo planet (https://demo-bucket.protomaps.com/v4.pmtiles)
-- **Schema:** Protomaps Version 4 (basemaps v4 flavors)
-- **Download date:** 2026-07-04
-- **Planet build date:** 2026-07-03 (latest stable planet from demo-bucket.protomaps.com)
+The MapTiler API key is injected at build/run time via one of:
 
-## Extraction Command
-
-```bash
-# Requires pmtiles CLI v1.30.3+ (https://github.com/protomaps/go-pmtiles/releases)
-pmtiles extract \
-  https://demo-bucket.protomaps.com/v4.pmtiles \
-  assets/tiles/dev_germany.pmtiles \
-  --bbox=5.866,47.270,15.042,55.058 \
-  --maxzoom=11
+```
+flutter run --dart-define=MAPTILER_KEY=<your-key>
+flutter run --dart-define-from-file=env/dev.json
 ```
 
-Note: maxzoom 14 (~3.2 GB) and maxzoom 13 (~1.8 GB) were both attempted but exceeded
-the 500 MB practical limit for APK debug bundling. maxzoom 11 produces 371 MB (5125 tiles)
-which MapLibre renders by overzooming at higher zoom levels. Detail is sufficient for
-Phase 2 smoke testing. Phase 4 replaces this with a leaner custom-built schema.
+`env/dev.json.example` documents the JSON shape; the real `env/dev.json` is
+gitignored (see `.gitignore`). Never check the key in.
 
-Or use the provided fetch script:
+CI reads the key from a GitHub Actions secret (`MAPTILER_KEY`) and forwards
+it as `--dart-define=MAPTILER_KEY=${{ secrets.MAPTILER_KEY }}` in both
+`.github/workflows/ci.yml` and `.github/workflows/ios-build.yml`.
 
-```bash
-bash tool/fetch_pmtiles.sh          # Unix / Git Bash
-pwsh tool/fetch_pmtiles.ps1         # Windows PowerShell
-```
-
-- **Bounding box:** 5.866°E, 47.270°N to 15.042°E, 55.058°N
-  (Konstanz to Sylt, Aachen to Görlitz — full Germany)
-- **Zoom range:** z0–z11 (national overview through district-level zoom)
-
-## Approximate Size + Zoom Range
-
-| Property | Value |
-|----------|-------|
-| File size | 371 MB (5125 tiles, gzip compressed) |
-| Zoom min | 0 |
-| Zoom max | 11 |
-| Coverage | Full Germany (Konstanz → Sylt, Aachen → Görlitz) |
-
-At z14–z15 (app default zoom), z11 tiles are upsampled by MapLibre. Roads and settlements
-are visible and navigable; building outlines and POI icons become less precise.
-Adequate for Phase 2 smoke testing and the user-location fix.
-
-**Phase 4 target:** < 200 MB Germany-wide with a leaner Kfz-focused schema.
-
-## Why Germany Instead of Berlin
-
-Replaced `dev_berlin.pmtiles` (30 MB, Berlin bbox only) to fix empty-map issue when the
-user's device is outside the Berlin extract bbox. The full-Germany extract renders
-correctly regardless of where the user is located within Germany.
-
-## How to Regenerate
-
-1. Download the pmtiles CLI binary for your platform from [go-pmtiles releases](https://github.com/protomaps/go-pmtiles/releases)
-2. Run `bash tool/fetch_pmtiles.sh` (or `pwsh tool/fetch_pmtiles.ps1`)
-3. Verify magic bytes: first 7 bytes should equal ASCII `PMTiles`
-
-## Source Layers (Protomaps v4 schema)
-
-`earth`, `water`, `landcover`, `landuse`, `buildings`, `roads`, `transit`, `places`, `pois`, `boundaries`
+Empty-key path: fork PRs without secret access boot with a warning log line
+(`MAPTILER_KEY not set — map will render blank tiles`) and the map renders blank
+tiles. The diagnostics HUD surfaces the resulting HTTP 401 chain.
 
 ## Attribution
 
-Protomaps data © [Protomaps](https://protomaps.com) | Map data © [OpenStreetMap contributors](https://openstreetmap.org/copyright) (ODbL)
+Free-tier MapTiler + OSM licensing requires both credits to be reachable from
+the map view:
+
+- **On-map:** MapLibre's built-in attribution button (bottom-left) opens the
+  MapTiler + OSM copyright popup.
+- **In-app:** `Settings > About` surfaces clickable full-attribution links —
+  see `lib/features/settings/presentation/widgets/about_section.dart`.
+
+## Legacy PMTiles workflow (deprecated 2026-07-08)
+
+Prior Wave-7 setup bundled a `dev_germany.pmtiles` archive served by a loopback
+`TileServer` (Dart shelf + pmtiles). Plan 04-12 removed:
+
+- `lib/features/map/data/tile_server.dart` + its providers
+- `tool/fetch_pmtiles.sh` / `tool/fetch_pmtiles.ps1`
+- `pmtiles` / `shelf` / `shelf_router` dependencies from `pubspec.yaml`
+- `assets/map_style_light.json` / `assets/map_style_dark.json` (obsolete
+  custom-schema styles — MapTiler serves the style JSON now)
+
+`assets/tiles/dev_germany.pmtiles` and `assets/tiles/dev_berlin.pmtiles`
+remain on disk but are gitignored and no longer referenced by the app.
+They may be deleted locally without impact.
+
+## Phase 5+ role of `tool/osm_pipeline/`
+
+The Phase 4 OSM pipeline (`tool/osm_pipeline/`) stays intact as dev tooling —
+it generates the `osm.sqlite` fixtures used by Phase 5's HMM matcher golden
+corpus. It is **not** an authoring pipeline for the runtime basemap anymore.
+Do not delete `tool/osm_pipeline/` when cleaning up the legacy PMTiles workflow.

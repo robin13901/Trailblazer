@@ -1,4 +1,4 @@
-import 'package:auto_explore/features/map/data/tile_server_providers.dart';
+import 'package:auto_explore/features/map/data/tile_provider_config.dart';
 import 'package:auto_explore/features/map/presentation/providers/location_permission_provider.dart';
 import 'package:auto_explore/features/map/presentation/providers/map_style_provider.dart';
 import 'package:auto_explore/features/map/presentation/widgets/map_widget.dart';
@@ -9,18 +9,18 @@ import 'package:maplibre_gl/maplibre_gl.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 import '../../helpers/fake_maplibre_platform.dart';
-import '../../helpers/fake_tile_server.dart';
 
 /// Helper: pumps [MapWidget] wrapped in [MaterialApp] + [ProviderScope].
 ///
 /// Overrides [locationPermissionProvider] with a stub that returns
 /// [PermissionStatus.denied] synchronously (no platform channel call).
 ///
-/// Overrides [tileServerProvider] with a [FakeTileServer] so the widget's
-/// `.when()` guard immediately resolves to `data` — no real socket is bound.
+/// Overrides [tileProviderConfigProvider] with a fixture config so the
+/// map-style URL derived by [mapStyleUrlProvider] is deterministic across
+/// test runs.
 ///
-/// Pass [styleOverride] to fix the active map style asset regardless of the
-/// test-runner's platform brightness (e.g. to assert the dark style is used).
+/// Pass [styleOverride] to fix the active MapTiler style URL regardless of
+/// the test-runner's platform brightness (e.g. to assert the dark URL is used).
 Future<void> pumpMapWidget(
   WidgetTester tester, {
   PermissionStatus permissionStatus = PermissionStatus.denied,
@@ -33,22 +33,24 @@ Future<void> pumpMapWidget(
         locationPermissionProvider.overrideWith(
           () => _FakeLocationPermissionNotifier(permissionStatus),
         ),
-        // Provide a fake tile server so the tileServerProvider.when() guard
-        // resolves immediately to `data` without binding a real socket.
-        tileServerProvider.overrideWith((_) async {
-          final server = FakeTileServer();
-          await server.start();
-          return server;
-        }),
+        // Fixture MapTiler config with a non-empty key so the resolved URL
+        // is well-formed (no debug assertion trip).
+        tileProviderConfigProvider.overrideWithValue(
+          const TileProviderConfig(
+            lightStyle: MapTilerStyle.dataviz,
+            darkStyle: MapTilerStyle.datavizDark,
+            apiKey: 'test-key',
+          ),
+        ),
         if (styleOverride != null)
-          mapStyleAssetProvider.overrideWith(
-            () => _FixedMapStyleNotifier(styleOverride),
+          mapStyleUrlProvider.overrideWith(
+            () => _FixedMapStyleUrlNotifier(styleOverride),
           ),
       ],
       child: MaterialApp(home: Scaffold(body: widget)),
     ),
   );
-  // Allow the FutureProvider to resolve to its data state.
+  // Allow provider initialisation to settle.
   await tester.pump();
 }
 
@@ -70,17 +72,17 @@ class _FakeLocationPermissionNotifier extends AsyncNotifier<PermissionStatus>
   Future<void> refresh() async {}
 }
 
-/// Stub notifier that returns a fixed style asset path.
+/// Stub notifier that returns a fixed MapTiler style URL.
 ///
-/// Used to test a specific style is forwarded to [MapLibreMap.styleString]
+/// Used to test a specific URL is forwarded to [MapLibreMap.styleString]
 /// independent of the test-runner's platform brightness.
-class _FixedMapStyleNotifier extends MapStyleAssetNotifier {
-  _FixedMapStyleNotifier(this._asset);
+class _FixedMapStyleUrlNotifier extends MapStyleUrlNotifier {
+  _FixedMapStyleUrlNotifier(this._url);
 
-  final String _asset;
+  final String _url;
 
   @override
-  String build() => _asset;
+  String build() => _url;
 }
 
 void main() {
@@ -121,32 +123,30 @@ void main() {
       expect(map.scrollGesturesEnabled, isTrue);
     });
 
-    testWidgets('default style is the light style (provider-driven)', (
+    testWidgets('default style is a MapTiler URL (provider-driven)', (
       tester,
     ) async {
-      // mapStyleAssetProvider initialises from PlatformDispatcher brightness;
-      // test-runner default is Brightness.light → light asset expected.
-      await pumpMapWidget(
-        tester,
-        styleOverride: 'assets/map_style_light.json',
-      );
+      // With the fixture TileProviderConfig (light=dataviz, dark=datavizDark)
+      // and the test-runner's default light brightness, the URL should point
+      // at the light dataviz style.
+      await pumpMapWidget(tester);
 
       final map = tester.widget<MapLibreMap>(find.byType(MapLibreMap));
-      expect(map.styleString, 'assets/map_style_light.json');
+      expect(map.styleString, contains('/maps/dataviz/'));
+      expect(map.styleString, contains('key=test-key'));
     });
 
-    testWidgets('overriding style provider passes dark asset to MapLibreMap', (
+    testWidgets('overriding style provider passes dark URL to MapLibreMap', (
       tester,
     ) async {
-      // Verify the map uses the style from mapStyleAssetProvider, not a
-      // constructor param. Override the provider to serve the dark asset.
-      await pumpMapWidget(
-        tester,
-        styleOverride: 'assets/map_style_dark.json',
-      );
+      // Verify the map uses the URL from mapStyleUrlProvider, not a
+      // constructor param. Override the provider to serve a dark URL.
+      const darkUrl =
+          'https://api.maptiler.com/maps/dataviz-dark/style.json?key=test-key';
+      await pumpMapWidget(tester, styleOverride: darkUrl);
 
       final map = tester.widget<MapLibreMap>(find.byType(MapLibreMap));
-      expect(map.styleString, 'assets/map_style_dark.json');
+      expect(map.styleString, darkUrl);
     });
 
     testWidgets('compass is enabled and positioned at topRight', (
@@ -197,26 +197,32 @@ void main() {
         map.initialCameraPosition!.target.longitude,
         closeTo(13.40, 0.01),
       );
-      // Zoom 11 is the maxzoom of the bundled Germany extract — starting
-      // deeper would over-zoom (blurry tiles). See Wave 7 fix.
+      // Zoom 11 kept as the safe default from Wave-7 (Germany PMTiles era).
+      // MapTiler tiles zoom to 22, so this is now just the initial framing.
       expect(map.initialCameraPosition!.zoom, 11);
     });
 
     testWidgets(
-      'attribution button pushed off-screen (surfaced in Settings About)',
+      'attribution button is visible on-map at bottom-left (04-12)',
       (tester) async {
         await pumpMapWidget(tester);
 
         final map = tester.widget<MapLibreMap>(find.byType(MapLibreMap));
+        // 04-12 restored the on-screen attribution button. The prior
+        // Point(-9999, -9999) off-screen hack is gone — MapLibre's built-in
+        // button now shows the MapTiler + OSM credits at the bottom-left,
+        // and Settings > About surfaces the same links clickably.
         expect(
           map.attributionButtonPosition,
           AttributionButtonPosition.bottomLeft,
         );
-        // Margins: very large negative — pushes the native attribution button
-        // outside the visible viewport. OSM/Protomaps attribution is
-        // surfaced instead in the About section of Settings.
-        expect(map.attributionButtonMargins?.x, -9999);
-        expect(map.attributionButtonMargins?.y, -9999);
+        expect(
+          map.attributionButtonMargins,
+          isNull,
+          reason:
+              '04-12: no off-screen margin hack — attribution button uses '
+              'MapLibre defaults so the OSM/MapTiler credits stay visible.',
+        );
       },
     );
   });

@@ -1,7 +1,5 @@
 import 'dart:async';
-import 'dart:math';
 
-import 'package:auto_explore/features/map/data/tile_server_providers.dart';
 import 'package:auto_explore/features/map/domain/follow_mode.dart';
 import 'package:auto_explore/features/map/presentation/providers/camera_state_provider.dart';
 import 'package:auto_explore/features/map/presentation/providers/location_permission_provider.dart';
@@ -21,13 +19,9 @@ import 'package:permission_handler/permission_handler.dart';
 /// Location, follow-mode, and dark-mode switching:
 ///   - Location enabled/disabled: driven by [locationPermissionProvider].
 ///   - Follow-mode: driven by [cameraStateProvider].
-///   - Active map style: driven by [mapStyleAssetProvider]; updated on
-///     system brightness change via [WidgetsBindingObserver].
-///
-/// A loopback tile server ([tileServerProvider]) must be running before
-/// MapLibreMap is built — otherwise MapLibre fires tile requests to a socket
-/// that isn't listening yet and caches the failure. A [ColoredBox] placeholder
-/// is shown while the server starts (typically 300–800 ms cold-start).
+///   - Active map style: driven by [mapStyleUrlProvider] (a MapTiler-hosted
+///     style URL — see Plan 04-11 / 04-12). Updated on system brightness
+///     change via [WidgetsBindingObserver].
 ///
 /// Style transitions use a 180 ms opacity crossfade ([MapStyleFade]):
 /// fade out → `setStyle()` → fade in on `onStyleLoadedCallback`.
@@ -35,6 +29,13 @@ import 'package:permission_handler/permission_handler.dart';
 /// Recenter button + FAB overlays are owned by `MapScreen` — not this
 /// widget — so their positioning stays coordinated with the bottom
 /// chrome row.
+///
+/// **04-12: HTTP tile-cache tuning**
+/// `maplibre_gl 0.26.2` does NOT expose `setHttpCacheSize` on the Dart-side
+/// [MapLibreMapController] surface (grepped the installed package). Offline
+/// grace therefore relies on the platform default cache size for now. When
+/// upstream surfaces the API, this comment is the deletion marker.
+// TODO(04-12): expose HTTP cache size tuning when maplibre_gl surfaces it.
 class MapWidget extends ConsumerStatefulWidget {
   const MapWidget({
     super.key,
@@ -91,9 +92,9 @@ class _MapWidgetState extends ConsumerState<MapWidget>
   Future<void> _swapStyleWithFade(Brightness b) async {
     final controller = ref.read(mapControllerProvider);
     if (controller == null) {
-      // Map not yet created — update the provider state; the new asset will
+      // Map not yet created — update the provider state; the new URL will
       // be used when MapLibreMap is first built.
-      ref.read(mapStyleAssetProvider.notifier).updateFromBrightness(b);
+      ref.read(mapStyleUrlProvider.notifier).updateFromBrightness(b);
       return;
     }
     if (!mounted) return;
@@ -102,9 +103,9 @@ class _MapWidgetState extends ConsumerState<MapWidget>
     });
     await Future<void>.delayed(const Duration(milliseconds: 180));
     if (!mounted) return;
-    ref.read(mapStyleAssetProvider.notifier).updateFromBrightness(b);
-    final newAsset = ref.read(mapStyleAssetProvider);
-    await controller.setStyle(newAsset);
+    ref.read(mapStyleUrlProvider.notifier).updateFromBrightness(b);
+    final newStyleUrl = ref.read(mapStyleUrlProvider);
+    await controller.setStyle(newStyleUrl);
     // onStyleLoadedCallback will call _onStyleLoaded which fades back in.
     // NOTE: Phase 2 has no programmatic layers. If Phase 7+ adds
     // coverage sources via addSource(), they MUST be re-added inside
@@ -124,24 +125,9 @@ class _MapWidgetState extends ConsumerState<MapWidget>
 
   @override
   Widget build(BuildContext context) {
-    // Wait for the loopback tile server to be ready before building MapLibreMap.
-    // Without this guard, MapLibre fires tile requests to a socket that isn't
-    // listening yet and caches the 'connection refused' failure.
-    final tileServerAsync = ref.watch(tileServerProvider);
-
-    return tileServerAsync.when(
-      loading: () =>
-          // Background colour matches the dark style to avoid a white flash.
-          const ColoredBox(color: Color(0xFF0A1728)),
-      error: (e, _) => Center(child: Text('Tile server failed: $e')),
-      data: (_) => _buildMap(context),
-    );
-  }
-
-  Widget _buildMap(BuildContext context) {
     final permissionAsync = ref.watch(locationPermissionProvider);
     final cameraState = ref.watch(cameraStateProvider);
-    final styleAsset = ref.watch(mapStyleAssetProvider);
+    final styleUrl = ref.watch(mapStyleUrlProvider);
 
     final isGranted = permissionAsync.maybeWhen(
       data: (s) => s.isGranted || s.isLimited,
@@ -160,7 +146,7 @@ class _MapWidgetState extends ConsumerState<MapWidget>
     return MapStyleFade(
       visible: _styleVisible,
       child: MapLibreMap(
-        styleString: styleAsset,
+        styleString: styleUrl,
         initialCameraPosition: CameraPosition(
           target: widget.initialTarget,
           zoom: widget.initialZoom,
@@ -180,11 +166,12 @@ class _MapWidgetState extends ConsumerState<MapWidget>
         // switch above. locationAndHeading reaches .trackingCompass so
         // the map heading-locks during a recording session.
         myLocationTrackingMode: trackingMode,
-        // Attribution: push OFF-SCREEN. OSM/Protomaps licensing requires
-        // attribution to be visible OR reachable "in a common area";
-        // it's now surfaced in the About section of Settings.
+        // Attribution: MapLibre's built-in button, visible on-map at
+        // bottom-left. Free-tier MapTiler + OSM licensing requires the
+        // provider + data-source credits to be reachable on the map view.
+        // Settings > About surfaces clickable full-attribution links as
+        // well, per Plan 04-11.
         attributionButtonPosition: AttributionButtonPosition.bottomLeft,
-        attributionButtonMargins: const Point(-9999, -9999),
         // NOTE: useHybridComposition NOT set — do not override on Android
         // Impeller. See Pitfall 2.
         onMapCreated: (c) {

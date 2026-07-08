@@ -1,73 +1,92 @@
+import 'dart:ui';
+
+import 'package:auto_explore/features/map/data/tile_provider_config.dart';
 import 'package:auto_explore/features/map/presentation/providers/map_style_provider.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  group('assetForBrightness', () {
-    test('returns light asset for Brightness.light', () {
-      expect(
-        assetForBrightness(Brightness.light),
-        'assets/map_style_light.json',
-      );
-    });
-
-    test('returns dark asset for Brightness.dark', () {
-      expect(
-        assetForBrightness(Brightness.dark),
-        'assets/map_style_dark.json',
-      );
-    });
-  });
-
-  group('mapStyleAssetProvider', () {
-    test('initial state reflects host-test platform brightness (light)', () {
-      // In the test host, PlatformDispatcher.instance.platformBrightness is
-      // typically Brightness.light. We verify the provider initialises from
-      // that value rather than hard-coding the expected string — this makes
-      // the test robust to test-runner brightness differences.
+  group('mapStyleUrlProvider', () {
+    test('returns key-less MapTiler URL when config has no key', () {
+      // Default tileProviderConfigProvider (from map_style_provider.dart) has
+      // an empty API key — the URL is intentionally unusable but well-formed
+      // so MapLibre's style loader doesn't blow up on empty strings.
       final container = ProviderContainer();
       addTearDown(container.dispose);
 
-      final initial = container.read(mapStyleAssetProvider);
-      final expected = assetForBrightness(
-        // Use the same source the notifier uses.
-        WidgetsFlutterBinding.ensureInitialized()
-            .platformDispatcher
-            .platformBrightness,
-      );
-      expect(initial, expected);
+      final url = container.read(mapStyleUrlProvider);
+      expect(url, startsWith('https://api.maptiler.com/maps/'));
+      expect(url, endsWith('/style.json?key='));
     });
 
-    test('updateFromBrightness(dark) sets dark asset', () {
-      final container = ProviderContainer();
+    test('respects overridden TileProviderConfig apiKey', () {
+      final container = ProviderContainer(
+        overrides: [
+          tileProviderConfigProvider.overrideWithValue(
+            const TileProviderConfig(
+              lightStyle: MapTilerStyle.dataviz,
+              darkStyle: MapTilerStyle.datavizDark,
+              apiKey: 'test-key',
+            ),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      final url = container.read(mapStyleUrlProvider);
+      expect(url, contains('key=test-key'));
+      expect(url, contains('/style.json'));
+    });
+
+    test('updateFromBrightness(dark) switches to dark style URL', () {
+      final container = ProviderContainer(
+        overrides: [
+          tileProviderConfigProvider.overrideWithValue(
+            const TileProviderConfig(
+              lightStyle: MapTilerStyle.dataviz,
+              darkStyle: MapTilerStyle.datavizDark,
+              apiKey: 'test-key',
+            ),
+          ),
+        ],
+      );
       addTearDown(container.dispose);
 
       container
-          .read(mapStyleAssetProvider.notifier)
+          .read(mapStyleUrlProvider.notifier)
           .updateFromBrightness(Brightness.dark);
 
       expect(
-        container.read(mapStyleAssetProvider),
-        'assets/map_style_dark.json',
+        container.read(mapStyleUrlProvider),
+        contains('/maps/dataviz-dark/'),
       );
     });
 
-    test('updateFromBrightness(light) sets light asset', () {
-      final container = ProviderContainer();
+    test('updateFromBrightness(light) switches back to light style URL', () {
+      final container = ProviderContainer(
+        overrides: [
+          tileProviderConfigProvider.overrideWithValue(
+            const TileProviderConfig(
+              lightStyle: MapTilerStyle.dataviz,
+              darkStyle: MapTilerStyle.datavizDark,
+              apiKey: 'test-key',
+            ),
+          ),
+        ],
+      );
       addTearDown(container.dispose);
 
-      // Force dark first, then switch back to light.
+      // Force dark first, then flip back to light.
       container
-          .read(mapStyleAssetProvider.notifier)
+          .read(mapStyleUrlProvider.notifier)
           .updateFromBrightness(Brightness.dark);
       container
-          .read(mapStyleAssetProvider.notifier)
+          .read(mapStyleUrlProvider.notifier)
           .updateFromBrightness(Brightness.light);
 
       expect(
-        container.read(mapStyleAssetProvider),
-        'assets/map_style_light.json',
+        container.read(mapStyleUrlProvider),
+        contains('/maps/dataviz/'),
       );
     });
   });
