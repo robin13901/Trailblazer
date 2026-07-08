@@ -97,5 +97,19 @@
             <action android:name="android.intent.action.PROCESS_TEXT"/>
             <data android:mimeType="text/plain"/>
         </intent>
+        <!-- Plan 04-18 Task 5 (2026-07-08): Android 11+ package-visibility
+             gate. Without these <intent> filters, url_launcher's
+             canLaunchUrl() returns false for https:// URLs even when
+             Chrome / another browser is installed. Settings > About
+             taps on MapTiler / OSM / MapLibre links appeared to no-op
+             on the 2026-07-08 drive because of this. -->
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="https" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="http" />
+        </intent>
     </queries>
 </manifest>
