@@ -120,7 +120,7 @@ void main() {
 
     test(
         'stopActive() after 65 fixes → '
-        'state Idle, trips table has 1 row with status=pending', () async {
+        'state Idle, trips table has 1 row with status=matched', () async {
       await container.read(trackingStateProvider.notifier).startManual();
       await Future<void>.delayed(const Duration(milliseconds: 10));
 
@@ -134,14 +134,16 @@ void main() {
 
       await container.read(trackingStateProvider.notifier).stopActive();
       // Coordinator hand-off is fire-and-forget — give it a beat to
-      // transition the trip out of pendingRoadData.
+      // transition the trip through pendingRoadData → pending → matched
+      // (Phase 5: empty ways from _NoopWayCandidateSource → matched immediately).
       await Future<void>.delayed(const Duration(milliseconds: 150));
 
       expect(container.read(trackingStateProvider), isA<TrackingIdle>());
 
       final tripRows = await db.customSelect('SELECT * FROM trips').get();
       expect(tripRows, hasLength(1));
-      expect(tripRows.first.read<String>('status'), 'pending');
+      // Phase 5: trip transitions pending → matched (empty ways path).
+      expect(tripRows.first.read<String>('status'), 'matched');
     });
   });
 }

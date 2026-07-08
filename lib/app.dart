@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:auto_explore/core/routing/app_router.dart';
 import 'package:auto_explore/core/theme/app_theme.dart';
 import 'package:auto_explore/features/matching/data/matching_providers.dart';
+import 'package:auto_explore/features/trips/data/trips_repository_providers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -34,6 +35,11 @@ class _AppState extends ConsumerState<App> with WidgetsBindingObserver {
       // app was backgrounded or offline. Fire-and-forget — the coordinator
       // logs its own errors and never throws to callers.
       unawaited(ref.read(tripRoadFetchCoordinatorProvider).drainQueue());
+      // Plan 05-07: pick up any pending trips that arrived while the isolate
+      // was not running (e.g. app killed mid-match).
+      unawaited(ref.read(tripMatchCoordinatorProvider).processPending());
+      // Plan 05-07 (MMT-10): 30-day raw-GPS retention sweep.
+      unawaited(ref.read(tripsRepositoryProvider).sweepRawGpsRetention());
     }
   }
 
