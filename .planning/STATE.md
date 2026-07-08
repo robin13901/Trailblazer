@@ -5,14 +5,14 @@
 See: .planning/PROJECT.md (updated 2026-07-02)
 
 **Core value:** When I open the map, I immediately see the roads I've already driven, painted onto the world — and that view keeps pulling me back to explore more.
-**Current focus:** Phase 5 CODE-COMPLETE (all 8 plans landed: 05-01 through 05-08). Phase 4 rescope code-complete; combined Phase-4 close-out drive-verify still pending.
+**Current focus:** Phase 5 COMPLETE (all 8 plans landed + verifier PASS 5/5 must-haves 2026-07-08; matcher-domain coverage 93.8 %; 383/383 tests green). Phase 4 rescope code-complete; combined Phase-4 close-out drive-verify still pending. Phase 6 next.
 
 ## Current Position
 
-Phase: 5 of 11 (Overpass-Backed Matcher + Golden Corpus — CODE-COMPLETE 2026-07-08)
-Plan: 05-07 of 8 complete (trip-match coordinator — all 8 plans landed)
-Status: Phase 5 CODE-COMPLETE. Plans 05-01 + 05-02 + 05-03 + 05-04 + 05-05 + 05-06 + 05-07 + 05-08 DONE. Phase 4 rescope COMPLETE (code-complete; drive-verify pending combined Phase-4 close-out).
-Last activity: 2026-07-08 — Plan 05-07 complete: TripMatchCoordinator (end-to-end pipeline: pending→matched, processPending, cancel, retention-sweep resume hook)
+Phase: 5 of 11 (Overpass-Backed Matcher + Golden Corpus — COMPLETE 2026-07-08)
+Plan: 05-08 of 8 complete (all 8 plans + VERIFICATION.md PASSED)
+Status: Phase 5 COMPLETE. All plans (05-01..05-08) DONE. Verifier PASS 5/5 must-haves. MMT-09 partial (1 synthetic seed + CI gate; 19 fixtures inherited by Phase 6). Phase 4 rescope COMPLETE (code-complete; drive-verify pending combined Phase-4 close-out).
+Last activity: 2026-07-08 — Phase 5 VERIFICATION.md PASSED; ROADMAP/REQUIREMENTS updated; MMT-01..08, MMT-10, QUA-02 → Complete; MMT-09 → Partial.
 
 Progress: [████████░░] ~65% (53/77 est. plans overall — Phase 1: 7/7; Phase 2: 7/7; Phase 3: 7/7 code-complete; Phase 3.1: 5/5 COMPLETE; Phase 4: 10/N + Sub-Phase 04-10.1: 4/6 archived + rescope: 8/8 complete; Phase 5: 8/8 CODE-COMPLETE)
 

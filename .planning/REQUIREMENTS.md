@@ -94,22 +94,22 @@
 
 ### Map-Matching (MMT)
 
-- [ ] **MMT-01**: Confirmed trip is enqueued into a long-lived `MatcherIsolate` (single warm worker, ways payload shipped per-job via `WayCandidateSource` on the main isolate)
-- [ ] **MMT-02**: Matcher uses Hidden Markov Model (Newson-Krumm 2009): emission probability weighted by `horizontalAccuracy`, transition probability weighted by road-network distance
-- [ ] **MMT-03**: Matcher performs full retrospective match on trip end (not live during driving) — single authoritative pass
-- [ ] **MMT-04**: R-Tree candidate query per GPS point returns top-5 candidates within an adaptive radius (25 m base, expands with HDOP)
-- [ ] **MMT-05**: Points that cannot be matched confidently are dropped (not force-snapped) — trips may have gaps
+- [x] **MMT-01**: Confirmed trip is enqueued into a long-lived `MatcherIsolate` (single warm worker, ways payload shipped per-job via `WayCandidateSource` on the main isolate)
+- [x] **MMT-02**: Matcher uses Hidden Markov Model (Newson-Krumm 2009): emission probability weighted by `horizontalAccuracy`, transition probability weighted by road-network distance
+- [x] **MMT-03**: Matcher performs full retrospective match on trip end (not live during driving) — single authoritative pass
+- [x] **MMT-04**: R-Tree candidate query per GPS point returns top-5 candidates within an adaptive radius (25 m base, expands with HDOP)
+- [x] **MMT-05**: Points that cannot be matched confidently are dropped (not force-snapped) — trips may have gaps
   NOTE (2026-07-07): Feldweg ways are not in osm.sqlite (see OSM-02);
   GPS traces over Feldwege will produce points that the matcher cannot
   snap to a road — these register as trip gaps or "points that cannot be
   matched confidently are dropped" per this requirement. Intended v1
   scope per Plan 04-10.1. If future work restores Feldweg matching,
   this note is deleted.
-- [ ] **MMT-06**: Matcher output: list of `driven_way_intervals(way_id, start_m, end_m, direction, trip_id, timestamp)` written to App DB
-- [ ] **MMT-07**: Autobahn / Bundesstraße parallel-road smearing mitigated by min-speed 15 km/h threshold for high-class ways + Viterbi lookahead of ≥ 5 emissions
-- [ ] **MMT-08**: Matcher is cancellable (user deleting an in-flight trip cancels its match job)
-- [ ] **MMT-09**: A CI-runnable "golden trip corpus" of ≥ 20 recorded trips (autobahn, Kreisel, tunnel, parking, U-turn, city grid, roundabout, one-way street) with known-correct way-ID sequences; regression on any golden trip fails CI
-- [ ] **MMT-10**: Raw GPS retained 30 days after match for re-matching if parameters change; then deleted (user can override retention in settings)
+- [x] **MMT-06**: Matcher output: list of `driven_way_intervals(way_id, start_m, end_m, direction, trip_id, timestamp)` written to App DB
+- [x] **MMT-07**: Autobahn / Bundesstraße parallel-road smearing mitigated by min-speed 15 km/h threshold for high-class ways + Viterbi lookahead of ≥ 5 emissions
+- [x] **MMT-08**: Matcher is cancellable (user deleting an in-flight trip cancels its match job)
+- [ ] **MMT-09**: A CI-runnable "golden trip corpus" of ≥ 20 recorded trips (autobahn, Kreisel, tunnel, parking, U-turn, city grid, roundabout, one-way street) with known-correct way-ID sequences; regression on any golden trip fails CI *(Phase 5 close-out 2026-07-08: harness code-complete + 1 synthetic seed shipped + CI gate wired; 4 real-drive fixtures deferred to drive-batch follow-up; growing to ≥ 20 is Phase 6's inherited obligation per ROADMAP)*
+- [x] **MMT-10**: Raw GPS retained 30 days after match for re-matching if parameters change; then deleted (user can override retention in settings)
 
 ### Coverage Aggregation (COV)
 
@@ -166,7 +166,7 @@
 ### Quality Gates (QUA)
 
 - [ ] **QUA-01**: All feature modules have widget tests for their key screens (Map, Trip Inbox, Vehicle List, Region List, Focus-Area Pill)
-- [ ] **QUA-02**: Core map-matcher has ≥ 90% line coverage; golden-trip regression suite in CI
+- [x] **QUA-02**: Core map-matcher has ≥ 90% line coverage; golden-trip regression suite in CI
 - [x] **QUA-03**: Drift migration tests use `SchemaVerifier` to validate every migration step
 - [ ] **QUA-04**: `patrol` integration tests cover: onboarding flow, first trip recording, inbox confirmation, matching → coverage update, region browser
 - [x] **QUA-05**: iOS + Android debug builds succeed in CI
@@ -292,16 +292,16 @@ Every requirement maps to exactly one phase. Phase Gates in ROADMAP.md carry two
 | OSM-06 | Phase 4: Map & Matching Data Sources | Complete (drive-verify pending combined Phase-4 close-out) |
 | OSM-07 | Phase 4: Map & Matching Data Sources | Complete (drive-verify pending combined Phase-4 close-out) |
 | OSM-08 | Phase 4: Map & Matching Data Sources | Complete |
-| MMT-01 | Phase 5: Overpass-Backed Matcher + Golden Corpus | Pending |
-| MMT-02 | Phase 5: Overpass-Backed Matcher + Golden Corpus | Pending |
-| MMT-03 | Phase 5: Overpass-Backed Matcher + Golden Corpus | Pending |
-| MMT-04 | Phase 5: Overpass-Backed Matcher + Golden Corpus | Pending |
-| MMT-05 | Phase 5: Overpass-Backed Matcher + Golden Corpus | Pending |
-| MMT-06 | Phase 5: Overpass-Backed Matcher + Golden Corpus | Pending |
-| MMT-07 | Phase 5: Overpass-Backed Matcher + Golden Corpus | Pending |
-| MMT-08 | Phase 5: Overpass-Backed Matcher + Golden Corpus | Pending |
-| MMT-09 | Phase 5: Overpass-Backed Matcher + Golden Corpus | Pending |
-| MMT-10 | Phase 5: Overpass-Backed Matcher + Golden Corpus | Pending |
+| MMT-01 | Phase 5: Overpass-Backed Matcher + Golden Corpus | Complete |
+| MMT-02 | Phase 5: Overpass-Backed Matcher + Golden Corpus | Complete |
+| MMT-03 | Phase 5: Overpass-Backed Matcher + Golden Corpus | Complete |
+| MMT-04 | Phase 5: Overpass-Backed Matcher + Golden Corpus | Complete |
+| MMT-05 | Phase 5: Overpass-Backed Matcher + Golden Corpus | Complete |
+| MMT-06 | Phase 5: Overpass-Backed Matcher + Golden Corpus | Complete |
+| MMT-07 | Phase 5: Overpass-Backed Matcher + Golden Corpus | Complete |
+| MMT-08 | Phase 5: Overpass-Backed Matcher + Golden Corpus | Complete |
+| MMT-09 | Phase 5: Overpass-Backed Matcher + Golden Corpus | Partial (harness + 1 seed + CI gate; 19 fixtures deferred to Phase 6) |
+| MMT-10 | Phase 5: Overpass-Backed Matcher + Golden Corpus | Complete |
 | INB-01 | Phase 6: Inbox + Match Wire-Up | Pending |
 | INB-02 | Phase 6: Inbox + Match Wire-Up | Pending |
 | INB-03 | Phase 6: Inbox + Match Wire-Up | Pending |
@@ -354,7 +354,7 @@ Every requirement maps to exactly one phase. Phase Gates in ROADMAP.md carry two
 | SET-08 | Phase 10: Settings + Backup | Pending |
 | SET-09 | Phase 10: Settings + Backup | Pending |
 | QUA-01 | Phase 11: Hardening | Pending |
-| QUA-02 | Phase 5: Overpass-Backed Matcher + Golden Corpus | Pending |
+| QUA-02 | Phase 5: Overpass-Backed Matcher + Golden Corpus | Complete |
 | QUA-03 | Phase 1: Scaffolding | Complete |
 | QUA-04 | Phase 11: Hardening | Pending |
 | QUA-05 | Phase 1: Scaffolding | Complete |
