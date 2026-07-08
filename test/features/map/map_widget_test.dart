@@ -184,7 +184,7 @@ void main() {
       },
     );
 
-    testWidgets('initial camera targets Berlin at zoom 11', (tester) async {
+    testWidgets('initial camera targets Berlin at zoom 15', (tester) async {
       await pumpMapWidget(tester);
 
       final map = tester.widget<MapLibreMap>(find.byType(MapLibreMap));
@@ -197,9 +197,9 @@ void main() {
         map.initialCameraPosition!.target.longitude,
         closeTo(13.40, 0.01),
       );
-      // Zoom 11 kept as the safe default from Wave-7 (Germany PMTiles era).
-      // MapTiler tiles zoom to 22, so this is now just the initial framing.
-      expect(map.initialCameraPosition!.zoom, 11);
+      // Plan 04-16-1 (2026-07-08 UX polish): zoom 15 = neighborhood-street
+      // detail (was 11 Wave-7 legacy). Mirrors CameraState.initial.zoom.
+      expect(map.initialCameraPosition!.zoom, 15);
     });
 
     testWidgets(

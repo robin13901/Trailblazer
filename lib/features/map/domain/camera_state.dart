@@ -19,14 +19,17 @@ class CameraState {
   final double bearing;
   final FollowMode followMode;
 
-  /// Phase-2 default: unknown position, zoom 16 (one step closer than
-  /// address-level; buildings resolve individually), follow-mode = location.
-  /// On launch, MapLibre's tracking mode will snap the camera to the user's
-  /// fix as soon as it arrives.
+  /// Default camera state on cold start.
+  ///
+  /// Plan 04-16-1 (2026-07-08 UX polish): `zoom = 15` — neighborhood-street
+  /// detail matching the user's reference screenshot (was 16 pre-04-16-1;
+  /// was 11 pre-Wave-7 initial-sentinel refactor). MapWidget.initialZoom
+  /// mirrors this value. Follow-mode = `location` so MapLibre's tracking
+  /// mode snaps the camera to the user's fix as soon as it arrives.
   static const CameraState initial = CameraState(
     latitude: 0,
     longitude: 0,
-    zoom: 16,
+    zoom: 15,
     followMode: FollowMode.location,
   );
 
