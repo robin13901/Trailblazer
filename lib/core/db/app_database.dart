@@ -1,4 +1,5 @@
 import 'package:auto_explore/core/db/converters/trip_status_converter.dart';
+import 'package:auto_explore/core/db/daos/driven_way_intervals_dao.dart';
 import 'package:auto_explore/core/db/daos/overpass_way_cache_dao.dart';
 import 'package:auto_explore/core/db/daos/pending_road_fetches_dao.dart';
 import 'package:auto_explore/core/db/tables/app_prefs_table.dart';
@@ -30,7 +31,7 @@ part 'app_database.g.dart';
     OverpassWayCache,
     PendingRoadFetches,
   ],
-  daos: [OverpassWayCacheDao, PendingRoadFetchesDao],
+  daos: [DrivenWayIntervalsDao, OverpassWayCacheDao, PendingRoadFetchesDao],
 )
 class AppDatabase extends _$AppDatabase {
   AppDatabase([QueryExecutor? executor]) : super(executor ?? _openConnection());
