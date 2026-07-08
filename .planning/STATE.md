@@ -10,9 +10,9 @@ See: .planning/PROJECT.md (updated 2026-07-02)
 ## Current Position
 
 Phase: 5 of 11 (Overpass-Backed Matcher + Golden Corpus — Wave 2 executing 2026-07-08)
-Plan: 05-08 complete (golden corpus scaffolding + seed fixture + CI coverage gate) — 2026-07-08
-Status: Phase 5 Wave 4 in progress. Plans 05-01 + 05-02 + 05-03 + 05-04 + 05-05 + 05-08 DONE. Phase 4 rescope COMPLETE (code-complete; drive-verify pending combined Phase-4 close-out). 05-06 + 05-07 executing in parallel Wave 4.
-Last activity: 2026-07-08 — Plan 05-08 complete: golden corpus scaffolding + seed fixture 001_synthetic_straight_east + CI coverage gate (check_matcher_coverage.dart ≥90% + save_trip_fixture CLI)
+Plan: 05-06 + 05-08 complete (matcher isolate + golden corpus — Wave 4 parallel) — 2026-07-08
+Status: Phase 5 Wave 4 in progress. Plans 05-01 + 05-02 + 05-03 + 05-04 + 05-05 + 05-06 + 05-08 DONE. Phase 4 rescope COMPLETE (code-complete; drive-verify pending combined Phase-4 close-out). 05-07 still executing.
+Last activity: 2026-07-08 — Plan 05-06 complete: MatcherIsolate (long-lived warm worker isolate, jobSeq-keyed concurrent futures, pre-start cancel-set, matcherIsolateProvider)
 
 Progress: [███████░░░] ~60% (47/77 est. plans overall — Phase 1: 7/7; Phase 2: 7/7; Phase 3: 7/7 code-complete; Phase 3.1: 5/5 COMPLETE; Phase 4: 10/N + Sub-Phase 04-10.1: 4/6 archived + rescope: 8/8 complete; Phase 5: 5/N — 05-01 + 05-02 + 05-03 + 05-04 + 05-05 DONE)
 
@@ -410,6 +410,11 @@ Key locked-in decisions affecting current work:
 - **Plan 05-05 (2026-07-08): Intra-way direction flip is NOT split into two intervals.** `HmmMatcher._collapseToIntervals` flushes only on wayId change or null (confidence) gap. A direction reversal on the same way produces one interval with `direction = sign(lastMeters - firstMeters)` and `startMeters = min, endMeters = max`. Phase 6 aggregation concern; Plan 05-05 §Deviations locks this behavior.
 - **Plan 05-05 (2026-07-08): `_mPerDegLon` in test file uses `// ignore: prefer_const_declarations`.** Float multiplication `_mPerDegLat * 0.6427876097` is not const in Dart; the variable is effectively constant. `prefer_const_declarations` lint suppressed with an inline comment explaining why.
 - **Plan 05-05 (2026-07-08): `DrivenWayIntervalDraft` + `MatchResult` are Drift-free and isolate-safe.** No `import 'package:drift'` in either file — matcher can run on the matcher isolate (Plan 05-06) without a Drift handle crossing the isolate boundary. Coordinator (05-07) attaches `tripId` before calling `DrivenWayIntervalsDao.insertBatch`.
+- **Plan 05-06 (2026-07-08) — v1 cancellation is pre-job-start only.** `MatcherIsolate.cancel(tripId)` adds the tripId to a `Set<int> cancelled` on the worker side; this set is consulted BEFORE popping each job. A job already inside `HmmMatcher.match()` runs to completion — the caller (05-07 coordinator) discards the result. `TODO(mid-flight-cancel)` marker placed in `matcher_isolate.dart` for Phase 6 follow-up if golden corpus exposes excessively long jobs.
+- **Plan 05-06 (2026-07-08) — `MatcherCancelledException` is NOT a `DomainError`.** It is a control-flow signal, not a domain failure. The coordinator (05-07) decides whether to wrap it into `DomainError` / `Result<T>` at the boundary. Documented in the class docstring.
+- **Plan 05-06 (2026-07-08) — `matcherIsolateProvider` fire-and-forget start.** Uses `unawaited(isolate.start())` — Riverpod provider construction is synchronous; the async start is fire-and-forget. The coordinator (05-07) must call `await isolate.start()` before its first `match()` call to ensure the worker is warm.
+- **Plan 05-06 (2026-07-08) — Worker entry function is top-level `_matcherWorker`.** `Isolate.spawn` requires a top-level or static function on all platforms (including Windows). Inlining as a lambda or method fails. Named `_matcherWorker` (private, top-level, same file as `MatcherIsolate`).
+- **Plan 05-06 (2026-07-08) — Test suite 377/377 green; 4 new isolate tests.** Roundtrip + concurrent-keying + cancel-race + dispose-clean. Cancel test accepts both `MatcherCancelledException` and successful completion (v1 race outcome not deterministic) — documents the v1 behaviour contract without coupling to a specific outcome.
 
 ### Blockers/Concerns
 
@@ -425,7 +430,7 @@ Key locked-in decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-07-08 (Plan 05-08 golden corpus + CI coverage gate — Phase 5 Wave 4)
-Stopped at: Plan 05-08 COMPLETE. Task commits: `8a966d8` golden corpus scaffolding + seed; `0d0af68` save_trip_fixture CLI + check_matcher_coverage; `fb0dde7` CI coverage gate. SUMMARY.md + STATE.md follow.
+Last session: 2026-07-08 (Plans 05-06 + 05-08 — Phase 5 Wave 4 parallel)
+Stopped at: Plan 05-06 COMPLETE. Task commits: `fbd2bde` MatchJob/MatchJobReply payloads; `22054ce` MatcherIsolate + provider + 4 tests. SUMMARY.md + STATE.md follow.
 Resume file: None
-Next: Phase 5 Wave 4 completes (05-06 matcher isolate + 05-07 coordinator executing in parallel). Real-drive corpus fixtures deferred — batch with Phase 4 close-out drive. Phase 6 unblocked for planning.
+Next: Phase 5 Wave 4 continues with 05-07 (trip-match coordinator). 05-06 MatcherIsolate is ready for consumption. Real-drive corpus fixtures deferred — batch with Phase 4 close-out drive.
