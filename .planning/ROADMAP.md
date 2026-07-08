@@ -157,7 +157,16 @@ Additional research-recommended spikes: HMM parameter tuning + golden corpus rec
   3. A CI-runnable golden corpus of ≥ 20 recorded trips (autobahn, Kreisel, tunnel, parking, U-turn, city grid, roundabout, one-way) produces the known-correct way-ID sequences; core matcher module has ≥ 90 % line coverage; regression on any golden trip fails CI. `tool/osm_pipeline/` (retained as dev-only per OSM-07) is the fixture generator for golden PBFs.
   4. Confirmed-trip matching runs off the UI isolate in a warm long-lived `MatcherIsolate` with adaptive R-Tree radius, Viterbi lookahead ≥ 5, min-speed 15 km/h for high-class ways, and is cancellable by the user.
   5. Matcher writes `driven_way_intervals(way_id, start_m, end_m, direction, trip_id, timestamp)` to the App DB; unmatched points are dropped (never force-snapped); raw GPS is retained 30 days by default for re-matching.
-**Plans:** TBD (7–10)
+**Plans:** 8 plans in 3 waves
+Plans:
+- [ ] 05-01-driven-way-intervals-dao-and-retention-PLAN.md — DrivenWayIntervalsDao + TripsDao 30-day retention sweep (Wave 1)
+- [ ] 05-02-hmm-probability-and-geometry-PLAN.md — emission/transition/adaptive-radius + perpendicular-distance primitives (Wave 1)
+- [ ] 05-03-way-segment-index-PLAN.md — WaySegment value type + rbush-backed R-Tree with top-K (Wave 1)
+- [ ] 05-04-viterbi-decoder-PLAN.md — pure-Dart Viterbi decoder with beam=5, gap/speed/oneway guards (Wave 2)
+- [ ] 05-05-hmm-matcher-orchestrator-PLAN.md — HmmMatcher + interval merging + DrivenWayIntervalDraft (Wave 2)
+- [ ] 05-06-matcher-isolate-PLAN.md — long-lived MatcherIsolate + MatchJob protocol + cancel (Wave 3)
+- [ ] 05-07-trip-match-coordinator-PLAN.md — pending→matched wiring + app-resume processPending + retention (Wave 3)
+- [ ] 05-08-golden-corpus-and-coverage-gate-PLAN.md — corpus scaffolding + first 5 seed fixtures + CI ≥90% gate (Wave 3, checkpoint)
 
 ### Phase 6: Inbox + Match Wire-Up
 **Goal:** Confirmed trips flow end-to-end from raw GPS into driven-way intervals and invalidate the coverage cache; rejected trips vanish cleanly.
