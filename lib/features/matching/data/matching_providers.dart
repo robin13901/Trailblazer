@@ -1,6 +1,8 @@
 // Phase 4 rescope Wave 2 (Plan 04-13 + 04-15):
 // Riverpod providers for the Overpass client stack + WayCandidateSource.
 // Phase 5 (Plan 05-06): matcherIsolateProvider added.
+// Phase 5 (Plan 05-07): tripMatchCoordinatorProvider added;
+//   tripRoadFetchCoordinatorProvider updated to pass matchCoordinator.
 //
 // Uses plain `Provider<T>` — no `@Riverpod` codegen (STATE Plan 01-01).
 // Tests override any of these providers via `ProviderScope.overrides` /
@@ -9,14 +11,17 @@
 import 'dart:async';
 
 import 'package:auto_explore/core/db/app_database_providers.dart';
+import 'package:auto_explore/core/db/daos/driven_way_intervals_dao.dart';
 import 'package:auto_explore/core/db/daos/overpass_way_cache_dao.dart';
 import 'package:auto_explore/features/matching/data/connectivity_seam.dart';
 import 'package:auto_explore/features/matching/data/matcher_isolate.dart';
 import 'package:auto_explore/features/matching/data/overpass_client.dart';
 import 'package:auto_explore/features/matching/data/overpass_way_candidate_source.dart';
 import 'package:auto_explore/features/matching/data/tile_bbox_math.dart';
+import 'package:auto_explore/features/matching/data/trip_match_coordinator.dart';
 import 'package:auto_explore/features/matching/data/trip_road_fetch_coordinator.dart';
 import 'package:auto_explore/features/matching/data/way_candidate_source.dart';
+import 'package:auto_explore/features/trips/data/trips_dao.dart';
 import 'package:auto_explore/features/trips/data/trips_repository_providers.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
@@ -82,6 +87,10 @@ final connectivitySeamProvider = Provider<ConnectivitySeam>(
 /// Runtime coordinator wiring trip-close and lifecycle-resume events into
 /// the road-fetch flow. Consumed by `TrackingService` (trip-close) and
 /// `lib/app.dart` (resume drain).
+///
+/// Passes [tripMatchCoordinatorProvider] so the fetch coordinator can invoke
+/// the Phase 5 match pipeline immediately after each trip transitions to
+/// `pending` (fire-and-forget, unawaited).
 final tripRoadFetchCoordinatorProvider =
     Provider<TripRoadFetchCoordinator>((ref) {
   return TripRoadFetchCoordinator(
@@ -90,6 +99,19 @@ final tripRoadFetchCoordinatorProvider =
     repository: ref.watch(tripsRepositoryProvider),
     connectivity: ref.watch(connectivitySeamProvider),
     tileMath: ref.watch(tileBboxMathProvider),
+    matchCoordinator: ref.watch(tripMatchCoordinatorProvider),
+  );
+});
+
+/// Phase 5 (Plan 05-07): coordinator wiring pending trips into the
+/// matcher isolate and DAO writes.
+final tripMatchCoordinatorProvider = Provider<TripMatchCoordinator>((ref) {
+  return TripMatchCoordinator(
+    source: ref.watch(wayCandidateSourceProvider),
+    matcherIsolate: ref.watch(matcherIsolateProvider),
+    tripsDao: TripsDao(ref.watch(appDatabaseProvider)),
+    tripsRepository: ref.watch(tripsRepositoryProvider),
+    intervalsDao: DrivenWayIntervalsDao(ref.watch(appDatabaseProvider)),
   );
 });
 

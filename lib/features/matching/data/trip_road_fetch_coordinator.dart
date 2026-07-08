@@ -9,11 +9,20 @@
 //   * `app.dart` at `AppLifecycleState.resumed` — walks the queue and
 //     retries drainable rows with exponential backoff
 //     (5 min / 30 min / 2 h / 12 h / 24 h → abandon at 5 attempts).
+//
+// Phase 5 (Plan 05-07): accepts an optional [TripMatchCoordinator] param.
+// After each successful `transitionToPending` call (both online path and
+// drain path), fires `matchCoordinator?.onTripReadyForMatching(tripId)`
+// as an unawaited fire-and-forget — the match pipeline runs in the
+// background; the fetch coordinator's SLA is "return quickly".
+
+import 'dart:async';
 
 import 'package:auto_explore/core/db/app_database.dart';
 import 'package:auto_explore/core/db/daos/pending_road_fetches_dao.dart';
 import 'package:auto_explore/features/matching/data/connectivity_seam.dart';
 import 'package:auto_explore/features/matching/data/tile_bbox_math.dart';
+import 'package:auto_explore/features/matching/data/trip_match_coordinator.dart';
 import 'package:auto_explore/features/matching/data/way_candidate_source.dart';
 import 'package:auto_explore/features/trips/data/trips_repository.dart';
 import 'package:logging/logging.dart';
@@ -44,12 +53,14 @@ class TripRoadFetchCoordinator {
     required ConnectivitySeam connectivity,
     TileBboxMath tileMath = const TileBboxMath(),
     DateTime Function()? now,
+    TripMatchCoordinator? matchCoordinator,
   })  : _source = source,
         _pendingDao = pendingDao,
         _repository = repository,
         _connectivity = connectivity,
         _tileMath = tileMath,
-        _now = now ?? DateTime.now;
+        _now = now ?? DateTime.now,
+        _matchCoordinator = matchCoordinator;
 
   final WayCandidateSource _source;
   final PendingRoadFetchesDao _pendingDao;
@@ -61,6 +72,12 @@ class TripRoadFetchCoordinator {
   // ignore: unused_field
   final TileBboxMath _tileMath;
   final DateTime Function() _now;
+
+  /// Optional Phase 5 match coordinator. When set, fires
+  /// [TripMatchCoordinator.onTripReadyForMatching] (unawaited) immediately
+  /// after each trip transitions to `pending`. When null, matching is
+  /// triggered only via [TripMatchCoordinator.processPending] on app resume.
+  final TripMatchCoordinator? _matchCoordinator;
 
   final _log = Logger('trip_road_fetch_coordinator');
 
@@ -97,6 +114,10 @@ class TripRoadFetchCoordinator {
         'trip $tripId has empty bbox — skipping fetch, going to pending',
       );
       await _repository.transitionToPending(tripId);
+      // Phase 5 hook: fire matching in the background (unawaited).
+      unawaited(
+        _matchCoordinator?.onTripReadyForMatching(tripId),
+      );
       return;
     }
 
@@ -125,6 +146,10 @@ class TripRoadFetchCoordinator {
         maxLon: effectiveBbox.maxLon,
       );
       await _repository.transitionToPending(tripId);
+      // Phase 5 hook: fire matching in the background (unawaited).
+      unawaited(
+        _matchCoordinator?.onTripReadyForMatching(tripId),
+      );
     } on Object catch (e, st) {
       _log.warning('trip $tripId fetch failed — enqueuing: $e', e, st);
       await _pendingDao.enqueue(
@@ -161,6 +186,10 @@ class TripRoadFetchCoordinator {
         );
         await _pendingDao.removeByTrip(row.tripId);
         await _repository.transitionToPending(row.tripId);
+        // Phase 5 hook: fire matching in the background (unawaited).
+        unawaited(
+          _matchCoordinator?.onTripReadyForMatching(row.tripId),
+        );
         _log.info('drained trip ${row.tripId} → pending');
       } on Object catch (e) {
         _log.warning('drain retry failed for trip ${row.tripId}: $e');
