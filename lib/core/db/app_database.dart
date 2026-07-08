@@ -1,4 +1,5 @@
 import 'package:auto_explore/core/db/converters/trip_status_converter.dart';
+import 'package:auto_explore/core/db/daos/overpass_way_cache_dao.dart';
 import 'package:auto_explore/core/db/tables/app_prefs_table.dart';
 import 'package:auto_explore/core/db/tables/bt_fingerprints_table.dart';
 import 'package:auto_explore/core/db/tables/coverage_cache_table.dart';
@@ -28,6 +29,7 @@ part 'app_database.g.dart';
     OverpassWayCache,
     PendingRoadFetches,
   ],
+  daos: [OverpassWayCacheDao],
 )
 class AppDatabase extends _$AppDatabase {
   AppDatabase([QueryExecutor? executor]) : super(executor ?? _openConnection());
