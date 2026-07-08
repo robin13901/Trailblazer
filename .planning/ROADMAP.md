@@ -4,7 +4,7 @@
 
 Trailblazer is a private Flutter app (iOS + Android) that paints the roads you have driven onto an offline OSM map, aggregated across a 5-level admin hierarchy (Land → Bundesland → Landkreis → Gemeinde → Stadtteil/Ortsteil). The road from empty repo to shipped v1 is a strict dependency chain: build the CI + DB + permission foundation, prove the map + Liquid Glass shell renders on real devices, capture trips in the background, build the OSM pipeline on the dev machine, run on-device HMM map-matching against the resulting artifact, wire trips through an inbox into coverage, render driven roads on the map, then layer in region browser + focus-area pill, vehicles + Bluetooth, settings + backup, and finally harden against OEM battery killers and iOS background-task quirks.
 
-Depth: **comprehensive** — 11 phases, driven by the 119 v1 requirements (FND, MAP, UI, OSM, OSMDB, VEH, TRK, INB, MMT, COV, FOC, REN, REG, SET, QUA). Two spike gates (P2 rendering, P7 feature-state) are called out separately in the Phase Gates section — they can block or divert phase execution.
+Depth: **comprehensive** — 11 phases, driven by the 112 v1 requirements (FND, MAP, UI, OSM, VEH, TRK, INB, MMT, COV, FOC, REN, REG, SET, QUA). Two spike gates (P2 rendering, P7 feature-state) are called out separately in the Phase Gates section — they can block or divert phase execution. *(Requirement total dropped 119 → 112 in the 2026-07-08 Phase-4 rescope: OSMDB-01..OSMDB-07 deleted; the bundled-osm.sqlite runtime was abandoned. See PROJECT.md Key Decisions.)*
 
 ## Phases
 
@@ -16,8 +16,8 @@ Depth: **comprehensive** — 11 phases, driven by the 119 v1 requirements (FND, 
 - [x] **Phase 2: Map + Glass Shell** — MapLibre + PMTiles + Liquid Glass chrome (rendering spike gate)
 - [x] **Phase 3: Tracking MVP** — background GPS + motion state machine + manual/auto trip capture
 - [ ] **Phase 3.1: Tracking Fixes** — gap-closure phase inserted 2026-07-06 after failed in-car drive verification (FGB fixes not arriving, map dot frozen, no notification, no auto-trip). Blocks Phase 5.
-- [ ] **Phase 4: OSM Pipeline** — dev-machine PBF → slim `osm.sqlite` + `germany-base.pmtiles`
-- [ ] **Phase 5: OSM DB + Matcher** — OSM DB runtime, HMM engine, matcher isolate, golden corpus
+- [ ] **Phase 4: Map & Matching Data Sources** — MapTiler-hosted vector tiles + on-demand Overpass road data (cached + retry-safe) + bundled admin polygons (rescoped 2026-07-08 from the original bundled-`osm.sqlite` pipeline)
+- [ ] **Phase 5: Overpass-Backed Matcher + Golden Corpus** — HMM matcher consumes `WayCandidateSource` (Phase 4), matches confirmed trip polylines to driven way intervals, CI-verified against a golden corpus
 - [ ] **Phase 6: Inbox + Match Wire-Up** — trip inbox, confirm/reject, matching enqueue, coverage cache infra
 - [ ] **Phase 7: Coverage Rendering** — driven-ways painted on the map (feature-state fallback gate)
 - [ ] **Phase 8: Regions + Focus-Area** — admin region browser, zoom-aware focus pill, coverage aggregation
@@ -119,38 +119,36 @@ Additional research-recommended spikes: HMM parameter tuning + golden corpus rec
   6. **In-car drive verification passes:** re-drive the failed 2026-07-06 route (or equivalent), observe all four fail modes fixed via the HUD, and record a passing verification report at `.planning/phases/03-1-tracking-fixes/03-1-DRIVE-VERIFICATION-<date>.md`.
 **Plans:** TBD (3–5 — planning follows)
 
-### Phase 4: OSM Pipeline
-**Goal:** A repeatable dev-machine Dart CLI produces the slim OSM artifacts the app runtime consumes.
-**Depends on:** Phase 1 (structure); independent of Phases 2/3 (dev-machine deliverable)
+### Phase 4: Map & Matching Data Sources
+**Goal:** The app renders live MapTiler tiles, fetches on-demand Overpass road data per trip (cached + retry-safe when offline), and answers admin-region name lookups from a bundled polygon asset.
+**Depends on:** Phase 1 (foundation), Phase 3 (needs the trip lifecycle so trip completion can trigger the Overpass fetch and the new `pendingRoadData` state)
+**Rescoped:** 2026-07-08 (from original bundled-`osm.sqlite` pipeline — see PROJECT.md Key Decisions)
 **Requirements:** OSM-01, OSM-02, OSM-03, OSM-04, OSM-05, OSM-06, OSM-07, OSM-08
+**Completed:** 2026-07-08 (code-complete; combined Phase-4 close-out drive-verify pending — see `.planning/phases/04-osm-pipeline/04-VERIFICATION.md`)
 **Success Criteria** (what must be TRUE):
-  1. Running `dart run tool/osm_pipeline` against a Berlin-bbox PBF produces `osm.sqlite` (with R-Tree over Kfz-way geometries) and `germany-base.pmtiles` end-to-end on the dev machine.
-  2. Output artifacts include the Kfz `highway=*` set in osm.sqlite;
-     Feldweg/Fußweg (`highway=track|path`) are emitted into the pmtiles `roads`
-     layer only. Admin boundaries at OSM levels 2, 4, 6, 8, 9, 10.
-  3. The `way_admin` join table is populated for every Kfz way ↔ region pair whose geometries intersect.
-  4. A full-Germany run keeps `osm.sqlite` under **800 MB** and `germany-base.pmtiles` under 200 MB, with a version stamp (source PBF date + pipeline schema version) in each. *(SC4 relaxed 2026-07-06 from 200 MB → 800 MB after Berlin measurement projected ~696 MB for the recommended denormalized-L2..L8 + way_admin_raw variant; still slimmer than every routable-mapping product on the market — Osmand slim ~800 MB, Organic Maps ~1.5 GB, Google/Here ~2–4 GB. Details in `.planning/phases/04-osm-pipeline/04-05-BERLIN-MEASUREMENT.md`.)*
-  5. Pipeline accepts an arbitrary `--bbox` flag for dev/testing without processing the full Germany extract.
-**Plans:** 10 plans
-  - [ ] 04-01-reconciliation-and-cli-scaffold-PLAN.md — reconcile OSM-02 service exclusion + stand up tool/osm_pipeline sub-package + stub CLI
-  - [ ] 04-02-pbf-streaming-reader-PLAN.md — pure-Dart streaming PBF reader + tiny fixture PBF for unit tests
-  - [ ] 04-03-highway-filter-directionality-PLAN.md — 14-tag Kfz filter + Feldweg carve-out + directionality normalization + scratch DB writer
-  - [ ] 04-04-admin-boundary-extraction-PLAN.md — admin relations (levels 2/4/6/8/9/10) → multipolygon assembly → WKB in scratch
-  - [ ] 04-05-berlin-measurement-segmented-intersection-PLAN.md — Berlin-bbox row-count probe (schema unlock) + segmented intersection + way_admin_raw
-  - [ ] 04-06-osm-sqlite-finalization-PLAN.md — final osm.sqlite schema + R-Tree + version stamp + PRAGMA user_version
-  - [ ] 04-07-geojson-emit-tippecanoe-pmtiles-PLAN.md — 4-layer GeoJSONSeq emission + tippecanoe subprocess (WSL2 on Windows)
-  - [ ] 04-08-pmtiles-metadata-style-rewrite-PLAN.md — pmtiles metadata patcher + rewrite of map_style_light.json + map_style_dark.json
-  - [ ] 04-09-berlin-smoke-and-wsl-docs-PLAN.md — smoke.sh + smoke.ps1 + tippecanoe/README.md WSL2 install guide (checkpoint)
-  - [ ] 04-10-full-germany-close-out-PLAN.md — full-Germany run + **800 MB** budget verification + asset replacement + close-out (checkpoint)
+  1. Map screen renders MapTiler tiles seamlessly at all zoom levels; attribution visible in Settings > About; light + dark styles both work.
+  2. Loopback `TileServer` and its deps are gone; `flutter analyze` clean.
+  3. Trip finished online → fully-cached Overpass response within 30 s; trip finished offline → `pendingRoadData` state, picked up on reconnect.
+  4. `WayCandidateSource` interface has two working impls; test suite uses the fixture impl; runtime uses Overpass impl.
+  5. Admin polygons L2..L10 bundled at `assets/admin/germany_admin.geojson.gz` (<15 MB), loaded at first-use, `regionAt(lat, lng, level)` correct for 5 known coordinates.
+**Plans:** 8 plans, 4 waves + one polish plan (rescoped 2026-07-08 — original 04-01..04-10 + 04-10-1-* archived on disk under this phase folder as SUMMARY docs only)
+  - [x] 04-11-maptiler-provider-and-key-plumbing-PLAN.md — MapTiler API key + TileProviderConfig + attribution + style-ID spike
+  - [x] 04-12-style-rewrite-and-tileserver-teardown-PLAN.md — swap MapLibre to MapTiler URL + delete TileServer + real-device smoke checkpoint
+  - [x] 04-13-overpass-client-and-payload-probe-PLAN.md — OverpassClient + WayCandidate model + Berlin→Munich payload probe
+  - [x] 04-14-drift-migration-v3-and-daos-PLAN.md — App DB v3 + overpass_way_cache + pending_road_fetches + DAOs
+  - [x] 04-15-way-candidate-source-and-trip-flow-PLAN.md — WayCandidateSource interface + Overpass impl + trip coordinator + offline checkpoint
+  - [x] 04-16-bundled-admin-polygons-and-lookup-PLAN.md — dev CLI + assets/admin/germany_admin.geojson.gz + AdminRegionLookup + Settings refresh
+  - [x] 04-16-1-ux-polish-PLAN.md — 5 user-observed UI fixes (FGB toast, off-screen attribution, default zoom 15, German localization, top-chrome margin)
+  - [x] 04-17-rescope-close-out-PLAN.md — docs rewrite (REQUIREMENTS/ROADMAP/PROJECT/STATE) + VERIFICATION.md
 
-### Phase 5: OSM DB + Matcher
-**Goal:** The HMM matcher turns a confirmed trip into a correct list of driven way intervals — offline, on-device, and CI-verified against a golden corpus.
-**Depends on:** Phases 1, 4
-**Requirements:** OSMDB-01, OSMDB-02, OSMDB-03, OSMDB-04, OSMDB-05, OSMDB-06, OSMDB-07, MMT-01, MMT-02, MMT-03, MMT-04, MMT-05, MMT-06, MMT-07, MMT-08, MMT-09, MMT-10, QUA-02
+### Phase 5: Overpass-Backed Matcher + Golden Corpus
+**Goal:** The HMM matcher consumes `WayCandidateSource` (from Phase 4) to match a confirmed trip's polyline to a correct list of driven way intervals, and a CI-runnable golden corpus verifies it.
+**Depends on:** Phase 4
+**Requirements:** MMT-01, MMT-02, MMT-03, MMT-04, MMT-05, MMT-06, MMT-07, MMT-08, MMT-09, MMT-10, QUA-02. *(Matcher-facing requirements will be authored during Phase 5 planning per the rescope decision 2026-07-08 — the original OSMDB-01..OSMDB-07 block was deleted when the bundled OSM DB runtime was abandoned.)*
 **Success Criteria** (what must be TRUE):
-  1. On first launch the app downloads the OSM DB over Wi-Fi with resume support; artifacts that fail schema/row-count integrity checks trigger re-download; OSM DB opens in its own Drift isolate with statement cache warmed up.
-  2. `findWaysNear(lat, lng, radius)` returns top-N R-Tree candidates in p95 < 30 ms on target devices; extract updates swap in place atomically without corrupting driven-way intervals.
-  3. A CI-runnable golden corpus of ≥ 20 recorded trips (autobahn, Kreisel, tunnel, parking, U-turn, city grid, roundabout, one-way) produces the known-correct way-ID sequences; core matcher module has ≥ 90 % line coverage; regression on any golden trip fails CI.
+  1. Matcher consumes `WayCandidateSource.fetchWaysInBbox` on the matcher isolate; the source's cache-first path (04-15) is warm before matching starts, and offline `pendingRoadData` trips block matching until the fetch queue drains.
+  2. Candidate lookup per GPS point is served by the matcher's own in-memory R-Tree built from the ways returned by the source for the trip's bbox (adaptive radius: 25 m base, expands with HDOP; top-5 candidates).
+  3. A CI-runnable golden corpus of ≥ 20 recorded trips (autobahn, Kreisel, tunnel, parking, U-turn, city grid, roundabout, one-way) produces the known-correct way-ID sequences; core matcher module has ≥ 90 % line coverage; regression on any golden trip fails CI. `tool/osm_pipeline/` (retained as dev-only per OSM-07) is the fixture generator for golden PBFs.
   4. Confirmed-trip matching runs off the UI isolate in a warm long-lived `MatcherIsolate` with adaptive R-Tree radius, Viterbi lookahead ≥ 5, min-speed 15 km/h for high-class ways, and is cancellable by the user.
   5. Matcher writes `driven_way_intervals(way_id, start_m, end_m, direction, trip_id, timestamp)` to the App DB; unmatched points are dropped (never force-snapped); raw GPS is retained 30 days by default for re-matching.
 **Plans:** TBD (7–10)
@@ -238,8 +236,8 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 | 2. Map + Glass Shell | 7/7 | ✓ Complete | 2026-07-04 |
 | 3. Tracking MVP | 7/7 | ✓ Code-complete (drive failed 2026-07-06 → Phase 3.1) | 2026-07-05 |
 | 3.1. Tracking Fixes | 0/TBD | Planning | - |
-| 4. OSM Pipeline | 8/10 | ◆ In progress (Wave 9 checkpoint — full-Germany run pending) | - |
-| 5. OSM DB + Matcher | 0/TBD | Not started | - |
+| 4. Map & Matching Data Sources | 8/8 | ✓ Code-complete (drive-verify pending combined Phase-4 close-out session) — 8 rescoped plans (04-11..04-17 + 04-16-1); original 04-01..04-10 + 04-10-1-* archived on disk | 2026-07-08 |
+| 5. Overpass-Backed Matcher + Golden Corpus | 0/TBD | Not started | - |
 | 6. Inbox + Match Wire-Up | 0/TBD | Not started | - |
 | 7. Coverage Rendering | 0/TBD | Not started | - |
 | 8. Regions + Focus-Area | 0/TBD | Not started | - |
@@ -249,7 +247,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 
 ## Coverage
 
-**v1 requirements mapped:** 119/119 (100 %) — no orphans.
+**v1 requirements mapped:** 112/112 (100 %) — no orphans. *(Was 119 pre-2026-07-08; OSMDB-01..OSMDB-07 deleted as part of the Phase-4 rescope — see PROJECT.md Key Decisions.)*
 
 | Category | Count | Assigned to |
 |----------|-------|-------------|
@@ -257,7 +255,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 | MAP | 7 | P2 |
 | UI | 7 | P2 |
 | OSM | 8 | P4 |
-| OSMDB | 7 | P5 |
 | VEH | 6 | P9 |
 | TRK | 11 | P3 |
 | INB | 8 | P6 |
