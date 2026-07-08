@@ -34,23 +34,32 @@ class BottomNavShell extends StatelessWidget {
   Widget build(BuildContext context) {
     // Fixed height 64 so the pill visually matches the 64 dp FAB / recenter
     // circles. XFin reference: pill and FAB same diameter/height.
+    //
+    // Plan 04-18 Task 7 (2026-07-08): bounded width + spaceEvenly + Expanded
+    // per the XFin pattern (`lib/widgets/liquid_glass_widgets.dart:127-165`).
+    // Previously the pill sized-to-content via `mainAxisSize: MainAxisSize.min`
+    // which made the icons cluster left of the pill's centered position.
+    // Width 240 dp = ~80 dp per tab for 3 tabs, comfortable for icon + label.
     return SizedBox(
+      width: 240,
       height: 64,
       child: GlassPill(
         // Stadium shape: radius ≥ height/2 → 999 renders as full stadium.
         borderRadius: 999,
         padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
         child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            for (var i = 0; i < _tabs.length; i++)
-              _NavTabItem(
-                icon: _tabs[i].icon,
-                label: _tabs[i].label,
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          children: List.generate(_tabs.length, (i) {
+            final tab = _tabs[i];
+            return Expanded(
+              child: _NavTabItem(
+                icon: tab.icon,
+                label: tab.label,
                 isSelected: currentIndex == i,
                 onTap: () => onTap(i),
               ),
-          ],
+            );
+          }),
         ),
       ),
     );
@@ -93,10 +102,13 @@ class _NavTabItem extends StatelessWidget {
         borderRadius: BorderRadius.circular(999),
         onTap: onTap,
         child: Padding(
-          // The pill's outer GlassPill provides vertical breathing room —
-          // this padding is horizontal-only so the label + icon fit inside
-          // the 64 dp pill height. Widens each tab's tap target.
-          padding: const EdgeInsets.symmetric(horizontal: 14),
+          // The pill's outer GlassPill provides vertical breathing room.
+          // Plan 04-18 Task 7 (2026-07-08): reduced horizontal padding
+          // from 14 to 4 — with the new spaceEvenly + Expanded layout,
+          // each tab occupies ~72 dp of the 240-wide pill, and the outer
+          // Row itself distributes the gutter. Higher padding here
+          // caused "Regions" to wrap in the constrained width.
+          padding: const EdgeInsets.symmetric(horizontal: 4),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             mainAxisAlignment: MainAxisAlignment.center,
@@ -105,6 +117,8 @@ class _NavTabItem extends StatelessWidget {
               const SizedBox(height: 2),
               Text(
                 label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
                 style: Theme.of(context).textTheme.labelSmall?.copyWith(
                   color: color,
                   fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
