@@ -1,11 +1,16 @@
-// Phase 4 rescope Wave 2 (Plan 04-13):
-// Riverpod providers for the Overpass client stack.
+// Phase 4 rescope Wave 2 (Plan 04-13 + 04-15):
+// Riverpod providers for the Overpass client stack + WayCandidateSource.
 //
 // Uses plain `Provider<T>` — no `@Riverpod` codegen (STATE Plan 01-01).
 // Tests override any of these providers via `ProviderScope.overrides` /
 // `ProviderContainer(overrides:)`.
 
+import 'package:auto_explore/core/db/app_database_providers.dart';
+import 'package:auto_explore/core/db/daos/overpass_way_cache_dao.dart';
 import 'package:auto_explore/features/matching/data/overpass_client.dart';
+import 'package:auto_explore/features/matching/data/overpass_way_candidate_source.dart';
+import 'package:auto_explore/features/matching/data/tile_bbox_math.dart';
+import 'package:auto_explore/features/matching/data/way_candidate_source.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 
@@ -41,4 +46,22 @@ final overpassClientProvider = Provider<OverpassClient>((ref) {
   // deliberately do NOT register a dispose hook here — the httpClient's
   // own onDispose is the single lifecycle owner.
   return client;
+});
+
+/// Slippy tile-bbox math — pure functions, no I/O. Held as `const` at call
+/// sites; the provider is a thin indirection for tests that want to
+/// substitute a mock projection.
+final tileBboxMathProvider = Provider<TileBboxMath>(
+  (_) => const TileBboxMath(),
+);
+
+/// Runtime [WayCandidateSource] — cache-first via [OverpassWayCacheDao],
+/// network-fill via [OverpassClient]. Tests override with an in-memory
+/// implementation (see `test/helpers/fixture_way_candidate_source.dart`).
+final wayCandidateSourceProvider = Provider<WayCandidateSource>((ref) {
+  return OverpassWayCandidateSource(
+    client: ref.watch(overpassClientProvider),
+    cacheDao: ref.watch(appDatabaseProvider).overpassWayCacheDao,
+    tileMath: ref.watch(tileBboxMathProvider),
+  );
 });

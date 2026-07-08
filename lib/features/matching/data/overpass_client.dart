@@ -87,6 +87,29 @@ class OverpassClient {
     required double maxLon,
     int timeoutSeconds = 25,
   }) async {
+    final rawJson = await fetchRawJson(
+      minLat: minLat,
+      minLon: minLon,
+      maxLat: maxLat,
+      maxLon: maxLon,
+      timeoutSeconds: timeoutSeconds,
+    );
+    return _parser.parseWays(rawJson);
+  }
+
+  /// Fetches the raw Overpass JSON body for the given bbox (no parsing).
+  ///
+  /// Exposed so callers that need the untransformed payload (e.g. the 04-15
+  /// tile-cache write path) can persist the exact bytes without a
+  /// re-encoding round-trip through the parser. Same retry/fallback
+  /// contract as [fetchWaysInBbox].
+  Future<String> fetchRawJson({
+    required double minLat,
+    required double minLon,
+    required double maxLat,
+    required double maxLon,
+    int timeoutSeconds = 25,
+  }) async {
     final query = _queryBuilder.buildBboxHighwayQuery(
       minLat: minLat,
       minLon: minLon,
@@ -111,7 +134,7 @@ class OverpassClient {
             .timeout(_timeout);
 
         if (response.statusCode == 200) {
-          return _parser.parseWays(response.body);
+          return response.body;
         }
         if (_isRetryableStatus(response.statusCode)) {
           if (attempt < 2) {
