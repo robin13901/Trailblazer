@@ -12,6 +12,7 @@ import 'package:drift/drift.dart';
 /// FK on `tripId` cascades on trip delete — losing a trip discards its
 /// pending fetches. Matches the CASCADE policy from `trip_points -> trips`
 /// (see Plan 01-02 STATE decision).
+@DataClassName('PendingRoadFetch')
 class PendingRoadFetches extends Table {
   IntColumn get id => integer().autoIncrement()();
   IntColumn get tripId =>

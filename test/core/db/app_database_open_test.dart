@@ -3,7 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import '../../helpers/test_database.dart';
 
 void main() {
-  test('AppDatabase opens in memory with all 7 tables', () async {
+  test('AppDatabase opens in memory with all 9 tables', () async {
     final db = createInMemoryDatabase();
     addTearDown(db.close);
 
@@ -26,6 +26,8 @@ void main() {
         'bt_fingerprints',
         'coverage_cache',
         'app_prefs',
+        'overpass_way_cache',
+        'pending_road_fetches',
       }),
     );
   });
