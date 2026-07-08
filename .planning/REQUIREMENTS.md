@@ -69,17 +69,17 @@
 
 ### Trip Tracking (TRK)
 
-- [ ] **TRK-01**: `flutter_background_geolocation` records GPS in the background when motion activity classifier reports `automotive` (>60 s duration) — trip auto-created as `pending`
-- [ ] **TRK-02**: User can manually start a trip via FAB on the map screen — trip immediately created as `pending`, assigned to default vehicle, marked as `manually_started`
-- [ ] **TRK-03**: Manually-started trips end only when user presses the Stop button (short traffic-light stops do not terminate the trip)
-- [ ] **TRK-04**: Auto-started trips end when motion classifier reports non-automotive for > 2 minutes (dwell termination)
-- [ ] **TRK-05**: Per-trip captured metadata: start/end timestamp, duration, distance (from GPS integration), avg speed, max speed, raw GPS polyline (lat/lng/accuracy/timestamp/altitude), motion activity type per fix
-- [ ] **TRK-06**: Bluetooth device fingerprint at trip start is stored on the trip as a hint (does not gate recording)
-- [ ] **TRK-07**: A trip records `manually_started` boolean, `auto_stopped` boolean, and `bluetooth_hint` string (or null)
-- [ ] **TRK-08**: Battery-conscious state machine: `idle → detecting → recording → paused` — GPS accuracy switches to `Best` (not `BestForNavigation`) during recording; DB writes batched every ~20 fixes
-- [ ] **TRK-09**: Live-tracking indicator visible on the map when a trip is being recorded (glass overlay with duration + distance)
-- [ ] **TRK-10**: iOS `whenInUse → Always` two-step permission ladder implemented; app never assumes Always is granted
-- [ ] **TRK-11**: Android `foregroundServiceType="location"` with persistent notification; user prompted to disable battery optimization
+- [x] **TRK-01**: `flutter_background_geolocation` records GPS in the background when motion activity classifier reports `automotive` (>60 s duration) — trip auto-created as `pending`
+- [x] **TRK-02**: User can manually start a trip via FAB on the map screen — trip immediately created as `pending`, assigned to default vehicle, marked as `manually_started`
+- [x] **TRK-03**: Manually-started trips end only when user presses the Stop button (short traffic-light stops do not terminate the trip)
+- [x] **TRK-04**: Auto-started trips end when motion classifier reports non-automotive for > 2 minutes (dwell termination)
+- [x] **TRK-05**: Per-trip captured metadata: start/end timestamp, duration, distance (from GPS integration), avg speed, max speed, raw GPS polyline (lat/lng/accuracy/timestamp/altitude), motion activity type per fix
+- [x] **TRK-06**: Bluetooth device fingerprint at trip start is stored on the trip as a hint (does not gate recording)
+- [x] **TRK-07**: A trip records `manually_started` boolean, `auto_stopped` boolean, and `bluetooth_hint` string (or null)
+- [x] **TRK-08**: Battery-conscious state machine: `idle → detecting → recording → paused` — GPS accuracy switches to `Best` (not `BestForNavigation`) during recording; DB writes batched every ~20 fixes
+- [x] **TRK-09**: Live-tracking indicator visible on the map when a trip is being recorded (glass overlay with duration + distance)
+- [x] **TRK-10**: iOS `whenInUse → Always` two-step permission ladder implemented; app never assumes Always is granted
+- [x] **TRK-11**: Android `foregroundServiceType="location"` with persistent notification; user prompted to disable battery optimization
 
 ### Trip Review Inbox (INB)
 
@@ -273,17 +273,17 @@ Every requirement maps to exactly one phase. Phase Gates in ROADMAP.md carry two
 | UI-05 | Phase 2: Map + Glass Shell (Gate G1) | Complete — G1 unconditional PASS 2026-07-04 |
 | UI-06 | Phase 2: Map + Glass Shell | Complete |
 | UI-07 | Phase 2: Map + Glass Shell | Complete |
-| TRK-01 | Phase 3: Tracking MVP | Code-Complete (drive-deferred) |
-| TRK-02 | Phase 3: Tracking MVP | Code-Complete (drive-deferred) |
-| TRK-03 | Phase 3: Tracking MVP | Code-Complete (drive-deferred) |
-| TRK-04 | Phase 3: Tracking MVP | Code-Complete (drive-deferred) |
-| TRK-05 | Phase 3: Tracking MVP | Code-Complete (drive-deferred) |
-| TRK-06 | Phase 3: Tracking MVP | Code-Complete (drive-deferred) — bluetooth_hint column exists, always NULL in P3; wired in Phase 9 |
-| TRK-07 | Phase 3: Tracking MVP | Code-Complete (drive-deferred) |
-| TRK-08 | Phase 3: Tracking MVP | Code-Complete (drive-deferred) |
-| TRK-09 | Phase 3: Tracking MVP | Code-Complete (drive-deferred) |
-| TRK-10 | Phase 3: Tracking MVP | Code-Complete (drive-deferred) |
-| TRK-11 | Phase 3: Tracking MVP | Code-Complete (drive-deferred) |
+| TRK-01 | Phase 3: Tracking MVP | Complete (verified via Phase 3.1 drive 2026-07-08) |
+| TRK-02 | Phase 3: Tracking MVP | Complete (verified via Phase 3.1 drive 2026-07-08) |
+| TRK-03 | Phase 3: Tracking MVP | Complete (verified via Phase 3.1 drive 2026-07-08) |
+| TRK-04 | Phase 3: Tracking MVP | Complete (verified via Phase 3.1 drive 2026-07-08) |
+| TRK-05 | Phase 3: Tracking MVP | Complete (verified via Phase 3.1 drive 2026-07-08) |
+| TRK-06 | Phase 3: Tracking MVP | Complete (verified via Phase 3.1 drive 2026-07-08) — bluetooth_hint column exists, always NULL in P3; wired in Phase 9 |
+| TRK-07 | Phase 3: Tracking MVP | Complete (verified via Phase 3.1 drive 2026-07-08) |
+| TRK-08 | Phase 3: Tracking MVP | Complete (verified via Phase 3.1 drive 2026-07-08) |
+| TRK-09 | Phase 3: Tracking MVP | Complete (verified via Phase 3.1 drive 2026-07-08) |
+| TRK-10 | Phase 3: Tracking MVP | Complete (Android ladder verified via Phase 3.1 drive 2026-07-08; iOS real-device test still deferred — Windows dev env) |
+| TRK-11 | Phase 3: Tracking MVP | Complete (verified via Phase 3.1 drive 2026-07-08) |
 | OSM-01 | Phase 4: Map & Matching Data Sources | Complete (drive-verify pending combined Phase-4 close-out) |
 | OSM-02 | Phase 4: Map & Matching Data Sources | Complete (drive-verify pending combined Phase-4 close-out) |
 | OSM-03 | Phase 4: Map & Matching Data Sources | Complete (drive-verify pending combined Phase-4 close-out) |
@@ -363,4 +363,4 @@ Every requirement maps to exactly one phase. Phase Gates in ROADMAP.md carry two
 
 ---
 *Requirements defined: 2026-07-02*
-*Last updated: 2026-07-08 (Plan 04-17 rescope close-out — OSM-01..OSM-08 rephrased for MapTiler + Overpass architecture; OSMDB-01..OSMDB-07 deleted; total 119 → 112)*
+*Last updated: 2026-07-08 (Plan 03-1-05 close-out — TRK-01..TRK-11 flipped to Complete via Phase 3.1 drive 2026-07-08; QUA-06 stays Drive-blocked — 60-min battery baseline NOT run in Phase 3.1)*
