@@ -110,6 +110,21 @@ class TripsRepository {
     }
   }
 
+  /// Flip [tripId] to `matched` (Phase 5 coordinator success path).
+  ///
+  /// Called by TripMatchCoordinator after successfully inserting all
+  /// DrivenWayInterval rows for the trip.
+  Future<Result<void>> transitionToMatched(int tripId) async {
+    try {
+      await _dao.transitionToMatched(tripId);
+      return const Ok(null);
+      // Catches all throwables (Error + Exception) for DomainError.wrap.
+      // ignore: avoid_catches_without_on_clauses
+    } catch (e, st) {
+      return Err(DomainError.wrap(e, st));
+    }
+  }
+
   /// Return the newest open trip row, or null if none (cold-start hydration).
   Future<Result<Trip?>> activeTrip() async {
     try {

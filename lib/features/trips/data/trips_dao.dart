@@ -88,6 +88,31 @@ class TripsDao extends DatabaseAccessor<AppDatabase> {
         const TripsCompanion(status: Value(TripStatus.pending)),
       );
 
+  /// Flip [tripId] to [TripStatus.matched] once the Phase 5 matcher has
+  /// written its intervals. Idempotent — calling this on an already-matched
+  /// trip is a no-op from the DB perspective.
+  Future<void> transitionToMatched(int tripId) =>
+      (update(trips)..where((t) => t.id.equals(tripId))).write(
+        const TripsCompanion(status: Value(TripStatus.matched)),
+      );
+
+  /// All trips with `status == TripStatus.pending`, ordered by `endedAt`
+  /// ascending (oldest ready-to-match trip first). Used by the Phase 5
+  /// match coordinator on app resume.
+  Future<List<Trip>> listPendingTrips() =>
+      (select(trips)
+            ..where((t) => t.status.equalsValue(TripStatus.pending))
+            ..orderBy([(t) => OrderingTerm.asc(t.endedAt)]))
+          .get();
+
+  /// All trip_points for [tripId], ordered by `seq`. Returned as plain
+  /// Drift rows; conversion to GpsFix happens on the caller side.
+  Future<List<TripPoint>> listPointsForTrip(int tripId) =>
+      (select(tripPoints)
+            ..where((p) => p.tripId.equals(tripId))
+            ..orderBy([(p) => OrderingTerm.asc(p.seq)]))
+          .get();
+
   /// Return the newest open trip (endedAt IS NULL), or null if none.
   ///
   /// Used for cold-start hydration in TrackingNotifier.
