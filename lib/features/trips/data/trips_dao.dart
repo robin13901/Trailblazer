@@ -104,4 +104,40 @@ class TripsDao extends DatabaseAccessor<AppDatabase> {
             ..where((p) => p.tripId.equals(tripId))
             ..orderBy([(p) => OrderingTerm.asc(p.seq)]))
           .watch();
+
+  /// Delete `trip_points` rows for trips whose matched intervals are all
+  /// older than [cutoff]. Returns the number of point rows deleted.
+  ///
+  /// A trip is eligible for point-sweep only if it has AT LEAST ONE row in
+  /// `driven_way_intervals` (i.e. it has been matched). Unmatched trips
+  /// retain their points indefinitely — the matcher must run first before
+  /// the 30-day clock starts.
+  ///
+  /// Uses MAX(matched_at) in a HAVING clause so that a trip with any
+  /// recent interval (even if older intervals exist) is NOT swept:
+  ///
+  ///   DELETE FROM trip_points
+  ///   WHERE trip_id IN (
+  ///     SELECT d.trip_id FROM driven_way_intervals d
+  ///     WHERE d.trip_id IS NOT NULL
+  ///     GROUP BY d.trip_id
+  ///     HAVING MAX(d.matched_at) < ?
+  ///   );
+  Future<int> deleteTripPointsForMatchedTripsOlderThan(
+    DateTime cutoff,
+  ) async {
+    final rows = await customUpdate(
+      'DELETE FROM trip_points '
+      'WHERE trip_id IN ('
+      '  SELECT d.trip_id FROM driven_way_intervals d '
+      '  WHERE d.trip_id IS NOT NULL '
+      '  GROUP BY d.trip_id '
+      '  HAVING MAX(d.matched_at) < ?'
+      ' )',
+      variables: [Variable.withDateTime(cutoff)],
+      updates: {tripPoints},
+      updateKind: UpdateKind.delete,
+    );
+    return rows;
+  }
 }

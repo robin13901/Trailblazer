@@ -128,4 +128,27 @@ class TripsRepository {
   /// Riverpod's AsyncValue machinery.
   Stream<List<TripPoint>> watchPoints(int tripId) =>
       _dao.watchPoints(tripId);
+
+  /// 30-day raw-GPS retention sweep (MMT-10). Deletes trip_points rows
+  /// for trips whose matched intervals are all older than [retention].
+  ///
+  /// Delegates to [TripsDao.deleteTripPointsForMatchedTripsOlderThan].
+  /// Wraps throwables in [DomainError] per the repository contract.
+  ///
+  /// [retention] defaults to 30 days; Phase 10 will override this from
+  /// AppPrefs when the settings UI ships.
+  Future<Result<int>> sweepRawGpsRetention({
+    Duration retention = const Duration(days: 30),
+    DateTime? now,
+  }) async {
+    try {
+      final cutoff = (now ?? DateTime.now()).subtract(retention);
+      final n = await _dao.deleteTripPointsForMatchedTripsOlderThan(cutoff);
+      return Ok(n);
+      // Catches all throwables (Error + Exception) for DomainError.wrap.
+      // ignore: avoid_catches_without_on_clauses
+    } catch (e, st) {
+      return Err(DomainError.wrap(e, st));
+    }
+  }
 }
