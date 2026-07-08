@@ -104,6 +104,20 @@ class TileProviderConfig {
   /// unusable URL. Release builds construct the URL regardless (the map load
   /// will fail with an HTTP error, which the diagnostics logger catches
   /// upstream).
+  ///
+  /// Plan 04-18 (2026-07-08): the `&language=<code>` query param is
+  /// currently a NO-OP on MapTiler's free-tier hosted styles. The
+  /// `dataviz-dark` / `dataviz` / `streets-v2` `style.json` bodies hardcode
+  /// `text-field` layout properties to `{name:en}` and
+  /// `coalesce(name:en, name)`; the server returns byte-identical JSON
+  /// whether `&language=de` is present or absent. To restore German
+  /// labels, either upgrade MapTiler tier OR add a client-side style
+  /// rewrite (see 04-18-LANGUAGE-INVESTIGATION.md for the full analysis
+  /// and rewrite sketch). Keeping the param wired keeps the
+  /// infrastructure ready for when we revisit.
+  // TODO(04-18): revisit MapTiler language once we upgrade tier OR
+  // implement client-side style-JSON rewrite. See
+  // .planning/phases/04-osm-pipeline/04-18-LANGUAGE-INVESTIGATION.md.
   Uri styleUrl(MapTilerStyle style) {
     assert(hasKey, 'apiKey is empty — check --dart-define=MAPTILER_KEY');
     return Uri.parse(
