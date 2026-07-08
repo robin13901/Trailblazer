@@ -44,7 +44,14 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/settings',
-        builder: (context, state) => const SettingsScreen(),
+        // Plan 04-18 Task 6 (2026-07-08): NoTransitionPage — the default
+        // MaterialPage transition (Android fade+slide) looked laggy
+        // against the liquid-glass chrome per user feedback. Instant
+        // swap on both push and pop.
+        pageBuilder: (context, state) => NoTransitionPage(
+          key: state.pageKey,
+          child: const SettingsScreen(),
+        ),
       ),
       // Dev-only diagnostics route (Plan 03-1-01). Registered only in debug
       // builds — `kDebugMode` is a const, so the route entry (and its widget
