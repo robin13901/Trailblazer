@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math';
 
 import 'package:auto_explore/features/map/domain/follow_mode.dart';
 import 'package:auto_explore/features/map/presentation/providers/camera_state_provider.dart';
@@ -166,12 +167,21 @@ class _MapWidgetState extends ConsumerState<MapWidget>
         // switch above. locationAndHeading reaches .trackingCompass so
         // the map heading-locks during a recording session.
         myLocationTrackingMode: trackingMode,
-        // Attribution: MapLibre's built-in button, visible on-map at
-        // bottom-left. Free-tier MapTiler + OSM licensing requires the
-        // provider + data-source credits to be reachable on the map view.
-        // Settings > About surfaces clickable full-attribution links as
-        // well, per Plan 04-11.
+        // Attribution: MapLibre's built-in (i) button pushed off-screen
+        // (Point(-9999, -9999)) so it does not clutter the map. Legally
+        // required MapTiler + OSM credits are surfaced clickably in
+        // Settings > About (Plan 04-11 — AboutSection).
+        //
+        // Reverts Plan 04-12 Task 1 ("attribution restored on-map,
+        // bottom-left") per user UX feedback 2026-07-08 — the on-map (i)
+        // icon is not wanted. Matches the Phase-2 Wave-7 pattern (STATE
+        // 2026-07-04) where the button was pushed off-screen via
+        // (attributionButtonPosition + attributionButtonMargins). The
+        // maplibre_gl 0.26.2 API surface (installed pub-cache grep):
+        // MapLibreMap({attributionButtonPosition = bottomRight,
+        //              attributionButtonMargins}) — margins is Point?.
         attributionButtonPosition: AttributionButtonPosition.bottomLeft,
+        attributionButtonMargins: const Point(-9999, -9999),
         // NOTE: useHybridComposition NOT set — do not override on Android
         // Impeller. See Pitfall 2.
         onMapCreated: (c) {

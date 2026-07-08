@@ -203,26 +203,27 @@ void main() {
     });
 
     testWidgets(
-      'attribution button is visible on-map at bottom-left (04-12)',
+      'attribution button is pushed off-screen (04-16-1 reverts 04-12)',
       (tester) async {
         await pumpMapWidget(tester);
 
         final map = tester.widget<MapLibreMap>(find.byType(MapLibreMap));
-        // 04-12 restored the on-screen attribution button. The prior
-        // Point(-9999, -9999) off-screen hack is gone — MapLibre's built-in
-        // button now shows the MapTiler + OSM credits at the bottom-left,
-        // and Settings > About surfaces the same links clickably.
+        // Plan 04-16-1 Task 2 (2026-07-08 UX polish) reverts Plan 04-12 Task 1.
+        // The on-map (i) icon is pushed off-screen via Point(-9999, -9999);
+        // legally required MapTiler + OSM credits are surfaced clickably in
+        // Settings > About (04-11 AboutSection). Matches the Phase-2 Wave-7
+        // pattern (STATE 2026-07-04).
         expect(
           map.attributionButtonPosition,
           AttributionButtonPosition.bottomLeft,
         );
         expect(
           map.attributionButtonMargins,
-          isNull,
-          reason:
-              '04-12: no off-screen margin hack — attribution button uses '
-              'MapLibre defaults so the OSM/MapTiler credits stay visible.',
+          isNotNull,
+          reason: '04-16-1: attribution button must be pushed off-screen',
         );
+        expect(map.attributionButtonMargins!.x, -9999);
+        expect(map.attributionButtonMargins!.y, -9999);
       },
     );
   });
