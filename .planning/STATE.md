@@ -10,9 +10,9 @@ See: .planning/PROJECT.md (updated 2026-07-02)
 ## Current Position
 
 Phase: 5 of 11 (Overpass-Backed Matcher + Golden Corpus — Wave 1 executing 2026-07-08)
-Plan: 05-01 complete (DrivenWayIntervalsDao + retention sweep) — 2026-07-08
-Status: Phase 5 Wave 1 in progress. Plan 05-01 DONE. Phase 4 rescope COMPLETE (code-complete; drive-verify pending combined Phase-4 close-out).
-Last activity: 2026-07-08 — Plan 05-01 complete: DrivenWayIntervalsDao + TripsDao.deleteTripPointsForMatchedTripsOlderThan + sweepRawGpsRetention (12 tests)
+Plan: 05-03 complete (WaySegmentIndex + WaySegment + rbush R-Tree) — 2026-07-08
+Status: Phase 5 Wave 1 in progress. Plans 05-01 + 05-03 DONE. Phase 4 rescope COMPLETE (code-complete; drive-verify pending combined Phase-4 close-out).
+Last activity: 2026-07-08 — Plan 05-03 complete: WaySegment value type + WaySegmentIndex (rbush R-Tree, radius query, top-K query with exact perp-distance ranking; 24 tests)
 
 Progress: [███████░░░] ~58% (45/77 est. plans overall — Phase 1: 7/7; Phase 2: 7/7; Phase 3: 7/7 code-complete; Phase 3.1: 5/5 COMPLETE; Phase 4: 10/N + Sub-Phase 04-10.1: 4/6 archived + rescope: 8/8 complete; Phase 5: 2+/N in progress)
 
@@ -393,6 +393,8 @@ Key locked-in decisions affecting current work:
 - **Phase 2 close-out (2026-07-04): Attribution off-screen push.** `maplibre_gl 0.26.2` has no `attributionEnabled: false`. Native attribution button pushed to `Point(-9999,-9999)` to clear glass FAB zone. OSM/Protomaps credits shown in Settings > ABOUT. Phase 8+ enhancement: custom Liquid Glass-styled attribution chip. **Resolved:** 04-12 (2026-07-08) — attribution restored on-map (bottom-left, native default margins). MapTiler TOS + ODbL require on-map visibility. Watch-item filed if margins need tuning (Point(8, 96) fallback pattern documented).
 - **Phase 2 close-out (2026-07-04): Chrome layout spec.** Three 64 dp glass circles — bottom-nav pill (bottom-left, 12 dp margin), trip FAB (bottom-right, 12 dp margin), recenter button (Column above FAB, 12 dp margin). Uniform sizing mirrors XFin reference chrome pattern. Settled after 15-commit iteration including 3 reverts (commits 0f986a4–0549215).
 - **Phase 2 close-out (2026-07-04): tilt disabled.** `tiltGesturesEnabled: false` per `02-CONTEXT.md` ("flat 2D only — tilt is not a navigation gesture"). Documented deviation from ROADMAP.md SC1 wording. No regression; intentional product decision.
+- **Plan 05-03 (2026-07-08): rbush 1.1.1 pinned.** `dart pub add rbush` resolved to `rbush: ^1.1.1` (research §11 open question #7 resolved). Alphabetized between `permission_handler` and `riverpod_annotation` in `pubspec.yaml`. `WaySegmentIndex` wraps `RBushBase<WaySegment>` with bulk STR load; `queryTopK` uses exact `perpDistanceToSegmentMeters` reranking; ties broken by `(wayId, segIdx)` for Viterbi reproducibility.
+- **Plan 05-03 (2026-07-08): WaySegment equality by (wayId, segIdx) slot only.** Coordinate changes on re-densified geometry do not break segment identity — two candidates with the same (way, index) slot are considered equal even if their coordinates differ upstream. This is intentional: the matcher's match result is identified by slot, not by exact geometry bytes.
 
 ### Blockers/Concerns
 
@@ -408,7 +410,7 @@ Key locked-in decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-07-08 (Plan 05-01 DrivenWayIntervalsDao + retention sweep — Phase 5 Wave 1)
-Stopped at: Plan 05-01 COMPLETE. Task commits: `d04bd58` DrivenWayIntervalsDao; `2775e78` retention sweep. Metadata commit follows (SUMMARY.md + STATE.md).
+Last session: 2026-07-08 (Plan 05-03 WaySegment + WaySegmentIndex + rbush — Phase 5 Wave 1)
+Stopped at: Plan 05-03 COMPLETE. Task commits: `8c3e333` WaySegment value type; `5d4c6a3` WaySegmentIndex (rbush). Metadata commit follows (SUMMARY.md + STATE.md).
 Resume file: None
-Next: Phase 5 Wave 1 continues (plans 05-02 and 05-03 may still be in flight in parallel). After Wave 1 completes, Phase 5 Wave 2 (05-04 Viterbi decoder, 05-05 matcher) will consume the primitives from these plans. Combined Phase-4 close-out drive still pending.
+Next: Phase 5 Wave 1 continues (plan 05-02 HMM probability + segment geometry may still be in flight). After Wave 1 completes, Phase 5 Wave 2 (05-04 Viterbi decoder, 05-05 matcher) will consume WaySegmentIndex.queryTopK. Combined Phase-4 close-out drive still pending.
