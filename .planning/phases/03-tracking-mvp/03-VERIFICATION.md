@@ -1,10 +1,10 @@
 ---
 phase: 3
-status: code_complete_verification_deferred
-verified_by: automated_tests + code_review
-drive_verification: deferred
-verified_date: 2026-07-05
-score: "4/5 code-complete; 1/5 drive-blocked"
+status: verified
+verified_by: automated_tests + code_review + phase_3_1_drive_2026-07-08
+drive_verification: verified_via_phase_3_1_2026-07-08
+verified_date: 2026-07-08
+score: "4/5 verified (SC1..SC4); SC5 battery baseline still drive-deferred"
 requirements_covered:
   - TRK-01
   - TRK-02
@@ -22,11 +22,17 @@ requirements_covered:
 
 # Phase 3 Verification — Tracking MVP
 
-**Status: CODE-COMPLETE** (2026-07-05, widget-tested + code-review)
-**Drive verification: DEFERRED** — 60-min baseline drive batched for a dedicated in-car session.
+**Status: VERIFIED** (2026-07-08 — Phase 3.1 in-car drive user-attested PASS)
+**SC1..SC4:** verified via Phase 3.1 drive 2026-07-08 — see
+`.planning/phases/03-1-tracking-fixes/03-1-DRIVE-VERIFICATION-2026-07-08.md`.
+**SC5 (battery baseline):** still DRIVE-DEFERRED — the 60-min battery baseline
+was NOT run during the Phase 3.1 drive; remains a separate deferred item from
+Plan 03-07 Task 2. QUA-06 stays drive-deferred until the dedicated battery-
+baseline session runs.
 
-4 of 5 success criteria are code-complete with automated test coverage.
-SC5 (battery baseline artifact) is drive-blocked — CLI shipped, artifact scaffold in place with PENDING markers.
+4 of 5 success criteria are now empirically verified on-device (via Phase 3.1's
+2026-07-08 drive). SC5 (battery baseline artifact) is still drive-blocked — CLI
+shipped, artifact scaffold in place with PENDING markers.
 
 ---
 
@@ -46,7 +52,7 @@ SC5 (battery baseline artifact) is drive-blocked — CLI shipped, artifact scaff
 
 ## SC1 — Manual FAB round-trip: pending trip with GPS polyline + summary in DB
 
-**Status: CODE-COMPLETE** (drive will provide final human-verified sign-off)
+**Status: VERIFIED (2026-07-08 Phase 3.1 drive — user-attested PASS)**
 
 **Code evidence:**
 
@@ -75,7 +81,7 @@ SC5 (battery baseline artifact) is drive-blocked — CLI shipped, artifact scaff
 
 ## SC2 — Auto-trip via FGB + 2-min dwell auto-termination
 
-**Status: CODE-COMPLETE** (drive will confirm real motion-activity classification behavior)
+**Status: VERIFIED (2026-07-08 Phase 3.1 drive — user-attested PASS)**
 
 **Code evidence:**
 
@@ -104,7 +110,7 @@ SC5 (battery baseline artifact) is drive-blocked — CLI shipped, artifact scaff
 
 ## SC3 — LiveTrackingPanel visible during active trip
 
-**Status: CODE-COMPLETE** (drive will verify real-time updates over a long trip)
+**Status: VERIFIED (2026-07-08 Phase 3.1 drive — user-attested PASS)**
 
 **Code evidence:**
 
@@ -130,7 +136,7 @@ SC5 (battery baseline artifact) is drive-blocked — CLI shipped, artifact scaff
 
 ## SC4 — iOS whenInUse→Always ladder + Android FGS + persistent notification + battery-opt prompt
 
-**Status: CODE-COMPLETE** (drive will verify OS-level notification persistence and battery-opt prompt behavior)
+**Status: VERIFIED (2026-07-08 Phase 3.1 drive — user-attested PASS on Android; iOS deferred)**
 
 **Code evidence:**
 
@@ -209,18 +215,18 @@ Gate G2 (P7 `setFeatureState`) remains open — not relevant to Phase 3.
 
 | Requirement | Description | Status | Notes |
 |-------------|-------------|--------|-------|
-| TRK-01 | Auto-trip on automotive > 60 s | Code-complete | TrackingService automotive filter + unit tests; drive verifies real activity classification |
-| TRK-02 | Manual trip via FAB | Code-complete | TripFab + startManual() + widget tests |
-| TRK-03 | Manual trip ends only on Stop FAB | Code-complete | Dwell timer disabled for manuallyStarted trips; unit tested |
-| TRK-04 | Auto-trip dwell stop (2 min) | Code-complete | _autoStopDwell timer + unit tests; drive verifies real dwell |
-| TRK-05 | Per-trip metadata (polyline, speeds, bbox, etc.) | Code-complete | TripFixIngestor + TripsRepository + closeTrip summary; unit tested |
+| TRK-01 | Auto-trip on automotive > 60 s | Complete | Verified via Phase 3.1 drive 2026-07-08 (H1 fix in 03-1-02: `_facade.start()` wired at three sites) |
+| TRK-02 | Manual trip via FAB | Complete | Verified via Phase 3.1 drive 2026-07-08 |
+| TRK-03 | Manual trip ends only on Stop FAB | Complete | Verified via Phase 3.1 drive 2026-07-08 |
+| TRK-04 | Auto-trip dwell stop (2 min) | Complete | Verified via Phase 3.1 drive 2026-07-08 |
+| TRK-05 | Per-trip metadata (polyline, speeds, bbox, etc.) | Complete | Verified via Phase 3.1 drive 2026-07-08 |
 | TRK-06 | bluetooth_hint at trip start | Deferred to Phase 9 | Column exists, always NULL in P3. Not a Phase 3 deliverable. |
-| TRK-07 | manually_started + auto_stopped + bluetooth_hint booleans | Code-complete | All three fields on trips table; manually_started/auto_stopped set correctly |
-| TRK-08 | Battery-conscious state machine + batched DB writes | Code-complete | TripFixBatcher (20-fix batches); FGB accuracy config in facade |
-| TRK-09 | Live-tracking overlay during recording | Code-complete | LiveTrackingPanel + widget tests; drive verifies real-time updates |
-| TRK-10 | iOS whenInUse→Always ladder | Code-complete | 3-page ladder + capability persistence; on-device approved 2026-07-05 |
-| TRK-11 | Android FGS + notification + battery-opt prompt | Code-complete | FGS via FGB manifest merge, 30s notification updater, Page 3 battery-opt prompt |
-| QUA-06 | 60-min battery-drain baseline committed | Drive-blocked | CLI ready; artifact scaffolded with PENDING markers; awaits real drive |
+| TRK-07 | manually_started + auto_stopped + bluetooth_hint booleans | Complete | Verified via Phase 3.1 drive 2026-07-08 (bluetooth_hint always NULL in P3 — set in Phase 9) |
+| TRK-08 | Battery-conscious state machine + batched DB writes | Complete | Verified via Phase 3.1 drive 2026-07-08 (H5 fix in 03-1-02: TrackingCapability considers battery-opt grant on Android) |
+| TRK-09 | Live-tracking overlay during recording | Complete | Verified via Phase 3.1 drive 2026-07-08 (H2 fix in 03-1-03: TrackingCameraSync + FollowMode mapping) |
+| TRK-10 | iOS whenInUse→Always ladder | Code-complete | Ladder verified on Android 2026-07-05; iOS real-device test still deferred (Windows dev env) |
+| TRK-11 | Android FGS + notification + battery-opt prompt | Complete | Verified via Phase 3.1 drive 2026-07-08 |
+| QUA-06 | 60-min battery-drain baseline committed | Drive-blocked | CLI ready; artifact scaffolded with PENDING markers; 60-min drive still deferred (NOT run in Phase 3.1) |
 
 ---
 
@@ -240,24 +246,36 @@ Gate G2 (P7 `setFeatureState`) remains open — not relevant to Phase 3.
 
 ---
 
-## In-car verification checklist (deferred)
+## In-car verification (SC1..SC4 completed via Phase 3.1 drive 2026-07-08)
 
-These steps must be performed during the batched in-car drive session. All are consolidated here from
-03-06-SUMMARY.md Deferred Verification and 03-07-PLAN.md Task 2.
+**Cross-link:** See
+`.planning/phases/03-1-tracking-fixes/03-1-DRIVE-VERIFICATION-2026-07-08.md`
+for the empirical evidence document (user-attested short-form report — no HUD
+screenshot log captured).
 
-### From 03-06 Task 3 — FAB morph + live panel (9 steps)
+The Phase 3.1 drive on 2026-07-08 empirically verified SC1..SC4 on-device
+(Samsung Galaxy S24 / Android 14 / One UI 7). All four fail modes from the
+2026-07-06 failed drive are closed via the Phase 3.1 Wave 2 fixes:
 
-1. **FAB morph** — flutter run --debug on Samsung Galaxy S24; tap FAB; verify `_StartVariant` glass circle → `_StopVariant` red circle + white square icon in ~200 ms.
-2. **LiveTrackingPanel appearance** — verify `Recording · 00:00 · 0.0 km · — km/h` appears above the FAB row immediately on tap.
-3. **1s panel updates** — watch the MM:SS counter advance every second for at least 10 s.
-4. **30s notification update** — wait 30 s; confirm Android foreground-service notification text updates to match the panel.
-5. **Distance accumulation** — drive/walk ~200 m; verify distance in panel climbs realistically.
-6. **Screen-lock persistence** — lock screen for 60 s; confirm notification stays visible.
-7. **Notification-tap foregrounding** — tap notification; verify app foregrounds to map with overlay still showing.
-8. **Stop flow and DB row** — tap red Stop FAB; verify panel disappears, FAB morphs back to glass circle, notification clears, and a `pending` trip row is created in DB (check debug log from TripsRepository.closeTrip).
-9. **Sub-threshold micro-trip guard** — start a trip, wait < 30 s, tap Stop; verify NO trip row created (keeper threshold).
+| Symptom on 2026-07-06         | Fixed in Phase 3.1?     |
+| ----------------------------- | ----------------------- |
+| Distance/speed stuck at 0     | Fixed (H1 — 03-1-02)    |
+| No persistent notification    | Fixed (H1 — 03-1-02)    |
+| Map camera did not follow     | Fixed (H2 — 03-1-03)    |
+| Auto-trip silent              | Fixed (H1 — 03-1-02)    |
 
-Optional: **Cold-start hydration** — force-stop app mid-drive via Recent Apps, reopen; verify LiveTrackingPanel and TripFab reconstruct from in-flight trip row (hydration path in `TrackingService.init()`).
+The original 03-06 Task 3 (9 on-device visual checks) is subsumed by the
+Phase 3.1 drive-verification report. No HUD screenshot log was captured for
+the 2026-07-08 drive; the user-attested report is authoritative.
+
+---
+
+## SC5 battery baseline — STILL DEFERRED
+
+The Phase 3.1 drive did NOT run the 60-min battery baseline. Plan 03-07 Task 2
+remains a separate deferred item; QUA-06 stays drive-deferred until the
+dedicated battery-baseline session runs. The checklist below is preserved for
+that future session.
 
 ### From 03-07 Task 2 — 60-min battery baseline drive
 
@@ -274,7 +292,7 @@ Optional: **Cold-start hydration** — force-stop app mid-drive via Recent Apps,
 8. Verify before setting phone down: notification shows "Recording · MM:SS · X.X km · N km/h".
 9. At ~60 min elapsed, tap the red Stop FAB.
 
-**Post-drive observations (for SC1–SC4 evidence):**
+**Post-drive observations (for SC1–SC4 evidence — NOW SUPERSEDED by 2026-07-08 drive):**
 - TRK-01 SC2: Did an auto-trip start on its own (before you tapped FAB)?
 - TRK-11 SC4: Did the notification stay visible the whole drive?
 - TRK-05 SC1: Is there a `pending` trip row in the DB with polyline + summary (debug log)?
@@ -291,7 +309,7 @@ Optional: **Cold-start hydration** — force-stop app mid-drive via Recent Apps,
 15. Update `docs/battery-baseline.md` PENDING markers and `docs/battery-baseline.json` null fields with real values.
 16. Update `03-VERIFICATION.md` SC5 from DRIVE-BLOCKED to PASS with evidence.
 17. Update `REQUIREMENTS.md` QUA-06 from Code-Complete (drive-deferred) to Complete.
-18. Update `ROADMAP.md` Phase 3 annotation from "in-car verification deferred" to "verified".
+18. Update `ROADMAP.md` Phase 3 annotation to reflect QUA-06 verified.
 
 ---
 
@@ -306,6 +324,8 @@ Optional: **Cold-start hydration** — force-stop app mid-drive via Recent Apps,
 ---
 
 *Phase 3 code-complete: 2026-07-05*
-*Drive verification: deferred to batched in-car session*
+*Drive verification (SC1..SC4): completed via Phase 3.1 drive 2026-07-08 (user-attested — see `.planning/phases/03-1-tracking-fixes/03-1-DRIVE-VERIFICATION-2026-07-08.md`)*
+*SC5 battery baseline: still deferred*
 *Verifier (code review + widget tests): I551358*
 *On-device human-verify (permission ladder): I551358, Samsung Galaxy S24, Android 14, 2026-07-05*
+*On-device drive-verify (SC1..SC4): I551358, Samsung Galaxy S24, Android 14, 2026-07-08*
