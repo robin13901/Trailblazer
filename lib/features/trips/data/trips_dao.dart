@@ -39,8 +39,17 @@ class TripsDao extends DatabaseAccessor<AppDatabase> {
   ) =>
       batch((b) => b.insertAll(tripPoints, points));
 
-  /// Close [tripId] by writing summary fields and flipping status to pending.
-  Future<void> closeTrip(int tripId, TripSummary s) =>
+  /// Close [tripId] by writing summary fields and flipping status.
+  ///
+  /// [status] defaults to [TripStatus.pending] for back-compat with the pre-04-15
+  /// call sites. Plan 04-15's coordinator path passes
+  /// [TripStatus.pendingRoadData] instead so the trip is parked while the
+  /// Overpass road-fetch runs (or is enqueued for later).
+  Future<void> closeTrip(
+    int tripId,
+    TripSummary s, {
+    TripStatus status = TripStatus.pending,
+  }) =>
       (update(trips)..where((t) => t.id.equals(tripId))).write(
         TripsCompanion(
           endedAt: Value(s.endedAt),
@@ -54,13 +63,30 @@ class TripsDao extends DatabaseAccessor<AppDatabase> {
           bboxMaxLat: Value(s.bboxMaxLat),
           bboxMaxLon: Value(s.bboxMaxLon),
           autoStopped: Value(s.autoStopped),
-          status: const Value(TripStatus.pending),
+          status: Value(status),
         ),
       );
 
   /// Delete [tripId] and its points (CASCADE on trip_points FK).
   Future<void> deleteTrip(int tripId) =>
       (delete(trips)..where((t) => t.id.equals(tripId))).go();
+
+  /// Flip [tripId] to [TripStatus.pendingRoadData] — used by the 04-15 trip
+  /// road-fetch coordinator after a trip stops but BEFORE the Overpass road
+  /// data has arrived. Idempotent (no-op if the trip is already in that
+  /// state).
+  Future<void> transitionToPendingRoadData(int tripId) =>
+      (update(trips)..where((t) => t.id.equals(tripId))).write(
+        const TripsCompanion(status: Value(TripStatus.pendingRoadData)),
+      );
+
+  /// Flip [tripId] to [TripStatus.pending] once road data has been cached.
+  /// Used by the 04-15 coordinator's `onTripStopped` (online path) and
+  /// `drainQueue` (offline-recovery path).
+  Future<void> transitionToPending(int tripId) =>
+      (update(trips)..where((t) => t.id.equals(tripId))).write(
+        const TripsCompanion(status: Value(TripStatus.pending)),
+      );
 
   /// Return the newest open trip (endedAt IS NULL), or null if none.
   ///

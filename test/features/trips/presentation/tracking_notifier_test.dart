@@ -1,5 +1,9 @@
 import 'package:auto_explore/core/db/app_database.dart' hide TripPoint;
 import 'package:auto_explore/core/db/app_database_providers.dart';
+import 'package:auto_explore/features/matching/data/connectivity_seam.dart';
+import 'package:auto_explore/features/matching/data/matching_providers.dart';
+import 'package:auto_explore/features/matching/data/way_candidate_source.dart';
+import 'package:auto_explore/features/matching/domain/way_candidate.dart';
 import 'package:auto_explore/features/trips/data/background_geolocation_facade_provider.dart';
 import 'package:auto_explore/features/trips/domain/tracking_state.dart';
 import 'package:auto_explore/features/trips/domain/trip_fix_input.dart';
@@ -30,6 +34,28 @@ List<FixInput> buildFixes(DateTime from, int count) {
   });
 }
 
+/// Plan 04-15: TrackingService now wires a `TripRoadFetchCoordinator` in
+/// production. We override the way-candidate source + connectivity seam
+/// with fakes so the fire-and-forget coordinator path completes without a
+/// real Overpass call (or a `connectivity_plus` platform channel).
+class _NoopWayCandidateSource implements WayCandidateSource {
+  @override
+  Future<List<WayCandidate>> fetchWaysInBbox({
+    required double minLat,
+    required double minLon,
+    required double maxLat,
+    required double maxLon,
+    bool throwOnError = true,
+  }) async {
+    return const [];
+  }
+}
+
+class _AlwaysOnlineConnectivity implements ConnectivitySeam {
+  @override
+  Future<bool> isOnline() async => true;
+}
+
 void main() {
   late ProviderContainer container;
   late FakeBackgroundGeolocationFacade fakeFacade;
@@ -42,6 +68,10 @@ void main() {
       overrides: [
         appDatabaseProvider.overrideWithValue(db),
         backgroundGeolocationFacadeProvider.overrideWithValue(fakeFacade),
+        wayCandidateSourceProvider
+            .overrideWithValue(_NoopWayCandidateSource()),
+        connectivitySeamProvider
+            .overrideWithValue(_AlwaysOnlineConnectivity()),
       ],
     );
   });
@@ -103,7 +133,9 @@ void main() {
       await Future<void>.delayed(const Duration(milliseconds: 100));
 
       await container.read(trackingStateProvider.notifier).stopActive();
-      await Future<void>.delayed(const Duration(milliseconds: 50));
+      // Coordinator hand-off is fire-and-forget — give it a beat to
+      // transition the trip out of pendingRoadData.
+      await Future<void>.delayed(const Duration(milliseconds: 150));
 
       expect(container.read(trackingStateProvider), isA<TrackingIdle>());
 

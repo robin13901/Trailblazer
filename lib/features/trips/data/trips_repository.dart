@@ -2,6 +2,7 @@ import 'package:auto_explore/core/db/app_database.dart';
 import 'package:auto_explore/core/errors/domain_error.dart';
 import 'package:auto_explore/core/errors/result.dart';
 import 'package:auto_explore/features/trips/data/trips_dao.dart';
+import 'package:auto_explore/features/trips/domain/trip_status.dart';
 import 'package:auto_explore/features/trips/domain/trip_summary.dart';
 
 /// Domain-facing repository for trips and trip-point writes.
@@ -53,9 +54,18 @@ class TripsRepository {
   }
 
   /// Close [tripId] with [summary] (writes bbox, pointCount, durations).
-  Future<Result<void>> closeTrip(int tripId, TripSummary summary) async {
+  ///
+  /// [status] defaults to `pending` (matches pre-04-15 behaviour). The 04-15
+  /// coordinator invokes this with `pendingRoadData` so the trip is parked
+  /// while the Overpass road-fetch runs, then flips to `pending` via
+  /// [transitionToPending] on success.
+  Future<Result<void>> closeTrip(
+    int tripId,
+    TripSummary summary, {
+    TripStatus status = TripStatus.pending,
+  }) async {
     try {
-      await _dao.closeTrip(tripId, summary);
+      await _dao.closeTrip(tripId, summary, status: status);
       return const Ok(null);
       // Catches all throwables (Error + Exception) for DomainError.wrap.
       // ignore: avoid_catches_without_on_clauses
@@ -68,6 +78,30 @@ class TripsRepository {
   Future<Result<void>> deleteTrip(int tripId) async {
     try {
       await _dao.deleteTrip(tripId);
+      return const Ok(null);
+      // Catches all throwables (Error + Exception) for DomainError.wrap.
+      // ignore: avoid_catches_without_on_clauses
+    } catch (e, st) {
+      return Err(DomainError.wrap(e, st));
+    }
+  }
+
+  /// Flip [tripId] to `pendingRoadData` (04-15 coordinator entry point).
+  Future<Result<void>> transitionToPendingRoadData(int tripId) async {
+    try {
+      await _dao.transitionToPendingRoadData(tripId);
+      return const Ok(null);
+      // Catches all throwables (Error + Exception) for DomainError.wrap.
+      // ignore: avoid_catches_without_on_clauses
+    } catch (e, st) {
+      return Err(DomainError.wrap(e, st));
+    }
+  }
+
+  /// Flip [tripId] to `pending` (04-15 coordinator success path).
+  Future<Result<void>> transitionToPending(int tripId) async {
+    try {
+      await _dao.transitionToPending(tripId);
       return const Ok(null);
       // Catches all throwables (Error + Exception) for DomainError.wrap.
       // ignore: avoid_catches_without_on_clauses

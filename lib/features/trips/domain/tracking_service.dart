@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:auto_explore/core/db/app_database.dart' hide TripPoint;
 import 'package:auto_explore/core/errors/domain_error.dart';
+import 'package:auto_explore/features/matching/data/trip_road_fetch_coordinator.dart';
 import 'package:auto_explore/features/trips/data/background_geolocation_facade.dart';
 import 'package:auto_explore/features/trips/data/trips_repository.dart';
 import 'package:auto_explore/features/trips/domain/haversine.dart';
@@ -11,6 +12,7 @@ import 'package:auto_explore/features/trips/domain/trip_fix_batcher.dart';
 import 'package:auto_explore/features/trips/domain/trip_fix_ingestor.dart';
 import 'package:auto_explore/features/trips/domain/trip_fix_input.dart';
 import 'package:auto_explore/features/trips/domain/trip_point.dart';
+import 'package:auto_explore/features/trips/domain/trip_status.dart';
 import 'package:auto_explore/features/trips/domain/trip_summary.dart';
 import 'package:logging/logging.dart';
 
@@ -35,6 +37,7 @@ class TrackingService {
     double resumeRadiusMeters = 500,
     Duration activityFreshness = const Duration(seconds: 10),
     Duration notificationInterval = const Duration(seconds: 30),
+    TripRoadFetchCoordinator? roadFetchCoordinator,
   })  : _facade = facade,
         _repository = repository,
         _pointsSink = pointsSink,
@@ -43,7 +46,8 @@ class TrackingService {
         _resumeWindow = resumeWindow,
         _resumeRadiusMeters = resumeRadiusMeters,
         _activityFreshness = activityFreshness,
-        _notificationInterval = notificationInterval;
+        _notificationInterval = notificationInterval,
+        _roadFetchCoordinator = roadFetchCoordinator;
 
   final BackgroundGeolocationFacade _facade;
   final TripsRepository _repository;
@@ -54,6 +58,13 @@ class TrackingService {
   final double _resumeRadiusMeters;
   final Duration _activityFreshness;
   final Duration _notificationInterval;
+  // Optional per Plan 04-15. When present, trips close as `pendingRoadData`
+  // and the coordinator drives the transition to `pending` after the
+  // Overpass fetch (or on offline-queue drain). When null, TrackingService
+  // preserves the pre-04-15 behaviour: close directly to `pending`.
+  // This keeps the 141 pre-existing tests (Wave 2 + Phase 3.1) green while
+  // the road-fetch flow rolls out.
+  final TripRoadFetchCoordinator? _roadFetchCoordinator;
 
   final _log = Logger('tracking');
 
@@ -361,26 +372,45 @@ class TrackingService {
 
     // 3. Close or delete the old trip.
     if (summary != null && summary.passesKeeperThreshold) {
+      final tripSummary = TripSummary(
+        startedAt: summary.startedAt,
+        endedAt: summary.endedAt,
+        durationSeconds: summary.durationSeconds,
+        distanceMeters: summary.distanceMeters,
+        avgSpeedKmh: summary.avgSpeedKmh,
+        maxSpeedKmh: summary.maxSpeedKmh,
+        pointCount: summary.pointCount,
+        bboxMinLat: summary.bboxMinLat,
+        bboxMinLon: summary.bboxMinLon,
+        bboxMaxLat: summary.bboxMaxLat,
+        bboxMaxLon: summary.bboxMaxLon,
+        autoStopped: true,
+      );
+      final closeStatus = _roadFetchCoordinator == null
+          ? TripStatus.pending
+          : TripStatus.pendingRoadData;
       final closeResult = await _repository.closeTrip(
         oldTripId,
-        TripSummary(
-          startedAt: summary.startedAt,
-          endedAt: summary.endedAt,
-          durationSeconds: summary.durationSeconds,
-          distanceMeters: summary.distanceMeters,
-          avgSpeedKmh: summary.avgSpeedKmh,
-          maxSpeedKmh: summary.maxSpeedKmh,
-          pointCount: summary.pointCount,
-          bboxMinLat: summary.bboxMinLat,
-          bboxMinLon: summary.bboxMinLon,
-          bboxMaxLat: summary.bboxMaxLat,
-          bboxMaxLon: summary.bboxMaxLon,
-          autoStopped: true,
-        ),
+        tripSummary,
+        status: closeStatus,
       );
       closeResult.when(ok: (_) {}, err: (e) {
         _log.severe('closeTrip failed on split: ${e.message}');
       });
+      final coord = _roadFetchCoordinator;
+      if (coord != null) {
+        unawaited(
+          coord.onTripStopped(
+            oldTripId,
+            bbox: (
+              minLat: tripSummary.bboxMinLat,
+              minLon: tripSummary.bboxMinLon,
+              maxLat: tripSummary.bboxMaxLat,
+              maxLon: tripSummary.bboxMaxLon,
+            ),
+          ),
+        );
+      }
     } else {
       final deleteResult = await _repository.deleteTrip(oldTripId);
       deleteResult.when(ok: (_) {}, err: (e) {
@@ -603,27 +633,52 @@ class TrackingService {
     _clearActiveTrip();
 
     if (summary != null && summary.passesKeeperThreshold) {
+      final tripSummary = TripSummary(
+        startedAt: summary.startedAt,
+        endedAt: summary.endedAt,
+        durationSeconds: summary.durationSeconds,
+        distanceMeters: summary.distanceMeters,
+        avgSpeedKmh: summary.avgSpeedKmh,
+        maxSpeedKmh: summary.maxSpeedKmh,
+        pointCount: summary.pointCount,
+        bboxMinLat: summary.bboxMinLat,
+        bboxMinLon: summary.bboxMinLon,
+        bboxMaxLat: summary.bboxMaxLat,
+        bboxMaxLon: summary.bboxMaxLon,
+        autoStopped: autoStopped,
+      );
+      // Plan 04-15: if the coordinator is wired, close as `pendingRoadData`
+      // so the trip is parked while the Overpass fetch runs. The coordinator
+      // then flips to `pending` on success or enqueues on failure.
+      // Without a coordinator, keep the pre-04-15 shape (close → pending).
+      final closeStatus = _roadFetchCoordinator == null
+          ? TripStatus.pending
+          : TripStatus.pendingRoadData;
       final result = await _repository.closeTrip(
         tripId,
-        TripSummary(
-          startedAt: summary.startedAt,
-          endedAt: summary.endedAt,
-          durationSeconds: summary.durationSeconds,
-          distanceMeters: summary.distanceMeters,
-          avgSpeedKmh: summary.avgSpeedKmh,
-          maxSpeedKmh: summary.maxSpeedKmh,
-          pointCount: summary.pointCount,
-          bboxMinLat: summary.bboxMinLat,
-          bboxMinLon: summary.bboxMinLon,
-          bboxMaxLat: summary.bboxMaxLat,
-          bboxMaxLon: summary.bboxMaxLon,
-          autoStopped: autoStopped,
-        ),
+        tripSummary,
+        status: closeStatus,
       );
       result.when(
         ok: (_) {},
         err: (e) => _log.severe('closeTrip failed: ${e.message}'),
       );
+      // Hand off to the coordinator AFTER the row lands so the fetch can
+      // race the DB write without stepping on it.
+      final coord = _roadFetchCoordinator;
+      if (coord != null) {
+        unawaited(
+          coord.onTripStopped(
+            tripId,
+            bbox: (
+              minLat: tripSummary.bboxMinLat,
+              minLon: tripSummary.bboxMinLon,
+              maxLat: tripSummary.bboxMaxLat,
+              maxLon: tripSummary.bboxMaxLon,
+            ),
+          ),
+        );
+      }
     } else {
       // Below keeper threshold → delete the row (micro-trip).
       final result = await _repository.deleteTrip(tripId);

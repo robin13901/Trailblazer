@@ -1,3 +1,4 @@
+import 'package:auto_explore/features/matching/data/matching_providers.dart';
 import 'package:auto_explore/features/trips/data/background_geolocation_facade_provider.dart';
 import 'package:auto_explore/features/trips/data/trips_repository_points_sink.dart';
 import 'package:auto_explore/features/trips/data/trips_repository_providers.dart';
@@ -16,7 +17,8 @@ final tripsRepositoryPointsSinkProvider =
 /// Provides the singleton [TrackingService].
 ///
 /// The service is long-lived (not recreated on hot reload). The Riverpod
-/// TrackingNotifier reads this provider and listens to [TrackingService.stateStream].
+/// TrackingNotifier reads this provider and listens to
+/// [TrackingService.stateStream].
 ///
 /// Plain Provider — no @Riverpod codegen (STATE.md 01-01 decision).
 final trackingServiceProvider = Provider<TrackingService>((ref) {
@@ -24,6 +26,7 @@ final trackingServiceProvider = Provider<TrackingService>((ref) {
     facade: ref.watch(backgroundGeolocationFacadeProvider),
     repository: ref.watch(tripsRepositoryProvider),
     pointsSink: ref.watch(tripsRepositoryPointsSinkProvider),
+    roadFetchCoordinator: ref.watch(tripRoadFetchCoordinatorProvider),
   );
   ref.onDispose(service.dispose);
   return service;

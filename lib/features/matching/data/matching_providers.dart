@@ -7,10 +7,13 @@
 
 import 'package:auto_explore/core/db/app_database_providers.dart';
 import 'package:auto_explore/core/db/daos/overpass_way_cache_dao.dart';
+import 'package:auto_explore/features/matching/data/connectivity_seam.dart';
 import 'package:auto_explore/features/matching/data/overpass_client.dart';
 import 'package:auto_explore/features/matching/data/overpass_way_candidate_source.dart';
 import 'package:auto_explore/features/matching/data/tile_bbox_math.dart';
+import 'package:auto_explore/features/matching/data/trip_road_fetch_coordinator.dart';
 import 'package:auto_explore/features/matching/data/way_candidate_source.dart';
+import 'package:auto_explore/features/trips/data/trips_repository_providers.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 
@@ -62,6 +65,26 @@ final wayCandidateSourceProvider = Provider<WayCandidateSource>((ref) {
   return OverpassWayCandidateSource(
     client: ref.watch(overpassClientProvider),
     cacheDao: ref.watch(appDatabaseProvider).overpassWayCacheDao,
+    tileMath: ref.watch(tileBboxMathProvider),
+  );
+});
+
+/// Real connectivity check via `connectivity_plus`. Tests override this with
+/// a `FakeConnectivitySeam` under `test/helpers/`.
+final connectivitySeamProvider = Provider<ConnectivitySeam>(
+  (_) => ConnectivityPlusSeam(),
+);
+
+/// Runtime coordinator wiring trip-close and lifecycle-resume events into
+/// the road-fetch flow. Consumed by `TrackingService` (trip-close) and
+/// `lib/app.dart` (resume drain).
+final tripRoadFetchCoordinatorProvider =
+    Provider<TripRoadFetchCoordinator>((ref) {
+  return TripRoadFetchCoordinator(
+    source: ref.watch(wayCandidateSourceProvider),
+    pendingDao: ref.watch(appDatabaseProvider).pendingRoadFetchesDao,
+    repository: ref.watch(tripsRepositoryProvider),
+    connectivity: ref.watch(connectivitySeamProvider),
     tileMath: ref.watch(tileBboxMathProvider),
   );
 });
