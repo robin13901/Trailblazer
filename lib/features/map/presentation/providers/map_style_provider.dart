@@ -55,7 +55,8 @@ class MapStyleUrlNotifier extends Notifier<String> {
     // logger will pick it up. The alternative (returning an empty string)
     // breaks MapLibre's style loader in an obscure way.
     if (!config.hasKey) {
-      return 'https://api.maptiler.com/maps/${style.id}/style.json?key=';
+      return 'https://api.maptiler.com/maps/${style.id}/style.json'
+          '?key=&language=${config.language}';
     }
     return config.styleUrl(style).toString();
   }

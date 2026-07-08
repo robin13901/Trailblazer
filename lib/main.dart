@@ -1,3 +1,5 @@
+import 'dart:io' show Platform;
+
 import 'package:auto_explore/app.dart';
 import 'package:auto_explore/core/errors/domain_error.dart';
 import 'package:auto_explore/core/logging/app_logger.dart';
@@ -60,6 +62,10 @@ Future<void> main() async {
   // Defaults chosen from 04-11-STYLE-SPIKE.md (dataviz / dataviz-dark).
   // The key is empty when --dart-define=MAPTILER_KEY is not set — we log a
   // warning but keep booting so the diagnostics HUD stays reachable.
+  //
+  // Plan 04-16-1 (2026-07-08 UX polish): map labels localized to the
+  // system locale (falls back to 'de' when the locale is not a MapTiler-
+  // supported code). See tile_provider_config.dart / resolveMapLanguage.
   if (kMaptilerKey.isEmpty) {
     _log.warning(
       'MAPTILER_KEY not set — map will render blank tiles. '
@@ -67,10 +73,14 @@ Future<void> main() async {
       '--dart-define-from-file=env/dev.json at run/build time.',
     );
   }
-  const tileProviderConfig = TileProviderConfig(
+  final mapLanguage = resolveMapLanguage(Platform.localeName);
+  _log.info('Map labels language: $mapLanguage '
+      '(from platform locale ${Platform.localeName})');
+  final tileProviderConfig = TileProviderConfig(
     lightStyle: MapTilerStyle.dataviz,
     darkStyle: MapTilerStyle.datavizDark,
     apiKey: kMaptilerKey,
+    language: mapLanguage,
   );
 
   final container = ProviderContainer(

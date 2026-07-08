@@ -56,18 +56,25 @@ extension MapTilerStyleId on MapTilerStyle {
 
 /// Immutable tile-provider configuration.
 ///
-/// Owns the `(lightStyle, darkStyle, apiKey)` tuple and resolves style URLs
-/// via [styleUrl]. Callers with an empty key MUST check [hasKey] first — the
-/// resolver asserts on empty keys in debug builds so the failure surfaces
-/// during development rather than silently rendering blank tiles.
+/// Owns the `(lightStyle, darkStyle, apiKey, language)` tuple and resolves
+/// style URLs via [styleUrl]. Callers with an empty key MUST check [hasKey]
+/// first — the resolver asserts on empty keys in debug builds so the failure
+/// surfaces during development rather than silently rendering blank tiles.
 class TileProviderConfig {
   /// Construct a config with an explicit light + dark style pair and an
   /// injected API key. Pass `apiKey: ''` when `--dart-define=MAPTILER_KEY` is
   /// missing — [hasKey] will report `false` and callers can diagnose.
+  ///
+  /// [language] is the ISO-639-1 2-letter code appended to the style URL as
+  /// `&language=<code>` so MapTiler serves place / road labels localized to
+  /// that language where OpenMapTiles data provides a `{name:<code>}` field.
+  /// Defaults to `'de'` (04-16-1 UX polish). See [resolveMapLanguage] for
+  /// system-locale-aware selection.
   const TileProviderConfig({
     required this.lightStyle,
     required this.darkStyle,
     required this.apiKey,
+    this.language = 'de',
   });
 
   /// Style ID served when the app runs under a light theme.
@@ -79,6 +86,13 @@ class TileProviderConfig {
   /// The MapTiler API key. Empty string when `--dart-define=MAPTILER_KEY` is
   /// missing at build time. Never logged; never persisted.
   final String apiKey;
+
+  /// ISO-639-1 2-letter language code for map labels.
+  ///
+  /// Threaded into [styleUrl] as `&language=<code>`. Defaults to `'de'` per
+  /// Plan 04-16-1 (2026-07-08 UX polish). Use [resolveMapLanguage] to
+  /// choose from `Platform.localeName`.
+  final String language;
 
   /// `true` iff [apiKey] is non-empty. Callers MUST check this before
   /// invoking [styleUrl].
@@ -93,7 +107,45 @@ class TileProviderConfig {
   Uri styleUrl(MapTilerStyle style) {
     assert(hasKey, 'apiKey is empty — check --dart-define=MAPTILER_KEY');
     return Uri.parse(
-      'https://api.maptiler.com/maps/${style.id}/style.json?key=$apiKey',
+      'https://api.maptiler.com/maps/${style.id}/style.json'
+      '?key=$apiKey&language=$language',
     );
   }
+}
+
+/// Set of ISO-639-1 language codes MapTiler's OpenMapTiles-schema styles
+/// support via the `?language=<code>` URL param.
+///
+/// Curated from MapTiler docs (as of 2026-07-08). Any code outside this set
+/// falls back to `'de'` in [resolveMapLanguage].
+const kMapTilerSupportedLanguages = <String>{
+  'en',
+  'de',
+  'es',
+  'fr',
+  'it',
+  'ja',
+  'ko',
+  'nl',
+  'pt',
+  'ru',
+  'tr',
+  'uk',
+  'vi',
+  'zh',
+};
+
+/// Resolve a MapTiler-supported language code from a platform-locale string.
+///
+/// [platformLocale] is typically `Platform.localeName` (e.g. `de_DE`,
+/// `en-US`, `zh-Hans`). Splits on `_` or `-`, lowercases, and returns the
+/// leading 2-letter code iff it appears in [kMapTilerSupportedLanguages];
+/// otherwise defaults to `'de'` per Plan 04-16-1.
+///
+/// Pure function — no `dart:io` reference — so the helper is safely called
+/// from `main.dart` (which owns the `Platform.localeName` read) without
+/// dragging platform IO into this pure-Dart config module.
+String resolveMapLanguage(String platformLocale) {
+  final raw = platformLocale.split(RegExp('[_-]')).first.toLowerCase();
+  return kMapTilerSupportedLanguages.contains(raw) ? raw : 'de';
 }

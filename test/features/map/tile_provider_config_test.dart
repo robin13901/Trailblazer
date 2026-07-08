@@ -16,16 +16,17 @@ void main() {
   group('TileProviderConfig.styleUrl', () {
     const key = 'test-key-abc123';
 
-    test('formats correctly for dataviz (light default)', () {
+    test('formats correctly for dataviz (light default) with default de', () {
       const config = TileProviderConfig(
         lightStyle: MapTilerStyle.dataviz,
         darkStyle: MapTilerStyle.datavizDark,
         apiKey: key,
       );
 
+      // Plan 04-16-1: default language is 'de' → URL ends with &language=de.
       expect(
         config.styleUrl(MapTilerStyle.dataviz).toString(),
-        'https://api.maptiler.com/maps/dataviz/style.json?key=$key',
+        'https://api.maptiler.com/maps/dataviz/style.json?key=$key&language=de',
       );
     });
 
@@ -41,6 +42,7 @@ void main() {
       expect(url.host, 'api.maptiler.com');
       expect(url.path, '/maps/streets-v2-dark/style.json');
       expect(url.queryParameters['key'], key);
+      expect(url.queryParameters['language'], 'de');
     });
   });
 
@@ -81,6 +83,52 @@ void main() {
         () => config.styleUrl(MapTilerStyle.dataviz),
         throwsA(isA<AssertionError>()),
       );
+    });
+  });
+
+  // Plan 04-16-1 (2026-07-08 UX polish): language plumbing.
+  group('TileProviderConfig.language', () {
+    const key = 'test-key';
+
+    test('styleUrl includes language=de by default', () {
+      const config = TileProviderConfig(
+        lightStyle: MapTilerStyle.dataviz,
+        darkStyle: MapTilerStyle.datavizDark,
+        apiKey: key,
+      );
+
+      final url = config.styleUrl(MapTilerStyle.dataviz);
+
+      expect(url.queryParameters['language'], 'de');
+    });
+
+    test('styleUrl includes language=en when config passes "en"', () {
+      const config = TileProviderConfig(
+        lightStyle: MapTilerStyle.dataviz,
+        darkStyle: MapTilerStyle.datavizDark,
+        apiKey: key,
+        language: 'en',
+      );
+
+      final url = config.styleUrl(MapTilerStyle.dataviz);
+
+      expect(url.queryParameters['language'], 'en');
+      expect(
+        url.toString(),
+        'https://api.maptiler.com/maps/dataviz/style.json?key=$key&language=en',
+      );
+    });
+
+    test('resolveMapLanguage returns the leading 2-letter code when '
+        'supported', () {
+      expect(resolveMapLanguage('de_DE'), 'de');
+      expect(resolveMapLanguage('en-US'), 'en');
+      expect(resolveMapLanguage('fr'), 'fr');
+      expect(resolveMapLanguage('ZH-Hans'), 'zh');
+      // Unsupported → default de.
+      expect(resolveMapLanguage('sv_SE'), 'de');
+      expect(resolveMapLanguage('pl'), 'de');
+      expect(resolveMapLanguage(''), 'de');
     });
   });
 }

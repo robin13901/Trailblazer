@@ -16,7 +16,8 @@ void main() {
 
       final url = container.read(mapStyleUrlProvider);
       expect(url, startsWith('https://api.maptiler.com/maps/'));
-      expect(url, endsWith('/style.json?key='));
+      // Plan 04-16-1: default language=de threaded into the empty-key path.
+      expect(url, endsWith('/style.json?key=&language=de'));
     });
 
     test('respects overridden TileProviderConfig apiKey', () {
