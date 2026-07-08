@@ -1,13 +1,17 @@
 // Phase 4 rescope Wave 2 (Plan 04-13 + 04-15):
 // Riverpod providers for the Overpass client stack + WayCandidateSource.
+// Phase 5 (Plan 05-06): matcherIsolateProvider added.
 //
 // Uses plain `Provider<T>` — no `@Riverpod` codegen (STATE Plan 01-01).
 // Tests override any of these providers via `ProviderScope.overrides` /
 // `ProviderContainer(overrides:)`.
 
+import 'dart:async';
+
 import 'package:auto_explore/core/db/app_database_providers.dart';
 import 'package:auto_explore/core/db/daos/overpass_way_cache_dao.dart';
 import 'package:auto_explore/features/matching/data/connectivity_seam.dart';
+import 'package:auto_explore/features/matching/data/matcher_isolate.dart';
 import 'package:auto_explore/features/matching/data/overpass_client.dart';
 import 'package:auto_explore/features/matching/data/overpass_way_candidate_source.dart';
 import 'package:auto_explore/features/matching/data/tile_bbox_math.dart';
@@ -87,4 +91,22 @@ final tripRoadFetchCoordinatorProvider =
     connectivity: ref.watch(connectivitySeamProvider),
     tileMath: ref.watch(tileBboxMathProvider),
   );
+});
+
+/// Long-lived matcher isolate provider (Plan 05-06). One instance per
+/// ProviderContainer lifetime; disposed when the container is torn down.
+///
+/// The isolate is started immediately (fire-and-forget); consumers that
+/// need to enqueue the FIRST job should `await isolate.start()` before
+/// calling `isolate.match()`. Subsequent calls do not need to await start
+/// since the isolate stays warm.
+///
+/// Consumed by the trip-match coordinator (Plan 05-07).
+final matcherIsolateProvider = Provider<MatcherIsolate>((ref) {
+  final isolate = MatcherIsolate();
+  // Fire-and-forget start; the coordinator (05-07) will await start()
+  // before enqueueing its first job to ensure the worker is warm.
+  unawaited(isolate.start());
+  ref.onDispose(isolate.dispose);
+  return isolate;
 });
