@@ -94,7 +94,7 @@
 
 ### Map-Matching (MMT)
 
-- [ ] **MMT-01**: Confirmed trip is enqueued into a long-lived `MatcherIsolate` (single isolate, warm OSM DB handle)
+- [ ] **MMT-01**: Confirmed trip is enqueued into a long-lived `MatcherIsolate` (single warm worker, ways payload shipped per-job via `WayCandidateSource` on the main isolate)
 - [ ] **MMT-02**: Matcher uses Hidden Markov Model (Newson-Krumm 2009): emission probability weighted by `horizontalAccuracy`, transition probability weighted by road-network distance
 - [ ] **MMT-03**: Matcher performs full retrospective match on trip end (not live during driving) — single authoritative pass
 - [ ] **MMT-04**: R-Tree candidate query per GPS point returns top-5 candidates within an adaptive radius (25 m base, expands with HDOP)

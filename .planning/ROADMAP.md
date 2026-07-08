@@ -152,12 +152,21 @@ Additional research-recommended spikes: HMM parameter tuning + golden corpus rec
 **Depends on:** Phase 4
 **Requirements:** MMT-01, MMT-02, MMT-03, MMT-04, MMT-05, MMT-06, MMT-07, MMT-08, MMT-09, MMT-10, QUA-02. *(Matcher-facing requirements will be authored during Phase 5 planning per the rescope decision 2026-07-08 — the original OSMDB-01..OSMDB-07 block was deleted when the bundled OSM DB runtime was abandoned.)*
 **Success Criteria** (what must be TRUE):
-  1. Matcher consumes `WayCandidateSource.fetchWaysInBbox` on the matcher isolate; the source's cache-first path (04-15) is warm before matching starts, and offline `pendingRoadData` trips block matching until the fetch queue drains.
+  1. The main isolate fetches `WayCandidateSource.fetchWaysInBbox` (cache-first path from 04-15 warm before matching starts); the resulting `List<WayCandidate>` is shipped to the matcher isolate as part of a `MatchJob`; offline `pendingRoadData` trips block matching until the fetch queue drains.
   2. Candidate lookup per GPS point is served by the matcher's own in-memory R-Tree built from the ways returned by the source for the trip's bbox (adaptive radius: 25 m base, expands with HDOP; top-5 candidates).
-  3. A CI-runnable golden corpus of ≥ 20 recorded trips (autobahn, Kreisel, tunnel, parking, U-turn, city grid, roundabout, one-way) produces the known-correct way-ID sequences; core matcher module has ≥ 90 % line coverage; regression on any golden trip fails CI. `tool/osm_pipeline/` (retained as dev-only per OSM-07) is the fixture generator for golden PBFs.
+  3. A CI-runnable golden corpus test harness is code-complete at Phase 5 close-out with **1 synthetic seed fixture shipped and 4 real-drive fixtures deferred to a documented drive-batch follow-up** (bringing the corpus to ≥ 5 seeds); growing to ≥ 20 by Phase 6 close-out (scenario coverage across autobahn, Kreisel, tunnel, parking, U-turn, city grid, roundabout, one-way); core matcher module has ≥ 90 % line coverage; regression on any golden trip fails CI. `tool/osm_pipeline/` (retained as dev-only per OSM-07) is the fixture generator for golden PBFs. **Phase 5 code-complete does NOT block on the 4 real drives** — they land as an out-of-band drive-batch alongside the pending Phase 4 combined close-out drive (2026-07-08 overnight-execution adjustment). **Phase 6 inherits the corpus-expansion obligation** to reach ≥ 20 total (record + fixture-ize the remaining trips alongside inbox integration).
   4. Confirmed-trip matching runs off the UI isolate in a warm long-lived `MatcherIsolate` with adaptive R-Tree radius, Viterbi lookahead ≥ 5, min-speed 15 km/h for high-class ways, and is cancellable by the user.
   5. Matcher writes `driven_way_intervals(way_id, start_m, end_m, direction, trip_id, timestamp)` to the App DB; unmatched points are dropped (never force-snapped); raw GPS is retained 30 days by default for re-matching.
-**Plans:** TBD (7–10)
+**Plans:** 8 plans in 5 waves
+Plans:
+- [ ] 05-01-driven-way-intervals-dao-and-retention-PLAN.md — DrivenWayIntervalsDao + TripsDao 30-day retention sweep (Wave 1)
+- [ ] 05-02-hmm-probability-and-geometry-PLAN.md — emission/transition/adaptive-radius + perpendicular-distance primitives (Wave 1)
+- [ ] 05-03-way-segment-index-PLAN.md — WaySegment value type + rbush-backed R-Tree with top-K (Wave 1)
+- [ ] 05-04-viterbi-decoder-PLAN.md — pure-Dart Viterbi decoder with beam=5, gap/speed/oneway guards (Wave 2)
+- [ ] 05-05-hmm-matcher-orchestrator-PLAN.md — HmmMatcher + interval merging + DrivenWayIntervalDraft (Wave 3)
+- [ ] 05-06-matcher-isolate-PLAN.md — long-lived MatcherIsolate + MatchJob protocol + cancel (Wave 4)
+- [ ] 05-07-trip-match-coordinator-PLAN.md — pending→matched wiring + app-resume processPending + retention (Wave 5)
+- [ ] 05-08-golden-corpus-and-coverage-gate-PLAN.md — corpus scaffolding + first 5 seed fixtures + CI ≥90% gate (Wave 4, checkpoint)
 
 ### Phase 6: Inbox + Match Wire-Up
 **Goal:** Confirmed trips flow end-to-end from raw GPS into driven-way intervals and invalidate the coverage cache; rejected trips vanish cleanly.
@@ -243,7 +252,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 | 3. Tracking MVP | 7/7 | ✓ Complete (SC1..SC4 drive-verified via Phase 3.1 2026-07-08; SC5 QUA-06 60-min battery baseline still drive-deferred) | 2026-07-05 code-complete / 2026-07-08 drive-verified |
 | 3.1. Tracking Fixes | 5/5 | ✓ Complete | 2026-07-08 |
 | 4. Map & Matching Data Sources | 8/8 | ✓ Code-complete (drive-verify pending combined Phase-4 close-out session) — 8 rescoped plans (04-11..04-17 + 04-16-1); original 04-01..04-10 + 04-10-1-* archived on disk | 2026-07-08 |
-| 5. Overpass-Backed Matcher + Golden Corpus | 0/TBD | Not started | - |
+| 5. Overpass-Backed Matcher + Golden Corpus | 0/8 | Not started | - |
 | 6. Inbox + Match Wire-Up | 0/TBD | Not started | - |
 | 7. Coverage Rendering | 0/TBD | Not started | - |
 | 8. Regions + Focus-Area | 0/TBD | Not started | - |
