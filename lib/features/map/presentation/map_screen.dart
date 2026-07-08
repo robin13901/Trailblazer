@@ -23,6 +23,15 @@ const double _fabSize = 64;
 const double _chromeGap = 12;
 const double _navRowBottomInset = 12;
 
+/// Top-chrome vertical inset from the safe-area top.
+///
+/// Plan 04-16-1 (2026-07-08 UX polish): mirrors [_navRowBottomInset] so the
+/// settings button + focus pill sit the same distance below the status bar
+/// as the bottom-nav pill sits above the system nav bar (was `top: 44`).
+/// SafeArea already handles status-bar clearance; the extra 32 dp was
+/// cosmetic and visually asymmetric.
+const double _chromeRowTopInset = 12;
+
 /// Phase-2 Map screen — chrome overlays on top of the base [MapWidget].
 ///
 /// When [navigationShell] is provided (production: wired via
@@ -100,9 +109,11 @@ class MapScreen extends ConsumerWidget {
               ),
             ),
 
-            // Top-left settings button — floats 44pt below top (clears status bar).
+            // Top-left settings button — sits _chromeRowTopInset below the
+            // safe-area top, mirroring the bottom-nav pill's inset from the
+            // safe-area bottom (Plan 04-16-1).
             Positioned(
-              top: 44,
+              top: _chromeRowTopInset,
               left: 16,
               child: SafeArea(
                 child: SettingsGlassButton(
@@ -118,9 +129,10 @@ class MapScreen extends ConsumerWidget {
               ),
             ),
 
-            // Top-center focus-area pill stub.
+            // Top-center focus-area pill stub — same top inset as the
+            // settings button for symmetry (Plan 04-16-1).
             const Positioned(
-              top: 44,
+              top: _chromeRowTopInset,
               left: 0,
               right: 0,
               child: SafeArea(child: Center(child: FocusAreaPill())),
