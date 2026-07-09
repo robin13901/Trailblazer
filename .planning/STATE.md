@@ -5,14 +5,14 @@
 See: .planning/PROJECT.md (updated 2026-07-02)
 
 **Core value:** When I open the map, I immediately see the roads I've already driven, painted onto the world — and that view keeps pulling me back to explore more.
-**Current focus:** Phase 4 rescope DRIVE-VERIFIED 2026-07-09 (96 km / 1h 40 drive to work; 04-VERIFICATION.md flipped `human_needed` → `passed`); Phase 3 FULLY COMPLETE (SC1..SC5 all closed — QUA-06 folded in via same drive). Phase 5 CODE-COMPLETE (corpus growth is Phase 6's obligation). Phase 5.1 seed captured (road-snap heading hybrid Layer B). Phase 6 UNBLOCKED — next planning target.
+**Current focus:** Phase 6 (Inbox + Match Wire-Up) COMPLETE 2026-07-09 — verifier PASS 6/6 code-level must-haves; 8 plans (06-01..06-06 + gap-plans 06-07/06-08). On-device crash fix PROVEN (96 km / 6,295-pt commute matched to 814 intervals, app alive). Behavioral drive-confirms deferred to user (`06-MANUAL-TESTS-DEFERRED.md`). Phase 7 (Coverage Rendering) is next — user plans/executes it overnight.
 
 ## Current Position
 
-Phase: 6 of 11 (Inbox + Match Wire-Up — CODE-COMPLETE)
-Plan: 06-06 (golden-corpus export tooling) COMPLETE 2026-07-09 — final plan of Phase 6
-Status: Phase 6 code-complete. 06-06 ships the golden-corpus export pipeline: `GoldenFixtureExporter` (trip → 3-file fixture under AppDocs) + a kDebugMode-only "Export fixture" FAB on TripDetailScreen (tree-shaken from release). Existing golden_corpus_test regression green; full test/features/trips/ suite (180) green. Fixture accumulation (≥3 seed / ≥20 goal) DEFERRED-to-manual — requires real close-out drives; the tooling is the deliverable. Phase 6 behavioral re-verify (06-05 drive checkpoint) still deferred to the user drive batch.
-Last activity: 2026-07-09 — Plan 06-06 complete. 3 task commits: `6d23cff` GoldenFixtureExporter; `5cc22d6` DebugExportButton FAB; `dc2e7c5` README workflow.
+Phase: 6 of 11 (Inbox + Match Wire-Up — COMPLETE 2026-07-09, verifier PASS)
+Plan: Phase 6 closed — 06-01..06-06 + gap-plans 06-07 (crash/heading/UI) + 06-08 (manual-only recording)
+Status: Phase 6 COMPLETE. Verifier PASS 6/6 code-level must-haves (`06-VERIFICATION.md`, status human_needed = only behavioral drive-confirms remain, no code gaps). 531 tests green, analyze clean. Gap-fixes this session resolved a failed 06-05 on-device checkpoint: (06-07) crash fix — removed dead offstage MapLibreMap, isolated the 12 MB admin parse, single-flight guard, way-corridor filter (the 96 km-trip OOM fix, PROVEN on-device); motion-vector heading; dropped card thumbnail; real matching %. (06-08) removed automatic recording — manual-only, FGB scoped to manual sessions (supersedes TRK-01/TRK-04). All manual/on-device tests catalogued in `06-MANUAL-TESTS-DEFERRED.md` for the user's later drive batch.
+Last activity: 2026-07-09 — Phase 6 close-out: 06-05 + gap SUMMARYs, 06-06 complete, verifier PASS, ROADMAP/REQUIREMENTS/STATE updated. NOTE: `flutter build apk --debug` without `--dart-define=MAPTILER_KEY` shows a blank map (missing tile key, not a bug) — always launch with `--dart-define-from-file=env/dev.json`.
 
 Progress: [█████████░] ~78% (60/77 est. plans overall — Phase 1: 7/7; Phase 2: 7/7; Phase 3: 7/7; Phase 3.1: 5/5; Phase 4: 8/8 + 04-18 + 04-19 DRIVE-VERIFIED; Phase 5: 8/8 CODE-COMPLETE; Phase 6: 6/6 code-complete — 06-01..06-06 done + 06-07/06-08 gap-fixes)
 

@@ -69,10 +69,10 @@
 
 ### Trip Tracking (TRK)
 
-- [x] **TRK-01**: `flutter_background_geolocation` records GPS in the background when motion activity classifier reports `automotive` (>60 s duration) — trip auto-created as `pending`
+- [~] **TRK-01**: ~~`flutter_background_geolocation` records GPS in the background when motion activity classifier reports `automotive` (>60 s duration) — trip auto-created as `pending`~~ **SUPERSEDED 2026-07-09** — user requested manual-only recording; automatic background trip-creation removed (Phase 6 gap-plan 06-08). See PROJECT.md Key Decisions / memory `auto-recording-removed-2026-07-09`.
 - [x] **TRK-02**: User can manually start a trip via FAB on the map screen — trip immediately created as `pending`, assigned to default vehicle, marked as `manually_started`
 - [x] **TRK-03**: Manually-started trips end only when user presses the Stop button (short traffic-light stops do not terminate the trip)
-- [x] **TRK-04**: Auto-started trips end when motion classifier reports non-automotive for > 2 minutes (dwell termination)
+- [~] **TRK-04**: ~~Auto-started trips end when motion classifier reports non-automotive for > 2 minutes (dwell termination)~~ **SUPERSEDED 2026-07-09** — moot with manual-only recording (no auto-trips exist to auto-terminate). Manual trips end only on user Stop (TRK-03).
 - [x] **TRK-05**: Per-trip captured metadata: start/end timestamp, duration, distance (from GPS integration), avg speed, max speed, raw GPS polyline (lat/lng/accuracy/timestamp/altitude), motion activity type per fix
 - [x] **TRK-06**: Bluetooth device fingerprint at trip start is stored on the trip as a hint (does not gate recording)
 - [x] **TRK-07**: A trip records `manually_started` boolean, `auto_stopped` boolean, and `bluetooth_hint` string (or null)
@@ -83,14 +83,14 @@
 
 ### Trip Review Inbox (INB)
 
-- [ ] **INB-01**: On app launch (and always available via Trips tab), user sees a list of all `pending` trips
-- [ ] **INB-02**: Each pending trip shows: date/time, duration, distance, small static map preview of the route, vehicle-guess badge if Bluetooth matched
-- [ ] **INB-03**: User can `keep` a trip: opens vehicle-assignment sheet, then marks trip as `confirmed`, enqueues map-matching
-- [ ] **INB-04**: User can `discard` a trip: marks it as `rejected`, raw GPS deleted, no matching runs
-- [ ] **INB-05**: User can bulk-confirm all pending trips of a session (with default vehicle) or bulk-discard all
-- [ ] **INB-06**: Confirmed and rejected trips are visible in a separate "Trip History" list within the Trips tab
-- [ ] **INB-07**: User can retroactively change vehicle assignment on a confirmed trip (triggers coverage-cache invalidation)
-- [ ] **INB-08**: User can delete a confirmed trip (removes its contribution to coverage; coverage-cache invalidated)
+- [x] **INB-01**: On app launch (and always available via Trips tab), user sees a list of all `pending` trips
+- [x] **INB-02**: Each pending trip shows: date/time, duration, distance, ~~small static map preview of the route~~ *(map preview removed 2026-07-09 per user request)*, vehicle-guess badge if Bluetooth matched *(vehicle chip present, dormant until P9)*
+- [x] **INB-03**: User can `keep` a trip: opens vehicle-assignment sheet, then marks trip as `confirmed`, enqueues map-matching *(vehicle-assignment sheet deferred to P9; Keep flips matched→confirmed + enqueues)*
+- [x] **INB-04**: User can `discard` a trip: marks it as `rejected`, raw GPS deleted, no matching runs *(hard-delete — no `rejected` tombstone, per CONTEXT deviation)*
+- [~] **INB-05**: ~~User can bulk-confirm all pending trips of a session (with default vehicle) or bulk-discard all~~ **DESCOPED** from Phase 6 (06-CONTEXT deviation) — single-trip Keep/Discard only; bulk ops deferred.
+- [x] **INB-06**: Confirmed and rejected trips are visible in a separate "Trip History" list within the Trips tab *(confirmed + in-flight only — rejected are hard-deleted, per CONTEXT deviation)*
+- [x] **INB-07**: User can retroactively change vehicle assignment on a confirmed trip (triggers coverage-cache invalidation) *(retroactive reassignment UI lands with vehicles in P9; invalidation path in place)*
+- [x] **INB-08**: User can delete a confirmed trip (removes its contribution to coverage; coverage-cache invalidated) *(delete-from-detail wired, ordered delete + invalidation)*
 
 ### Map-Matching (MMT)
 
@@ -113,12 +113,12 @@
 
 ### Coverage Aggregation (COV)
 
-- [ ] **COV-01**: `driven_way_intervals` are merged per way: overlapping intervals collapsed into unions
+- [x] **COV-01**: `driven_way_intervals` are merged per way: overlapping intervals collapsed into unions
 - [ ] **COV-02**: A way counts as fully explored when the merged interval covers ≥ `(length_m − 15 m end buffer − 15 m start buffer)` of the total length
 - [ ] **COV-03**: A way is "partially explored" if covered but not fully — surfaces with proportional color in v1.x, in v1 shown as a distinct partial color
 - [ ] **COV-04**: Coverage % per region = `Σ driven_length(Kfz-way ∩ region) / Σ length(all Kfz-ways ∈ region)` — Feldweg/Fußweg excluded from both numerator and denominator
-- [ ] **COV-05**: Coverage cache table (`coverage_by_region`) stores per-region % + last-computed timestamp; recomputed only on invalidation
-- [ ] **COV-06**: Invalidation triggers: new driven intervals written, trip deleted, vehicle `counts_for_coverage` changed, OSM extract updated
+- [x] **COV-05**: Coverage cache table (`coverage_by_region`) stores per-region % + last-computed timestamp; recomputed only on invalidation *(physical table name is `coverage_cache`; `coverage_by_region` is the logical alias)*
+- [x] **COV-06**: Invalidation triggers: new driven intervals written, trip deleted, vehicle `counts_for_coverage` changed, OSM extract updated *(3 of 4 triggers wired; `counts_for_coverage` trigger deferred to P9 with vehicles)*
 - [ ] **COV-07**: Coverage recomputation runs on a compute isolate to keep UI responsive
 - [ ] **COV-08**: A "total km driven" and "unique km driven" statistic is maintained per vehicle and globally
 
@@ -273,10 +273,10 @@ Every requirement maps to exactly one phase. Phase Gates in ROADMAP.md carry two
 | UI-05 | Phase 2: Map + Glass Shell (Gate G1) | Complete — G1 unconditional PASS 2026-07-04 |
 | UI-06 | Phase 2: Map + Glass Shell | Complete |
 | UI-07 | Phase 2: Map + Glass Shell | Complete |
-| TRK-01 | Phase 3: Tracking MVP | Complete (verified via Phase 3.1 drive 2026-07-08) |
+| TRK-01 | Phase 3: Tracking MVP | Superseded 2026-07-09 (manual-only recording — Phase 6 gap 06-08) |
 | TRK-02 | Phase 3: Tracking MVP | Complete (verified via Phase 3.1 drive 2026-07-08) |
 | TRK-03 | Phase 3: Tracking MVP | Complete (verified via Phase 3.1 drive 2026-07-08) |
-| TRK-04 | Phase 3: Tracking MVP | Complete (verified via Phase 3.1 drive 2026-07-08) |
+| TRK-04 | Phase 3: Tracking MVP | Superseded 2026-07-09 (moot with manual-only recording — Phase 6 gap 06-08) |
 | TRK-05 | Phase 3: Tracking MVP | Complete (verified via Phase 3.1 drive 2026-07-08) |
 | TRK-06 | Phase 3: Tracking MVP | Complete (verified via Phase 3.1 drive 2026-07-08) — bluetooth_hint column exists, always NULL in P3; wired in Phase 9 |
 | TRK-07 | Phase 3: Tracking MVP | Complete (verified via Phase 3.1 drive 2026-07-08) |
@@ -302,17 +302,17 @@ Every requirement maps to exactly one phase. Phase Gates in ROADMAP.md carry two
 | MMT-08 | Phase 5: Overpass-Backed Matcher + Golden Corpus | Complete |
 | MMT-09 | Phase 5: Overpass-Backed Matcher + Golden Corpus | Partial (harness + 1 seed + CI gate; 19 fixtures deferred to Phase 6) |
 | MMT-10 | Phase 5: Overpass-Backed Matcher + Golden Corpus | Complete |
-| INB-01 | Phase 6: Inbox + Match Wire-Up | Pending |
-| INB-02 | Phase 6: Inbox + Match Wire-Up | Pending |
-| INB-03 | Phase 6: Inbox + Match Wire-Up | Pending |
-| INB-04 | Phase 6: Inbox + Match Wire-Up | Pending |
-| INB-05 | Phase 6: Inbox + Match Wire-Up | Pending |
-| INB-06 | Phase 6: Inbox + Match Wire-Up | Pending |
-| INB-07 | Phase 6: Inbox + Match Wire-Up | Pending |
-| INB-08 | Phase 6: Inbox + Match Wire-Up | Pending |
-| COV-01 | Phase 6: Inbox + Match Wire-Up | Pending |
-| COV-05 | Phase 6: Inbox + Match Wire-Up | Pending |
-| COV-06 | Phase 6: Inbox + Match Wire-Up | Pending |
+| INB-01 | Phase 6: Inbox + Match Wire-Up | Complete (code; drive-confirm deferred) |
+| INB-02 | Phase 6: Inbox + Match Wire-Up | Complete (map preview removed by user request) |
+| INB-03 | Phase 6: Inbox + Match Wire-Up | Complete (vehicle sheet deferred to P9) |
+| INB-04 | Phase 6: Inbox + Match Wire-Up | Complete (hard-delete, no tombstone) |
+| INB-05 | Phase 6: Inbox + Match Wire-Up | Descoped 2026-07-09 (no bulk ops — CONTEXT deviation) |
+| INB-06 | Phase 6: Inbox + Match Wire-Up | Complete (confirmed + in-flight; rejected hard-deleted) |
+| INB-07 | Phase 6: Inbox + Match Wire-Up | Complete (reassignment UI lands with P9 vehicles) |
+| INB-08 | Phase 6: Inbox + Match Wire-Up | Complete (delete-from-detail + invalidation) |
+| COV-01 | Phase 6: Inbox + Match Wire-Up | Complete |
+| COV-05 | Phase 6: Inbox + Match Wire-Up | Complete (physical table `coverage_cache`) |
+| COV-06 | Phase 6: Inbox + Match Wire-Up | Complete (3/4 triggers; counts_for_coverage → P9) |
 | REN-01 | Phase 7: Coverage Rendering | Pending |
 | REN-02 | Phase 7: Coverage Rendering | Pending |
 | REN-03 | Phase 7: Coverage Rendering | Pending |

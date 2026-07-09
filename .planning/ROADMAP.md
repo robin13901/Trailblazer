@@ -18,7 +18,7 @@ Depth: **comprehensive** — 11 phases, driven by the 112 v1 requirements (FND, 
 - [x] **Phase 3.1: Tracking Fixes** — gap-closure phase inserted 2026-07-06 after failed in-car drive verification; closed 2026-07-08 with user-attested drive PASS (H1 facade.start(), H2 camera follow, H5 battery-opt gate). Phase 5 unblocked.
 - [x] **Phase 4: Map & Matching Data Sources** — MapTiler-hosted vector tiles + on-demand Overpass road data (cached + retry-safe) + bundled admin polygons (rescoped 2026-07-08 from the original bundled-`osm.sqlite` pipeline; drive-verified 2026-07-09 via 96 km / 1h 40 drive — see `04-VERIFICATION.md`)
 - [x] **Phase 5: Overpass-Backed Matcher + Golden Corpus** — HMM matcher consumes `WayCandidateSource` (Phase 4), matches confirmed trip polylines to driven way intervals, CI-verified against a golden corpus
-- [ ] **Phase 6: Inbox + Match Wire-Up** — trip inbox, confirm/reject, matching enqueue, coverage cache infra
+- [x] **Phase 6: Inbox + Match Wire-Up** — trip inbox, confirm/reject, matching enqueue, coverage cache infra (code-complete + verifier PASS 6/6 must-haves 2026-07-09; on-device crash fix PROVEN — 96 km trip matched to 814 intervals; behavioral drive-confirms deferred to user)
 - [ ] **Phase 7: Coverage Rendering** — driven-ways painted on the map (feature-state fallback gate)
 - [ ] **Phase 8: Regions + Focus-Area** — admin region browser, zoom-aware focus pill, coverage aggregation
 - [ ] **Phase 9: Vehicles + Bluetooth** — full vehicle CRUD, BT-fingerprint hints, per-vehicle color prefs
@@ -186,12 +186,14 @@ Plans:
 **Plans:** 6 plans in 3 waves (planned 2026-07-09; see `phases/06-inbox-match-wire-up/06-CONTEXT.md` for 3 explicit deviations from SC above — no bulk ops, no rejected in History, no counts_for_coverage toggle)
 
 Plans:
-- [ ] 06-01-coverage-cache-and-invalidator.md — Wave 1: CoverageCacheDao + CoverageInvalidator (3 triggers) + pure-Dart interval union (COV-01, COV-05, COV-06)
-- [ ] 06-02-reverse-geocoding-and-trip-metadata.md — Wave 1: TripPlaceLookup + TripsInboxDao (watch inbox/history/in-flight, transitionToConfirmed) + TripsInboxRepository with correct delete order (INB-03, INB-04, INB-06, INB-08, Q10)
-- [ ] 06-03-trip-thumbnail-renderer.md — Wave 1: ThumbnailRenderer (MapLibre takeSnapshot + CustomPainter fallback) + disk cache + TripThumbnail widget (INB-02)
-- [ ] 06-04-matcher-queue-indicator.md — Wave 1: inbox/history/inFlightCount StreamProviders + MatchingQueuePill (Liquid Glass) (INB-06 support)
-- [ ] 06-05-inbox-history-ui.md — Wave 2: TripsScreen sub-tabs + TripCard/HistoryRow/DiscardDialog + TripDetailScreen + /trips/:id route + trip_overlay_layers (INB-01..08 UI, human-verify checkpoint)
-- [ ] 06-06-golden-corpus-expansion.md — Wave 3: GoldenFixtureExporter + kDebugMode export FAB + workflow README (Phase 5 inheritance)
+- [x] 06-01-coverage-cache-and-invalidator.md — Wave 1: CoverageCacheDao + CoverageInvalidator (3 triggers) + pure-Dart interval union (COV-01, COV-05, COV-06)
+- [x] 06-02-reverse-geocoding-and-trip-metadata.md — Wave 1: TripPlaceLookup + TripsInboxDao (watch inbox/history/in-flight, transitionToConfirmed) + TripsInboxRepository with correct delete order (INB-03, INB-04, INB-06, INB-08, Q10)
+- [x] 06-03-trip-thumbnail-renderer.md — Wave 1: ThumbnailRenderer (MapLibre takeSnapshot + CustomPainter fallback) + disk cache + TripThumbnail widget (INB-02) *(renderer retained; thumbnail dropped from cards 2026-07-09 per user request)*
+- [x] 06-04-matcher-queue-indicator.md — Wave 1: inbox/history/inFlightCount StreamProviders + MatchingQueuePill (Liquid Glass) (INB-06 support)
+- [x] 06-05-inbox-history-ui.md — Wave 2: TripsScreen sub-tabs + TripCard/HistoryRow/DiscardDialog + TripDetailScreen + /trips/:id route + trip_overlay_layers (INB-01..08 UI) *(checkpoint failed on first drive → gap-fixed 06-07/06-08)*
+- [x] 06-06-golden-corpus-expansion.md — Wave 3: GoldenFixtureExporter + kDebugMode export FAB + workflow README (Phase 5 inheritance) *(tooling ships; ≥3-seed accumulation drive-gated)*
+- [x] **Gap 06-07** — on-device crash fix (offstage-map removal + admin-parse isolation + single-flight + way-corridor filter), motion-vector heading, dropped card thumbnail, real matching %
+- [x] **Gap 06-08** — removed automatic background recording (manual-only); FGB scoped to manual sessions
 
 ### Phase 7: Coverage Rendering
 **Goal:** Driven roads paint onto the map with correct semantics for full/partial/Kfz-vs-Feldweg coverage; feature-state fallback gate (G2) resolved.
@@ -266,7 +268,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 | 3.1. Tracking Fixes | 5/5 | ✓ Complete | 2026-07-08 |
 | 4. Map & Matching Data Sources | 8/8 | ✓ Complete (code-complete 2026-07-08; drive-verified 2026-07-09 via 96 km / 1h 40 drive — see `04-VERIFICATION.md` + `04-18-SUMMARY.md`) — 8 rescoped plans (04-11..04-17 + 04-16-1); original 04-01..04-10 + 04-10-1-* archived on disk | 2026-07-09 |
 | 5. Overpass-Backed Matcher + Golden Corpus | 8/8 | ✓ Complete (code-complete; matcher-domain coverage 93.8 %; MMT-09 partial — 1 seed + CI gate shipped, 19 fixtures inherited by Phase 6) | 2026-07-08 |
-| 6. Inbox + Match Wire-Up | 0/TBD | Not started | - |
+| 6. Inbox + Match Wire-Up | 6/6 | ✓ Complete (verifier PASS 6/6; +2 gap plans 06-07/06-08; on-device crash fix proven; behavioral drive-confirms deferred) | 2026-07-09 |
 | 7. Coverage Rendering | 0/TBD | Not started | - |
 | 8. Regions + Focus-Area | 0/TBD | Not started | - |
 | 9. Vehicles + Bluetooth | 0/TBD | Not started | - |
