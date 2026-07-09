@@ -1,6 +1,7 @@
 import 'package:auto_explore/features/map/domain/follow_mode.dart';
 import 'package:auto_explore/features/map/presentation/providers/camera_state_provider.dart';
 import 'package:auto_explore/features/map/presentation/providers/location_permission_provider.dart';
+import 'package:auto_explore/features/map/presentation/widgets/align_north_button.dart';
 import 'package:auto_explore/features/map/presentation/widgets/bottom_nav_shell.dart';
 import 'package:auto_explore/features/map/presentation/widgets/focus_area_pill.dart';
 import 'package:auto_explore/features/map/presentation/widgets/map_widget.dart';
@@ -136,6 +137,17 @@ class MapScreen extends ConsumerWidget {
               left: 0,
               right: 0,
               child: SafeArea(child: Center(child: FocusAreaPill())),
+            ),
+
+            // Top-right glass align-north button — mirrors the top-left
+            // settings button (Plan 04-19). The built-in MapLibre compass
+            // was disabled in MapWidget; this custom glass button owns the
+            // top-right corner now. Icon rotates counter to the map
+            // bearing so it always points to true north.
+            const Positioned(
+              top: _chromeRowTopInset,
+              right: 16,
+              child: SafeArea(child: AlignNorthButton()),
             ),
           ],
 

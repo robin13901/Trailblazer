@@ -165,7 +165,13 @@ class _MapWidgetState extends ConsumerState<MapWidget>
         ),
         // 02-CONTEXT.md: flat 2D only — tilt is the only non-default gesture flag.
         tiltGesturesEnabled: false,
-        compassViewPosition: CompassViewPosition.topRight,
+        // Plan 04-19 (2026-07-09): hide MapLibre's built-in top-right
+        // compass. The custom glass AlignNorthButton (rendered by
+        // MapScreen at top-right, mirroring SettingsGlassButton) owns
+        // that corner now. `compassEnabled: false` is exposed by
+        // maplibre_gl 0.26.2 (grep pub-cache: maplibre_map.dart:22 +
+        // :136 + :492 + :571).
+        compassEnabled: false,
         trackCameraPosition: true,
         // Location dot + heading cone + accuracy ring.
         // myLocationRenderMode must be normal when myLocationEnabled is false

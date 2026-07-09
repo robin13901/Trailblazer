@@ -149,15 +149,18 @@ void main() {
       expect(map.styleString, darkUrl);
     });
 
-    testWidgets('compass is enabled and positioned at topRight', (
-      tester,
-    ) async {
-      await pumpMapWidget(tester);
+    testWidgets(
+      'built-in compass is hidden (04-19: custom AlignNorthButton owns top-right)',
+      (tester) async {
+        await pumpMapWidget(tester);
 
-      final map = tester.widget<MapLibreMap>(find.byType(MapLibreMap));
-      expect(map.compassEnabled, isTrue);
-      expect(map.compassViewPosition, CompassViewPosition.topRight);
-    });
+        final map = tester.widget<MapLibreMap>(find.byType(MapLibreMap));
+        // Plan 04-19 (2026-07-09): MapLibre's built-in top-right compass
+        // is disabled so the custom glass AlignNorthButton (rendered by
+        // MapScreen mirroring SettingsGlassButton) is the sole compass UI.
+        expect(map.compassEnabled, isFalse);
+      },
+    );
 
     testWidgets(
       'myLocationEnabled is false when permission denied (no blue dot)',
