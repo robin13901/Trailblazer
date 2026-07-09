@@ -10,11 +10,11 @@ See: .planning/PROJECT.md (updated 2026-07-02)
 ## Current Position
 
 Phase: 6 of 11 (Inbox + Match Wire-Up — IN PROGRESS)
-Plan: 06-01 (coverage cache DAO + invalidator + interval union) COMPLETE 2026-07-09
-Status: Phase 6 execution ongoing. 06-01 lands coverage-cache foundation (DAO + invalidator + interval union) ready for 06-02 to wire into TripsInboxRepository. Sibling 06-03 (thumbnail renderer) landed 2 commits in parallel — Wave-1 file-ownership hygiene held.
-Last activity: 2026-07-09 — Plan 06-01 complete. 3 task commits: `21423f6` interval union; `121fe2d` CoverageCacheDao; `3320a33` CoverageInvalidator + providers.
+Plan: 06-02 (reverse-geocoding + inbox/history DAO + Keep/Discard repository) COMPLETE 2026-07-09
+Status: Phase 6 execution ongoing. 06-02 wires the coverage-cache foundation (06-01) into TripsInboxRepository: reverse-geocoded start/end place names, inbox/history/in-flight Drift streams, and Keep/Discard flows with correct ordering (Keep = flip-then-invalidate for SC3; Discard = invalidate → deleteByTrip → deleteTrip). Ready for 06-04+ UI to consume tripsInboxRepositoryProvider + tripPlacesProvider.
+Last activity: 2026-07-09 — Plan 06-02 complete. 3 task commits: `dc4283f` TripPlaceLookup; `8675aa9` TripsInboxDao + TripListItem; `941b5e5` TripsInboxRepository.
 
-Progress: [████████░░] ~68% (55/77 est. plans overall — Phase 1: 7/7; Phase 2: 7/7; Phase 3: 7/7 complete; Phase 3.1: 5/5 COMPLETE; Phase 4: 8/8 + 04-18 + 04-19 DRIVE-VERIFIED; Phase 5: 8/8 CODE-COMPLETE; Phase 6: 1/N in progress)
+Progress: [████████░░] ~69% (56/77 est. plans overall — Phase 1: 7/7; Phase 2: 7/7; Phase 3: 7/7 complete; Phase 3.1: 5/5 COMPLETE; Phase 4: 8/8 + 04-18 + 04-19 DRIVE-VERIFIED; Phase 5: 8/8 CODE-COMPLETE; Phase 6: 2/N in progress)
 
 ## Performance Metrics
 
@@ -370,6 +370,11 @@ Key locked-in decisions affecting current work:
 - **Plan 06-01 (2026-07-09) — CoverageInvalidator missing-trip / null-bbox / no-matching-regions all short-circuit to `Ok(0)`.** Fail-matched trips (bbox is null) and re-confirms on already-invalidated trips are valid, not error paths. `Result<int>` at the boundary; non-DomainError throwables wrapped via `DomainError.wrap(e, st)` (STATE 01-04). Idempotency comes from the DELETE returning 0 on the second call — no bookkeeping.
 - **Plan 06-01 (2026-07-09) — `_loadTrip` queries `tripsDao.attachedDatabase` directly.** `TripsDao` does not expose a `getById`, and `trips_dao.dart` is not in this plan's `files_owned` — adding a method there would break Wave-1 file-ownership hygiene. Trade: one extra `select().getSingleOrNull()` in the invalidator vs a repository-layer refactor. If a future plan formalises `TripsDao.getById`, this can migrate inward. Grep tripwire: `tripsDao.attachedDatabase.select` = 1 hit in `lib/features/coverage/`.
 - **Plan 06-01 (2026-07-09) — Wave-1 hygiene held under sibling parallelism.** Sibling agent 06-03 landed 2 commits (`ae2cc5c` + `2c6bef0`) between my Task 1 and Task 2. All 3 06-01 task commits staged files INDIVIDUALLY (no `git add -A` / `git commit -a`) and touched only files in the 06-01 `files_owned` manifest. Confirms the memory `wave-2-parallel-metadata-hygiene` rule works when subagents adhere.
+- **Plan 06-02 (2026-07-09) — Keep = flip THEN invalidate; invalidator Err is logged + swallowed.** `TripsInboxRepository.confirmTrip` calls `inboxDao.transitionToConfirmed` (matched → confirmed) FIRST, then `invalidator.invalidateForTrip(tripId)`. The status flip is the user's intent and must survive a cache-invalidation failure (warning-logged, not surfaced) — a subsequent coverage read still triggers a P8 recompute. This is the SC3 fix (Issue 1): the observable "trip counts for coverage" moment is Keep, not matcher-write time.
+- **Plan 06-02 (2026-07-09) — Discard delete order LOCKED: invalidate → deleteByTrip → deleteTrip.** `TripsInboxRepository.discardTrip` invalidates the cache FIRST (invalidator reads the trip bbox, which must still exist), then deletes `driven_way_intervals` explicitly (FK is `ON DELETE SET NULL`, not CASCADE — would orphan otherwise), then deletes the trip row (cascades `trip_points`). If the invalidator Errs, discard ABORTS before any delete — never removes a trip while cache state is unknown. Asserted via recording fakes: `['invalidateForTripDelete', 'deleteByTrip', 'deleteTrip']`.
+- **Plan 06-02 (2026-07-09) — TripStatusConverter real path is `lib/core/db/converters/trip_status_converter.dart`.** The 06-02 plan's `files_owned` listed `lib/features/trips/domain/trip_status_converter.dart` (does not exist). The Pitfall #4 comment-only fix (add `pendingRoadData` to the enumerated statuses) was applied to the real file. Downstream plans referencing this converter should use the `core/db/converters/` path.
+- **Plan 06-02 (2026-07-09) — Companion DAO/Repository pattern for inbox.** `TripsInboxDao` (plain `DatabaseAccessor<AppDatabase>`) + `TripsInboxRepository` live ALONGSIDE `TripsDao`/`TripsRepository` — the originals are never modified (Wave file-ownership hygiene + avoids merge conflicts). Inbox/history/in-flight streams use `customSelect(...).watch()` with subqueries deriving start/end lat-lon from first/last `trip_points` by `seq` and counting `driven_way_intervals` per trip (no join fan-out). `TripListItem` DTO carries 16 fields + `isFailMatched` (matched + 0 intervals, Q10) / `isInFlight` (pending|pendingRoadData, Q8) / `duration` getters.
+- **Plan 06-02 (2026-07-09) — Reverse-geocode granularity: level-8 primary, level-10 fallback.** `TripPlaceLookup.lookup(...)` returns the level-8 (Landkreis/kreisfreie Stadt) region name, falls back to level-10 (Gemeinde/Ortsteil) when level-8 is null, finally null over water / outside DE. `TripPlaces.isLoop` = start == end (non-null). `tripPlacesProvider` is a `FutureProvider.family` keyed by a `TripPlacesCoords` record — type left inferred with `// ignore: specify_nonobvious_property_types` because `FutureProviderFamily` is `@publicInMisc` in flutter_riverpod 3.3.2.
 
 ### Pending Todos
 
@@ -458,7 +463,7 @@ Key locked-in decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-07-09 (Plan 06-01 — coverage cache DAO + invalidator + interval union — COMPLETE)
-Stopped at: Plan 06-01 COMPLETE. Task commits: `21423f6` interval union; `121fe2d` CoverageCacheDao; `3320a33` CoverageInvalidator + providers. SUMMARY.md + STATE.md + metadata commit follow. Sibling agent 06-03 landed 2 commits between my Task 1 + Task 2 (`ae2cc5c` + `2c6bef0`) — Wave-1 file-ownership hygiene held (files staged individually).
+Last session: 2026-07-09 (Plan 06-02 — reverse-geocoding + inbox/history DAO + Keep/Discard repository — COMPLETE)
+Stopped at: Plan 06-02 COMPLETE. Task commits: `dc4283f` TripPlaceLookup; `8675aa9` TripsInboxDao + TripListItem; `941b5e5` TripsInboxRepository. SUMMARY.md + STATE.md + metadata commit follow. 114/114 trips tests green. Delete-order + Keep-invalidate rules enforced and asserted.
 Resume file: None
-Next: Phase 6 Plan 06-02 (TripsInboxRepository wiring — confirmTrip/discardTrip call CoverageInvalidator) once 06-03 sibling waves also land. Phase 6 (Inbox + Match Wire-Up) execution ongoing.
+Next: Phase 6 UI plans (06-04+) can consume `tripsInboxRepositoryProvider` (Keep/Discard + streams) and `tripPlacesProvider` (card place names); 06-05 trip detail uses `getTripWithIntervalCount`. Phase 6 (Inbox + Match Wire-Up) execution ongoing.
