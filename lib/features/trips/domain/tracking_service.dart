@@ -52,7 +52,6 @@ class TrackingService {
     Duration autoStopDwell = const Duration(minutes: 2),
     Duration resumeWindow = const Duration(minutes: 15),
     double resumeRadiusMeters = 500,
-    Duration activityFreshness = const Duration(seconds: 10),
     Duration notificationInterval = const Duration(seconds: 30),
     TripRoadFetchCoordinator? roadFetchCoordinator,
   })  : _facade = facade,
@@ -62,7 +61,6 @@ class TrackingService {
         _autoStopDwell = autoStopDwell,
         _resumeWindow = resumeWindow,
         _resumeRadiusMeters = resumeRadiusMeters,
-        _activityFreshness = activityFreshness,
         _notificationInterval = notificationInterval,
         _roadFetchCoordinator = roadFetchCoordinator;
 
@@ -73,7 +71,6 @@ class TrackingService {
   final Duration _autoStopDwell;
   final Duration _resumeWindow;
   final double _resumeRadiusMeters;
-  final Duration _activityFreshness;
   final Duration _notificationInterval;
   // Optional per Plan 04-15. When present, trips close as `pendingRoadData`
   // and the coordinator drives the transition to `pending` after the
@@ -291,8 +288,10 @@ class TrackingService {
     }
   }
 
-  /// Universal stop (FAB stop / auto-stop). Flushes batcher, finalises summary,
-  /// applies keeper threshold, transitions to Idle.
+  /// Universal stop (FAB stop). Flushes batcher, finalises summary,
+  /// applies keeper threshold, transitions to Idle, and stops FGB so the
+  /// foreground service + notification end when the manual trip ends
+  /// (Plan 06-08 — no idle notification when not recording).
   Future<void> stopActive() async {
     if (_currentState is! TrackingRecording) return;
     final tripId = _currentTripId;
@@ -307,6 +306,16 @@ class TrackingService {
       await _facade.changePace(moving: false);
     } on Exception catch (e) {
       _log.warning('changePace(false) failed: $e');
+    }
+
+    // Plan 06-08: fully stop FGB so the foreground service + sticky
+    // notification end with the manual trip. Previously the service stayed
+    // alive (only paced to non-moving), leaving an idle notification and the
+    // background wake path active. Best-effort — errors are logged.
+    try {
+      await _facade.stop();
+    } on Object catch (e, st) {
+      _log.warning('facade.stop() failed: $e', e, st);
     }
   }
 
@@ -519,22 +528,13 @@ class TrackingService {
   void _onMotionChange(MotionChange mc) {
     if (mc.isMoving) {
       // -----------------------------------------------------------------------
-      // TRK-01 automotive filter
+      // Plan 06-08: automatic background recording REMOVED. Trips are now
+      // manual-only (FAB). The former TRK-01 automotive-filter branch that
+      // opened an auto-trip on `motion=true` while idle is gone — motion
+      // events while idle are ignored. The motion/activity listeners stay
+      // wired for potential future use / the diagnostics HUD, but they never
+      // open a trip.
       // -----------------------------------------------------------------------
-      if (_currentState is TrackingIdle) {
-        final activityFresh = _lastActivityAt != null &&
-            DateTime.now().difference(_lastActivityAt!) <= _activityFreshness;
-        if (_lastActivityType != 'in_vehicle' || !activityFresh) {
-          _log.fine(
-            'motion=true discarded: '
-            'activity=$_lastActivityType, fresh=$activityFresh',
-          );
-          return;
-        }
-
-        // Open an auto-trip.
-        unawaited(_openAutoTrip(mc.ts));
-      }
 
       // While recording: flush on any motion change (natural checkpoint).
       if (_currentState is TrackingRecording) {
@@ -566,40 +566,6 @@ class TrackingService {
         unawaited(_batcher?.flush());
       }
     }
-  }
-
-  Future<void> _openAutoTrip(DateTime ts) async {
-    // Initialise the facade on first auto-trip so the FGB nag toast does not
-    // fire on every cold start — only when motion is actually detected.
-    await _ensureFacadeReady();
-    // H1 fix (Plan 03-1-02): kick FGB into the "enabled" state. Auto-trips
-    // depend on the same start() → onLocation stream as manual trips.
-    await _facade.start();
-    final result = await _repository.openTrip(
-      startedAt: ts,
-      manuallyStarted: false,
-    );
-    result.when(
-      ok: (id) {
-        _currentTripId = id;
-        _tripStartedAt = ts;
-        _seq = 0;
-        _lastAcceptedFix = null;
-        _ingestor = _ingestorFactory();
-        _batcher = TripFixBatcher(tripId: id, sink: _pointsSink);
-        _emitState(TrackingRecording(
-          tripId: id,
-          startedAt: ts,
-          distanceMeters: 0,
-          pointCount: 0,
-          manuallyStarted: false,
-        ));
-        _startNotificationTicker();
-      },
-      err: (e) {
-        _log.severe('openTrip failed on auto-start: ${e.message}');
-      },
-    );
   }
 
   void _onActivityChange(ActivityChange ac) {

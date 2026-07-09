@@ -121,8 +121,8 @@ void main() {
     });
 
     test(
-        'auto-trip path: fresh in_vehicle + motion=true invokes '
-        'start() exactly once (after ready)', () async {
+        'motion path (Plan 06-08): fresh in_vehicle + motion=true does NOT '
+        'open a trip and does NOT start FGB', () async {
       final svc = makeService();
       await svc.init();
 
@@ -133,12 +133,13 @@ void main() {
       facade.emitMotion(isMoving: true);
       await Future<void>.delayed(const Duration(milliseconds: 50));
 
-      expect(svc.currentState, isA<TrackingRecording>());
-      expect(facade.readyCalls, 1);
-      expect(facade.startCalls, 1,
-          reason: '_openAutoTrip must invoke _facade.start()');
+      expect(svc.currentState, isA<TrackingIdle>(),
+          reason: 'Plan 06-08: automatic recording removed — motion is inert');
+      expect(facade.readyCalls, 0,
+          reason: 'no speculative ready() on motion');
+      expect(facade.startCalls, 0,
+          reason: 'no speculative FGB start() on motion');
 
-      await svc.stopActive();
       await svc.dispose();
     });
   });

@@ -8,7 +8,6 @@ import 'package:auto_explore/features/trips/data/trips_repository_points_sink.da
 import 'package:auto_explore/features/trips/domain/tracking_service.dart';
 import 'package:auto_explore/features/trips/domain/tracking_state.dart';
 import 'package:auto_explore/features/trips/domain/trip_fix_input.dart';
-import 'package:drift/drift.dart' show Variable;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -63,7 +62,6 @@ void main() {
   TrackingService makeService({
     Duration autoStopDwell = const Duration(minutes: 2),
     Duration resumeWindow = const Duration(minutes: 15),
-    Duration activityFreshness = const Duration(seconds: 10),
     Duration notificationInterval = const Duration(seconds: 30),
   }) {
     return TrackingService(
@@ -72,7 +70,6 @@ void main() {
       pointsSink: sink,
       autoStopDwell: autoStopDwell,
       resumeWindow: resumeWindow,
-      activityFreshness: activityFreshness,
       notificationInterval: notificationInterval,
     );
   }
@@ -173,82 +170,63 @@ void main() {
     });
 
     // -------------------------------------------------------------------------
-    // 3. Auto-start on motion + fresh in_vehicle
+    // 3. Motion + fresh in_vehicle does NOT auto-open a trip (Plan 06-08)
     // -------------------------------------------------------------------------
     test(
-        'auto-start: fresh in_vehicle activity then motion=true → '
-        'trip row created, state=TrackingRecording', () async {
-      final svc = makeService(
-      );
+        'no auto-trip: fresh in_vehicle activity then motion=true → '
+        'state stays Idle, no trip row created', () async {
+      final svc = makeService();
       await svc.init();
       expect(svc.currentState, isA<TrackingIdle>());
 
-      // Emit fresh in_vehicle activity, then motion=true within freshness.
+      // Emit fresh in_vehicle activity, then motion=true — under the old
+      // TRK-01 behaviour this opened an auto-trip. Manual-only now: nothing
+      // must happen.
       facade.emitActivity('in_vehicle');
       await Future<void>.delayed(const Duration(milliseconds: 10));
-      facade.emitMotion(isMoving: true);
-      await Future<void>.delayed(const Duration(milliseconds: 50));
-
-      expect(svc.currentState, isA<TrackingRecording>());
-      final state = svc.currentState as TrackingRecording;
-      expect(state.manuallyStarted, isFalse);
-
-      // DB should have 1 recording trip.
-      final tripRows = await db.customSelect('SELECT * FROM trips').get();
-      expect(tripRows, hasLength(1));
-      expect(tripRows.first.read<String>('status'), 'recording');
-
-      await svc.stopActive();
-      await svc.dispose();
-    });
-
-    // -------------------------------------------------------------------------
-    // 4. Auto-start DISCARDED on stale activity
-    // -------------------------------------------------------------------------
-    test(
-        'auto-start discarded on stale activity: '
-        'motion=true after freshness window expires → state stays Idle', () async {
-      const freshnessMs = 100;
-      final svc = makeService(
-        activityFreshness: const Duration(milliseconds: freshnessMs),
-      );
-      await svc.init();
-
-      // Emit activity, then wait past freshness window.
-      facade.emitActivity('in_vehicle');
-      await Future<void>.delayed(const Duration(milliseconds: freshnessMs + 50));
-
-      // Motion arrives — activity is now stale → should be discarded.
       facade.emitMotion(isMoving: true);
       await Future<void>.delayed(const Duration(milliseconds: 50));
 
       expect(svc.currentState, isA<TrackingIdle>(),
-          reason: 'Stale activity should discard the motion event');
+          reason: 'Plan 06-08: motion must never auto-open a trip');
+      expect(facade.startCalls, 0,
+          reason: 'FGB must not start speculatively on motion');
 
       final tripRows = await db.customSelect('SELECT * FROM trips').get();
-      expect(tripRows, isEmpty, reason: 'No trip should be opened');
+      expect(tripRows, isEmpty);
 
-      // Now emit a fresh activity and motion — should open a trip.
-      facade.emitActivity('in_vehicle');
-      await Future<void>.delayed(const Duration(milliseconds: 10));
-      facade.emitMotion(isMoving: true);
-      await Future<void>.delayed(const Duration(milliseconds: 50));
-
-      expect(svc.currentState, isA<TrackingRecording>(),
-          reason: 'Fresh activity + motion should open a trip');
-
-      await svc.stopActive();
       await svc.dispose();
     });
 
     // -------------------------------------------------------------------------
-    // 5. Auto-start DISCARDED on non-automotive activity
+    // 4. Repeated motion while idle never opens a trip (Plan 06-08)
     // -------------------------------------------------------------------------
     test(
-        'auto-start discarded on non-automotive activity: '
-        'walking + motion=true → state stays Idle', () async {
-      final svc = makeService(
-      );
+        'no auto-trip: repeated in_vehicle + motion bursts leave state Idle',
+        () async {
+      final svc = makeService();
+      await svc.init();
+
+      for (var i = 0; i < 3; i++) {
+        facade.emitActivity('in_vehicle');
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+        facade.emitMotion(isMoving: true);
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+      }
+
+      expect(svc.currentState, isA<TrackingIdle>());
+      final tripRows = await db.customSelect('SELECT * FROM trips').get();
+      expect(tripRows, isEmpty, reason: 'No trip should ever be auto-opened');
+
+      await svc.dispose();
+    });
+
+    // -------------------------------------------------------------------------
+    // 5. Non-automotive activity + motion also never opens a trip
+    // -------------------------------------------------------------------------
+    test(
+        'no auto-trip: walking + motion=true → state stays Idle', () async {
+      final svc = makeService();
       await svc.init();
 
       facade.emitActivity('walking');
@@ -265,10 +243,11 @@ void main() {
     });
 
     // -------------------------------------------------------------------------
-    // 6. Auto-stop after dwell
+    // 6. Manual trip never auto-stops on non-automotive dwell (Plan 06-08)
     // -------------------------------------------------------------------------
-    test('auto-stop after dwell: still for dwell + resume window → trip closed',
-        () async {
+    test(
+        'manual trip is immune to dwell/auto-stop: still activity does not '
+        'close the trip', () async {
       const dwellMs = 100;
       const resumeMs = 200;
       final svc = makeService(
@@ -277,14 +256,10 @@ void main() {
       );
       await svc.init();
 
-      // Auto-start with fresh in_vehicle.
-      facade.emitActivity('in_vehicle');
-      await Future<void>.delayed(const Duration(milliseconds: 10));
-      facade.emitMotion(isMoving: true);
-      await Future<void>.delayed(const Duration(milliseconds: 50));
+      await svc.startManual();
       expect(svc.currentState, isA<TrackingRecording>());
 
-      // Emit 65 fixes at 1 Hz from now → 65 s ≥ 60 s keeper threshold.
+      // Emit 65 fixes at 1 Hz so the trip passes the keeper threshold.
       final startNow = DateTime.now();
       for (final fix in buildFixesFrom(startNow, 65)) {
         facade.emitFix(fix);
@@ -292,97 +267,54 @@ void main() {
       }
       await Future<void>.delayed(const Duration(milliseconds: 50));
 
-      // Emit non-automotive activity → start dwell timer.
+      // Non-automotive activity for longer than dwell + resume: under the old
+      // auto-stop path this closed the trip. Manual trips must ignore it.
       facade.emitActivity('still');
-      await Future<void>.delayed(const Duration(milliseconds: dwellMs + resumeMs + 100));
+      await Future<void>.delayed(
+        const Duration(milliseconds: dwellMs + resumeMs + 100),
+      );
 
-      // After dwell + resume window, trip should be auto-closed.
-      expect(svc.currentState, isA<TrackingIdle>(),
-          reason: 'Trip should be auto-stopped after dwell + resume window');
+      expect(svc.currentState, isA<TrackingRecording>(),
+          reason: 'Plan 06-08: manual trips never auto-stop on dwell');
+      expect((svc.currentState as TrackingRecording).manuallyStarted, isTrue);
 
       final tripRows = await db.customSelect('SELECT * FROM trips').get();
       expect(tripRows, hasLength(1));
-      expect(tripRows.first.read<int>('auto_stopped'), 1);
-      expect(tripRows.first.read<int?>('ended_at'), isNotNull);
+      expect(tripRows.first.read<int?>('ended_at'), isNull,
+          reason: 'trip must still be recording');
 
+      await svc.stopActive();
       await svc.dispose();
     });
 
     // -------------------------------------------------------------------------
-    // 7. Resume window extends trip
+    // 7. stopActive() stops FGB (no lingering foreground service) (Plan 06-08)
     // -------------------------------------------------------------------------
     test(
-        'resume window extends trip: in_vehicle activity within window → '
-        'same trip continues (endedAt null)', () async {
-      const dwellMs = 100;
-      const resumeMs = 300;
-      final svc = makeService(
-        autoStopDwell: const Duration(milliseconds: dwellMs),
-        resumeWindow: const Duration(milliseconds: resumeMs),
-      );
+        'stopActive() calls facade.stop() so the FGS notification ends',
+        () async {
+      final svc = makeService();
       await svc.init();
 
-      // Auto-start.
-      facade.emitActivity('in_vehicle');
-      await Future<void>.delayed(const Duration(milliseconds: 10));
-      facade.emitMotion(isMoving: true);
+      await svc.startManual();
+      expect(facade.startCalls, 1);
+      expect(facade.stopCalls, 0);
+
+      // Emit 65 fixes so the trip is a keeper (path exercises finalize+close).
+      final now = DateTime.now();
+      for (final fix in buildFixesFrom(now, 65)) {
+        facade.emitFix(fix);
+        await Future<void>.delayed(Duration.zero);
+      }
       await Future<void>.delayed(const Duration(milliseconds: 50));
-
-      // Emit a fix so _lastAcceptedFix is set.
-      final resumeBase = DateTime.now();
-      facade.emitFix(FixInput(
-        ts: resumeBase,
-        lat: 49,
-        lon: 8,
-        accuracyMeters: 8,
-        speedMps: 27.8,
-        activityType: 'in_vehicle',
-        uuid: 'uuid-resume-1',
-      ));
-      await Future<void>.delayed(const Duration(milliseconds: 20));
-
-      final recState = svc.currentState as TrackingRecording;
-      final tripId = recState.tripId;
-
-      // Emit non-automotive → start dwell.
-      facade.emitActivity('still');
-      // Wait for dwell to expire but NOT for resume window to expire.
-      await Future<void>.delayed(const Duration(milliseconds: dwellMs + 50));
-
-      // Trip should still be recording (resume window not expired).
-      expect(svc.currentState, isA<TrackingRecording>());
-
-      // Within resume window, emit in_vehicle activity + a fix nearby.
-      facade.emitFix(FixInput(
-        ts: resumeBase.add(const Duration(seconds: 1)),
-        lat: 49.0001, // ~11 m north — within 500 m radius
-        lon: 8,
-        accuracyMeters: 8,
-        speedMps: 27.8,
-        activityType: 'in_vehicle',
-        uuid: 'uuid-resume-2',
-      ));
-      await Future<void>.delayed(const Duration(milliseconds: 10));
-      facade.emitActivity('in_vehicle');
-      await Future<void>.delayed(const Duration(milliseconds: 50));
-
-      // State should still be TrackingRecording (same trip).
-      expect(svc.currentState, isA<TrackingRecording>());
-      expect((svc.currentState as TrackingRecording).tripId, tripId);
-
-      // DB: trip row should have endedAt = null (still recording).
-      final tripRows = await db
-          .customSelect('SELECT * FROM trips WHERE id = ?', variables: [
-        Variable<int>(tripId),
-      ]).get();
-      expect(tripRows, hasLength(1));
-      expect(tripRows.first.read<int?>('ended_at'), isNull);
-
-      // One row (not two).
-      final allTrips = await db.customSelect('SELECT * FROM trips').get();
-      expect(allTrips, hasLength(1));
 
       await svc.stopActive();
+      expect(svc.currentState, isA<TrackingIdle>());
+      expect(facade.stopCalls, 1,
+          reason: 'stopActive must stop FGB to end the foreground service');
+      expect(facade.moving, isFalse,
+          reason: 'changePace(false) still fires before stop()');
+
       await svc.dispose();
     });
 
@@ -655,8 +587,8 @@ void main() {
         final base = DateTime.now();
         facade.emitFix(FixInput(
           ts: base,
-          lat: 49.0000,
-          lon: 8.0,
+          lat: 49,
+          lon: 8,
           accuracyMeters: 5,
           speedMps: 10,
           activityType: 'in_vehicle',
@@ -666,7 +598,7 @@ void main() {
         facade.emitFix(FixInput(
           ts: base.add(const Duration(seconds: 1)),
           lat: 49.0005, // ~55 m north
-          lon: 8.0,
+          lon: 8,
           accuracyMeters: 5,
           speedMps: 10,
           activityType: 'in_vehicle',
@@ -695,8 +627,8 @@ void main() {
         final base = DateTime.now();
         facade.emitFix(FixInput(
           ts: base,
-          lat: 49.0000,
-          lon: 8.0,
+          lat: 49,
+          lon: 8,
           accuracyMeters: 5,
           speedMps: 10,
           headingDegrees: 90,
@@ -707,7 +639,7 @@ void main() {
         facade.emitFix(FixInput(
           ts: base.add(const Duration(seconds: 1)),
           lat: 49.0005,
-          lon: 8.0,
+          lon: 8,
           accuracyMeters: 5,
           speedMps: 10,
           headingDegrees: 90,
@@ -734,8 +666,8 @@ void main() {
         // Establish an eastward heading with a real hop first.
         facade.emitFix(FixInput(
           ts: base,
-          lat: 49.0,
-          lon: 8.0,
+          lat: 49,
+          lon: 8,
           accuracyMeters: 5,
           speedMps: 10,
           headingDegrees: 90,
@@ -748,7 +680,7 @@ void main() {
         facade.emitFix(FixInput(
           ts: base.add(const Duration(seconds: 1)),
           lat: 49.00001, // ~1 m north
-          lon: 8.0,
+          lon: 8,
           accuracyMeters: 5,
           speedMps: 0.2,
           activityType: 'in_vehicle',

@@ -175,14 +175,13 @@ void main() {
     });
 
     // -------------------------------------------------------------------------
-    // Contrapositive: prove the filter IS applied on the auto-trip path.
-    // If this test fails, the filter has been REMOVED or its guard is broken —
-    // either way, an unrelated regression to the "auto trip requires fresh
-    // in_vehicle activity" invariant.
+    // Plan 06-08: automatic recording removed. Motion while idle must NEVER
+    // open a trip — regardless of activity classification. This subsumes the
+    // old "TRK-01 gate" assertion (idle stays idle) and hardens it: not even
+    // a fresh in_vehicle signal opens a trip anymore.
     // -------------------------------------------------------------------------
     test(
-        'auto-trip path (idle + motion=true) IS gated by activity — '
-        'motion=true without fresh in_vehicle activity does NOT start a trip',
+        'motion=true while idle never opens a trip (manual-only, Plan 06-08)',
         () async {
       // GIVEN: TrackingService in TrackingIdle, no activity events, no manual
       //        start.
@@ -198,19 +197,19 @@ void main() {
 
       // THEN: state remains Idle — no auto-trip opened.
       expect(svc.currentState, isA<TrackingIdle>(),
-          reason: 'TRK-01: motion=true must be discarded when no fresh '
-              'in_vehicle activity is present');
+          reason: 'Plan 06-08: motion=true must never auto-open a trip');
       expect(svc.diagnostics.currentTripId, isNull);
 
-      // Even a non-vehicle activity (on_foot) should not open a trip.
-      facade.emitActivity('on_foot');
+      // Even a fresh in_vehicle activity + motion must not open a trip now.
+      facade.emitActivity('in_vehicle');
       await Future<void>.delayed(const Duration(milliseconds: 10));
       facade.emitMotion(isMoving: true);
       await Future<void>.delayed(const Duration(milliseconds: 50));
 
       expect(svc.currentState, isA<TrackingIdle>(),
-          reason: 'TRK-01: motion=true must be discarded when the fresh '
-              'activity is on_foot (not in_vehicle)');
+          reason: 'Plan 06-08: even fresh in_vehicle + motion stays Idle');
+      expect(facade.startCalls, 0,
+          reason: 'no speculative FGB start() on motion');
 
       await svc.dispose();
     });
