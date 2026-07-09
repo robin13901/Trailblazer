@@ -68,6 +68,7 @@ class _FakeMatcherIsolate extends MatcherIsolate {
     required int tripId,
     required List<GpsFix> fixes,
     required List<WayCandidate> ways,
+    void Function(int processed, int total)? onProgress,
   }) async {
     if (!_started) throw StateError('not started');
     return cannedResult;
