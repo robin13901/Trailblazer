@@ -9,6 +9,7 @@ files_modified:
   - lib/features/coverage/data/coverage_overlay_data.dart
   - lib/features/coverage/data/coverage_overlay_providers.dart
   - lib/core/db/daos/driven_way_intervals_dao.dart
+  - lib/features/trips/data/trips_dao.dart
   - test/features/coverage/data/driven_way_geometry_resolver_test.dart
 autonomous: true
 
@@ -18,7 +19,7 @@ must_haves:
     - "Each driven wayId resolves to a LatLng polyline via the Overpass cache, grouped by z12 tile"
     - "Ways whose tile is a cache-miss/offline are silently skipped (logged), not crash"
     - "Each resolved way yields a CoverageDatum (fraction+isFull) from union-length / Haversine way-length"
-    - "The result is a Map<int wayId, (geometry, CoverageDatum)> exposed via a FutureProvider"
+    - "The resolved coverage set is exposed via coverageOverlayDataProvider, which auto-recomputes when a trip is confirmed mid-session (reactive Drift stream)"
   artifacts:
     - path: "lib/features/coverage/data/driven_way_geometry_resolver.dart"
       provides: "DrivenWayGeometryResolver: wayIds -> geometry+coverage (RESEARCH open-Q1)"
@@ -27,7 +28,7 @@ must_haves:
       provides: "CoverageWay immutable (wayId, geometry, datum) + CoverageOverlayData collection"
       contains: "class CoverageWay"
     - path: "lib/features/coverage/data/coverage_overlay_providers.dart"
-      provides: "coverageOverlayDataProvider (FutureProvider) + resolver provider"
+      provides: "coverageOverlayDataProvider (StreamProvider, reactive) + resolver provider"
       contains: "coverageOverlayDataProvider"
   key_links:
     - from: "driven_way_geometry_resolver.dart"
@@ -38,10 +39,10 @@ must_haves:
       to: "coverage_threshold.dart classifyCoverage"
       via: "per-way fraction+isFull from union length"
       pattern: "classifyCoverage"
-    - from: "driven_way_intervals_dao.dart"
-      to: "driven_way_intervals table"
-      via: "new getAllIntervalsForConfirmedTrips / distinct wayIds query"
-      pattern: "wayId"
+    - from: "coverage_overlay_providers.dart"
+      to: "TripsDao.watchUnionBbox (Drift watchSingle stream)"
+      via: "reactive recompute on confirmed-trips change"
+      pattern: "watchUnionBbox"
 ---
 
 <objective>
@@ -53,10 +54,12 @@ wayIds, resolve geometry via the existing cache-first `WayCandidateSource`, and
 compute per-way coverage fraction + full/partial from union-length divided by
 the Haversine way length.
 
-Purpose: Produces the `Map<wayId, CoverageWay>` that the render overlay (07-04)
-turns into a GeoJSON FeatureCollection. Isolates all DB/cache/network concerns
-here so the render layer is pure MapLibre wiring.
-Output: resolver + value types + providers + a unit test with a fake source.
+Purpose: Produces the `CoverageOverlayData` (list of CoverageWays) that the
+render overlay (07-04) turns into a GeoJSON FeatureCollection. Isolates all
+DB/cache/network concerns here so the render layer is pure MapLibre wiring. The
+provider is REACTIVE — it re-runs when a trip is confirmed mid-session so the
+map updates live (this is the trigger 07-06 truth #3 depends on).
+Output: resolver + value types + reactive providers + a unit test with a fake source.
 </objective>
 
 <execution_context>
@@ -82,7 +85,11 @@ Output: resolver + value types + providers + a unit test with a fake source.
 @lib/features/matching/data/tile_bbox_math.dart
 @lib/features/matching/domain/way_candidate.dart
 @lib/core/db/daos/driven_way_intervals_dao.dart
+@lib/features/trips/data/trips_dao.dart
 @lib/features/trips/domain/haversine.dart
+
+# The reactive-stream idiom to mirror (watchInboxTrips uses customSelect().watch();
+# confirmTrip flips status=confirmed which watched queries observe live).
 @lib/features/trips/data/trips_dao_inbox_queries.dart
 </context>
 
@@ -141,27 +148,21 @@ Create `driven_way_geometry_resolver.dart` with
   `WayCandidateSource waySource` (the runtime provider is
   OverpassWayCandidateSource — cache-first).
 
-  Future<CoverageOverlayData> resolve() async:
+  Future<CoverageOverlayData> resolve(LatLngBounds unionBounds) async:
+    (unionBounds is passed in from the reactive provider in Task 3 — the
+    resolver stays focused on geometry+coverage, not on querying trips.)
     1. final intervals = await intervalsDao.getAllIntervals();
        Group into Map<int wayId, List<Interval>> (Interval from interval_union.dart
        — startMeters/endMeters). Empty -> return CoverageOverlayData.empty.
-    2. Compute the union bbox over ALL intervals' ways? We have no geometry yet.
-       Instead resolve geometry per wayId via the Overpass cache. The cheapest
-       correct approach reusing existing seams:
-         - We cannot bbox without geometry. So drive geometry lookup off the
-           cache TILES that already exist. Read distinct wayIds; for the bbox
-           we need a hint. Use the trips' stored bbox columns (bboxMinLat..)
-           to build a coarse union bbox of all confirmed/matched trips, then a
-           single waySource.fetchWaysInBbox over that union (cache-first — no
-           network if tiles are cached). Inject a `TripsDao`-backed bbox source:
-           add `List<LatLngBounds> Function()`-style dependency, OR accept a
-           precomputed `LatLngBounds unionBounds` argument to resolve(). Prefer
-           passing the union bounds in from the provider (Task 3 computes it via
-           a small TripsDao query) to keep the resolver focused.
-         - Given `unionBounds`, call
-           waySource.fetchWaysInBbox(minLat,minLon,maxLat,maxLon,
-           throwOnError:false) -> List<WayCandidate>. throwOnError:false so an
-           offline gap yields whatever tiles are cached (graceful skip, not crash).
+    2. Resolve geometry for all ways in one cache-first pass over the union bbox:
+         - waySource.fetchWaysInBbox(
+             minLat: unionBounds.southwest.latitude,
+             minLon: unionBounds.southwest.longitude,
+             maxLat: unionBounds.northeast.latitude,
+             maxLon: unionBounds.northeast.longitude,
+             throwOnError: false)  -> List<WayCandidate>.
+           throwOnError:false so an offline gap yields whatever tiles are cached
+           (graceful skip, not crash — mirrors TripDetailScreen's offline path).
          - Build Map<int, WayCandidate> byId.
     3. For each driven wayId:
          - way = byId[wayId]; if null -> skip + log.fine('geometry miss $wayId').
@@ -190,46 +191,86 @@ OverpassWayCandidateSource does.
 </task>
 
 <task type="auto">
-  <name>Task 3: Providers + union-bounds query + resolver unit test</name>
-  <files>lib/features/coverage/data/coverage_overlay_providers.dart, test/features/coverage/data/driven_way_geometry_resolver_test.dart</files>
+  <name>Task 3: Reactive providers + watchUnionBbox stream + resolver unit test</name>
+  <files>lib/features/trips/data/trips_dao.dart, lib/features/coverage/data/coverage_overlay_providers.dart, test/features/coverage/data/driven_way_geometry_resolver_test.dart</files>
   <action>
-`coverage_overlay_providers.dart` (plain Provider / FutureProvider — NO @Riverpod):
-  - `drivenWayGeometryResolverProvider = Provider<DrivenWayGeometryResolver>((ref)
-     => DrivenWayGeometryResolver(intervalsDao: ref.watch(<intervals dao provider>),
-        waySource: ref.watch(wayCandidateSourceProvider)));`
-    Find/create the intervals DAO provider (check app_database_providers.dart for
-    an existing one; if none, add `drivenWayIntervalsDaoProvider` there or in a
-    coverage provider file following the coverageCacheDaoProvider pattern).
-  - Compute the union bounds of all confirmed/matched trips: add a tiny
-    `tripsUnionBoundsProvider` (FutureProvider<LatLngBounds?>) that reads the
-    trips' bbox columns. Reuse TripsDao — add a `Future<LatLngBounds?> unionBbox()`
-    method there if needed (SELECT MIN(bbox_min_lat), MIN(bbox_min_lon),
-    MAX(bbox_max_lat), MAX(bbox_max_lon) FROM trips WHERE status IN
-    ('matched','confirmed')). Null when no trips.
-  - `coverageOverlayDataProvider = FutureProvider<CoverageOverlayData>((ref) async {
-       final bounds = await ref.watch(tripsUnionBoundsProvider.future);
-       if (bounds == null) return CoverageOverlayData.empty;
-       return ref.watch(drivenWayGeometryResolverProvider).resolve(bounds); });`
-    This is the app-start + post-trip-confirmation load (RESEARCH §"Coverage
-    fraction computation placement"). Riverpod runs it off the UI build path.
+LIVE-REFRESH IS MANDATORY (07-06 truth #3 depends on it). Use Drift's reactive
+`watch` stream so a trip confirmation (status flip to `confirmed`, done by
+`TripsInboxDao.transitionToConfirmed`) automatically recomputes the overlay
+data. A one-shot FutureProvider would cache and NOT re-run mid-session — do NOT
+use FutureProvider for the trigger.
 
-`driven_way_geometry_resolver_test.dart`:
-  - In-memory AppDatabase (NativeDatabase.memory()) — follow existing DAO test
-    setup patterns (grep test/ for NativeDatabase.memory usage).
-  - Insert intervals for 2 wayIds (one fully covered, one partial-above-floor,
-    one below-floor that must be skipped).
-  - Fake WayCandidateSource returning WayCandidate geometry for those wayIds
-    (a simple straight polyline of known Haversine length; make one wayId absent
-    to assert the skip-on-missing-geometry path).
-  - Assert: resolve(bounds) returns CoverageWay for the covered + partial ways
-    with correct isFull flags; the below-floor way and the geometry-missing way
-    are skipped.
+1. TripsDao (`lib/features/trips/data/trips_dao.dart`) — add a WATCHED
+   union-bbox query (this method is unconditionally needed; not optional):
+     Stream<LatLngBounds?> watchUnionBbox()
+   Implement via customSelect(...).watchSingle() (mirror the reactive-stream
+   idiom in trips_dao_inbox_queries.dart `_watchByStatuses`):
+     SELECT MIN(bbox_min_lat) AS min_lat, MIN(bbox_min_lon) AS min_lon,
+            MAX(bbox_max_lat) AS max_lat, MAX(bbox_max_lon) AS max_lon
+     FROM trips
+     WHERE status IN ('matched','confirmed')
+   readsFrom: {trips}. Map the row -> LatLngBounds (null when all aggregates are
+   null, i.e. no trips or no bbox columns populated). Because the query `readsFrom`
+   the trips table, Drift re-emits whenever a trip's status/bbox changes —
+   including on confirmTrip. Document that this reactivity is what drives the
+   live map update.
+
+2. `coverage_overlay_providers.dart` (plain Provider / StreamProvider — NO @Riverpod):
+   - `drivenWayGeometryResolverProvider = Provider<DrivenWayGeometryResolver>((ref)
+      => DrivenWayGeometryResolver(intervalsDao: ref.watch(<intervals dao provider>),
+         waySource: ref.watch(wayCandidateSourceProvider)));`
+     Find/create the intervals DAO provider (check app_database_providers.dart for
+     an existing one; if none, add `drivenWayIntervalsDaoProvider` following the
+     coverageCacheDaoProvider pattern). Reuse the existing TripsDao provider
+     (`tripsDaoProvider`).
+   - `tripsUnionBoundsProvider = StreamProvider<LatLngBounds?>((ref) =>
+        ref.watch(tripsDaoProvider).watchUnionBbox());`
+     StreamProvider (NOT FutureProvider) — this is the reactive trigger.
+   - `coverageOverlayDataProvider = StreamProvider<CoverageOverlayData>((ref) async* {
+        final boundsAsync = ref.watch(tripsUnionBoundsProvider);
+        final bounds = boundsAsync.valueOrNull;
+        if (bounds == null) { yield CoverageOverlayData.empty; return; }
+        yield await ref.watch(drivenWayGeometryResolverProvider).resolve(bounds);
+      });`
+     Modeling note: use `ref.watch(tripsUnionBoundsProvider)` inside so the
+     StreamProvider re-runs each time the union-bbox stream emits (trip confirmed).
+     Alternatively implement as a StreamProvider that awaits
+     `ref.watch(tripsUnionBoundsProvider.future)` then resolves — either is fine
+     as long as a confirmed-trip emission causes a fresh resolve(). Confirm the
+     end-to-end chain: confirmTrip -> trips.status change -> watchUnionBbox emits
+     -> tripsUnionBoundsProvider emits -> coverageOverlayDataProvider re-resolves
+     -> 07-06 bridge re-applies. State this chain in a doc-comment so 07-06's
+     truth #3 is provably satisfied.
+
+   Note on the driven-intervals side: the union-bbox recompute is a SUFFICIENT
+   trigger because a newly-confirmed trip always changes the confirmed-trip set
+   (status flip), and its intervals were written before confirmation. The
+   resolver re-reads getAllIntervals() on every recompute, so freshly-written
+   intervals are picked up. Document this rationale (no separate intervals watch
+   needed).
+
+3. `driven_way_geometry_resolver_test.dart`:
+   - In-memory AppDatabase (NativeDatabase.memory()) — follow existing DAO test
+     setup patterns (grep test/ for NativeDatabase.memory usage).
+   - Insert intervals for wayIds: one fully covered, one partial-above-floor,
+     one below-floor that must be skipped.
+   - Fake WayCandidateSource returning WayCandidate geometry for those wayIds
+     (a simple straight polyline of known Haversine length; make one wayId absent
+     to assert the skip-on-missing-geometry path).
+   - Assert resolve(bounds): returns CoverageWay for the covered + partial ways
+     with correct isFull flags; the below-floor way and the geometry-missing way
+     are skipped.
+   - Reactivity assertion: insert a trip (status matched), listen to
+     `watchUnionBbox()` (or drive coverageOverlayDataProvider via a
+     ProviderContainer), confirm the stream emits; then transition the trip to
+     confirmed / insert another matched trip and assert the stream emits AGAIN
+     (proves the live-refresh trigger works — the crux of the BLOCKER fix).
 
 Run `flutter test test/features/coverage/data/` inline (touches lib/core/db +
-data layer — behavior-sensitive).
+trips DAO — behavior-sensitive).
   </action>
-  <verify>flutter test test/features/coverage/data/ green; flutter analyze clean.</verify>
-  <done>coverageOverlayDataProvider yields resolved CoverageWays; resolver test proves full/partial classification + skip paths with a fake source.</done>
+  <verify>flutter test test/features/coverage/data/ green (incl. the re-emit reactivity test); flutter analyze clean.</verify>
+  <done>coverageOverlayDataProvider is a StreamProvider that re-resolves when confirmed-trips change; watchUnionBbox re-emits on trip status change; resolver test proves classification + skip paths AND the re-emit trigger.</done>
 </task>
 
 </tasks>
@@ -238,14 +279,17 @@ data layer — behavior-sensitive).
 - `flutter analyze` clean.
 - `flutter test test/features/coverage/` green.
 - Resolver never throws on cache-miss/offline — returns partial or empty data.
+- The reactive chain (confirmTrip -> watchUnionBbox emit -> overlay re-resolve)
+  is proven by a re-emit test.
 </verification>
 
 <success_criteria>
 Given driven intervals + a cached Overpass geometry set, the coverage data layer
-produces a Map/list of CoverageWays (geometry + fraction + isFull), skipping
-ways with missing geometry or below the partial floor, exposed via
-coverageOverlayDataProvider. RESEARCH open-question #1 (geometry resolver) is
-owned and closed here.
+produces a list of CoverageWays (geometry + fraction + isFull), skipping ways
+with missing geometry or below the partial floor, exposed via a REACTIVE
+coverageOverlayDataProvider that auto-recomputes on trip confirmation. RESEARCH
+open-question #1 (geometry resolver) is owned and closed here, and the
+live-refresh trigger 07-06 needs is in place.
 </success_criteria>
 
 <output>

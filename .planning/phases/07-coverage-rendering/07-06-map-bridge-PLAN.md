@@ -6,6 +6,7 @@ wave: 4
 depends_on: ["07-03", "07-04", "07-05"]
 files_modified:
   - lib/features/coverage/presentation/coverage_overlay_bridge.dart
+  - lib/features/map/presentation/providers/map_style_loaded_provider.dart
   - lib/features/map/presentation/map_screen.dart
   - lib/features/map/presentation/widgets/map_widget.dart
   - test/features/coverage/presentation/coverage_overlay_bridge_test.dart
@@ -16,36 +17,39 @@ must_haves:
     - "On the map screen, driven Kfz ways paint in the active preset color the moment the map style loads"
     - "The overlay is re-added after a brightness (light/dark) style swap — it does not disappear"
     - "Changing the preset in Settings recolors the live map on return, without a tile/style reload"
-    - "When new trip data lands (coverage data provider refreshes), the overlay source updates"
+    - "When new trip data lands (coverage data provider re-emits), the overlay source updates"
     - "The overlay never crashes the map when geometry is missing/offline (renders whatever resolved)"
   artifacts:
     - path: "lib/features/coverage/presentation/coverage_overlay_bridge.dart"
-      provides: "CoverageOverlayBridge ConsumerWidget wiring data+preset+style->applier"
+      provides: "CoverageOverlayBridge ConsumerStatefulWidget wiring data+preset+styleTick->applier"
       contains: "class CoverageOverlayBridge"
+    - path: "lib/features/map/presentation/providers/map_style_loaded_provider.dart"
+      provides: "mapStyleLoadedTickProvider (increment-on-style-load signal)"
+      contains: "mapStyleLoadedTickProvider"
   key_links:
-    - from: "map_widget.dart onStyleLoaded"
-      to: "CoverageOverlayBridge reapply"
-      via: "re-add source+layer on every style load (Pitfall 1)"
-      pattern: "onStyleLoaded"
+    - from: "map_widget.dart _onStyleLoaded"
+      to: "mapStyleLoadedTickProvider.bump()"
+      via: "signal a style (re)load so the bridge re-adds source+layer (Pitfall 1)"
+      pattern: "mapStyleLoadedTickProvider"
     - from: "coverage_overlay_bridge.dart"
-      to: "coverageOverlayApplierProvider + coverageOverlayDataProvider + coveragePresetValueProvider + mapControllerProvider"
-      via: "ref.listen -> applier.apply/updateColors"
-      pattern: "coverageOverlayDataProvider|coveragePresetValueProvider"
+      to: "coverageOverlayApplierProvider + coverageOverlayDataProvider + coveragePresetValueProvider + mapStyleLoadedTickProvider + mapControllerProvider"
+      via: "ref.watch/listen -> applier.apply/updateColors"
+      pattern: "coverageOverlayDataProvider|mapStyleLoadedTickProvider"
 ---
 
 <objective>
 Wire the coverage overlay into the live map: a `CoverageOverlayBridge` that
 watches the resolved coverage data (07-03), the active preset (07-05), the map
-controller, and the style-load signal, and drives the applier (07-04) to add /
-recolor / re-add the overlay. This is where the feature becomes visible on the
+controller, and a style-load tick signal, and drives the applier (07-04) to add
+/ recolor / re-add the overlay. This is where the feature becomes visible on the
 map screen. Includes the on-device human-verify checkpoint (deferred per project
 memory) since first paint + brightness swap + live recolor need real-map eyes.
 
 Purpose: Delivers the phase goal — "when I open the map, I immediately see the
 roads I've already driven" in the chosen color, surviving dark-mode swaps and
 recoloring live from Settings.
-Output: bridge widget + map wiring + a bridge unit test (recording-fake applier)
-+ a cataloged deferred on-device checkpoint.
+Output: tick provider + bridge widget + map wiring + a bridge unit test
+(recording-fake applier) + a cataloged deferred on-device checkpoint.
 </objective>
 
 <execution_context>
@@ -56,7 +60,7 @@ Output: bridge widget + map wiring + a bridge unit test (recording-fake applier)
 <context>
 @.planning/phases/07-coverage-rendering/07-RESEARCH.md
 
-# The three inputs + the applier this bridge orchestrates
+# The inputs + the applier this bridge orchestrates
 @lib/features/coverage/data/coverage_overlay_providers.dart
 @lib/features/coverage/presentation/coverage_overlay_layers.dart
 @lib/features/coverage/presentation/coverage_preset_provider.dart
@@ -73,39 +77,61 @@ Output: bridge widget + map wiring + a bridge unit test (recording-fake applier)
 <tasks>
 
 <task type="auto">
-  <name>Task 1: CoverageOverlayBridge — orchestrate data/preset/style -> applier</name>
-  <files>lib/features/coverage/presentation/coverage_overlay_bridge.dart</files>
+  <name>Task 1: mapStyleLoadedTickProvider + CoverageOverlayBridge (tick-driven)</name>
+  <files>lib/features/map/presentation/providers/map_style_loaded_provider.dart, lib/features/coverage/presentation/coverage_overlay_bridge.dart</files>
   <action>
-Create `class CoverageOverlayBridge extends ConsumerStatefulWidget` (needs a
-_styleReady flag + the last-applied cache — ConsumerWidget with only ref.listen
-also works, but a stateful widget makes the style-load gating explicit).
+FIRST create the style-load signal provider (this is the single mechanism the
+bridge uses to know the style (re)loaded — there is NO public callback method on
+the bridge; the tick is the interface):
 
-State it must manage (RESEARCH §"Architecture Pattern" + Pitfalls 1/2/3):
-  - A `bool _styleReady` gate. Expose a public `void onStyleLoaded()` the
-    MapWidget calls; on style load set _styleReady=true and force a full re-apply
-    (source wiped by setStyle -> must re-add, Pitfall 1). Also reset any
-    _sourceAdded flag.
-  - Watch/listen:
-      * coverageOverlayDataProvider (AsyncValue<CoverageOverlayData>): on new
-        data AND _styleReady -> applier.apply(controller, data, preset, brightness).
-        (apply() itself remove-then-readds, so it doubles as the data-update path
-        — RESEARCH says setGeoJsonSource is an optimization; apply/re-add is
-        correct + simpler and matches trip_overlay idiom.)
-      * coveragePresetValueProvider (CoverageColorPreset): on change AND
-        _styleReady AND source already added -> applier.updateColors(controller,
-        preset, brightness) (live recolor, no source reload — REN-06).
-      * brightness: read from `MediaQuery.platformBrightnessOf(context)` /
-        `View.of(context).platformDispatcher.platformBrightness`. On brightness
-        change the MapWidget triggers setStyle -> onStyleLoaded fires -> full
-        re-apply with the new brightness colors. So brightness is read at
-        apply/updateColors time; no separate listener needed, but ensure the
-        re-apply uses current brightness.
-      * mapControllerProvider: guard null (map not created / disposed).
-  - Use `ref.listen` in build() (ConsumerStatefulWidget) for data + preset;
-    trigger the applier calls via `unawaited(...)`. All applier calls guarded by
-    `controller != null && _styleReady`.
-  - The widget renders `const SizedBox.shrink()` (headless), like
-    TrackingCameraSync in map_screen.
+`map_style_loaded_provider.dart` — plain NotifierProvider (NO @Riverpod):
+  class StyleTickNotifier extends Notifier<int> {
+    @override int build() => 0;
+    void bump() => state = state + 1;
+  }
+  final mapStyleLoadedTickProvider =
+      NotifierProvider<StyleTickNotifier, int>(StyleTickNotifier.new);
+Doc-comment: incremented by MapWidget on every onStyleLoaded (initial load AND
+after each setStyle brightness swap). Watchers treat any change as "style
+(re)loaded — programmatic sources were wiped, re-add them" (Pitfall 1).
+
+THEN create `class CoverageOverlayBridge extends ConsumerStatefulWidget`. It is
+DRIVEN BY the watched tick — do not expose a public onStyleLoaded() method.
+
+State + wiring (RESEARCH §"Architecture Pattern" + Pitfalls 1/2/3):
+  - Keep a private `bool _sourceAdded` flag (reset to false on each style tick,
+    set true after a successful apply) so preset-change can decide apply vs
+    updateColors. No public style callback — style readiness is derived purely
+    from the tick having fired at least once (track `int _lastTick = -1` or a
+    `bool _styleReady`).
+  - In build() (ConsumerStatefulWidget):
+      * `final tick = ref.watch(mapStyleLoadedTickProvider);` — when this changes
+        (new style load), the widget rebuilds; detect the change vs `_lastTick`,
+        set _styleReady=true, _sourceAdded=false, and schedule a FULL re-apply
+        (source was wiped — must re-add, Pitfall 1). Use a post-frame callback or
+        an immediate unawaited call.
+      * `ref.listen(coverageOverlayDataProvider, ...)`: on new data AND _styleReady
+        -> full applier.apply(controller, data, preset, brightness); set
+        _sourceAdded=true. (apply() remove-then-readds, so it doubles as the
+        data-update path — RESEARCH says setGeoJsonSource is an optimization;
+        apply/re-add is correct + simpler and matches the trip_overlay idiom.
+        This satisfies truth "coverage data re-emits -> overlay updates"; 07-03
+        makes coverageOverlayDataProvider a reactive StreamProvider so a trip
+        confirmation triggers this listen.)
+      * `ref.listen(coveragePresetValueProvider, ...)`: on change AND _styleReady
+        AND _sourceAdded -> applier.updateColors(controller, preset, brightness)
+        (live recolor, no source reload — REN-06). If _sourceAdded is false
+        (no source yet), fall back to a full apply.
+      * brightness: read from `View.of(context).platformDispatcher.platformBrightness`
+        (or MediaQuery.platformBrightnessOf(context)). A brightness change makes
+        MapWidget call setStyle -> onStyleLoaded -> tick bump -> full re-apply
+        with the new brightness colors. So brightness is read at apply/updateColors
+        time; no separate brightness listener needed.
+      * mapControllerProvider: read via ref.read at call time; guard null (map not
+        created / disposed).
+  - All applier calls guarded by `controller != null && _styleReady`, dispatched
+    via `unawaited(...)`.
+  - Renders `const SizedBox.shrink()` (headless), like TrackingCameraSync.
 
 Read the applier from `coverageOverlayApplierProvider`. Wrap applier calls so a
 throw is logged (Logger) and swallowed — the map must never crash (memory 06-05).
@@ -113,45 +139,41 @@ throw is logged (Logger) and swallowed — the map must never crash (memory 06-0
 Package imports only; withValues if needed; no @Riverpod.
   </action>
   <verify>flutter analyze clean.</verify>
-  <done>CoverageOverlayBridge re-applies on style load, recolors on preset change, re-adds on data change, guards null controller + not-ready, and never throws out.</done>
+  <done>mapStyleLoadedTickProvider exists; CoverageOverlayBridge watches the tick (no public callback), does a full re-apply on each tick, recolors on preset change, re-applies on data re-emit, guards null controller + not-ready, and never throws out.</done>
 </task>
 
 <task type="auto">
-  <name>Task 2: Mount the bridge in MapScreen + route onStyleLoaded through it</name>
-  <files>lib/features/map/presentation/map_screen.dart, lib/features/map/presentation/widgets/map_widget.dart</files>
+  <name>Task 2: Bump the tick in MapWidget + mount the bridge in MapScreen</name>
+  <files>lib/features/map/presentation/widgets/map_widget.dart, lib/features/map/presentation/map_screen.dart</files>
   <action>
-The bridge must receive the onStyleLoaded signal from MapWidget. Cleanest wiring
-that respects existing structure:
-  - Add a headless CoverageOverlayBridge to the MapScreen Stack (like the
-    TrackingCameraSync zero-size Positioned) so it's always in the tree and keeps
-    listening across tab switches. Give it a GlobalKey OR route the style signal
-    via a provider.
-  - PREFERRED (decoupled): introduce a tiny signal provider instead of GlobalKey.
-    Add `mapStyleLoadedTickProvider` (a `NotifierProvider<StyleTickNotifier,int>`
-    that increments) in map_widget's provider area or a new small file. In
-    MapWidget._onStyleLoaded (already exists, calls widget.onStyleLoaded), also
-    bump the tick: the MapWidget can `ref.read(mapStyleLoadedTickProvider.notifier)
-    .bump()`. The bridge watches the tick -> on change, does the full re-apply.
-    This avoids GlobalKey plumbing and keeps MapWidget's onStyleLoaded callback
-    contract intact.
-    * MapWidget is a ConsumerStatefulWidget already (has ref) — bump is safe in
-      _onStyleLoaded.
-  - Mount `const CoverageOverlayBridge()` in the MapScreen Stack as a zero-size
-    Positioned (mirror the TrackingCameraSync placement so it doesn't size the
-    Stack or steal hit-tests).
-  - Ensure the bridge is present regardless of tab (place it outside the
-    `if (isMapTab)` block, alongside TrackingCameraSync) so coverage persists
-    when returning to the map tab.
+This task is pure WIRING — the tick provider + bridge interface were defined in
+Task 1. No interface changes here.
 
-Update the MapWidget setStyle comment block (currently says "If Phase 7+ adds
-coverage sources... they MUST be re-added inside _onStyleLoaded()") to point at
-the tick provider + bridge as the implementation.
+MapWidget (`map_widget.dart`):
+  - In `_onStyleLoaded()` (already exists — fades back in + calls
+    widget.onStyleLoaded), ALSO bump the tick:
+    `ref.read(mapStyleLoadedTickProvider.notifier).bump();`
+    MapWidget is a ConsumerStatefulWidget (has ref) — safe. Keep the existing
+    `widget.onStyleLoaded?.call()` contract intact (do not remove it).
+  - Update the existing setStyle comment block (currently "If Phase 7+ adds
+    coverage sources... they MUST be re-added inside _onStyleLoaded()") to state
+    that _onStyleLoaded now bumps mapStyleLoadedTickProvider, which
+    CoverageOverlayBridge watches to re-add the coverage source+layer.
+
+MapScreen (`map_screen.dart`):
+  - Mount `const CoverageOverlayBridge()` in the Stack as a zero-size Positioned
+    (mirror the TrackingCameraSync placement: `Positioned(top:0,left:0,width:0,
+    height:0, child: CoverageOverlayBridge())`) so it does not size the Stack or
+    steal hit-tests.
+  - Place it OUTSIDE the `if (isMapTab)` block (alongside TrackingCameraSync) so
+    the overlay persists when returning to the map tab and keeps listening across
+    tab switches.
 
 NOTE: touches map_widget.dart (has existing widget tests) — run `flutter test`
 inline for map + coverage.
   </action>
-  <verify>flutter analyze clean; existing map widget tests still green; bridge mounted in MapScreen.</verify>
-  <done>MapWidget style-load bumps a tick provider the bridge watches; CoverageOverlayBridge is mounted headless in MapScreen and re-applies on every style load.</done>
+  <verify>flutter analyze clean; existing map widget tests still green; bridge mounted in MapScreen; _onStyleLoaded bumps the tick.</verify>
+  <done>MapWidget._onStyleLoaded bumps mapStyleLoadedTickProvider on every style load; CoverageOverlayBridge is mounted headless in MapScreen (tab-independent).</done>
 </task>
 
 <task type="auto">
@@ -160,25 +182,27 @@ inline for map + coverage.
   <action>
 Override coverageOverlayApplierProvider with a recording fake capturing
 apply/updateColors/remove calls (+ the preset/data passed). Override
-coverageOverlayDataProvider with a fixed CoverageOverlayData, coveragePresetProvider
-with amber, and mapControllerProvider with null (the fake applier tolerates a
-null controller — mirror TripOverlayApplier fakes).
+coverageOverlayDataProvider with a fixed CoverageOverlayData (use a
+StreamProvider override or override with a controllable value),
+coveragePresetProvider (+ coveragePresetValueProvider) with amber, and
+mapControllerProvider with null. Design the recording fake to record calls
+REGARDLESS of controller nullness (mirrors how MapLibreTripOverlayApplier
+early-returns on null but a test fake still records — so the null controller
+does not swallow the assertion).
   - Pump CoverageOverlayBridge in a ProviderScope + MaterialApp.
-  - Simulate a style-load tick (bump mapStyleLoadedTickProvider) -> assert
-    applier.apply called once with the amber preset + the fixed data.
-  - Change coveragePresetProvider to green -> assert applier.updateColors called
-    with green (NOT a second full apply).
-  - Change coverageOverlayDataProvider data -> assert apply called again.
-Because the real applier needs a controller, assert on the fake's recorded
-calls, not on MapLibre. If null-controller gating short-circuits before
-recording, have the bridge pass the (null) controller to the fake so the call is
-still recorded — design the fake to record regardless of controller (matches
-how MapLibreTripOverlayApplier early-returns but the fake records).
+  - Simulate a style-load tick: `container.read(mapStyleLoadedTickProvider
+    .notifier).bump()` then pump -> assert applier.apply called with the amber
+    preset + the fixed data (this is the "style (re)loaded -> re-add" path).
+  - Change coveragePresetProvider to green -> pump -> assert applier.updateColors
+    called with green (NOT a second full apply), given a source was already added.
+  - Change coverageOverlayDataProvider data (emit new value) -> pump -> assert
+    apply called again (the reactive data-update path 07-03 enables).
+Assert on the fake's recorded calls, not on MapLibre.
 
 Run `flutter test test/features/coverage/presentation/coverage_overlay_bridge_test.dart`.
   </action>
   <verify>flutter test green; flutter analyze clean.</verify>
-  <done>Bridge test proves: style tick -> apply; preset change -> updateColors; data change -> apply; via a recording-fake applier.</done>
+  <done>Bridge test proves: style tick -> apply; preset change -> updateColors; data re-emit -> apply; via a recording-fake applier driven by the tick provider.</done>
 </task>
 
 <task type="checkpoint:human-verify" gate="blocking">
@@ -212,14 +236,16 @@ phase close rather than blocking here.
 - `flutter analyze` clean.
 - `flutter test test/features/coverage/ test/features/map/` green.
 - No setFeatureState/promoteId anywhere (Gate G2).
-- Overlay re-add is driven by onStyleLoaded (grep the tick provider wiring).
+- Overlay re-add is driven by mapStyleLoadedTickProvider (grep the tick wiring in
+  MapWidget._onStyleLoaded + the bridge watch).
 </verification>
 
 <success_criteria>
 Driven Kfz ways paint on the live map in the active preset color, survive
-brightness style swaps (re-added on onStyleLoaded), and recolor live from the
-Settings picker without a tile reload — the phase goal made visible. On-device
-visual confirmation is cataloged as a deferred manual checkpoint.
+brightness style swaps (re-added on the style-load tick), and recolor live from
+the Settings picker without a tile reload — the phase goal made visible. A
+confirmed trip re-emits coverage data and updates the overlay in-session.
+On-device visual confirmation is cataloged as a deferred manual checkpoint.
 </success_criteria>
 
 <output>
