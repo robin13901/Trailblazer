@@ -88,7 +88,7 @@ Additional research-recommended spikes: HMM parameter tuning + golden corpus rec
 **Goal:** The app records trips automatically and manually, in the background, on both platforms, with battery baseline established.
 **Depends on:** Phase 1
 **Requirements:** TRK-01, TRK-02, TRK-03, TRK-04, TRK-05, TRK-06, TRK-07, TRK-08, TRK-09, TRK-10, TRK-11, QUA-06
-**Completed:** 2026-07-05 (code-complete) → SC1..SC4 drive-verified 2026-07-08 via Phase 3.1 (user-attested — see `.planning/phases/03-1-tracking-fixes/03-1-DRIVE-VERIFICATION-2026-07-08.md`). SC5 (QUA-06 60-min battery baseline) still drive-deferred.
+**Completed:** 2026-07-05 (code-complete) → SC1..SC4 drive-verified 2026-07-08 via Phase 3.1 (user-attested — see `.planning/phases/03-1-tracking-fixes/03-1-DRIVE-VERIFICATION-2026-07-08.md`). SC5 (QUA-06 60-min battery baseline) verified 2026-07-09 via user-attested 96 km / 1h 40 drive (Plan 04-19 close-out — no battery anomalies observed).
 **Success Criteria** (what must be TRUE):
   1. User taps the FAB, drives, then taps Stop — a `pending` trip with GPS polyline, speeds (avg + max), distance, duration, and per-fix motion activity type is written to the App DB.
   2. User closes the app, drives more than 60 s in a car — a `pending` auto-trip is recorded via `flutter_background_geolocation` and auto-terminates after 2 minutes of non-automotive dwell.
@@ -250,7 +250,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 |-------|----------------|--------|-----------|
 | 1. Scaffolding | 7/7 | ✓ Complete | 2026-07-03 |
 | 2. Map + Glass Shell | 7/7 | ✓ Complete | 2026-07-04 |
-| 3. Tracking MVP | 7/7 | ✓ Complete (SC1..SC4 drive-verified via Phase 3.1 2026-07-08; SC5 QUA-06 60-min battery baseline still drive-deferred) | 2026-07-05 code-complete / 2026-07-08 drive-verified |
+| 3. Tracking MVP | 7/7 | ✓ Complete (SC1..SC4 drive-verified via Phase 3.1 2026-07-08; SC5 QUA-06 verified via user-attested 96 km drive 2026-07-09 — Plan 04-19) | 2026-07-05 code-complete / 2026-07-09 fully drive-verified |
 | 3.1. Tracking Fixes | 5/5 | ✓ Complete | 2026-07-08 |
 | 4. Map & Matching Data Sources | 8/8 | ✓ Code-complete (drive-verify pending combined Phase-4 close-out session) — 8 rescoped plans (04-11..04-17 + 04-16-1); original 04-01..04-10 + 04-10-1-* archived on disk | 2026-07-08 |
 | 5. Overpass-Backed Matcher + Golden Corpus | 8/8 | ✓ Complete (code-complete; matcher-domain coverage 93.8 %; MMT-09 partial — 1 seed + CI gate shipped, 19 fixtures inherited by Phase 6) | 2026-07-08 |

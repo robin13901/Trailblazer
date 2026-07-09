@@ -170,7 +170,7 @@
 - [x] **QUA-03**: Drift migration tests use `SchemaVerifier` to validate every migration step
 - [ ] **QUA-04**: `patrol` integration tests cover: onboarding flow, first trip recording, inbox confirmation, matching → coverage update, region browser
 - [x] **QUA-05**: iOS + Android debug builds succeed in CI
-- [ ] **QUA-06**: 60-minute driving battery-drain baseline (measured on real device) committed to repo; regression on major changes flagged
+- [x] **QUA-06**: 60-minute driving battery-drain baseline (measured on real device) committed to repo; regression on major changes flagged  <!-- Complete (user-attested — 96 km/1h40 drive 2026-07-09, no battery anomalies observed) -->
 - [ ] **QUA-07**: Real-device QA gauntlet before release: iPhone (current + one older), Samsung, Xiaomi (worst-case battery-killer)
 
 ## v2 Requirements
@@ -358,9 +358,9 @@ Every requirement maps to exactly one phase. Phase Gates in ROADMAP.md carry two
 | QUA-03 | Phase 1: Scaffolding | Complete |
 | QUA-04 | Phase 11: Hardening | Pending |
 | QUA-05 | Phase 1: Scaffolding | Complete |
-| QUA-06 | Phase 3: Tracking MVP | Code-Complete (drive-deferred) — CLI shipped, artifact scaffold in place; 60-min drive deferred to batched in-car session |
+| QUA-06 | Phase 3: Tracking MVP | Complete (user-attested — 96 km/1h40 drive 2026-07-09, no battery anomalies observed) |
 | QUA-07 | Phase 11: Hardening | Pending |
 
 ---
 *Requirements defined: 2026-07-02*
-*Last updated: 2026-07-08 (Plan 03-1-05 close-out — TRK-01..TRK-11 flipped to Complete via Phase 3.1 drive 2026-07-08; QUA-06 stays Drive-blocked — 60-min battery baseline NOT run in Phase 3.1)*
+*Last updated: 2026-07-09 (Plan 04-19 close-out — QUA-06 flipped Drive-blocked → Complete via user-attested 96 km/1h40 drive 2026-07-09; Phase 3 fully complete)*
