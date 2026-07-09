@@ -205,7 +205,15 @@ Plans:
   3. Map maintains ≥ 30 fps on target devices with 50 000 driven segments loaded (stress-tested against faked coverage).
   4. Coverage renders via MapLibre `feature-state` — or the sharded-GeoJSON-per-5×5-km-tile fallback (Gate G2) is active and documented.
   5. User can pick coverage colors from a small preset palette in settings; changes apply live without full map reload.
-**Plans:** TBD (5–7)
+**Plans:** 7 plans (4 waves)
+Plans:
+- [ ] 07-01-PLAN.md — coverage domain: threshold (COV-02), fraction+floor (COV-03), CoverageDatum, 5-preset palette (REN-01)
+- [ ] 07-02-PLAN.md — reconcile REN-01/02/05 + Gate G2 into REQUIREMENTS/ROADMAP/PROJECT docs
+- [ ] 07-03-PLAN.md — DrivenWayGeometryResolver: driven wayIds -> Overpass-cache geometry + per-way coverage data
+- [ ] 07-04-PLAN.md — render overlay: GeoJSON source + data-driven paint expressions (Gate G2 resolution), belowLayerId, live recolor
+- [ ] 07-05-PLAN.md — Settings coverage-color picker: 5 preset swatches, AppPrefs persistence, coveragePresetProvider (REN-06)
+- [ ] 07-06-PLAN.md — CoverageOverlayBridge: wire data+preset+style-swap to the live map (deferred on-device checkpoint)
+- [ ] 07-07-PLAN.md — REN-04 stress harness: debug-only 50k-segment fps meter through the production overlay
 
 ### Phase 8: Regions + Focus-Area
 **Goal:** The user can browse coverage by admin region; the focus-area pill tracks their map view; per-region percentages are accurate and cached.
