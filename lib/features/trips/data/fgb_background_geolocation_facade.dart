@@ -45,10 +45,19 @@ class FgbBackgroundGeolocationFacade implements BackgroundGeolocationFacade {
         distanceFilter: 0,
         locationUpdateInterval: 1000,
         fastestLocationUpdateInterval: 1000,
-        // Lifecycle
-        stopOnTerminate: false,
-        startOnBoot: true,
-        enableHeadless: true,
+        // Lifecycle — Plan 06-08: manual-only recording. FGB is started only
+        // for the duration of a manual trip and stopped on stopActive(), so
+        // there is no idle foreground-service notification and no motion-wake
+        // when the user is not recording.
+        //   stopOnTerminate: true  → the service does not survive app kill
+        //                            (no resurrection to record silently).
+        //   startOnBoot: false     → the service does not auto-start on device
+        //                            boot / motion (no spurious walk trips).
+        //   enableHeadless: false  → headless was only needed for auto-wake;
+        //                            manual trips run with the app alive.
+        stopOnTerminate: true,
+        startOnBoot: false,
+        enableHeadless: false,
         // Android FGS notification (iOS shows the blue location bar; text is
         // not customisable on iOS — this config is Android-only in effect)
         notification: bg.Notification(
