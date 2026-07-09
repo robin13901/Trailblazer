@@ -169,6 +169,10 @@ Plans:
 - [x] 05-07-trip-match-coordinator-PLAN.md — pending→matched wiring + app-resume processPending + retention (Wave 5)
 - [x] 05-08-golden-corpus-and-coverage-gate-PLAN.md — corpus scaffolding + first 5 seed fixtures + CI ≥90% gate (Wave 4, checkpoint)
 
+**Follow-ups (post-close-out):**
+- **Phase 5.1 seed (2026-07-09):** road-snap heading hybrid (Layer B of the hybrid heading concept — Layer A `MyLocationTrackingMode.trackingGps` shipped in Plan 04-19 Task 2). Matcher-driven bearing alignment during recording: whenever the live matcher is confident about the current way, override GPS heading with the way's local bearing. Requires a live-matcher variant (Phase 5's matcher runs post-stop only). To be authored when Phase 7 needs live-matcher output for coverage rendering, or sooner if the user requests. Not blocking Phase 6.
+- **Corpus growth to ≥ 20 fixtures** is inherited by Phase 6 (per SC3 amendment 2026-07-08). The 4 real-drive fixtures that take the corpus from 1 → 5 seeds can be recorded during any Phase-6 drive; they no longer need a separate drive-batch follow-up now that Phase 4 is drive-verified.
+
 ### Phase 6: Inbox + Match Wire-Up
 **Goal:** Confirmed trips flow end-to-end from raw GPS into driven-way intervals and invalidate the coverage cache; rejected trips vanish cleanly.
 **Depends on:** Phases 3, 5
