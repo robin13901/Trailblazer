@@ -1,7 +1,7 @@
 ---
 plan: 06-06
 phase: 6
-wave: 3
+wave: 5
 depends_on: [06-05]
 type: execute
 autonomous: true
@@ -114,7 +114,15 @@ class GoldenFixtureExporter {
 Implementation:
 1. `points = await tripsDao.listPointsForTrip(tripId)` — serialize as JSON array of `{lat, lon, timestamp}` matching the format read by `golden_corpus_test.dart`. Look at the existing fixture's `gps_trace.json` to match schema exactly.
 2. `intervals = await intervalsDao.getByTrip(tripId)` — serialize as `[{"wayId": ..., "startMeters": ..., "endMeters": ...}]` per the test's expected shape (READ `golden_corpus_test.dart` to confirm — do NOT invent).
-3. Ways cache: call `waySource.fetchWaysInBbox(trip.bbox)`. The `OverpassWayCacheDao` already stores gzipped payloads — retrieve the raw gzipped bytes and write to `ways.json.gz` verbatim. If retrieving raw bytes isn't straightforward, re-gzip a JSON serialization that matches the parser input.
+3. Ways cache (Issue 7 — fixture format decision):
+
+   **Before writing any exporter code, READ the existing fixture `test/fixtures/golden_trips/001_synthetic_straight_east/ways.json.gz`** (gunzip it, inspect the JSON structure — top-level shape, keys, whether it wraps `elements: [...]` Overpass-style, etc.) AND read `test/helpers/fixture_way_candidate_source.dart` (imported by `golden_corpus_test.dart`) to see the parser's expected input format.
+
+   **Pick ONE format path and commit to it:**
+   - **Path A (preferred — raw cache bytes):** if `OverpassWayCacheDao` stores gzipped bytes matching the existing fixture format, retrieve the raw gzipped bytes and write to `ways.json.gz` verbatim. This is bit-for-bit reproducible.
+   - **Path B (re-gzip):** if the cache stores a different shape, serialize the fetched `Iterable<WayCandidate>` back to Overpass-shaped JSON (`{"elements": [{"type":"way","id":..,"nodes":[..],"geometry":[{"lat":..,"lon":..}, ...],"tags":{..}}, ...]}` — verify by inspecting the existing fixture) and gzip it.
+
+   Document the chosen path in the SUMMARY. Do NOT mix — if uncertainty remains after inspection, default to Path B for robustness (network↔cache↔fixture shape drift is contained).
 4. Write `<AppDocs>/golden_export/<slug>/{gps_trace.json, ways.json.gz, expected_ways.json}` atomically (tmp file + rename per file).
 5. Return the directory path.
 
@@ -127,7 +135,7 @@ Tests (`test/features/trips/golden_fixture_exporter_test.dart`) — in-memory Dr
 - ways.json.gz is a valid gzip stream (bytes 1F 8B header).
 - Invalid slug → throws `DomainError`.
 - Slug collision (dir exists) → overwrites cleanly.
-- Round-trip: export a fixture, then run `golden_corpus_test.dart`'s single-fixture logic against it in-test → passes.
+- **Round-trip (Issue 7 — mandatory):** export a fixture from a seeded trip. Then, in the SAME test, gunzip `ways.json.gz` and re-parse it using `FixtureWayCandidateSource.fromGzippedOverpassJson(...)` (the exact helper `golden_corpus_test.dart` uses). Assert the resulting `Iterable<WayCandidate>` is non-empty and its way ids match the intervals seeded in `expected_ways.json`. This proves the exported format is compatible with the corpus parser — Path A/B choice is validated by this test failing loudly on drift.
 
 **Note on round-trip test:** if reusing the exact test logic is too invasive, at minimum verify the JSON schema by parsing the exported files with the same code that `golden_corpus_test.dart` uses (extract a `_loadFixture` helper if needed).
   </action>
@@ -232,6 +240,7 @@ Each `NNN_<region>_<scenario>/` contains:
 - `gps_trace.json` — array of `{lat, lon, timestamp}` GPS points from the raw trip
 - `ways.json.gz` — gzipped Overpass response for the trip's bbox (candidate ways)
 - `expected_ways.json` — array of `{wayId, startMeters, endMeters}` — the intervals the matcher must reproduce
+- `metadata.json` — optional human notes about the drive (region, scenario, weather, device) — not consumed by `golden_corpus_test.dart` but useful for triage
 
 `golden_corpus_test.dart` iterates every subdirectory and asserts the matcher output equals `expected_ways.json`.
 

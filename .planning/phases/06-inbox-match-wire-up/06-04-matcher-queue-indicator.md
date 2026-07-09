@@ -1,8 +1,8 @@
 ---
 plan: 06-04
 phase: 6
-wave: 1
-depends_on: []
+wave: 3
+depends_on: [06-02]
 type: execute
 autonomous: true
 files_owned:
@@ -41,6 +41,8 @@ verification:
 
 <objective>
 Presentation-layer providers exposing inbox/history/in-flight streams from 06-02's repository, plus the Liquid Glass "N trips matching…" pill widget consumed by TripsScreen in 06-05.
+
+**Wave 3 (depends on 06-02, which is Wave 2 depending on 06-01):** this plan imports `tripsInboxRepositoryProvider` and `TripListItem` from 06-02's files_owned. It cannot run in parallel with 06-02 — the import target must exist first, otherwise `flutter analyze` fails on unknown identifiers. (Wave bump from 1 → 3 addresses checker Issue 3; 06-02 itself moved from Wave 1 → Wave 2 for the same reason vs. 06-01.)
 </objective>
 
 <execution_context>
@@ -53,9 +55,10 @@ Presentation-layer providers exposing inbox/history/in-flight streams from 06-02
 @.planning/STATE.md
 @.planning/phases/06-inbox-match-wire-up/06-CONTEXT.md
 @.planning/phases/06-inbox-match-wire-up/06-RESEARCH.md
+@.planning/phases/06-inbox-match-wire-up/06-02-SUMMARY.md
 @CLAUDE.md
 
-# Sibling plan APIs referenced (defined in 06-02 — the plans run in parallel; this plan REFERENCES the future provider)
+# APIs consumed (from 06-02 — runs in Wave 2, BEFORE this plan in Wave 3):
 # tripsInboxRepositoryProvider: Provider<TripsInboxRepository>
 #   TripsInboxRepository.watchInboxItems() → Stream<List<TripListItem>>
 #   TripsInboxRepository.watchHistoryItems() → Stream<List<TripListItem>>
@@ -67,8 +70,8 @@ Presentation-layer providers exposing inbox/history/in-flight streams from 06-02
 - Package imports only.
 - `withValues(alpha:)` never `withOpacity()`.
 - No drive checkpoint.
-- **DO NOT touch files owned by 06-01, 06-02, 06-03** (parallel-wave metadata hygiene).
-- IMPORT paths from 06-02: `package:auto_explore/features/trips/data/trips_repository_inbox_extensions.dart` (tripsInboxRepositoryProvider) and `package:auto_explore/features/trips/domain/trip_list_item.dart` (TripListItem). These are declared in 06-02's files_owned; this plan only READS them, doesn't own them.
+- **DO NOT touch files owned by 06-01, 06-02, 06-03, 06-05, 06-06** (wave-hygiene).
+- IMPORT paths from 06-02: `package:auto_explore/features/trips/data/trips_repository_inbox_extensions.dart` (tripsInboxRepositoryProvider) and `package:auto_explore/features/trips/domain/trip_list_item.dart` (TripListItem). These are declared in 06-02's files_owned; this plan only READS them, doesn't own them. Wave-3 sequencing guarantees they exist on disk before this plan runs.
 </invariants>
 
 <tasks>
@@ -209,6 +212,7 @@ Pre-push covers full suite.
 - Analyzer clean.
 - No `withOpacity` used.
 - File ownership respected — this plan touches only its 4 owned files.
+- Wave-3 ordering respected — 06-02's tripsInboxRepositoryProvider is already on disk before this plan begins.
 </success_criteria>
 
 <output>

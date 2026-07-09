@@ -23,7 +23,7 @@ files_modified:
   - test/features/coverage/interval_union_test.dart
 must_haves:
   truths:
-    - "Writing new driven_way_intervals for a trip deletes affected coverage_cache rows (COV-06 trigger 1)"
+    - "Writing new driven_way_intervals for a trip deletes affected coverage_cache rows (COV-06 trigger 1, invoked via confirmTrip in 06-02)"
     - "Deleting a trip via the invalidator path removes affected coverage_cache rows (COV-06 trigger 2)"
     - "invalidateAll() truncates coverage_cache as a stub for OSM-extract-updated (COV-06 trigger 3)"
     - "Interval union collapses overlapping per-way intervals into disjoint segments (COV-01)"
@@ -57,6 +57,8 @@ verification:
 
 <objective>
 Ship the pure data-layer foundation for Phase 6 coverage-cache invalidation and per-way interval unioning: a CoverageCacheDao over the existing `coverage_cache` table, a CoverageInvalidator with three triggers (new intervals, trip delete, OSM extract stub), and a pure-Dart interval-union utility. No UI, no wiring into TripsRepository yet (that lives in 06-02).
+
+**Naming reconciliation:** REQUIREMENTS.md (COV-05) and ROADMAP.md refer to a `coverage_by_region` table. The **physical Drift table at schema v3 is named `coverage_cache`** (see `lib/core/db/tables/coverage_cache_table.dart` and `drift_schemas/drift_schema_v3.json`). No rename is performed in Phase 6 — the requirements-doc name is treated as the logical alias for the physical `coverage_cache` table. When writing SUMMARY, restate this reconciliation so downstream plans/phases don't chase a ghost rename.
 </objective>
 
 <execution_context>
@@ -191,6 +193,8 @@ class CoverageCacheDao {
 
 Reference the existing table via the generated `CoverageCache` data class + `coverageCache` accessor on `AppDatabase`. Do NOT redefine the table.
 
+Column names for reference (verified against `drift_schemas/drift_schema_v3.json` `coverage_cache` entity): `region_id` (PK), `driven_length_m`, `total_length_m`, `updated_at`, `extract_version`, `invalidation_gen`. Use the Drift-generated Dart field names (`regionId`, `drivenLengthM`, etc.) — do not hand-write raw SQL against these column names.
+
 Tests (`test/features/coverage/coverage_cache_dao_test.dart`) using in-memory Drift (`NativeDatabase.memory()`) — follow the pattern from any existing DAO test (grep `test/core/db/` or `test/features/trips/`):
 - upsert then getByRegionId round-trips all fields including `extractVersion` and `invalidationGen == 0`.
 - deleteByRegionIds([]) is a no-op returning 0 (guard the empty-list SQL edge case).
@@ -215,7 +219,7 @@ DAO exists with 5 public methods; all test cases pass.
     test/features/coverage/coverage_invalidator_test.dart
   </files>
   <action>
-`CoverageInvalidator` orchestrates cache invalidation from three triggers. Keep it agnostic of when it's called — 06-02 wires it into TripsRepository.
+`CoverageInvalidator` orchestrates cache invalidation from three triggers. Keep it agnostic of when it's called — 06-02 wires it into TripsRepository (both `confirmTrip` and `discardTrip` paths).
 
 Signature:
 ```dart
@@ -226,15 +230,20 @@ class CoverageInvalidator {
     required TripsDao tripsDao,          // for bbox lookup
   });
 
-  /// Trigger 1: called after driven_way_intervals are written for a trip.
-  /// Reads trip.bbox (minLat/minLon/maxLat/maxLon), samples the 4 corners + centroid,
-  /// resolves adminRegionIds at levels 4/6/8/10 via AdminRegionLookup.regionAt,
-  /// dedupes, and calls cacheDao.deleteByRegionIds(regionIds).
+  /// Trigger 1: called by TripsInboxRepository.confirmTrip AFTER status flip
+  /// (matched → confirmed), so the "user has accepted this trip as counting
+  /// for coverage" moment invalidates affected regions.
+  /// Reads trip.bbox (bbox_min_lat/bbox_min_lon/bbox_max_lat/bbox_max_lon),
+  /// samples the 4 corners + centroid, resolves adminRegionIds at levels
+  /// 4/6/8/10 via AdminRegionLookup.regionAt, dedupes, and calls
+  /// cacheDao.deleteByRegionIds(regionIds).
+  /// Idempotent — calling repeatedly for the same trip after cache is already
+  /// invalidated deletes 0 rows and returns Result.ok(0).
   /// Returns Result<int> — count of coverage rows invalidated.
   Future<Result<int>> invalidateForTrip(int tripId);
 
-  /// Trigger 2: called by TripsRepository BEFORE deleting a trip, so bbox is still readable.
-  /// Identical body to invalidateForTrip.
+  /// Trigger 2: called by TripsInboxRepository.discardTrip BEFORE deleting the trip,
+  /// so bbox is still readable. Identical body to invalidateForTrip.
   Future<Result<int>> invalidateForTripDelete(int tripId);
 
   /// Trigger 3 (P6 stub for OSM extract updated — wired in P10).
@@ -266,6 +275,7 @@ Tests (`test/features/coverage/coverage_invalidator_test.dart`) — use fakes fo
 - invalidateForTrip on a trip with bbox in Kleinheubach → deletes rows for the 4 sampled admin regionIds (fake returns e.g. "DE"/"BY"/"MIL"/"KHB").
 - invalidateForTrip on a trip with NULL bbox → returns `Result.ok(0)`, no deletes issued.
 - invalidateForTrip on a missing tripId → returns `Result.ok(0)`.
+- invalidateForTrip called twice for the same trip → second call returns Result.ok(0) after seeded regions already deleted (idempotency).
 - invalidateForTripDelete produces the same behavior as invalidateForTrip (share the impl).
 - invalidateAll wipes all seeded rows and returns the count.
 - AdminRegionLookup returning null for some corners doesn't crash (skip nulls).
@@ -278,7 +288,7 @@ Pitfall reminders (from RESEARCH.md §Pitfalls):
 `flutter test test/features/coverage/coverage_invalidator_test.dart` green.
   </verify>
   <done>
-`CoverageInvalidator` exposes 3 methods, all returning `Result<int>`; providers exist; ≥6 test cases pass.
+`CoverageInvalidator` exposes 3 methods, all returning `Result<int>`; providers exist; ≥7 test cases pass including the idempotency case that 06-02 relies on.
   </done>
 </task>
 
@@ -296,9 +306,12 @@ Pre-push hook covers the full test suite.
 - `CoverageInvalidator` is callable via `ref.read(coverageInvalidatorProvider)` — verified by 06-02 wiring test.
 - No changes to `coverage_cache_table.dart` or `app_database.dart` schema definitions.
 - `invalidationGen` column left untouched (P8 uses it; P6 just deletes rows).
+- SUMMARY.md restates the `coverage_by_region` (docs) → `coverage_cache` (physical) naming reconciliation.
 </success_criteria>
 
 <output>
 After completion, create `.planning/phases/06-inbox-match-wire-up/06-01-SUMMARY.md` per the summary template.
-Key items to capture: exact DAO/invalidator API signatures (so 06-02 can wire without re-reading source), decision to DELETE rather than bump gen in P6, list of admin levels sampled (4/6/8/10).
+Key items to capture: exact DAO/invalidator API signatures (so 06-02 can wire without re-reading source), decision to DELETE rather than bump gen in P6, list of admin levels sampled (4/6/8/10), and the naming reconciliation note (REQUIREMENTS.md `coverage_by_region` == physical `coverage_cache`).
 </output>
+</content>
+</invoke>

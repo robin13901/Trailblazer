@@ -1,7 +1,7 @@
 ---
 plan: 06-05
 phase: 6
-wave: 2
+wave: 4
 depends_on: [06-01, 06-02, 06-03, 06-04]
 type: execute
 autonomous: false
@@ -334,6 +334,11 @@ class TripDetailScreen extends ConsumerStatefulWidget {
   - Matched percentage = `driven_length / total_length` for this trip's ways (from intervals + way geometries).
 - Fail-matched case (intervalCount == 0): show `MatchedInfoBanner` above map — "No roads matched. GPS may have been indoors or in a parking lot." Delete button still functional; matched-intervals overlay skipped.
 
+- **Offline fallback (Issue 6):** if `OverpassWayCandidateSource.fetchWaysInBbox(trip.bbox)` returns `Result.err` (network unavailable + cache miss) OR returns an empty `Iterable<WayCandidate>` when `intervalCount > 0` (cache-expired scenario), skip the matched-interval overlay and render only:
+  1. Raw polyline (gray) — always renderable from `trip_points`, no network needed.
+  2. A small info banner above/below the map: "Matched roads unavailable offline. Showing raw GPS trace." (muted / info color — distinct from the fail-matched warning banner.)
+  Delete button remains functional. Stat strip drops the matched-% figure and shows "Matched: — (offline)".
+
 **Pitfall Q1 guard**: MapWidget's `onStyleLoaded` fires again on brightness swap. Register the whole add-layer routine as a callback that re-runs on every style-load, not just the first. Track already-added layer IDs in state and remove before re-add (or trust `onStyleLoaded` was preceded by style-swap that wiped them).
 
 **app_router.dart** update — add:
@@ -353,6 +358,8 @@ Tests (`test/features/trips/trip_detail_screen_test.dart`) — use fake DAOs + a
 - Delete IconButton tap → DiscardConfirmationDialog → on confirm → `discardTrip(tripId)` called + `context.pop()`.
 - Stat strip renders duration/distance/matched% correctly (parameterized).
 - Style-swap re-triggers add-layer routine (spy on the callback registered on MapWidget).
+- **Offline fallback (Issue 6):** fake `OverpassWayCandidateSource` returns `Result.err` → banner "Matched roads unavailable offline" is visible, matched-layer adder NOT called, raw polyline adder IS called, delete button still enabled.
+- Offline fallback: fake source returns empty ways list while intervalCount > 0 → same offline banner and behavior.
 
 **Injection seam**: extract the `addRawPolyline`/`addMatchedIntervalLayers` calls behind a `TripOverlayApplier` provider so tests can override. This is the same pattern used in 06-04's tests.
 

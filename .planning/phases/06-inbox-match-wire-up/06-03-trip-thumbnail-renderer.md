@@ -241,7 +241,7 @@ class TripThumbnail extends ConsumerWidget {
 }
 ```
 
-`_RenderingPlaceholder` shows a shimmer/gray box while rendering. In `initState`, kicks off render via `ref.read(thumbnailRendererProvider).renderFallback(...)` (fallback for now — real snapshot path plumbed by 06-05 overlay wiring) and calls `ref.read(thumbnailCacheProvider.notifier).store(tripId, bytes)` on completion.
+`_RenderingPlaceholder` is a `ConsumerStatefulWidget` (so it owns an `initState` for the async render kick-off and a mounted-guarded `setState` on completion). Shows a shimmer/gray box while rendering. In `initState`, kicks off render via `ref.read(thumbnailRendererProvider).renderFallback(...)` (fallback for now — real snapshot path plumbed by 06-05 overlay wiring), calls `ref.read(thumbnailCacheProvider.notifier).store(tripId, bytes)` on completion, then `setState(() => _done = true)` guarded by `if (!mounted) return;` — TripThumbnail then rebuilds via `thumbnailCacheProvider.select(...)` and picks up the cached file path.
 
 Style: `ColoredBox(color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.5))`. Never `withOpacity`.
 
