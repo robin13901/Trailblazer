@@ -209,11 +209,15 @@ use FutureProvider for the trigger.
             MAX(bbox_max_lat) AS max_lat, MAX(bbox_max_lon) AS max_lon
      FROM trips
      WHERE status IN ('matched','confirmed')
-   readsFrom: {trips}. Map the row -> LatLngBounds (null when all aggregates are
-   null, i.e. no trips or no bbox columns populated). Because the query `readsFrom`
-   the trips table, Drift re-emits whenever a trip's status/bbox changes —
-   including on confirmTrip. Document that this reactivity is what drives the
-   live map update.
+   readsFrom: {trips, drivenWayIntervals}. Map the row -> LatLngBounds (null when
+   all aggregates are null, i.e. no trips or no bbox columns populated). Because
+   the query `readsFrom` BOTH tables, Drift re-emits whenever a trip's
+   status/bbox changes (incl. confirmTrip) OR whenever driven intervals are
+   written/deleted. The explicit `readsFrom` set is independent of the SELECT'd
+   tables — we aggregate only `trips`, but subscribe to interval writes too so
+   the overlay stays live even for a future intervals-only mutation path
+   (e.g. a Phase-8 background backfill or a re-match on an already-matched trip).
+   Document that this reactivity is what drives the live map update.
 
 2. `coverage_overlay_providers.dart` (plain Provider / StreamProvider — NO @Riverpod):
    - `drivenWayGeometryResolverProvider = Provider<DrivenWayGeometryResolver>((ref)
@@ -243,11 +247,16 @@ use FutureProvider for the trigger.
      truth #3 is provably satisfied.
 
    Note on the driven-intervals side: the union-bbox recompute is a SUFFICIENT
-   trigger because a newly-confirmed trip always changes the confirmed-trip set
-   (status flip), and its intervals were written before confirmation. The
-   resolver re-reads getAllIntervals() on every recompute, so freshly-written
-   intervals are picked up. Document this rationale (no separate intervals watch
-   needed).
+   trigger because Drift invalidates the watched stream on ANY write to the
+   `trips` or `drivenWayIntervals` tables (the `readsFrom` set above) — it does
+   NOT diff the aggregated MIN/MAX result value. So a `matched->confirmed` status
+   flip (which does not change the `status IN ('matched','confirmed')` membership)
+   still re-emits, purely on the table write. The resolver re-reads
+   getAllIntervals() on every recompute, so freshly-written intervals are picked
+   up. IMPORTANT for the executor: do NOT "optimize" the trigger to fire only on
+   membership/value changes — the table-write invalidation is the mechanism.
+   Document this rationale (no separate intervals watch needed — it is folded
+   into the `readsFrom` set).
 
 3. `driven_way_geometry_resolver_test.dart`:
    - In-memory AppDatabase (NativeDatabase.memory()) — follow existing DAO test
