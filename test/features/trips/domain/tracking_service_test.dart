@@ -584,5 +584,54 @@ void main() {
 
       await svc.dispose();
     });
+
+    // -------------------------------------------------------------------------
+    // 12. Notification duration format — hours segment (Plan 04-19)
+    // -------------------------------------------------------------------------
+    group('formatNotificationDuration', () {
+      test('under 1h renders as mm:ss (no hours segment)', () {
+        expect(formatNotificationDuration(Duration.zero), '00:00');
+        expect(
+          formatNotificationDuration(const Duration(seconds: 45)),
+          '00:45',
+        );
+        expect(
+          formatNotificationDuration(const Duration(minutes: 40, seconds: 3)),
+          '40:03',
+        );
+        expect(
+          formatNotificationDuration(
+            const Duration(minutes: 59, seconds: 59),
+          ),
+          '59:59',
+        );
+      });
+
+      test('exactly 1h renders as 1:00:00', () {
+        expect(
+          formatNotificationDuration(const Duration(hours: 1)),
+          '1:00:00',
+        );
+      });
+
+      test('100-min drive (Plan 04-19 regression case) renders as 1:40:XX',
+          () {
+        expect(
+          formatNotificationDuration(
+            const Duration(hours: 1, minutes: 40, seconds: 27),
+          ),
+          '1:40:27',
+        );
+      });
+
+      test('10h+ trip renders with unpadded hours (10:03:12)', () {
+        expect(
+          formatNotificationDuration(
+            const Duration(hours: 10, minutes: 3, seconds: 12),
+          ),
+          '10:03:12',
+        );
+      });
+    });
   });
 }

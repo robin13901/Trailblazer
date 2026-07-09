@@ -19,6 +19,23 @@ import 'package:logging/logging.dart';
 /// Default ingestor factory — callers can override in tests.
 TripFixIngestor _defaultIngestor() => TripFixIngestor();
 
+/// Formats an elapsed [Duration] for the persistent tracking notification.
+///
+/// Below 1 h → `mm:ss` (matches the pre-04-19 default).
+/// 1 h and above → `h:mm:ss` (hours field is NOT zero-padded — a 10 h drive
+/// therefore reads `10:03:12`; acceptable for the notification pill).
+///
+/// Kept at library-scope so unit tests can exercise it directly without
+/// spinning up a full [TrackingService]. Plan 04-19 (2026-07-09 drive fix):
+/// prior code truncated hours via `d.inMinutes.remainder(60)`, so a
+/// 100-min drive rendered `40:xx` instead of `1:40:xx`.
+String formatNotificationDuration(Duration d) {
+  final h = d.inHours;
+  final mm = d.inMinutes.remainder(60).toString().padLeft(2, '0');
+  final ss = d.inSeconds.remainder(60).toString().padLeft(2, '0');
+  return h > 0 ? '$h:$mm:$ss' : '$mm:$ss';
+}
+
 /// Orchestrates the full trip-recording lifecycle.
 ///
 /// Owns facade stream subscriptions, the active [TripFixIngestor] + [TripFixBatcher],
@@ -723,13 +740,12 @@ class TrackingService {
       if (s is! TrackingRecording) return;
       final now = DateTime.now();
       final d = s.duration(now);
-      final mm = d.inMinutes.remainder(60).toString().padLeft(2, '0');
-      final ss = d.inSeconds.remainder(60).toString().padLeft(2, '0');
+      final timeStr = formatNotificationDuration(d);
       final km = (s.distanceMeters / 1000).toStringAsFixed(1);
       final spd = s.currentSpeedKmh?.round().toString() ?? '—';
       // Fire-and-forget — errors logged inside the facade.
       unawaited(_facade.setNotificationText(
-        'Recording · $mm:$ss · $km km · $spd km/h',
+        'Recording · $timeStr · $km km · $spd km/h',
       ));
     });
   }
