@@ -9,12 +9,12 @@ See: .planning/PROJECT.md (updated 2026-07-02)
 
 ## Current Position
 
-Phase: 5 of 11 (Overpass-Backed Matcher + Golden Corpus — COMPLETE 2026-07-08) — Phase 4 rescope DRIVE-VERIFIED 2026-07-09 via 04-19
-Plan: 04-19 (drive-fixes + phase close-outs) COMPLETE 2026-07-09
-Status: Phase 3 FULLY COMPLETE (SC1..SC5 drive-verified — QUA-06 attested 2026-07-09). Phase 4 rescope DRIVE-VERIFIED 2026-07-09 (04-VERIFICATION.md `status: passed`; 04-18-SUMMARY.md authored). Phase 5 CODE-COMPLETE (corpus growth inherited by P6). Phase 5.1 seed (road-snap heading Layer B) captured. Phase 6 (Inbox + Match Wire-Up) UNBLOCKED.
-Last activity: 2026-07-09 — Plan 04-19 landed 6 task commits + metadata: notification hours format, trackingGps switch, glass AlignNorthButton, QUA-06 flip, Phase 4 04-18 close-out with 04-18-SUMMARY, Phase 5.1 seed capture.
+Phase: 6 of 11 (Inbox + Match Wire-Up — IN PROGRESS)
+Plan: 06-01 (coverage cache DAO + invalidator + interval union) COMPLETE 2026-07-09
+Status: Phase 6 execution ongoing. 06-01 lands coverage-cache foundation (DAO + invalidator + interval union) ready for 06-02 to wire into TripsInboxRepository. Sibling 06-03 (thumbnail renderer) landed 2 commits in parallel — Wave-1 file-ownership hygiene held.
+Last activity: 2026-07-09 — Plan 06-01 complete. 3 task commits: `21423f6` interval union; `121fe2d` CoverageCacheDao; `3320a33` CoverageInvalidator + providers.
 
-Progress: [████████░░] ~66% (54/77 est. plans overall — Phase 1: 7/7; Phase 2: 7/7; Phase 3: 7/7 complete (SC5 attested via 04-19); Phase 3.1: 5/5 COMPLETE; Phase 4: 8/8 rescope plans + 04-18 gap-closure + 04-19 close-out DRIVE-VERIFIED; Phase 5: 8/8 CODE-COMPLETE)
+Progress: [████████░░] ~68% (55/77 est. plans overall — Phase 1: 7/7; Phase 2: 7/7; Phase 3: 7/7 complete; Phase 3.1: 5/5 COMPLETE; Phase 4: 8/8 + 04-18 + 04-19 DRIVE-VERIFIED; Phase 5: 8/8 CODE-COMPLETE; Phase 6: 1/N in progress)
 
 ## Performance Metrics
 
@@ -363,6 +363,14 @@ Key locked-in decisions affecting current work:
 
 - **Phase 3.1 close-out (2026-07-08) — user-attested drive-verification PASS.** All 6 Phase 3.1 SCs met on-device (Samsung Galaxy S24, Android 14, One UI 7). The three code fixes shipped in Wave 2 — H1 (`_facade.start()` at three sites in 03-1-02), H2 (`TrackingCameraSync` + exhaustive FollowMode mapping in 03-1-03), H5 (battery-opt gate in `resolveCapability` in 03-1-02) — validated against the four fail modes from the 2026-07-06 failed drive. H3 + H4 hypotheses REFUTED per research; regression tripwires in 03-1-04. Short-form user-attested report (no HUD screenshot log captured) lives at `.planning/phases/03-1-tracking-fixes/03-1-DRIVE-VERIFICATION-2026-07-08.md`. Phase 5 UNBLOCKED — matcher's golden corpus can now record real trips. TRK-01..TRK-11 flipped to Complete in REQUIREMENTS.md; QUA-06 (60-min battery baseline) remains separately drive-deferred (Plan 03-07 Task 2 unchanged).
 
+- **Plan 06-01 (2026-07-09) — Naming reconciliation locked: REQUIREMENTS.md `coverage_by_region` is the logical alias for the physical Drift table `coverage_cache`.** No rename performed in Phase 6. Schema stays at v3; `lib/core/db/tables/coverage_cache_table.dart` untouched. Downstream plans/phases must stop chasing a ghost rename — the docs name is the alias.
+- **Plan 06-01 (2026-07-09) — CoverageCacheDao uses plain `DatabaseAccessor<AppDatabase>` (matches TripsDao — STATE 03-01).** No `@DriftAccessor(tables: [CoverageCache])`, no `part` file, no `daos:` list entry on `AppDatabase`. Drops in without touching `app_database.dart`. Public API: `upsert / getByRegionId / deleteByRegionIds / deleteAll / bumpInvalidationGen` — the upsert + gen-bump methods ship in P6 for Phase-8 symmetry so P8 doesn't need to reopen this file.
+- **Plan 06-01 (2026-07-09) — P6 invalidator DELETES cache rows rather than bumping `invalidation_gen`.** The gen column is Phase-8's concern; P6 removes rows outright on every trigger. `deleteByRegionIds([])` fast-paths to return 0 without issuing SQL (guards SQLite's empty-IN-list error).
+- **Plan 06-01 (2026-07-09) — Coverage-cache invalidator samples `kCoverageAdminLevels = [4, 6, 8, 10]`.** L2 (country) intentionally excluded — the full-DE row would invalidate on every trip inside Germany. L9 excluded per plan text (the plan's key-links entry specified `4/6/8/10`). Sample points per trip = 4 bbox corners + centroid = 5 points × 4 levels = 20 `AdminRegionLookup.regionAt` calls per invalidation; region IDs deduped by `osm_id` (plain string, NO level prefix — OSM relation IDs are globally unique across levels, STATE Plan 04-01 pitfall).
+- **Plan 06-01 (2026-07-09) — CoverageInvalidator missing-trip / null-bbox / no-matching-regions all short-circuit to `Ok(0)`.** Fail-matched trips (bbox is null) and re-confirms on already-invalidated trips are valid, not error paths. `Result<int>` at the boundary; non-DomainError throwables wrapped via `DomainError.wrap(e, st)` (STATE 01-04). Idempotency comes from the DELETE returning 0 on the second call — no bookkeeping.
+- **Plan 06-01 (2026-07-09) — `_loadTrip` queries `tripsDao.attachedDatabase` directly.** `TripsDao` does not expose a `getById`, and `trips_dao.dart` is not in this plan's `files_owned` — adding a method there would break Wave-1 file-ownership hygiene. Trade: one extra `select().getSingleOrNull()` in the invalidator vs a repository-layer refactor. If a future plan formalises `TripsDao.getById`, this can migrate inward. Grep tripwire: `tripsDao.attachedDatabase.select` = 1 hit in `lib/features/coverage/`.
+- **Plan 06-01 (2026-07-09) — Wave-1 hygiene held under sibling parallelism.** Sibling agent 06-03 landed 2 commits (`ae2cc5c` + `2c6bef0`) between my Task 1 and Task 2. All 3 06-01 task commits staged files INDIVIDUALLY (no `git add -A` / `git commit -a`) and touched only files in the 06-01 `files_owned` manifest. Confirms the memory `wave-2-parallel-metadata-hygiene` rule works when subagents adhere.
+
 ### Pending Todos
 
 - **Phase 5 golden-corpus real-drive batch (deferred 2026-07-08):**
@@ -450,7 +458,7 @@ Key locked-in decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-07-09 (Plan 04-19 — drive-fixes-and-phase-close-outs — COMPLETE)
-Stopped at: Plan 04-19 COMPLETE. Task commits: `bb16010` notification-hours; `a908bf4` trackingGps; `9dbc8dc` AlignNorthButton + hide MapLibre compass; `83e2c50` Phase 3 QUA-06 closed; `e60cb42` Phase 4 04-18 closed + 04-18-SUMMARY authored; `e74c6e7` Phase 5 corpus cross-ref + Phase 5.1 seed. SUMMARY.md + STATE.md + metadata commit follow.
+Last session: 2026-07-09 (Plan 06-01 — coverage cache DAO + invalidator + interval union — COMPLETE)
+Stopped at: Plan 06-01 COMPLETE. Task commits: `21423f6` interval union; `121fe2d` CoverageCacheDao; `3320a33` CoverageInvalidator + providers. SUMMARY.md + STATE.md + metadata commit follow. Sibling agent 06-03 landed 2 commits between my Task 1 + Task 2 (`ae2cc5c` + `2c6bef0`) — Wave-1 file-ownership hygiene held (files staged individually).
 Resume file: None
-Next: Phase 6 (Inbox + Match Wire-Up) planning. Reads `driven_way_intervals` keyed by `tripId`+`wayId`; inherits corpus expansion to ≥ 20 fixtures (record + fixture-ize during Phase-6 drives). Phase 5.1 seed available for authoring when Phase 7 needs live-matcher output for coverage rendering.
+Next: Phase 6 Plan 06-02 (TripsInboxRepository wiring — confirmTrip/discardTrip call CoverageInvalidator) once 06-03 sibling waves also land. Phase 6 (Inbox + Match Wire-Up) execution ongoing.
