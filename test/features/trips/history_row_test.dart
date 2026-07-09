@@ -3,6 +3,7 @@
 // pendingRoadData) + row-tap navigation.
 
 import 'package:auto_explore/core/theme/app_theme.dart';
+import 'package:auto_explore/features/matching/data/match_progress_provider.dart';
 import 'package:auto_explore/features/trips/data/trip_place_lookup_providers.dart';
 import 'package:auto_explore/features/trips/domain/trip_list_item.dart';
 import 'package:auto_explore/features/trips/domain/trip_place_lookup.dart';
@@ -41,10 +42,20 @@ final _overrides = [
         const TripPlaces(startName: 'Miltenberg', endName: 'Aschaffenburg'),
   ),
 ];
-Future<void> _pumpRow(WidgetTester tester, TripListItem item) async {
+Future<void> _pumpRow(
+  WidgetTester tester,
+  TripListItem item, {
+  Map<int, double>? progress,
+}) async {
   await tester.pumpWidget(
     ProviderScope(
-      overrides: _overrides,
+      overrides: [
+        ..._overrides,
+        if (progress != null)
+          matchProgressProvider.overrideWith(
+            () => _FixedProgressNotifier(progress),
+          ),
+      ],
       child: MaterialApp(
         theme: AppTheme.light,
         home: Scaffold(body: HistoryRow(item: item)),
@@ -52,6 +63,16 @@ Future<void> _pumpRow(WidgetTester tester, TripListItem item) async {
     ),
   );
   await tester.pump();
+}
+
+/// Test double seeding [matchProgressProvider] with a fixed map.
+class _FixedProgressNotifier extends MatchProgressNotifier {
+  _FixedProgressNotifier(this._initial);
+
+  final Map<int, double> _initial;
+
+  @override
+  Map<int, double> build() => _initial;
 }
 
 void main() {
@@ -89,6 +110,43 @@ void main() {
     );
     expect(find.text('Matching…'), findsOneWidget);
     expect(find.byType(CircularProgressIndicator), findsOneWidget);
+  });
+
+  testWidgets('in-flight with progress → determinate % + value', (
+    tester,
+  ) async {
+    await _pumpRow(
+      tester,
+      _item(id: 42, status: TripStatus.pending, intervalCount: 0),
+      progress: const {42: 0.37},
+    );
+
+    // Real percentage rendered (37% = round(0.37 * 100)).
+    expect(find.text('Matching… 37%'), findsOneWidget);
+    expect(find.text('Matching…'), findsNothing);
+
+    // The spinner is determinate: value is set.
+    final indicator = tester.widget<CircularProgressIndicator>(
+      find.byType(CircularProgressIndicator),
+    );
+    expect(indicator.value, closeTo(0.37, 1e-9));
+  });
+
+  testWidgets('in-flight without progress for this trip → indeterminate', (
+    tester,
+  ) async {
+    // Progress map holds a DIFFERENT trip; this row falls back to spinner.
+    await _pumpRow(
+      tester,
+      _item(id: 42, status: TripStatus.pending, intervalCount: 0),
+      progress: const {7: 0.5},
+    );
+
+    expect(find.text('Matching…'), findsOneWidget);
+    final indicator = tester.widget<CircularProgressIndicator>(
+      find.byType(CircularProgressIndicator),
+    );
+    expect(indicator.value, isNull, reason: 'indeterminate spinner');
   });
 
   testWidgets('row tap pushes /trips/:id', (tester) async {

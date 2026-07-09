@@ -9,6 +9,7 @@
 // Never shows rejected trips (they are hard-deleted at Discard — CONTEXT
 // deviation from ROADMAP SC4). Tapping the row navigates to /trips/:id.
 
+import 'package:auto_explore/features/matching/data/match_progress_provider.dart';
 import 'package:auto_explore/features/trips/data/trip_place_lookup_providers.dart';
 import 'package:auto_explore/features/trips/domain/trip_list_item.dart';
 import 'package:auto_explore/features/trips/presentation/widgets/trip_card.dart'
@@ -42,13 +43,19 @@ class HistoryRow extends ConsumerWidget {
 
 /// Status pill for a History row. Returns [SizedBox.shrink] for confirmed
 /// trips (no pill).
-class _StatusPill extends StatelessWidget {
+///
+/// While a trip is in-flight it watches [matchProgressProvider] for a real
+/// completion fraction streamed from the matcher isolate:
+///   * fraction present → determinate spinner + `Matching… NN%`
+///   * fraction absent  → indeterminate spinner + `Matching…` (queued /
+///     still fetching roads)
+class _StatusPill extends ConsumerWidget {
   const _StatusPill({required this.item});
 
   final TripListItem item;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
 
     if (item.isFailMatched) {
@@ -68,6 +75,34 @@ class _StatusPill extends StatelessWidget {
     }
 
     if (item.isInFlight) {
+      final fraction = ref.watch(
+        matchProgressProvider.select((m) => m[item.id]),
+      );
+      final color = theme.colorScheme.primary.withValues(alpha: 0.9);
+
+      if (fraction != null) {
+        // Real percentage streamed from the matcher isolate.
+        final percent = (fraction * 100).round();
+        return Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SizedBox(
+              width: 14,
+              height: 14,
+              child: CircularProgressIndicator(
+                value: fraction,
+                strokeWidth: 2,
+                color: color,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Text('Matching… $percent%', style: theme.textTheme.labelSmall),
+          ],
+        );
+      }
+
+      // In-flight but no progress yet (queued / fetching roads) →
+      // indeterminate spinner.
       return Row(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -76,7 +111,7 @@ class _StatusPill extends StatelessWidget {
             height: 14,
             child: CircularProgressIndicator(
               strokeWidth: 2,
-              color: theme.colorScheme.primary.withValues(alpha: 0.9),
+              color: color,
             ),
           ),
           const SizedBox(width: 8),
