@@ -1,17 +1,20 @@
-# Golden Trip Corpus (Phase 5 MMT-09)
+# Golden Trip Corpus
 
-Each subdirectory here is one recorded trip with a known-correct way-ID
-sequence. The `golden_corpus_test.dart` runner iterates over every
-subdirectory and asserts `HmmMatcher.match()` produces the expected
-sequence.
+Regression fixtures for the HMM matcher. Each subdirectory is one recorded
+drive with a known-correct way-ID sequence. `golden_corpus_test.dart`
+(`test/features/matching/`) iterates every subdirectory and asserts
+`HmmMatcher.match()` reproduces `expected_ways.json` exactly.
 
-## Layout
+## Fixture layout
 
-    {NNN}_{scenario_slug}/
-      gps_trace.json       -- input GPS trace, plain JSON array
-      ways.json.gz         -- gzipped Overpass response JSON
-      expected_ways.json   -- expected interval way-ID sequence
-      metadata.json        -- scenario, notes, recorded_at
+Each `NNN_<region>_<scenario>/` contains:
+
+    gps_trace.json       -- array of {lat, lon, accuracy, speedKmh, ts}
+    ways.json.gz         -- gzipped Overpass response for the trip's bbox
+    expected_ways.json   -- array of {wayId, direction} the matcher must produce
+    metadata.json        -- optional human notes (scenario, notes, recorded_at)
+
+`metadata.json` is NOT consumed by `golden_corpus_test.dart` — it's for triage.
 
 ## Field specifications
 
@@ -21,29 +24,31 @@ Plain JSON array of fix objects:
 
 ```json
 [
-  {
-    "lat": 49.7,
-    "lon": 9.0,
-    "accuracy": 5.0,
-    "speedKmh": 60.0,
-    "ts": "2026-07-08T10:00:00.000Z"
-  }
+  {"lat": 49.7, "lon": 9.0, "accuracy": 5.0, "speedKmh": 60.0, "ts": "2026-07-08T10:00:00.000Z"}
 ]
 ```
 
-| Field | Type | Required | Notes |
-|-------|------|----------|-------|
-| `lat` | number | yes | WGS84 latitude |
-| `lon` | number | yes | WGS84 longitude |
-| `accuracy` | number | no | Horizontal accuracy in metres; omit or null = NaN |
-| `speedKmh` | number | no | Speed in km/h; defaults to 0.0 |
-| `ts` | string | yes | ISO-8601 timestamp (UTC Z suffix) |
+| Field      | Type   | Required | Notes                                        |
+| ---------- | ------ | -------- | -------------------------------------------- |
+| `lat`      | number | yes      | WGS84 latitude                               |
+| `lon`      | number | yes      | WGS84 longitude                              |
+| `accuracy` | number | no       | Horizontal accuracy in metres; null = NaN    |
+| `speedKmh` | number | no       | Speed in km/h; defaults to 0.0               |
+| `ts`       | string | yes      | ISO-8601 timestamp (UTC `Z` suffix)          |
 
 ### ways.json.gz
 
-Gzipped Overpass JSON response (same format as `out geom;` endpoint).
-Produced by `tool/osm_pipeline/bin/save_trip_fixture.dart` for real drives
-or hand-authored for synthetic fixtures.
+Gzipped Overpass `out geom;`-shaped JSON envelope
+(`{"version":0.6,"elements":[{"type":"way","id":..,"geometry":[..],"tags":{..}}]}`).
+
+`GoldenFixtureExporter` writes the RAW ways for the trip's **bbox** — obtained
+via `WayCandidateSource.fetchWaysInBbox` — NOT the corridor-filtered subset the
+`TripMatchCoordinator` feeds the matcher. Capturing the full bbox input is what
+makes the fixture a faithful regression: `golden_corpus_test.dart` re-derives
+the corridor filter itself. The exporter re-emits the envelope from parsed
+`WayCandidate`s (the per-tile cache bytes can't be concatenated into one valid
+envelope), and its round-trip unit test proves the re-emitted shape parses
+cleanly through `FixtureWayCandidateSource.fromGzippedOverpassJson`.
 
 ### expected_ways.json
 
@@ -54,63 +59,74 @@ or hand-authored for synthetic fixtures.
 ]
 ```
 
-`direction` is `"forward"` (along stored node order) or `"backward"`.
-Each entry corresponds to one `DrivenWayIntervalDraft` output from
-`HmmMatcher.match()`. The test asserts that the produced `result.intervals`
-wayId sequence matches this list exactly.
+`direction` is `"forward"` (along stored node order) or `"backward"`. Each
+entry corresponds to one interval output from `HmmMatcher.match()`; the test
+asserts the produced `result.intervals` wayId sequence equals this list.
 
 ### metadata.json
 
 ```json
-{
-  "scenario": "synthetic_straight_east",
-  "notes": "Human-readable description of the scenario.",
-  "recorded_at": "2026-07-08"
-}
+{"scenario": "kleinheubach_roundabout", "notes": "...", "recorded_at": "2026-07-09"}
 ```
 
-## Adding a new fixture
+## Recording a new fixture (workflow)
 
-1. Drive the scenario, recording via the app.
-2. Export the trip's `trip_points` as `gps_trace.json` (via debug HUD or
-   Drift dump).
-3. Run `dart run osm_pipeline:save_trip_fixture --trace path/to/gps_trace.json`
-   (requires internet — hits Overpass). Writes `ways.json.gz`.
-4. Run the matcher manually against the fixture, inspect the intervals,
-   write `expected_ways.json` after visual verification.
-5. Commit all four files.
+1. Run the app in `--debug` or `--profile` (see
+   `.claude/memory/fgb-license-and-release-builds.md` — release builds have
+   degraded tracking and the export FAB is tree-shaken out).
+2. Drive the scenario.
+3. Open the Trips tab → History → tap the trip → **TripDetailScreen**.
+4. Tap the **Export fixture** FAB (visible only in `kDebugMode`).
+5. Enter a slug of the form `NNN_<region>_<scenario>` — e.g.
+   `002_kleinheubach_roundabout`, `003_gymtrip_a3_northbound`. The exporter
+   rejects anything that doesn't match `^\d{3}_[a-z0-9_]+$`.
+6. Files land at `<AppDocs>/golden_export/<slug>/` on the device. The SnackBar
+   shows the absolute path.
+7. Pull the directory to `test/fixtures/golden_trips/` on your dev machine:
+   - **Android:** `adb pull /data/data/de.autoexplore.auto_explore/app_flutter/golden_export/`
+     (or `/data/user/0/…` — same path). Use `adb exec-out run-as` for a
+     non-rooted device if the direct pull is denied.
+   - **iOS Simulator:** `~/Library/Developer/CoreSimulator/Devices/<id>/data/Containers/Data/Application/<id>/Documents/golden_export/`
+8. Verify: `flutter test test/features/matching/golden_corpus_test.dart` — the
+   new fixture must pass WITHOUT matcher changes. If it fails, either the
+   matcher regressed OR the recorded intervals are bogus — inspect before
+   committing (the fixture is the oracle; don't hand-edit `expected_ways.json`
+   to make a red test green).
+9. Commit the four files under `test/fixtures/golden_trips/NNN_<slug>/`.
 
-## Required scenarios (MMT-09 — ≥ 20 total)
+## Slug conventions
 
-| # | Slug template | Scenario |
-|---|---------------|----------|
-| 1–3 | `NNN_autobahn_*` | Autobahn forward |
-| 4–5 | `NNN_bundesstrasse_*` | Bundesstraße mixed class |
-| 6–7 | `NNN_kreisel_*_entry` | Kreisverkehr entry/exit |
-| 8–9 | `NNN_kreisel_*_loop` | Full-loop roundabout |
-| 10–11 | `NNN_tunnel_*` | Tunnel GPS blackout |
-| 12–13 | `NNN_parking_*` | Parking lot approach |
-| 14–15 | `NNN_uturn_*` | U-turn on narrow street |
-| 16–17 | `NNN_citygrid_*` | Dense city grid |
-| 18–19 | `NNN_roundabout_*` | Roundabout with straight exit |
-| 20 | `NNN_einbahn_*` | One-way pair |
+- Zero-padded 3-digit index (`001`, `002`, …).
+- Region: `kleinheubach`, `miltenberg`, `gymtrip`, `aschaffenburg`, …
+- Scenario: `roundabout`, `straight`, `intersection`, `bridge`, `tunnel`,
+  `motorway`, `field_road`, `citygrid`, `uturn`, …
 
-## Phase 5 close-out follow-up drives (deferred)
+## Coverage goal (Phase 6)
 
-Phase 5 SC3 requires ≥ 5 seed fixtures at close-out. Task 1 shipped
-fixture `001_synthetic_straight_east/` (synthetic). The remaining 4
-real-drive fixtures are deferred to an out-of-band drive-batch so
-Phase 5 could run end-to-end unattended (overnight execution).
+Target **≥ 20 fixtures** by phase close-out (inherited from Phase 5 MMT-09).
+Minimum acceptable at the first drive batch: **3–5 seed fixtures** across
+distinct road types (motorway, town roundabout, rural cross-junction).
 
-Scenarios to record (one fixture each — bring corpus to 5 total):
+Fixture accumulation is a **best-effort dogfooding goal** requiring real
+drives — the export *tooling* is the hard deliverable of Plan 06-06; the
+fixtures themselves land organically during the Phase 6 close-out drive batch
+(see `.planning/phases/06-inbox-match-wire-up/06-06-SUMMARY.md`).
 
-| Slug | Scenario | Estimated drive |
-|------|----------|-----------------|
-| `002_autobahn_forward` | Autobahn forward, ≥ 5 min at ≥ 100 km/h | A3 or A45 nearest ramp |
-| `003_kreisel_entry_exit` | Kreisverkehr entry + full-loop + exit | Any nearby Kreisel; loop twice |
-| `004_city_grid` | Dense city grid (≥ 20 turns) | Aschaffenburg / Frankfurt centre |
-| `005_bundesstrasse_mixed` | Bundesstraße with mixed class transitions | B26 or B469 |
+### Suggested seed scenarios
 
-For each fixture, follow the "Adding a new fixture" workflow above.
-Once all 4 land, Phase 5 SC3 (≥ 5 seeds) is satisfied. Corpus growth
-to ≥ 20 continues in Phase 6+ per roadmap.
+| # | Slug template          | Scenario                         |
+|---|------------------------|----------------------------------|
+| 1–3 | `NNN_autobahn_*`     | Autobahn forward                 |
+| 4–5 | `NNN_bundesstrasse_*`| Bundesstraße mixed class         |
+| 6–7 | `NNN_kreisel_*`      | Kreisverkehr entry/exit + loop   |
+| 8–9 | `NNN_tunnel_*`       | Tunnel GPS blackout              |
+| 10+ | `NNN_citygrid_*`     | Dense city grid, U-turns, one-way|
+
+## Known limitations
+
+- Fixtures embed the Overpass extract snapshot at record time. If OSM data
+  changes upstream, `expected_ways` may drift; refresh the fixture (delete +
+  re-record) rather than editing it by hand.
+- `ways.json.gz` is stored gzipped — hex-diffing before commit is unhelpful.
+- The synthetic seed `001_synthetic_straight_east/` was hand-authored (not
+  exported from a drive); it verifies the harness works with a trivial trace.
