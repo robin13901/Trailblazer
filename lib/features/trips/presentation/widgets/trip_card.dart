@@ -1,9 +1,9 @@
 // Trailblazer Phase 6, Plan 06-05 Task 1:
 // TripCard — one Inbox card per pending (matched) trip.
 //
-// Shows a static-map thumbnail, place names, date/time · duration · distance,
-// a DORMANT vehicle chip (P9 populates it), and Keep + Discard buttons. The
-// whole card surface is tappable → /trips/:id.
+// Shows place names, date/time · duration · distance, a DORMANT vehicle chip
+// (P9 populates it), and Keep + Discard buttons. The whole card surface is
+// tappable → /trips/:id.
 //
 // Keep flips status matched→confirmed silently (no toast on success). Discard
 // shows a confirmation modal; on confirm it runs the repository's ordered
@@ -14,7 +14,6 @@ import 'package:auto_explore/features/trips/data/trip_place_lookup_providers.dar
 import 'package:auto_explore/features/trips/data/trips_repository_inbox_extensions.dart';
 import 'package:auto_explore/features/trips/domain/trip_list_item.dart';
 import 'package:auto_explore/features/trips/presentation/widgets/discard_confirmation_dialog.dart';
-import 'package:auto_explore/features/trips/presentation/widgets/trip_thumbnail.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -186,7 +185,6 @@ class _TripCardState extends ConsumerState<TripCard> {
   Widget build(BuildContext context) {
     final item = widget.item;
     final theme = Theme.of(context);
-    final bounds = tripBounds(item);
 
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
@@ -196,9 +194,8 @@ class _TripCardState extends ConsumerState<TripCard> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            _thumbnail(item, bounds),
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -237,24 +234,6 @@ class _TripCardState extends ConsumerState<TripCard> {
           ],
         ),
       ),
-    );
-  }
-
-  Widget _thumbnail(TripListItem item, LatLngBounds? bounds) {
-    if (bounds == null) {
-      // No geometry to render — show a neutral placeholder band.
-      return Container(
-        height: 120,
-        color: Theme.of(context)
-            .colorScheme
-            .surfaceContainerHighest
-            .withValues(alpha: 0.5),
-      );
-    }
-    return TripThumbnail(
-      tripId: item.id,
-      polyline: tripEndpoints(item),
-      bbox: bounds,
     );
   }
 }
