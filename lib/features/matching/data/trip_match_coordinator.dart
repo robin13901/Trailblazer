@@ -10,6 +10,7 @@ import 'package:auto_explore/features/matching/data/matcher_isolate.dart';
 import 'package:auto_explore/features/matching/data/way_candidate_source.dart';
 import 'package:auto_explore/features/matching/domain/driven_way_interval_draft.dart';
 import 'package:auto_explore/features/matching/domain/gps_fix.dart';
+import 'package:auto_explore/features/matching/domain/way_corridor_filter.dart';
 import 'package:auto_explore/features/trips/data/trips_dao.dart';
 import 'package:auto_explore/features/trips/data/trips_repository.dart';
 import 'package:drift/drift.dart' show Value;
@@ -120,11 +121,23 @@ class TripMatchCoordinator {
         )
         .toList(growable: false);
 
+    // Corridor pre-filter (Plan 06-07): a long trip's bbox can contain tens of
+    // thousands of ways (measured: 29,497 / 13.7 MB for a 96 km commute).
+    // Shipping all of them across the isolate boundary + R-Tree-indexing them
+    // on top of the resident ~529 MB MapLibre GL surface OOM-kills the app.
+    // Keep only ways within ~one grid cell of the actual trip path — a ~20x
+    // reduction with no matchable-road loss (the matcher's own candidate
+    // radius is 25 m, far tighter than this corridor).
+    final corridorWays = filterWaysToTripCorridor(fixes: fixes, ways: ways);
+    _log.info(
+      'trip $tripId corridor filter: ${ways.length} → ${corridorWays.length} ways',
+    );
+
     try {
       final result = await _isolate.match(
         tripId: tripId,
         fixes: fixes,
-        ways: ways,
+        ways: corridorWays,
       );
       await _writeIntervals(tripId, result.intervals);
       await _tripsRepository.transitionToMatched(tripId);
