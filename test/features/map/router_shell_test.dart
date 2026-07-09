@@ -5,6 +5,8 @@ import 'package:auto_explore/features/map/presentation/providers/map_style_provi
 import 'package:auto_explore/features/map/presentation/widgets/bottom_nav_shell.dart';
 import 'package:auto_explore/features/map/presentation/widgets/focus_area_pill.dart';
 import 'package:auto_explore/features/onboarding/data/onboarding_flag_repository.dart';
+import 'package:auto_explore/features/trips/domain/trip_list_item.dart';
+import 'package:auto_explore/features/trips/presentation/providers/inbox_providers.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:maplibre_gl/maplibre_gl.dart';
@@ -55,6 +57,18 @@ Future<void> pumpAppAtMapShell(WidgetTester tester) async {
             apiKey: 'test-key',
           ),
         ),
+        // Trips tab (06-05) mounts the real TripsScreen, whose Inbox/History
+        // tabs watch Drift-backed streams + compute()-backed reverse-geocoding.
+        // Override the three inbox streams with empty/zero so the tab settles
+        // instantly to its empty state instead of hanging pumpAndSettle on a
+        // never-completing DB/isolate future.
+        inboxTripsProvider.overrideWith(
+          (ref) => Stream.value(const <TripListItem>[]),
+        ),
+        historyTripsProvider.overrideWith(
+          (ref) => Stream.value(const <TripListItem>[]),
+        ),
+        inFlightCountProvider.overrideWith((ref) => Stream.value(0)),
       ],
       child: const App(),
     ),
@@ -80,9 +94,9 @@ void main() {
         // Map tab active: chrome is visible.
         expect(find.byType(FocusAreaPill), findsOneWidget);
         expect(find.byType(BottomNavShell), findsOneWidget);
-        // Onboarding and Trips placeholder text are NOT present.
+        // Onboarding text + the Inbox empty-state are NOT present on the map.
         expect(find.text('Welcome to Trailblazer'), findsNothing);
-        expect(find.text('Trips inbox comes in Phase 6.'), findsNothing);
+        expect(find.text('No trips waiting'), findsNothing);
       },
     );
 
@@ -95,8 +109,11 @@ void main() {
       await tester.tap(find.text('Trips'));
       await tester.pumpAndSettle();
 
-      // TripsScreen placeholder text is visible.
-      expect(find.text('Trips inbox comes in Phase 6.'), findsOneWidget);
+      // Real TripsScreen (06-05) is visible: both Inbox/History sub-tab
+      // labels render regardless of which tab lands active (streams are
+      // overridden to empty above, so this settles instantly).
+      expect(find.text('Inbox'), findsOneWidget);
+      expect(find.text('History'), findsOneWidget);
       // Bottom nav pill is still visible (always rendered).
       expect(find.byType(BottomNavShell), findsOneWidget);
       // Chrome is hidden on non-map tabs.
@@ -116,8 +133,8 @@ void main() {
 
       // Map chrome is visible again.
       expect(find.byType(FocusAreaPill), findsOneWidget);
-      // TripsScreen text is gone.
-      expect(find.text('Trips inbox comes in Phase 6.'), findsNothing);
+      // TripsScreen empty-state is gone.
+      expect(find.text('No trips waiting'), findsNothing);
     });
 
     testWidgets('tapping Regions tab shows RegionsScreen placeholder', (
