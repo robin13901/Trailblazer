@@ -54,9 +54,15 @@ class HmmMatcher {
   ///
   /// Empty [fixes] → empty [MatchResult] with zero intervals.
   /// Empty [ways] → all fixes dropped (no candidates), empty intervals.
+  ///
+  /// [onProgress], when non-null, is forwarded to [ViterbiDecoder.decode] and
+  /// invoked periodically with `(processed, total)` during the forward pass
+  /// (`total == fixes.length`). It is a no-op when null and produces no
+  /// behaviour change relative to the null case.
   MatchResult match({
     required List<GpsFix> fixes,
     required List<WayCandidate> ways,
+    void Function(int processed, int total)? onProgress,
   }) {
     if (fixes.isEmpty) {
       return const MatchResult(
@@ -76,7 +82,7 @@ class HmmMatcher {
       betaMeters: betaMeters,
       beamWidth: beamWidth,
     );
-    final steps = decoder.decode(fixes, index);
+    final steps = decoder.decode(fixes, index, onProgress: onProgress);
 
     final intervals = _collapseToIntervals(steps, waysById);
 

@@ -51,6 +51,12 @@ class MatcherIsolate {
   /// Maps jobSeq → Completer awaiting the worker's reply.
   final _pending = <int, Completer<MatchResult>>{};
 
+  /// Maps jobSeq → caller-supplied progress callback. Populated by [match]
+  /// when `onProgress` is non-null; invoked when a [MatchJobProgress] for the
+  /// job arrives; removed on completion/error/cancel (same lifecycle as
+  /// [_pending]).
+  final _progress = <int, void Function(int processed, int total)>{};
+
   int _seq = 0;
   bool _started = false;
 
@@ -67,8 +73,16 @@ class MatcherIsolate {
         if (!ready.isCompleted) ready.complete(msg);
         return;
       }
+      if (msg is MatchJobProgress) {
+        // In-flight progress update: forward to the caller's callback (if any).
+        // Progress messages flow on the same mainPort as MatchJobReply.
+        final cb = _progress[msg.jobSeq];
+        cb?.call(msg.processed, msg.total);
+        return;
+      }
       if (msg is MatchJobReply) {
         final comp = _pending.remove(msg.jobSeq);
+        _progress.remove(msg.jobSeq);
         if (comp == null) return; // stale reply after dispose
         if (msg.cancelled) {
           // The worker cancelled this job; complete with the exception.
@@ -98,10 +112,16 @@ class MatcherIsolate {
   ///
   /// Multiple calls may be in flight concurrently; each future is
   /// independently resolved via the jobSeq correlation key.
+  ///
+  /// [onProgress], when non-null, is invoked on the main isolate with
+  /// `(processed, total)` each time the worker emits a [MatchJobProgress] for
+  /// this job (`total` is the fix count). The callback is cleaned up
+  /// automatically when the job completes, errors, or is cancelled.
   Future<MatchResult> match({
     required int tripId,
     required List<GpsFix> fixes,
     required List<WayCandidate> ways,
+    void Function(int processed, int total)? onProgress,
   }) {
     if (!_started) throw StateError('MatcherIsolate not started');
     final seq = ++_seq;
@@ -113,6 +133,7 @@ class MatcherIsolate {
     );
     final comp = Completer<MatchResult>();
     _pending[seq] = comp;
+    if (onProgress != null) _progress[seq] = onProgress;
     _workerPort!.send(job);
     return comp.future;
   }
@@ -136,6 +157,7 @@ class MatcherIsolate {
   void dispose() {
     _isolate?.kill(priority: Isolate.immediate);
     _mainPort.close();
+    _progress.clear();
     _started = false;
     _log.info('matcher isolate disposed');
   }
@@ -182,7 +204,19 @@ void _matcherWorker(SendPort mainPort) {
         return;
       }
       try {
-        final result = matcher.match(fixes: msg.fixes, ways: msg.ways);
+        final result = matcher.match(
+          fixes: msg.fixes,
+          ways: msg.ways,
+          onProgress: (processed, total) {
+            mainPort.send(
+              MatchJobProgress(
+                jobSeq: msg.jobSeq,
+                processed: processed,
+                total: total,
+              ),
+            );
+          },
+        );
         mainPort.send(MatchJobReply(jobSeq: msg.jobSeq, result: result));
       } on Object catch (e) {
         mainPort.send(MatchJobReply(jobSeq: msg.jobSeq, error: e));

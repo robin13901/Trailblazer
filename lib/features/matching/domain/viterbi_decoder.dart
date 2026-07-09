@@ -63,6 +63,11 @@ const Set<String> kHighClassHighwaysForSpeedGuard = {
   'trunk_link',
 };
 
+/// Progress-callback stride: emit `onProgress` every this-many fixes during
+/// the forward pass (plus always on the final fix). Keeps isolate-boundary
+/// traffic bounded on long traces without losing perceptible smoothness.
+const int _kProgressStride = 128;
+
 // ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
@@ -98,7 +103,18 @@ class ViterbiDecoder {
   /// 1. Forward pass builds a trellis of per-fix [_State] lists.
   /// 2. Backward pass traces back per-sub-track and writes `MatchedStep`
   ///    values. Sub-tracks are separated by gap resets or empty steps.
-  List<MatchedStep?> decode(List<GpsFix> fixes, WaySegmentIndex index) {
+  ///
+  /// [onProgress], when non-null, is invoked periodically during the forward
+  /// pass with `(processed, total)` where `total == fixes.length` and
+  /// `processed` is the number of fixes processed so far (1-based). It is
+  /// throttled — called every [_kProgressStride] fixes AND on the final fix —
+  /// to avoid flooding the isolate boundary. When null it is a no-op and all
+  /// existing behaviour/outputs are preserved exactly.
+  List<MatchedStep?> decode(
+    List<GpsFix> fixes,
+    WaySegmentIndex index, {
+    void Function(int processed, int total)? onProgress,
+  }) {
     if (fixes.isEmpty) return const [];
 
     // ------------------------------------------------------------------
@@ -107,6 +123,13 @@ class ViterbiDecoder {
     final trellis = <List<_State>>[];
 
     for (var step = 0; step < fixes.length; step++) {
+      // Throttled progress: every _kProgressStride fixes AND on the final fix.
+      // processed is 1-based (number of fixes seen so far). No-op when null.
+      if (onProgress != null &&
+          ((step + 1) % _kProgressStride == 0 || step == fixes.length - 1)) {
+        onProgress(step + 1, fixes.length);
+      }
+
       final fix = fixes[step];
 
       // Adaptive sigma: max(kEmissionSigmaMeters, accuracyMeters / 2).

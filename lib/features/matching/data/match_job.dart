@@ -50,6 +50,38 @@ class MatchJob {
   final List<WayCandidate> ways;
 }
 
+/// Progress update sent back from the worker isolate to the main isolate
+/// while a matching job is in flight.
+///
+/// Flows on the SAME `mainPort` as [MatchJobReply]; the main-side listener
+/// discriminates on runtime type. All fields are primitives — trivially
+/// Sendable across the isolate boundary (no closures, no Futures, no Drift
+/// objects).
+///
+/// A job may emit zero or more [MatchJobProgress] messages before its single
+/// terminal [MatchJobReply]. `processed` is monotonically increasing and
+/// `processed <= total`; the final in-flight update satisfies
+/// `processed == total`.
+@immutable
+class MatchJobProgress {
+  const MatchJobProgress({
+    required this.jobSeq,
+    required this.processed,
+    required this.total,
+  });
+
+  /// Sequence number of the [MatchJob] this progress belongs to. Correlates
+  /// the update with the caller-supplied `onProgress` callback on the main
+  /// side.
+  final int jobSeq;
+
+  /// Number of fixes processed so far (1-based, `<= total`).
+  final int processed;
+
+  /// Total number of fixes in the job (`fixes.length`).
+  final int total;
+}
+
 /// Reply sent back from the worker isolate to the main isolate for one job.
 @immutable
 class MatchJobReply {

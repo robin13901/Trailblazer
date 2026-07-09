@@ -557,6 +557,80 @@ void main() {
   });
 
   // ---------------------------------------------------------------------------
+  // Test 13: onProgress fires with monotonic processed + final == total
+  // ---------------------------------------------------------------------------
+  test('13. onProgress: monotonic increasing processed, final equals total',
+      () {
+    // 300 fixes crosses the 128-fix stride twice (128, 256, 300).
+    const n = 300;
+    final way = eastWestWay(wayId: 13, latBase: 49, lonStart: 9, lonEnd: 9.05);
+    final index = WaySegmentIndex.buildFromWays([way]);
+    const decoder = ViterbiDecoder();
+
+    final fixes = eastBoundFixes(
+      lat: 49,
+      lonStart: 9.0001,
+      lonEnd: 9.049,
+      count: n,
+    );
+
+    final calls = <(int, int)>[];
+    decoder.decode(
+      fixes,
+      index,
+      onProgress: (processed, total) => calls.add((processed, total)),
+    );
+
+    // At least one throttled emission + the final one.
+    expect(calls, isNotEmpty);
+
+    // total is always the fix count.
+    for (final (_, total) in calls) {
+      expect(total, equals(n));
+    }
+
+    // processed is strictly increasing.
+    for (var i = 1; i < calls.length; i++) {
+      expect(
+        calls[i].$1,
+        greaterThan(calls[i - 1].$1),
+        reason: 'processed must be monotonically increasing',
+      );
+    }
+
+    // processed stays within (0, total].
+    for (final (processed, _) in calls) {
+      expect(processed, greaterThan(0));
+      expect(processed, lessThanOrEqualTo(n));
+    }
+
+    // The last emission reports full completion.
+    expect(calls.last.$1, equals(n));
+    expect(calls.last.$2, equals(n));
+  });
+
+  test('13b. onProgress null is a no-op and preserves output', () {
+    final way = eastWestWay(wayId: 14, latBase: 49, lonStart: 9, lonEnd: 9.01);
+    final index = WaySegmentIndex.buildFromWays([way]);
+    const decoder = ViterbiDecoder();
+    final fixes = eastBoundFixes(
+      lat: 49,
+      lonStart: 9.0001,
+      lonEnd: 9.009,
+      count: 10,
+    );
+
+    final withNull = decoder.decode(fixes, index);
+    final withCb = decoder.decode(fixes, index, onProgress: (_, _) {});
+
+    expect(withCb.length, equals(withNull.length));
+    for (var i = 0; i < withNull.length; i++) {
+      expect(withCb[i]?.wayId, equals(withNull[i]?.wayId));
+      expect(withCb[i]?.segIdx, equals(withNull[i]?.segIdx));
+    }
+  });
+
+  // ---------------------------------------------------------------------------
   // Constants group
   // ---------------------------------------------------------------------------
   group('exported constants', () {

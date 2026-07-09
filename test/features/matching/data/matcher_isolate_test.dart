@@ -262,17 +262,45 @@ void main() {
     );
 
     // -------------------------------------------------------------------------
-    // Test 4: dispose without hanging
+    // Test 5: onProgress fires during a long job
     // -------------------------------------------------------------------------
     test(
-      '4. dispose without hanging — start then dispose (no jobs) is clean',
+      '5. onProgress — callback fires with processed<=total during match',
       timeout: const Timeout(Duration(seconds: 30)),
       () async {
         final iso = MatcherIsolate();
+        addTearDown(iso.dispose);
         await iso.start();
 
-        // Should not throw, not hang.
-        expect(iso.dispose, returnsNormally);
+        // A long east way + 300 fixes along it crosses the 128-fix decoder
+        // progress stride, so at least one MatchJobProgress is emitted.
+        final way = WayCandidate(
+          wayId: 1,
+          highwayClass: 'residential',
+          geometry: [_ll(0, 0), _ll(0, 3000)],
+        );
+        final fixes = <GpsFix>[
+          for (var i = 0; i < 300; i++)
+            _fix(0, 10.0 + i * 10, dtSecs: i),
+        ];
+
+        final calls = <(int, int)>[];
+        final result = await iso.match(
+          tripId: 1,
+          fixes: fixes,
+          ways: [way],
+          onProgress: (processed, total) => calls.add((processed, total)),
+        );
+
+        expect(result, isNotNull);
+        expect(calls, isNotEmpty, reason: 'progress must fire for a long job');
+        for (final (processed, total) in calls) {
+          expect(total, equals(fixes.length));
+          expect(processed, greaterThan(0));
+          expect(processed, lessThanOrEqualTo(total));
+        }
+        // Final progress reports full completion.
+        expect(calls.last.$1, equals(fixes.length));
       },
     );
   });
