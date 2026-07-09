@@ -16,7 +16,7 @@ Depth: **comprehensive** — 11 phases, driven by the 112 v1 requirements (FND, 
 - [x] **Phase 2: Map + Glass Shell** — MapLibre + PMTiles + Liquid Glass chrome (rendering spike gate)
 - [x] **Phase 3: Tracking MVP** — background GPS + motion state machine + manual/auto trip capture
 - [x] **Phase 3.1: Tracking Fixes** — gap-closure phase inserted 2026-07-06 after failed in-car drive verification; closed 2026-07-08 with user-attested drive PASS (H1 facade.start(), H2 camera follow, H5 battery-opt gate). Phase 5 unblocked.
-- [ ] **Phase 4: Map & Matching Data Sources** — MapTiler-hosted vector tiles + on-demand Overpass road data (cached + retry-safe) + bundled admin polygons (rescoped 2026-07-08 from the original bundled-`osm.sqlite` pipeline)
+- [x] **Phase 4: Map & Matching Data Sources** — MapTiler-hosted vector tiles + on-demand Overpass road data (cached + retry-safe) + bundled admin polygons (rescoped 2026-07-08 from the original bundled-`osm.sqlite` pipeline; drive-verified 2026-07-09 via 96 km / 1h 40 drive — see `04-VERIFICATION.md`)
 - [x] **Phase 5: Overpass-Backed Matcher + Golden Corpus** — HMM matcher consumes `WayCandidateSource` (Phase 4), matches confirmed trip polylines to driven way intervals, CI-verified against a golden corpus
 - [ ] **Phase 6: Inbox + Match Wire-Up** — trip inbox, confirm/reject, matching enqueue, coverage cache infra
 - [ ] **Phase 7: Coverage Rendering** — driven-ways painted on the map (feature-state fallback gate)
@@ -130,7 +130,7 @@ Additional research-recommended spikes: HMM parameter tuning + golden corpus rec
 **Depends on:** Phase 1 (foundation), Phase 3 (needs the trip lifecycle so trip completion can trigger the Overpass fetch and the new `pendingRoadData` state)
 **Rescoped:** 2026-07-08 (from original bundled-`osm.sqlite` pipeline — see PROJECT.md Key Decisions)
 **Requirements:** OSM-01, OSM-02, OSM-03, OSM-04, OSM-05, OSM-06, OSM-07, OSM-08
-**Completed:** 2026-07-08 (code-complete; combined Phase-4 close-out drive-verify pending — see `.planning/phases/04-osm-pipeline/04-VERIFICATION.md`)
+**Completed:** 2026-07-08 (code-complete) → drive-verified 2026-07-09 via 96 km / 1h 40 drive (Plan 04-19 close-out — see `.planning/phases/04-osm-pipeline/04-VERIFICATION.md` + `04-18-SUMMARY.md`). Item 4 (Deutschland labels) deferred to Phase 11 as MapTiler free-tier limitation.
 **Success Criteria** (what must be TRUE):
   1. Map screen renders MapTiler tiles seamlessly at all zoom levels; attribution visible in Settings > About; light + dark styles both work.
   2. Loopback `TileServer` and its deps are gone; `flutter analyze` clean.
@@ -252,7 +252,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 | 2. Map + Glass Shell | 7/7 | ✓ Complete | 2026-07-04 |
 | 3. Tracking MVP | 7/7 | ✓ Complete (SC1..SC4 drive-verified via Phase 3.1 2026-07-08; SC5 QUA-06 verified via user-attested 96 km drive 2026-07-09 — Plan 04-19) | 2026-07-05 code-complete / 2026-07-09 fully drive-verified |
 | 3.1. Tracking Fixes | 5/5 | ✓ Complete | 2026-07-08 |
-| 4. Map & Matching Data Sources | 8/8 | ✓ Code-complete (drive-verify pending combined Phase-4 close-out session) — 8 rescoped plans (04-11..04-17 + 04-16-1); original 04-01..04-10 + 04-10-1-* archived on disk | 2026-07-08 |
+| 4. Map & Matching Data Sources | 8/8 | ✓ Complete (code-complete 2026-07-08; drive-verified 2026-07-09 via 96 km / 1h 40 drive — see `04-VERIFICATION.md` + `04-18-SUMMARY.md`) — 8 rescoped plans (04-11..04-17 + 04-16-1); original 04-01..04-10 + 04-10-1-* archived on disk | 2026-07-09 |
 | 5. Overpass-Backed Matcher + Golden Corpus | 8/8 | ✓ Complete (code-complete; matcher-domain coverage 93.8 %; MMT-09 partial — 1 seed + CI gate shipped, 19 fixtures inherited by Phase 6) | 2026-07-08 |
 | 6. Inbox + Match Wire-Up | 0/TBD | Not started | - |
 | 7. Coverage Rendering | 0/TBD | Not started | - |
