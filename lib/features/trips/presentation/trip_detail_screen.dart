@@ -33,6 +33,7 @@ import 'package:auto_explore/features/trips/data/trips_dao_inbox_queries.dart';
 import 'package:auto_explore/features/trips/data/trips_repository_inbox_extensions.dart';
 import 'package:auto_explore/features/trips/data/trips_repository_providers.dart';
 import 'package:auto_explore/features/trips/domain/haversine.dart';
+import 'package:auto_explore/features/trips/presentation/widgets/debug_export_button.dart';
 import 'package:auto_explore/features/trips/presentation/widgets/discard_confirmation_dialog.dart';
 import 'package:auto_explore/features/trips/presentation/widgets/trip_card.dart'
     show formatDistance, formatDuration, tripBounds;
@@ -321,6 +322,9 @@ class _TripDetailScreenState extends ConsumerState<TripDetailScreen> {
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => _ErrorBody(message: '$e'),
       ),
+      // Debug-only golden-fixture export. Absent in release/profile builds
+      // (kDebugMode short-circuits inside the widget).
+      floatingActionButton: DebugExportButton(tripId: widget.tripId),
     );
   }
 
