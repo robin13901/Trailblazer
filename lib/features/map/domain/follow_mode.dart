@@ -12,7 +12,12 @@ enum FollowMode {
   /// rotation — user rotation gestures are preserved.
   location,
 
-  /// Phase-3 only: camera follows current location AND rotates to match
-  /// current heading (bearing-lock while driving).
+  /// GPS-heading follow (map rotates to match motion bearing).
+  ///
+  /// Active during a recording trip. Maps to
+  /// `MyLocationTrackingMode.trackingGps` in the widget layer (Plan 04-19):
+  /// uses the motion-vector bearing computed from consecutive GPS fixes,
+  /// not the device compass — car metal + phone-mount magnets deflect
+  /// compass readings by 20-90° in a typical vehicle.
   locationAndHeading,
 }

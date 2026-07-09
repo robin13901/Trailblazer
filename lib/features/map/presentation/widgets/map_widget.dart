@@ -137,13 +137,22 @@ class _MapWidgetState extends ConsumerState<MapWidget>
       orElse: () => false,
     );
     // Exhaustive FollowMode -> MyLocationTrackingMode mapping.
-    // Reserving locationAndHeading -> trackingCompass closes the second
-    // bug from 03-1-RESEARCH §3.3 (previously both location and
-    // locationAndHeading collapsed to .tracking).
+    //
+    // Plan 04-19 (2026-07-09 drive fix): locationAndHeading maps to
+    // MyLocationTrackingMode.trackingGps. Rationale: the metal shell of a
+    // car + magnets in typical phone mounts routinely deflect the device
+    // compass reading by 20-90°. The GPS-motion-vector bearing is the
+    // correct in-vehicle choice — accurate whenever the vehicle is
+    // moving, which is the only regime that matters here.
+    //
+    // TODO(phase-5.1): road-snap heading hybrid — when the live matcher is
+    // confident about the current way, override GPS heading with the way's
+    // local bearing. Requires live-matching, currently out of scope
+    // (Phase 5 matcher runs on-trip-stop only).
     final trackingMode = switch (cameraState.followMode) {
       FollowMode.none => MyLocationTrackingMode.none,
       FollowMode.location => MyLocationTrackingMode.tracking,
-      FollowMode.locationAndHeading => MyLocationTrackingMode.trackingCompass,
+      FollowMode.locationAndHeading => MyLocationTrackingMode.trackingGps,
     };
 
     return MapStyleFade(
@@ -166,8 +175,9 @@ class _MapWidgetState extends ConsumerState<MapWidget>
             ? MyLocationRenderMode.compass
             : MyLocationRenderMode.normal,
         // Follow mode: driven by FollowMode → MyLocationTrackingMode
-        // switch above. locationAndHeading reaches .trackingCompass so
-        // the map heading-locks during a recording session.
+        // switch above. locationAndHeading reaches .trackingGps so the
+        // map heading-locks to the GPS-derived motion bearing during a
+        // recording session (Plan 04-19).
         myLocationTrackingMode: trackingMode,
         // Attribution: MapLibre's built-in (i) button pushed off-screen
         // (Point(-9999, -9999)) so it does not clutter the map. Legally
