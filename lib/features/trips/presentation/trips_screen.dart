@@ -6,12 +6,12 @@
 // Landing tab: Inbox when pending trips exist on first snapshot, else History
 // (guarded by `_initialTabResolved` so later list updates never force-jump).
 //
-// Thumbnail overlay entry (06-03 hand-off): an offstage MapLibreMap is hosted
-// here so its controller can drive `ThumbnailRenderer`'s snapshot path. The
-// overlay widget is injected via `tripsThumbnailOverlayProvider` so tests can
-// override it with a no-op and skip MapLibre platform instantiation.
+// Thumbnails are rendered purely on the Canvas via `ThumbnailRenderer.
+// renderFallback` (see TripThumbnail) — no live MapLibre surface is hosted
+// here. (Plan 06-07: an unused offstage snapshot map was removed; it was a
+// second live GL surface that never fed a wired snapshot path and crashed
+// mid-range Android on the Trips tab.)
 
-import 'package:auto_explore/features/map/presentation/providers/map_style_provider.dart';
 import 'package:auto_explore/features/trips/domain/trip_list_item.dart';
 import 'package:auto_explore/features/trips/presentation/providers/inbox_providers.dart';
 import 'package:auto_explore/features/trips/presentation/widgets/history_empty_state.dart';
@@ -21,39 +21,6 @@ import 'package:auto_explore/features/trips/presentation/widgets/matching_queue_
 import 'package:auto_explore/features/trips/presentation/widgets/trip_card.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:maplibre_gl/maplibre_gl.dart';
-
-/// Holds the offstage thumbnail-map controller once MapLibre creates it.
-///
-/// Populated by [_ThumbnailOverlayMap] in production. Consumed by a future
-/// snapshot-path wiring (06-03 hand-off); the fallback renderer works without
-/// it, so a null controller is a safe no-op.
-///
-/// Plain [Notifier] — no `@Riverpod` codegen (STATE.md Plan 01-01 decision);
-/// `StateProvider` is not part of the flutter_riverpod 3.x public surface.
-class TripsThumbnailController extends Notifier<MapLibreMapController?> {
-  @override
-  MapLibreMapController? build() => null;
-
-  // Single-line state setter — the getter/setter lint pair prefers a plain
-  // method here since the field is write-only from the map callback.
-  // ignore: use_setters_to_change_properties
-  void set(MapLibreMapController controller) => state = controller;
-}
-
-final tripsThumbnailControllerProvider =
-    NotifierProvider<TripsThumbnailController, MapLibreMapController?>(
-  TripsThumbnailController.new,
-);
-
-/// Builds the offstage MapLibreMap overlay used for thumbnail snapshots.
-///
-/// Tests override this with `const SizedBox.shrink()` to skip MapLibre
-/// platform instantiation (which would throw MissingPluginException in a
-/// unit-test environment).
-final tripsThumbnailOverlayProvider = Provider<Widget>((ref) {
-  return const _ThumbnailOverlayMap();
-});
 
 /// The Trips tab: Inbox / History sub-tabs + matcher-queue pill.
 class TripsScreen extends ConsumerStatefulWidget {
@@ -101,31 +68,25 @@ class _TripsScreenState extends ConsumerState<TripsScreen>
 
     return Scaffold(
       body: SafeArea(
-        child: Stack(
+        child: Column(
           children: [
-            Column(
-              children: [
-                const MatchingQueuePill(),
-                TabBar(
-                  controller: _tab,
-                  tabs: const [
-                    Tab(text: 'Inbox'),
-                    Tab(text: 'History'),
-                  ],
-                ),
-                Expanded(
-                  child: TabBarView(
-                    controller: _tab,
-                    children: const [
-                      _InboxTab(),
-                      _HistoryTab(),
-                    ],
-                  ),
-                ),
+            const MatchingQueuePill(),
+            TabBar(
+              controller: _tab,
+              tabs: const [
+                Tab(text: 'Inbox'),
+                Tab(text: 'History'),
               ],
             ),
-            // Offstage thumbnail-render map (0x0 visual footprint).
-            ref.watch(tripsThumbnailOverlayProvider),
+            Expanded(
+              child: TabBarView(
+                controller: _tab,
+                children: const [
+                  _InboxTab(),
+                  _HistoryTab(),
+                ],
+              ),
+            ),
           ],
         ),
       ),
@@ -193,34 +154,6 @@ class _ErrorBody extends StatelessWidget {
           style: theme.textTheme.bodyMedium?.copyWith(
             color: theme.colorScheme.error,
           ),
-        ),
-      ),
-    );
-  }
-}
-
-/// Offstage 320x120 MapLibreMap whose controller feeds the thumbnail renderer.
-///
-/// `Offstage(offstage: true, …)` keeps it out of the visible layout while
-/// still instantiating the platform view so `takeSnapshot` has a live map.
-class _ThumbnailOverlayMap extends ConsumerWidget {
-  const _ThumbnailOverlayMap();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final styleUrl = ref.watch(mapStyleUrlProvider);
-    return Offstage(
-      child: SizedBox(
-        width: 320,
-        height: 120,
-        child: MapLibreMap(
-          styleString: styleUrl,
-          initialCameraPosition: const CameraPosition(
-            target: LatLng(51.16, 10.45), // Germany centroid
-            zoom: 5,
-          ),
-          onMapCreated: (c) =>
-              ref.read(tripsThumbnailControllerProvider.notifier).set(c),
         ),
       ),
     );

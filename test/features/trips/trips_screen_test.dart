@@ -2,8 +2,9 @@
 // TripsScreen — landing-tab resolution, empty states, tab switching,
 // MatchingQueuePill visibility, and the no-force-rejump guard.
 //
-// The thumbnail overlay is overridden with a no-op so no MapLibre platform
-// view is instantiated. tripPlaces is stubbed for the card/row place names.
+// Thumbnails render purely on the Canvas via `thumbnailRendererProvider`
+// (overridden with a no-op here). tripPlaces is stubbed for the card/row
+// place names. (Plan 06-07: the offstage-map overlay provider was removed.)
 
 import 'dart:async';
 import 'dart:typed_data';
@@ -84,8 +85,6 @@ Future<void> _pump(
         inboxTripsProvider.overrideWith((ref) => Stream.value(inbox)),
         historyTripsProvider.overrideWith((ref) => Stream.value(history)),
         inFlightCountProvider.overrideWith((ref) => Stream.value(inFlight)),
-        tripsThumbnailOverlayProvider
-            .overrideWithValue(const SizedBox.shrink()),
         thumbnailCacheProvider.overrideWith(_NoopThumbnailCache.new),
         thumbnailRendererProvider.overrideWithValue(_NoopRenderer()),
         tripPlacesProvider.overrideWith(
@@ -202,8 +201,6 @@ void main() {
           inboxTripsProvider.overrideWith((ref) => controller.stream),
           historyTripsProvider.overrideWith((ref) => Stream.value(const [])),
           inFlightCountProvider.overrideWith((ref) => Stream.value(0)),
-          tripsThumbnailOverlayProvider
-              .overrideWithValue(const SizedBox.shrink()),
           thumbnailCacheProvider.overrideWith(_NoopThumbnailCache.new),
           thumbnailRendererProvider.overrideWithValue(_NoopRenderer()),
           tripPlacesProvider.overrideWith(
