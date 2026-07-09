@@ -54,6 +54,14 @@ class AdminRegionLookup {
   Map<int, List<int>>? _grid;
   int _bundleLoadCount = 0;
 
+  /// In-flight load future — single-flight guard. Without this, concurrent
+  /// `regionAt` callers (e.g. multiple inbox cards each reverse-geocoding
+  /// start+end) would each pass the `_regions == null` check during the
+  /// `compute()` async gap and spawn their OWN isolate parsing the ~12 MB
+  /// bundle in parallel — a memory spike that OOM-kills the app (Plan 06-07
+  /// re-drive crash). Sharing one future collapses N parses into 1.
+  Future<void>? _loading;
+
   /// Test-visible: how many times the underlying asset bytes were parsed.
   /// Used by tests to assert `ensureLoaded` is idempotent.
   int get bundleLoadCount => _bundleLoadCount;
@@ -66,13 +74,26 @@ class AdminRegionLookup {
   /// the ~12 MB bundle) is offloaded to a background isolate via [compute] so
   /// it never blocks the UI thread. (Plan 06-07: this was an ANR/crash cause
   /// on the Trips tab, where every card triggered reverse-geocoding.)
-  Future<void> ensureLoaded() async {
-    if (_regions != null) return;
-    final bytes = await _loadBundleBytes();
-    final parsed = await compute(_parseAdminBundle, bytes);
-    _regions = parsed.regions;
-    _grid = parsed.grid;
-    _bundleLoadCount++;
+  ///
+  /// Concurrent callers share a single in-flight load ([_loading]) so the
+  /// 12 MB parse happens exactly once even under a burst of `regionAt` calls.
+  Future<void> ensureLoaded() {
+    if (_regions != null) return Future<void>.value();
+    return _loading ??= _load();
+  }
+
+  Future<void> _load() async {
+    try {
+      final bytes = await _loadBundleBytes();
+      final parsed = await compute(_parseAdminBundle, bytes);
+      _regions = parsed.regions;
+      _grid = parsed.grid;
+      _bundleLoadCount++;
+    } finally {
+      // Clear the guard so a post-[invalidate] reload can run again. On
+      // success `_regions != null` short-circuits future calls anyway.
+      _loading = null;
+    }
   }
 
   /// Looks up the containing region at [adminLevel] for the given point.
@@ -106,6 +127,7 @@ class AdminRegionLookup {
   void invalidate() {
     _regions = null;
     _grid = null;
+    _loading = null;
   }
 
   /// Returns the total in-memory region count (after [ensureLoaded]).

@@ -238,6 +238,27 @@ void main() {
     expect(lookup.regionCount, 5);
   });
 
+  test(
+    'concurrent ensureLoaded shares one in-flight parse (single-flight)',
+    () async {
+      // Regression for the Plan 06-07 re-drive OOM crash: multiple inbox
+      // cards reverse-geocoding at once fired concurrent regionAt() calls,
+      // each of which passed the `_regions == null` check during the
+      // compute() async gap and spawned its OWN 12 MB parse isolate. The
+      // single-flight guard must collapse a burst into exactly one parse.
+      final lookup = makeLookup();
+      await Future.wait(<Future<void>>[
+        lookup.ensureLoaded(),
+        lookup.ensureLoaded(),
+        lookup.ensureLoaded(),
+        lookup.ensureLoaded(),
+        lookup.ensureLoaded(),
+      ]);
+      expect(lookup.bundleLoadCount, 1);
+      expect(lookup.regionCount, 5);
+    },
+  );
+
   test('invalidate forces a fresh parse on next call', () async {
     final lookup = makeLookup();
     await lookup.ensureLoaded();
