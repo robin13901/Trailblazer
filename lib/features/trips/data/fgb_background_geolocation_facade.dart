@@ -112,6 +112,14 @@ class FgbBackgroundGeolocationFacade implements BackgroundGeolocationFacade {
       lon: loc.coords.longitude,
       accuracyMeters: loc.coords.accuracy,
       speedMps: loc.coords.speed >= 0 ? loc.coords.speed : null,
+      // Course over ground (0..360). FGB reports -1 for unknown/invalid
+      // (e.g. while stationary) — map any negative/out-of-range value to
+      // null so TrackingService can fall back to the computed motion-vector
+      // bearing (Plan 06-07).
+      headingDegrees:
+          loc.coords.heading >= 0 && loc.coords.heading <= 360
+              ? loc.coords.heading
+              : null,
       altitudeMeters: loc.coords.altitude,
       activityType: loc.activity.type,
       uuid: loc.uuid,

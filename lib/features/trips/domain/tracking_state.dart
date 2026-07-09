@@ -23,6 +23,7 @@ final class TrackingRecording extends TrackingState {
     required this.pointCount,
     required this.manuallyStarted,
     this.currentSpeedKmh,
+    this.headingDegrees,
   });
 
   final int tripId;
@@ -31,6 +32,13 @@ final class TrackingRecording extends TrackingState {
   final int pointCount;
   final bool manuallyStarted;
   final double? currentSpeedKmh;
+
+  /// Live driving direction in degrees (0..360, 0 = N, 90 = E). Preferred
+  /// from the fix's own course over ground when valid, otherwise computed as
+  /// the motion-vector bearing between consecutive accepted fixes. Null until
+  /// the first meaningful movement. Plan 06-07: drives the map camera rotation
+  /// so the view pivots to the driving direction while recording.
+  final double? headingDegrees;
 
   /// Live elapsed time, excluding accumulated gap seconds.
   Duration duration(DateTime now) => now.difference(startedAt);

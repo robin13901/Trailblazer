@@ -633,5 +633,135 @@ void main() {
         );
       });
     });
+
+    // -------------------------------------------------------------------------
+    // 13. Motion-vector heading on TrackingRecording (Plan 06-07)
+    // -------------------------------------------------------------------------
+    group('motion-vector heading (Plan 06-07)', () {
+      test(
+          'computed bearing from consecutive fixes lands on '
+          'TrackingRecording.headingDegrees (northward ≈ 0°)', () async {
+        final svc = makeService();
+        await svc.init();
+        await svc.startManual();
+
+        final headings = <double?>[];
+        final sub = svc.stateStream.listen((s) {
+          if (s is TrackingRecording) headings.add(s.headingDegrees);
+        });
+
+        // Two fixes moving due north (~55 m apart, > 5 m jitter guard). No
+        // headingDegrees supplied → service must compute the bearing.
+        final base = DateTime.now();
+        facade.emitFix(FixInput(
+          ts: base,
+          lat: 49.0000,
+          lon: 8.0,
+          accuracyMeters: 5,
+          speedMps: 10,
+          activityType: 'in_vehicle',
+          uuid: 'uuid-heading-n1',
+        ));
+        await Future<void>.delayed(Duration.zero);
+        facade.emitFix(FixInput(
+          ts: base.add(const Duration(seconds: 1)),
+          lat: 49.0005, // ~55 m north
+          lon: 8.0,
+          accuracyMeters: 5,
+          speedMps: 10,
+          activityType: 'in_vehicle',
+          uuid: 'uuid-heading-n2',
+        ));
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+        await sub.cancel();
+
+        final last = svc.currentState as TrackingRecording;
+        expect(last.headingDegrees, isNotNull);
+        expect(last.headingDegrees, closeTo(0, 1),
+            reason: 'northward motion → heading ≈ 0°');
+
+        await svc.dispose();
+      });
+
+      test(
+          'fix-supplied headingDegrees is preferred over the computed bearing',
+          () async {
+        final svc = makeService();
+        await svc.init();
+        await svc.startManual();
+
+        // Two fixes moving north (computed bearing would be ~0°), but the
+        // fixes carry an explicit course of 90° — the service must prefer it.
+        final base = DateTime.now();
+        facade.emitFix(FixInput(
+          ts: base,
+          lat: 49.0000,
+          lon: 8.0,
+          accuracyMeters: 5,
+          speedMps: 10,
+          headingDegrees: 90,
+          activityType: 'in_vehicle',
+          uuid: 'uuid-heading-pref1',
+        ));
+        await Future<void>.delayed(Duration.zero);
+        facade.emitFix(FixInput(
+          ts: base.add(const Duration(seconds: 1)),
+          lat: 49.0005,
+          lon: 8.0,
+          accuracyMeters: 5,
+          speedMps: 10,
+          headingDegrees: 90,
+          activityType: 'in_vehicle',
+          uuid: 'uuid-heading-pref2',
+        ));
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+
+        final last = svc.currentState as TrackingRecording;
+        expect(last.headingDegrees, closeTo(90, 0.01),
+            reason: 'fix course over ground must win over computed bearing');
+
+        await svc.dispose();
+      });
+
+      test(
+          'heading is retained (not reset) when two fixes are within the '
+          '5 m jitter guard', () async {
+        final svc = makeService();
+        await svc.init();
+        await svc.startManual();
+
+        final base = DateTime.now();
+        // Establish an eastward heading with a real hop first.
+        facade.emitFix(FixInput(
+          ts: base,
+          lat: 49.0,
+          lon: 8.0,
+          accuracyMeters: 5,
+          speedMps: 10,
+          headingDegrees: 90,
+          activityType: 'in_vehicle',
+          uuid: 'uuid-jitter-1',
+        ));
+        await Future<void>.delayed(Duration.zero);
+        // A near-stationary micro-move (< 5 m) with NO course over ground —
+        // the computed branch must be skipped and the last heading retained.
+        facade.emitFix(FixInput(
+          ts: base.add(const Duration(seconds: 1)),
+          lat: 49.00001, // ~1 m north
+          lon: 8.0,
+          accuracyMeters: 5,
+          speedMps: 0.2,
+          activityType: 'in_vehicle',
+          uuid: 'uuid-jitter-2',
+        ));
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+
+        final last = svc.currentState as TrackingRecording;
+        expect(last.headingDegrees, closeTo(90, 0.01),
+            reason: 'sub-5 m move must not overwrite the last heading');
+
+        await svc.dispose();
+      });
+    });
   });
 }

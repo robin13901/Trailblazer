@@ -97,6 +97,18 @@ class TrackingService {
   int _seq = 0;
   FixAccepted? _lastAcceptedFix;
 
+  // Live driving direction (0..360, 0 = N). Preferred from the fix's own
+  // course over ground when valid; otherwise computed as the motion-vector
+  // bearing between consecutive accepted fixes more than [_headingMinMeters]
+  // apart. Kept across fixes so a stationary stretch doesn't reset it. Plan
+  // 06-07: emitted on TrackingRecording to drive the map camera rotation.
+  double? _currentHeading;
+
+  /// Minimum distance between two accepted fixes before a fresh motion-vector
+  /// bearing is computed. Below this, the last heading is retained to avoid
+  /// jitter while (nearly) stationary.
+  static const double _headingMinMeters = 5;
+
   // Activity cache (automotive filter)
   String _lastActivityType = 'unknown';
   DateTime? _lastActivityAt;
@@ -332,6 +344,31 @@ class TrackingService {
           altitudeMeters: outcome.altitudeMeters,
           motionType: outcome.motionType,
         );
+        // Motion-vector heading (Plan 06-07). Prefer the fix's own course
+        // over ground when valid (>= 0); otherwise compute the initial
+        // bearing from the previous accepted fix to this one, but only when
+        // the two are far enough apart to avoid stationary jitter. Keep the
+        // last heading otherwise.
+        final prevFix = _lastAcceptedFix;
+        final fixHeading = fix.headingDegrees;
+        if (fixHeading != null && fixHeading >= 0) {
+          _currentHeading = fixHeading % 360.0;
+        } else if (prevFix != null) {
+          final moved = haversineMeters(
+            prevFix.lat,
+            prevFix.lon,
+            outcome.lat,
+            outcome.lon,
+          );
+          if (moved > _headingMinMeters) {
+            _currentHeading = bearingDegrees(
+              prevFix.lat,
+              prevFix.lon,
+              outcome.lat,
+              outcome.lon,
+            );
+          }
+        }
         _lastAcceptedFix = outcome;
         _acceptCount++;
         _lastAcceptedFixSample = LastFixSample(
@@ -356,6 +393,7 @@ class TrackingService {
             pointCount: _ingestor!.pointCount,
             manuallyStarted: current.manuallyStarted,
             currentSpeedKmh: outcome.speedKmh,
+            headingDegrees: _currentHeading,
           ));
         }
 
@@ -715,6 +753,7 @@ class TrackingService {
     _batcher = null;
     _seq = 0;
     _lastAcceptedFix = null;
+    _currentHeading = null;
   }
 
   void _cancelDwellTimers() {
