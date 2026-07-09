@@ -183,7 +183,15 @@ Plans:
   3. Confirming a trip enqueues it into the matcher; on completion, merged (overlap-collapsed) driven-way intervals are written to the App DB and the `coverage_by_region` cache is invalidated.
   4. Trip History shows confirmed + rejected trips; the user can retroactively change a confirmed trip's vehicle assignment or delete it, and the coverage cache is invalidated in response.
   5. Explicit invalidation triggers (new intervals, trip deleted, vehicle `counts_for_coverage` toggled, OSM extract updated) all mark the affected region rows in `coverage_by_region` as stale.
-**Plans:** TBD (5–7)
+**Plans:** 6 plans in 3 waves (planned 2026-07-09; see `phases/06-inbox-match-wire-up/06-CONTEXT.md` for 3 explicit deviations from SC above — no bulk ops, no rejected in History, no counts_for_coverage toggle)
+
+Plans:
+- [ ] 06-01-coverage-cache-and-invalidator.md — Wave 1: CoverageCacheDao + CoverageInvalidator (3 triggers) + pure-Dart interval union (COV-01, COV-05, COV-06)
+- [ ] 06-02-reverse-geocoding-and-trip-metadata.md — Wave 1: TripPlaceLookup + TripsInboxDao (watch inbox/history/in-flight, transitionToConfirmed) + TripsInboxRepository with correct delete order (INB-03, INB-04, INB-06, INB-08, Q10)
+- [ ] 06-03-trip-thumbnail-renderer.md — Wave 1: ThumbnailRenderer (MapLibre takeSnapshot + CustomPainter fallback) + disk cache + TripThumbnail widget (INB-02)
+- [ ] 06-04-matcher-queue-indicator.md — Wave 1: inbox/history/inFlightCount StreamProviders + MatchingQueuePill (Liquid Glass) (INB-06 support)
+- [ ] 06-05-inbox-history-ui.md — Wave 2: TripsScreen sub-tabs + TripCard/HistoryRow/DiscardDialog + TripDetailScreen + /trips/:id route + trip_overlay_layers (INB-01..08 UI, human-verify checkpoint)
+- [ ] 06-06-golden-corpus-expansion.md — Wave 3: GoldenFixtureExporter + kDebugMode export FAB + workflow README (Phase 5 inheritance)
 
 ### Phase 7: Coverage Rendering
 **Goal:** Driven roads paint onto the map with correct semantics for full/partial/Kfz-vs-Feldweg coverage; feature-state fallback gate (G2) resolved.
