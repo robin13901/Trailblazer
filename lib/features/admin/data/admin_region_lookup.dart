@@ -11,8 +11,10 @@
 
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:auto_explore/features/admin/data/admin_region.dart';
+import 'package:flutter/foundation.dart' show compute;
 import 'package:flutter/services.dart' show AssetBundle, rootBundle;
 import 'package:path_provider/path_provider.dart';
 
@@ -21,6 +23,18 @@ const String kAdminBundleAssetPath = 'assets/admin/germany_admin.geojson.gz';
 
 /// Grid cell size in degrees.
 const double _gridCellDeg = 0.01;
+
+/// Parsed output of the admin bundle: the region list plus the hash grid.
+///
+/// Returned from the [compute] isolate as a plain Dart object; both fields
+/// are Lists/Maps of primitives (and [AdminRegion], which is itself built
+/// from primitive Lists), so they copy cleanly across the SendPort boundary.
+class _ParsedAdminBundle {
+  const _ParsedAdminBundle(this.regions, this.grid);
+
+  final List<AdminRegion> regions;
+  final Map<int, List<int>> grid;
+}
 
 /// Locates the containing admin region for a given `(lat, lon, adminLevel)`.
 class AdminRegionLookup {
@@ -45,48 +59,19 @@ class AdminRegionLookup {
   int get bundleLoadCount => _bundleLoadCount;
 
   /// Idempotent — loads + indexes the bundle on first call, no-op after.
+  ///
+  /// The cheap asset read (`_loadBundleBytes`) stays on the UI isolate because
+  /// the asset bundle is not reachable from a spawned isolate. The heavy work
+  /// (gzip inflate + UTF-8 decode + JSON parse + polygon/bbox/grid build over
+  /// the ~12 MB bundle) is offloaded to a background isolate via [compute] so
+  /// it never blocks the UI thread. (Plan 06-07: this was an ANR/crash cause
+  /// on the Trips tab, where every card triggered reverse-geocoding.)
   Future<void> ensureLoaded() async {
     if (_regions != null) return;
     final bytes = await _loadBundleBytes();
-    final decoded = utf8.decode(gzip.decode(bytes));
-    final json = jsonDecode(decoded);
-    if (json is! Map<String, dynamic>) {
-      _regions = const [];
-      _grid = const {};
-      return;
-    }
-    final features = json['features'];
-    if (features is! List) {
-      _regions = const [];
-      _grid = const {};
-      return;
-    }
-
-    final regions = <AdminRegion>[];
-    for (final f in features) {
-      final region = _regionFromFeature(f);
-      if (region != null) regions.add(region);
-    }
-
-    // Build hash grid: map cell key → list of region indices whose bbox
-    // overlaps that cell.
-    final grid = <int, List<int>>{};
-    for (var i = 0; i < regions.length; i++) {
-      final r = regions[i];
-      final minCellY = (r.bboxMinLat / _gridCellDeg).floor();
-      final maxCellY = (r.bboxMaxLat / _gridCellDeg).floor();
-      final minCellX = (r.bboxMinLon / _gridCellDeg).floor();
-      final maxCellX = (r.bboxMaxLon / _gridCellDeg).floor();
-      for (var y = minCellY; y <= maxCellY; y++) {
-        for (var x = minCellX; x <= maxCellX; x++) {
-          final key = _cellKey(y, x);
-          (grid[key] ??= <int>[]).add(i);
-        }
-      }
-    }
-
-    _regions = regions;
-    _grid = grid;
+    final parsed = await compute(_parseAdminBundle, bytes);
+    _regions = parsed.regions;
+    _grid = parsed.grid;
     _bundleLoadCount++;
   }
 
@@ -126,7 +111,7 @@ class AdminRegionLookup {
   /// Returns the total in-memory region count (after [ensureLoaded]).
   int get regionCount => _regions?.length ?? 0;
 
-  Future<List<int>> _loadBundleBytes() async {
+  Future<Uint8List> _loadBundleBytes() async {
     // Runtime-refreshed copy takes precedence.
     try {
       final docsDir = await _docsDirLoader();
@@ -139,8 +124,7 @@ class AdminRegionLookup {
     }
     final byteData = await _bundle.load(_assetPath);
     return byteData.buffer
-        .asUint8List(byteData.offsetInBytes, byteData.lengthInBytes)
-        .toList();
+        .asUint8List(byteData.offsetInBytes, byteData.lengthInBytes);
   }
 
   static int _cellKey(int cellY, int cellX) {
@@ -150,49 +134,78 @@ class AdminRegionLookup {
     final nx = (cellX + (1 << 19)) & 0xFFFFF;
     return (ny << 20) | nx;
   }
+}
 
-  AdminRegion? _regionFromFeature(Object? raw) {
-    if (raw is! Map<String, dynamic>) return null;
-    final props = raw['properties'];
-    if (props is! Map<String, dynamic>) return null;
-    final osmId = props['osm_id'];
-    if (osmId is! int) return null;
-    final adminLevel = props['admin_level'];
-    if (adminLevel is! int) return null;
-    final name = props['name'];
-    if (name is! String || name.isEmpty) return null;
-    final nameDe = props['name:de'];
-    final geom = raw['geometry'];
-    if (geom is! Map<String, dynamic>) return null;
-    final geomType = geom['type'];
-    final coords = geom['coordinates'];
-    if (coords is! List) return null;
+/// Isolate entry point: inflate + parse the bundle bytes into regions + grid.
+///
+/// Runs via [compute] on a background isolate. Takes the raw (still gzipped)
+/// asset bytes — the asset bundle itself is not reachable off the UI isolate,
+/// so the caller reads the bytes first and hands them over here. The returned
+/// [_ParsedAdminBundle] is plain Lists/Maps of primitives (+[AdminRegion]),
+/// which copy cleanly back across the SendPort boundary.
+_ParsedAdminBundle _parseAdminBundle(Uint8List bytes) {
+  final decoded = utf8.decode(gzip.decode(bytes));
+  final json = jsonDecode(decoded);
+  if (json is! Map<String, dynamic>) {
+    return const _ParsedAdminBundle([], {});
+  }
+  final features = json['features'];
+  if (features is! List) {
+    return const _ParsedAdminBundle([], {});
+  }
 
-    // Normalize to MultiPolygon shape (list of polygons, each a list of
-    // rings, each a list of [lat, lon] pairs). GeoJSON is [lon, lat] — we
-    // transpose to [lat, lon] here so runtime hot-path skips the swap.
-    final polygons = <List<List<List<double>>>>[];
-    if (geomType == 'MultiPolygon') {
-      for (final poly in coords) {
-        if (poly is! List) continue;
-        final rings = <List<List<double>>>[];
-        for (final ring in poly) {
-          if (ring is! List) continue;
-          final r = <List<double>>[];
-          for (final p in ring) {
-            if (p is! List || p.length < 2) continue;
-            final lon = p[0];
-            final lat = p[1];
-            if (lat is! num || lon is! num) continue;
-            r.add([lat.toDouble(), lon.toDouble()]);
-          }
-          if (r.length >= 4) rings.add(r);
-        }
-        if (rings.isNotEmpty) polygons.add(rings);
+  final regions = <AdminRegion>[];
+  for (final f in features) {
+    final region = _regionFromFeature(f);
+    if (region != null) regions.add(region);
+  }
+
+  // Build hash grid: map cell key → list of region indices whose bbox
+  // overlaps that cell.
+  final grid = <int, List<int>>{};
+  for (var i = 0; i < regions.length; i++) {
+    final r = regions[i];
+    final minCellY = (r.bboxMinLat / _gridCellDeg).floor();
+    final maxCellY = (r.bboxMaxLat / _gridCellDeg).floor();
+    final minCellX = (r.bboxMinLon / _gridCellDeg).floor();
+    final maxCellX = (r.bboxMaxLon / _gridCellDeg).floor();
+    for (var y = minCellY; y <= maxCellY; y++) {
+      for (var x = minCellX; x <= maxCellX; x++) {
+        final key = AdminRegionLookup._cellKey(y, x);
+        (grid[key] ??= <int>[]).add(i);
       }
-    } else if (geomType == 'Polygon') {
+    }
+  }
+
+  return _ParsedAdminBundle(regions, grid);
+}
+
+AdminRegion? _regionFromFeature(Object? raw) {
+  if (raw is! Map<String, dynamic>) return null;
+  final props = raw['properties'];
+  if (props is! Map<String, dynamic>) return null;
+  final osmId = props['osm_id'];
+  if (osmId is! int) return null;
+  final adminLevel = props['admin_level'];
+  if (adminLevel is! int) return null;
+  final name = props['name'];
+  if (name is! String || name.isEmpty) return null;
+  final nameDe = props['name:de'];
+  final geom = raw['geometry'];
+  if (geom is! Map<String, dynamic>) return null;
+  final geomType = geom['type'];
+  final coords = geom['coordinates'];
+  if (coords is! List) return null;
+
+  // Normalize to MultiPolygon shape (list of polygons, each a list of
+  // rings, each a list of [lat, lon] pairs). GeoJSON is [lon, lat] — we
+  // transpose to [lat, lon] here so runtime hot-path skips the swap.
+  final polygons = <List<List<List<double>>>>[];
+  if (geomType == 'MultiPolygon') {
+    for (final poly in coords) {
+      if (poly is! List) continue;
       final rings = <List<List<double>>>[];
-      for (final ring in coords) {
+      for (final ring in poly) {
         if (ring is! List) continue;
         final r = <List<double>>[];
         for (final p in ring) {
@@ -205,37 +218,52 @@ class AdminRegionLookup {
         if (r.length >= 4) rings.add(r);
       }
       if (rings.isNotEmpty) polygons.add(rings);
-    } else {
-      return null;
     }
-    if (polygons.isEmpty) return null;
+  } else if (geomType == 'Polygon') {
+    final rings = <List<List<double>>>[];
+    for (final ring in coords) {
+      if (ring is! List) continue;
+      final r = <List<double>>[];
+      for (final p in ring) {
+        if (p is! List || p.length < 2) continue;
+        final lon = p[0];
+        final lat = p[1];
+        if (lat is! num || lon is! num) continue;
+        r.add([lat.toDouble(), lon.toDouble()]);
+      }
+      if (r.length >= 4) rings.add(r);
+    }
+    if (rings.isNotEmpty) polygons.add(rings);
+  } else {
+    return null;
+  }
+  if (polygons.isEmpty) return null;
 
-    // Bbox.
-    var minLat = double.infinity;
-    var minLon = double.infinity;
-    var maxLat = -double.infinity;
-    var maxLon = -double.infinity;
-    for (final poly in polygons) {
-      for (final ring in poly) {
-        for (final p in ring) {
-          if (p[0] < minLat) minLat = p[0];
-          if (p[0] > maxLat) maxLat = p[0];
-          if (p[1] < minLon) minLon = p[1];
-          if (p[1] > maxLon) maxLon = p[1];
-        }
+  // Bbox.
+  var minLat = double.infinity;
+  var minLon = double.infinity;
+  var maxLat = -double.infinity;
+  var maxLon = -double.infinity;
+  for (final poly in polygons) {
+    for (final ring in poly) {
+      for (final p in ring) {
+        if (p[0] < minLat) minLat = p[0];
+        if (p[0] > maxLat) maxLat = p[0];
+        if (p[1] < minLon) minLon = p[1];
+        if (p[1] > maxLon) maxLon = p[1];
       }
     }
-
-    return AdminRegion(
-      osmId: osmId,
-      adminLevel: adminLevel,
-      name: name,
-      nameDe: nameDe is String && nameDe.isNotEmpty ? nameDe : null,
-      bboxMinLat: minLat,
-      bboxMinLon: minLon,
-      bboxMaxLat: maxLat,
-      bboxMaxLon: maxLon,
-      polygons: polygons,
-    );
   }
+
+  return AdminRegion(
+    osmId: osmId,
+    adminLevel: adminLevel,
+    name: name,
+    nameDe: nameDe is String && nameDe.isNotEmpty ? nameDe : null,
+    bboxMinLat: minLat,
+    bboxMinLon: minLon,
+    bboxMaxLat: maxLat,
+    bboxMaxLon: maxLon,
+    polygons: polygons,
+  );
 }
