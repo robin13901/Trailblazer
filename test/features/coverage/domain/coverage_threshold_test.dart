@@ -99,6 +99,53 @@ void main() {
       expect(datum.fraction, equals(1.0));
       expect(datum.isFull, isTrue);
     });
+
+    // -----------------------------------------------------------------------
+    // Short-way regression (junction-gap fix):
+    // A fully-driven SHORT way (< kPartialFloorMeters) MUST render, not be
+    // dropped by the flat 50 m absolute floor. The floor exists to suppress
+    // tiny PARTIAL clips on long ways — never to suppress a completed drive.
+    // -----------------------------------------------------------------------
+
+    test(
+        'short way (25 m) driven end-to-end (25 m) -> isFull true, renders '
+        '(NOT dropped by 50 m floor)', () {
+      final datum = classifyCoverage(25, 25);
+      expect(datum.isFull, isTrue);
+      expect(datum.fraction, equals(1.0));
+    });
+
+    test(
+        'short link (40 m) driven end-to-end (40 m) -> isFull true, renders '
+        '(NOT dropped by 50 m floor)', () {
+      final datum = classifyCoverage(40, 40);
+      expect(datum.isFull, isTrue);
+      expect(datum.fraction, equals(1.0));
+    });
+
+    test(
+        'short link (45 m) driven 40 m (substantial partial) -> renders, '
+        'fraction > 0 (floor capped at way length, not 50 m)', () {
+      // isFullyCovered(40, 45): 40 >= 45 - 30 = 15 -> isFull true (buffer rule).
+      final datum = classifyCoverage(40, 45);
+      expect(datum.fraction, greaterThan(0.0));
+    });
+
+    test(
+        'tiny clip (5 m) on short way (40 m) -> undriven '
+        '(floor capped at 40 m, 5 < 40)', () {
+      final datum = classifyCoverage(5, 40);
+      expect(datum.fraction, equals(0.0));
+      expect(datum.isFull, isFalse);
+    });
+
+    test(
+        'GUARANTEE PRESERVED: 30 m clip on 1 km way -> undriven '
+        '(flat 50 m floor still applies to long ways)', () {
+      final datum = classifyCoverage(30, 1000);
+      expect(datum.fraction, equals(0.0));
+      expect(datum.isFull, isFalse);
+    });
   });
 
   group('CoverageDatum', () {

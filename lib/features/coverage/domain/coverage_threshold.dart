@@ -58,19 +58,37 @@ bool isFullyCovered(double unionLengthM, double wayLengthM) {
 /// - [CoverageDatum.fraction] clamped to [0.0, 1.0].
 /// - [CoverageDatum.isFull] derived from [isFullyCovered].
 ///
-/// **Minimum partial floor (REN-03):** a way shows partial ONLY when
-/// `unionLengthM >= max(kPartialFloorMeters, wayLengthM × kPartialFloorFraction)`.
-/// Below the floor, returns [CoverageDatum.undriven()] — treated identically
-/// to undriven by the render layer. Tune against the golden corpus.
+/// **Fully-covered ways always render.** The partial floor below exists ONLY
+/// to suppress spurious tiny *partial* clips (e.g. a 30 m GPS smear on a 1 km
+/// autobahn). It must never suppress a way that was actually driven to
+/// completion, so [isFullyCovered] is checked first and short-circuits the
+/// floor. Without this, a fully-driven short link (e.g. a 30 m junction
+/// connector) falls under the flat [kPartialFloorMeters] floor and is dropped,
+/// leaving a visible GAP in the coverage line at the junction.
+///
+/// **Minimum partial floor (REN-03):** a not-yet-full way shows partial ONLY
+/// when `unionLengthM >= max(min(kPartialFloorMeters, wayLengthM),
+/// wayLengthM × kPartialFloorFraction)`. The absolute floor is capped at the
+/// way's own length — you cannot drive more metres than the way is long, so a
+/// flat 50 m floor would make every way shorter than 50 m impossible to light
+/// up. Long ways are unaffected (`min(50, 1000) = 50`), preserving the
+/// autobahn-clip guarantee. Below the floor, returns [CoverageDatum.undriven()]
+/// — treated identically to undriven by the render layer.
 ///
 /// Guards against [wayLengthM] ≤ 0 by returning [CoverageDatum.undriven()].
 CoverageDatum classifyCoverage(double unionLengthM, double wayLengthM) {
   if (wayLengthM <= 0) return const CoverageDatum.undriven();
 
-  final floor = math.max(kPartialFloorMeters, wayLengthM * kPartialFloorFraction);
-  if (unionLengthM < floor) return const CoverageDatum.undriven();
+  final isFull = isFullyCovered(unionLengthM, wayLengthM);
+
+  if (!isFull) {
+    // Cap the absolute floor at the way length so a fully- or substantially-
+    // driven SHORT way is not dropped. Long ways keep the flat 50 m floor.
+    final absoluteFloor = math.min(kPartialFloorMeters, wayLengthM);
+    final floor = math.max(absoluteFloor, wayLengthM * kPartialFloorFraction);
+    if (unionLengthM < floor) return const CoverageDatum.undriven();
+  }
 
   final fraction = (unionLengthM / wayLengthM).clamp(0.0, 1.0);
-  final isFull = isFullyCovered(unionLengthM, wayLengthM);
   return CoverageDatum(fraction: fraction, isFull: isFull);
 }
