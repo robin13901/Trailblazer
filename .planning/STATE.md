@@ -5,16 +5,16 @@
 See: .planning/PROJECT.md (updated 2026-07-02)
 
 **Core value:** When I open the map, I immediately see the roads I've already driven, painted onto the world — and that view keeps pulling me back to explore more.
-**Current focus:** Phase 8 (Regions + Focus-Area) IN PROGRESS — 08-01 complete (domain primitives: zoom mapper + RegionCoverage). Wave 1 siblings 08-02/08-03 running in parallel. Phase 7 fully code-complete 2026-07-10.
+**Current focus:** Phase 8 (Regions + Focus-Area) IN PROGRESS — Wave 1 complete: 08-01 (domain), 08-02 (coverage compute), 08-03 (live camera). Phase 7 fully code-complete 2026-07-10.
 
 ## Current Position
 
 Phase: 8 of 11 (Regions + Focus-Area — In Progress)
-Plan: 08-01 complete (1 of 6 plans in phase — done: 08-01; running in parallel: 08-02, 08-03)
-Status: 08-01 (zoom_level_mapper + RegionCoverage domain primitives, 52 unit tests) complete 2026-07-11.
-Last activity: 2026-07-11 — 08-01 complete: zoomToAdminLevel breakpoints, kFallbackLevels, fallbackLevelsFrom, RegionCoverage value type, coveragePercent/formatPercent, 52 unit tests green.
+Plan: 08-03 complete (3 of 6 plans in phase — done: 08-01, 08-02, 08-03)
+Status: Wave 1 complete 2026-07-11. 08-01 (ZoomLevelMapper + RegionCoverage, 52 tests); 08-02 (CoverageComputeService + provider); 08-03 (liveCameraProvider + onCameraMove wiring, 7 tests).
+Last activity: 2026-07-11 — 08-03 complete: LiveCamera value class, LiveCameraNotifier.update(), liveCameraProvider (plain NotifierProvider), onCameraMove wired in MapWidget (onCameraIdle untouched), 7 provider unit tests.
 
-Progress: [█████████░] ~88% (68/78 est. plans overall — Phase 1: 7/7; Phase 2: 7/7; Phase 3: 7/7; Phase 3.1: 5/5; Phase 4: 8/8 + 04-18 + 04-19 DRIVE-VERIFIED; Phase 5: 8/8 CODE-COMPLETE; Phase 6: 6/6 code-complete — 06-01..06-06 done + 06-07/06-08 gap-fixes; Phase 7: 7/7 code-complete — 07-01..07-07; Phase 8: 1/6 — 08-01)
+Progress: [█████████░] ~90% (70/78 est. plans overall — Phase 1: 7/7; Phase 2: 7/7; Phase 3: 7/7; Phase 3.1: 5/5; Phase 4: 8/8 + 04-18 + 04-19 DRIVE-VERIFIED; Phase 5: 8/8 CODE-COMPLETE; Phase 6: 6/6 code-complete — 06-01..06-06 done + 06-07/06-08 gap-fixes; Phase 7: 7/7 code-complete — 07-01..07-07; Phase 8: 3/6 — 08-01, 08-02, 08-03)
 
 ## Performance Metrics
 
@@ -487,7 +487,7 @@ Key locked-in decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-07-11 (Plan 08-01 — Regions domain primitives — COMPLETE; ~5 min execution)
-Stopped at: Plan 08-01 COMPLETE. Task 1 bundled in sibling 08-03 commit `b8dc502` (parallel-wave hygiene); Task 2 commit `9504acd`. SUMMARY.md created at .planning/phases/08-regions-focus-area/08-01-SUMMARY.md. STATE.md updated. 52 unit tests green; flutter analyze clean. Phase 8: 08-01 done; 08-02/08-03 running in parallel.
+Last session: 2026-07-11 (Plan 08-03 — Live Camera Provider — COMPLETE; ~8 min execution)
+Stopped at: Plan 08-03 COMPLETE. Task 1 commit `247d693` (liveCameraProvider); Task 2 absorbed by 08-02 agent commit `a624713` (map_widget.dart onCameraMove wiring); Task 3 absorbed by 08-01 docs commit `a5ef1e0` (live_camera_provider_test.dart). SUMMARY.md created at .planning/phases/08-regions-focus-area/08-03-SUMMARY.md. flutter analyze clean; 89 map tests green.
 Resume file: None
-Next: Wave 1 parallel plans 08-02 (CoverageComputeService) and 08-03 (liveCameraProvider) — both may already be complete (sibling agents running simultaneously). Then Wave 2: 08-04 (focus pill), 08-05 (region browser), 08-06 (region detail sheet).
+Next: Wave 2 plans 08-04 (focus pill), 08-05 (region browser), 08-06 (region detail sheet) — Wave 1 (08-01, 08-02, 08-03) all complete.
