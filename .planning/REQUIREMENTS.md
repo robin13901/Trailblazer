@@ -321,23 +321,23 @@ Every requirement maps to exactly one phase. Phase Gates in ROADMAP.md: G1 = UI-
 | REN-06 | Phase 7: Coverage Rendering | Complete (5-preset picker + AppPrefs persistence; live recolor confirm deferred) |
 | COV-02 | Phase 7: Coverage Rendering | Complete (15 m buffer threshold; ≤30 m 80% fallback) |
 | COV-03 | Phase 7: Coverage Rendering | Complete (fraction + floor; reduced-opacity render) |
-| FOC-01 | Phase 8: Regions + Focus-Area | Pending |
-| FOC-02 | Phase 8: Regions + Focus-Area | Pending |
-| FOC-03 | Phase 8: Regions + Focus-Area | Pending |
-| FOC-04 | Phase 8: Regions + Focus-Area | Pending |
-| FOC-05 | Phase 8: Regions + Focus-Area | Pending |
-| FOC-06 | Phase 8: Regions + Focus-Area | Pending |
-| FOC-07 | Phase 8: Regions + Focus-Area | Pending |
-| REG-01 | Phase 8: Regions + Focus-Area | Pending |
-| REG-02 | Phase 8: Regions + Focus-Area | Pending |
-| REG-03 | Phase 8: Regions + Focus-Area | Pending |
-| REG-04 | Phase 8: Regions + Focus-Area | Pending |
-| REG-05 | Phase 8: Regions + Focus-Area | Pending |
-| REG-06 | Phase 8: Regions + Focus-Area | Pending |
-| REG-07 | Phase 8: Regions + Focus-Area | Pending |
-| COV-04 | Phase 8: Regions + Focus-Area | Pending |
-| COV-07 | Phase 8: Regions + Focus-Area | Pending |
-| COV-08 | Phase 8: Regions + Focus-Area | Pending |
+| FOC-01 | Phase 8: Regions + Focus-Area | Complete (zoom→level mapper; live-during-move per 08-CONTEXT, not idle-gated; device confirm deferred) |
+| FOC-02 | Phase 8: Regions + Focus-Area | Complete (AdminRegionLookup.regionAt point-in-polygon at chosen level) |
+| FOC-03 | Phase 8: Regions + Focus-Area | Complete (two centered lines name-over-%, one-decimal per 08-CONTEXT — not inline "·") |
+| FOC-04 | Phase 8: Regions + Focus-Area | Complete (fallbackLevelsFrom parent chain to Deutschland backstop) |
+| FOC-05 | Phase 8: Regions + Focus-Area | Complete (pill onTap → showRegionDetailSheet, 08-06) |
+| FOC-06 | Phase 8: Regions + Focus-Area | De-scoped (v1) — 2026-07-10 — breadcrumb permanently removed per 08-CONTEXT (detail sheet is stats-only) |
+| FOC-07 | Phase 8: Regions + Focus-Area | Complete (softened per 08-CONTEXT: 150 ms trailing debounce + hold-last-value live-track, not strict idle-200ms; per-region cache read) |
+| REG-01 | Phase 8: Regions + Focus-Area | Complete (reframed per 08-CONTEXT: one flat coverage-gated mixed-level card list, not per-level tabs) |
+| REG-02 | Phase 8: Regions + Focus-Area | Complete (default sort % descending) |
+| REG-03 | Phase 8: Regions + Focus-Area | De-scoped (v1) — 2026-07-10 — alternative sorts not requested per 08-CONTEXT; %-desc + search sufficient |
+| REG-04 | Phase 8: Regions + Focus-Area | Complete (global fuzzy search, starts-with ranked) |
+| REG-05 | Phase 8: Regions + Focus-Area | Complete (stats-only detail per 08-CONTEXT: name+level tag+%+km; breadcrumb/driven-ways/top-trips permanently dropped) |
+| REG-06 | Phase 8: Regions + Focus-Area | Complete (Jump-to-on-map → animateCamera newLatLngBounds) |
+| REG-07 | Phase 8: Regions + Focus-Area | Complete (lazy ListView.builder) |
+| COV-04 | Phase 8: Regions + Focus-Area | Complete (Σ driven Kfz / Σ total Kfz per region, Feldweg/Fußweg excluded; global scope) |
+| COV-07 | Phase 8: Regions + Focus-Area | Complete (main-isolate recompute with periodic yielding per plan; separate compute isolate → optimization deferred) |
+| COV-08 | Phase 8: Regions + Focus-Area | Complete (global total/driven km; per-vehicle stats → Phase 9 hook, TODO in CoverageComputeService) |
 | VEH-01 | Phase 9: Vehicles + Bluetooth | Pending |
 | VEH-02 | Phase 9: Vehicles + Bluetooth | Pending |
 | VEH-03 | Phase 9: Vehicles + Bluetooth | Pending |

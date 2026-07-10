@@ -20,7 +20,7 @@ Depth: **comprehensive** — 11 phases, driven by the 112 v1 requirements (FND, 
 - [x] **Phase 5: Overpass-Backed Matcher + Golden Corpus** — HMM matcher consumes `WayCandidateSource` (Phase 4), matches confirmed trip polylines to driven way intervals, CI-verified against a golden corpus
 - [x] **Phase 6: Inbox + Match Wire-Up** — trip inbox, confirm/reject, matching enqueue, coverage cache infra (code-complete + verifier PASS 6/6 must-haves 2026-07-09; on-device crash fix PROVEN — 96 km trip matched to 814 intervals; behavioral drive-confirms deferred to user)
 - [x] **Phase 7: Coverage Rendering** — driven Kfz-ways painted on the map via GeoJSON + data-driven paint expressions (Gate G2 resolved = FAIL: feature-state unavailable on mobile); orange/amber default + 5-preset picker; 50k fps stress harness code-complete (verifier PASS 5/5 code must-haves 2026-07-10; 5 on-device visual confirms deferred to user — `07-MANUAL-TESTS-DEFERRED.md`)
-- [ ] **Phase 8: Regions + Focus-Area** — admin region browser, zoom-aware focus pill, coverage aggregation
+- [x] **Phase 8: Regions + Focus-Area** — admin region browser, zoom-aware focus pill, coverage aggregation (code-complete + verifier PASS 17/17 must-haves 2026-07-11; SC1/2/3/5 honored per 08-CONTEXT amendments — live pill, stats-only sheet, flat mixed-level card list, global coverage; 10 on-device visual confirms deferred to next drive — `08-DEVICE-VERIFICATION-DEFERRED.md`)
 - [ ] **Phase 9: Vehicles + Bluetooth** — full vehicle CRUD, BT-fingerprint hints, per-vehicle color prefs
 - [ ] **Phase 10: Settings + Backup** — encrypted App DB backup/restore, OSM extract updates, diagnostics
 - [ ] **Phase 11: Hardening** — patrol E2E, real-device gauntlet, iOS BG behavior, battery regression gate
@@ -229,12 +229,12 @@ Plans:
 **Plans:** 6 plans in 3 waves (planned 2026-07-10 — several SC amended by `08-CONTEXT.md`; honor amendments)
 
 Plans:
-- [ ] 08-01-PLAN.md — Wave 1: domain layer — zoom_level_mapper (breakpoints + parent-fallback chain) + RegionCoverage value type + coverage-% math (pure Dart, unit-tested)
-- [ ] 08-02-PLAN.md — Wave 1: CoverageComputeService — FIRST writer of coverage_cache (levels 4/6/8/9/10, level 2 excluded); getAllWithCoverage read; recompute hook after confirmTrip invalidation; per-vehicle + time TODO hooks (COV-04/07/08)
-- [ ] 08-03-PLAN.md — Wave 1: shared map infra — liveCameraProvider + onCameraMove wired in map_widget.dart (isolated so Wave-2 pill never collides on the file)
-- [ ] 08-04-PLAN.md — Wave 2: focus pill — focusPillProvider (debounced live camera → region + %, hold-last-value, parent fallback) + two-line FocusAreaPill replacing the stub (FOC-01..05/07)
-- [ ] 08-05-PLAN.md — Wave 2: region browser — flat coverage-gated %-desc card list + global fuzzy search + lazy ListView + draggable Liquid Glass detail sheet (stats-only) + Jump-to-on-map (REG-02/04/06/07, COV-04)
-- [ ] 08-06-PLAN.md — Wave 3: integration — pill tap → detail sheet + single deferred on-device verification checklist (defer-to-next-drive, no blocking checkpoint)
+- [x] 08-01-PLAN.md — Wave 1: domain layer — zoom_level_mapper (breakpoints + parent-fallback chain) + RegionCoverage value type + coverage-% math (pure Dart, unit-tested)
+- [x] 08-02-PLAN.md — Wave 1: CoverageComputeService — FIRST writer of coverage_cache (levels 4/6/8/9/10, level 2 excluded); getAllWithCoverage read; recompute hook after confirmTrip invalidation; per-vehicle + time TODO hooks (COV-04/07/08)
+- [x] 08-03-PLAN.md — Wave 1: shared map infra — liveCameraProvider + onCameraMove wired in map_widget.dart (isolated so Wave-2 pill never collides on the file)
+- [x] 08-04-PLAN.md — Wave 2: focus pill — focusPillProvider (debounced live camera → region + %, hold-last-value, parent fallback) + two-line FocusAreaPill replacing the stub (FOC-01..05/07)
+- [x] 08-05-PLAN.md — Wave 2: region browser — flat coverage-gated %-desc card list + global fuzzy search + lazy ListView + draggable Liquid Glass detail sheet (stats-only) + Jump-to-on-map (REG-02/04/06/07, COV-04)
+- [x] 08-06-PLAN.md — Wave 3: integration — pill tap → detail sheet + single deferred on-device verification checklist (defer-to-next-drive, no blocking checkpoint)
 
 ### Phase 9: Vehicles + Bluetooth
 **Goal:** Full vehicle profiles with Bluetooth-fingerprint hints replace the P3/P6 placeholder default vehicle.
@@ -287,7 +287,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 | 5. Overpass-Backed Matcher + Golden Corpus | 8/8 | ✓ Complete (code-complete; matcher-domain coverage 93.8 %; MMT-09 partial — 1 seed + CI gate shipped, 19 fixtures inherited by Phase 6) | 2026-07-08 |
 | 6. Inbox + Match Wire-Up | 6/6 | ✓ Complete (verifier PASS 6/6; +2 gap plans 06-07/06-08; on-device crash fix proven; behavioral drive-confirms deferred) | 2026-07-09 |
 | 7. Coverage Rendering | 7/7 | ✓ Complete (verifier PASS 5/5 code must-haves; Gate G2 resolved = FAIL → GeoJSON + data-driven expressions; 5 on-device visual confirms deferred) | 2026-07-10 |
-| 8. Regions + Focus-Area | 0/TBD | Not started | - |
+| 8. Regions + Focus-Area | 6/6 | ✓ Complete (verifier PASS 17/17 must-haves; SC1/2/3/5 honored per 08-CONTEXT amendments; FOC-06/REG-03 de-scoped v1; 10 on-device confirms deferred) | 2026-07-11 |
 | 9. Vehicles + Bluetooth | 0/TBD | Not started | - |
 | 10. Settings + Backup | 0/TBD | Not started | - |
 | 11. Hardening | 0/TBD | Not started | - |

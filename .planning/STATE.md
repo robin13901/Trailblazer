@@ -11,7 +11,7 @@ See: .planning/PROJECT.md (updated 2026-07-02)
 
 Phase: 8 of 11 (Regions + Focus-Area — COMPLETE)
 Plan: 08-06 complete (6 of 6 plans in phase — done: 08-01, 08-02, 08-03, 08-04, 08-05, 08-06)
-Status: Phase 8 complete 2026-07-11. 08-06: GestureDetector tap on FocusAreaPill resolves current focus region via fallbackLevelsFrom chain and opens showRegionDetailSheet; widget test with in-memory DB; Phase-8 deferred device-verification checklist (10 items).
+Status: Phase 8 complete 2026-07-11 — verifier PASS 17/17 must-haves (08-VERIFICATION.md). 08-06: GestureDetector tap on FocusAreaPill resolves current focus region via fallbackLevelsFrom chain and opens showRegionDetailSheet; widget test with in-memory DB; Phase-8 deferred device-verification checklist (10 items). SC1/2/3/5 honored per 08-CONTEXT amendments (live pill / stats-only sheet / flat mixed-level card list / global coverage); FOC-06 breadcrumb + REG-03 alt-sorts de-scoped v1. flutter analyze clean; 518 tests pass across regions/map/coverage/trips/admin.
 Last activity: 2026-07-11 — 08-06 complete: pill tap → showRegionDetailSheet; _FakeLookup + NativeDatabase.memory() widget test; 08-DEVICE-VERIFICATION-DEFERRED.md written (10 items).
 
 Progress: [██████████] ~93% (73/78 est. plans overall — Phase 1: 7/7; Phase 2: 7/7; Phase 3: 7/7; Phase 3.1: 5/5; Phase 4: 8/8 + 04-18 + 04-19 DRIVE-VERIFIED; Phase 5: 8/8 CODE-COMPLETE; Phase 6: 6/6 code-complete — 06-01..06-06 done + 06-07/06-08 gap-fixes; Phase 7: 7/7 code-complete — 07-01..07-07; Phase 8: 6/6 COMPLETE — 08-01..08-06)
