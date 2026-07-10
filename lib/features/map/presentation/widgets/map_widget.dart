@@ -3,6 +3,7 @@ import 'dart:math';
 
 import 'package:auto_explore/features/map/domain/follow_mode.dart';
 import 'package:auto_explore/features/map/presentation/providers/camera_state_provider.dart';
+import 'package:auto_explore/features/map/presentation/providers/live_camera_provider.dart';
 import 'package:auto_explore/features/map/presentation/providers/location_permission_provider.dart';
 import 'package:auto_explore/features/map/presentation/providers/map_controller_provider.dart';
 import 'package:auto_explore/features/map/presentation/providers/map_style_loaded_provider.dart';
@@ -252,6 +253,15 @@ class _MapWidgetState extends ConsumerState<MapWidget>
         // Pan/rotate dismisses follow mode.
         onCameraTrackingDismissed: () {
           ref.read(cameraStateProvider.notifier).setFollowMode(FollowMode.none);
+        },
+        // Live camera stream for the focus pill (Plan 08-03). Fires on every
+        // frame while the user pans/zooms. Push the raw position into
+        // liveCameraProvider here — debounce + region resolution live in the
+        // pill provider (08-05), NEVER in this hot callback (RESEARCH.md
+        // line 571: debounce in a timer, not in the callback).
+        onCameraMove: (pos) {
+          if (!mounted) return;
+          ref.read(liveCameraProvider.notifier).update(pos);
         },
         // Persist the live camera position on every idle so a dispose+recreate
         // across a tab switch (memory fix) can restore the exact view. Reads
