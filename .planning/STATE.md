@@ -5,16 +5,16 @@
 See: .planning/PROJECT.md (updated 2026-07-02)
 
 **Core value:** When I open the map, I immediately see the roads I've already driven, painted onto the world — and that view keeps pulling me back to explore more.
-**Current focus:** Phase 7 (Coverage Rendering) IN PROGRESS — 07-01 (coverage domain) + 07-02 (requirements reconciliation docs) complete. REN-01 orange/amber, REN-02 de-scoped, Gate G2 RESOLVED = FAIL (GeoJSON data-driven expressions). Next: 07-03 DrivenWayGeometryResolver.
+**Current focus:** Phase 7 (Coverage Rendering) IN PROGRESS — 07-01 (coverage domain) + 07-02 (requirements reconciliation docs) + 07-03 (DrivenWayIntervalsDao.getAllIntervals + getDistinctWayIds) + 07-05 (settings color picker) complete. REN-01 orange/amber, REN-02 de-scoped, Gate G2 RESOLVED = FAIL (GeoJSON data-driven expressions). Next: 07-04 CoverageOverlayData / 07-06 map bridge.
 
 ## Current Position
 
 Phase: 7 of 11 (Coverage Rendering — In Progress)
-Plan: 07-02 complete (2 of 7 plans in phase)
-Status: Phase 7 in progress. 07-01 (coverage domain + CoverageDatum + 5-preset palette) complete; 07-02 (requirements reconciliation — REQUIREMENTS.md/ROADMAP.md/PROJECT.md) complete. Gate G2 resolved: GeoJSON data-driven expressions chosen. Docs-only plan — no code touched, no test run needed.
-Last activity: 2026-07-10 — 07-02 complete: reconciled REN-01 (orange/amber), REN-02 (de-scoped), REN-05 (Gate G2 FAIL → GeoJSON expressions) into REQUIREMENTS.md, ROADMAP.md, PROJECT.md. NOTE: `flutter build apk --debug` without `--dart-define=MAPTILER_KEY` shows a blank map (missing tile key, not a bug) — always launch with `--dart-define-from-file=env/dev.json`.
+Plan: 07-05 complete (4 of 7 plans in phase)
+Status: Phase 7 in progress. 07-01 (coverage domain + CoverageDatum + 5-preset palette) complete; 07-02 (requirements reconciliation) complete; 07-03 (DrivenWayIntervalsDao query methods) complete; 07-05 (AppPrefs coverage preset persistence + coveragePresetProvider + CoverageColorSection + Settings wiring) complete. Gate G2 resolved: GeoJSON data-driven expressions chosen.
+Last activity: 2026-07-10 — 07-05 complete: AppPrefs extended with getCoveragePreset/setCoveragePreset; coveragePresetProvider (AsyncNotifier, no codegen) + coveragePresetValueProvider; CoverageColorSection 5-swatch picker wired into Settings screen; 9 new tests green; flutter analyze clean. NOTE: AsyncValue.value (nullable getter) used — .valueOrNull does not exist in flutter_riverpod 3.3.2. NOTE: `flutter build apk --debug` without `--dart-define=MAPTILER_KEY` shows a blank map (missing tile key, not a bug) — always launch with `--dart-define-from-file=env/dev.json`.
 
-Progress: [█████████░] ~79% (62/77 est. plans overall — Phase 1: 7/7; Phase 2: 7/7; Phase 3: 7/7; Phase 3.1: 5/5; Phase 4: 8/8 + 04-18 + 04-19 DRIVE-VERIFIED; Phase 5: 8/8 CODE-COMPLETE; Phase 6: 6/6 code-complete — 06-01..06-06 done + 06-07/06-08 gap-fixes; Phase 7: 2/7 in progress — 07-01 + 07-02)
+Progress: [█████████░] ~80% (63/77 est. plans overall — Phase 1: 7/7; Phase 2: 7/7; Phase 3: 7/7; Phase 3.1: 5/5; Phase 4: 8/8 + 04-18 + 04-19 DRIVE-VERIFIED; Phase 5: 8/8 CODE-COMPLETE; Phase 6: 6/6 code-complete — 06-01..06-06 done + 06-07/06-08 gap-fixes; Phase 7: 4/7 in progress — 07-01 + 07-02 + 07-03 + 07-05)
 
 ## Performance Metrics
 
@@ -460,6 +460,9 @@ Key locked-in decisions affecting current work:
 - **Plan 07-01 (2026-07-10) — COV-03 partial floor: max(50 m, 5 % of way length).** Suppresses stray GPS clips (single 30 m match on a 1 km autobahn). Named consts `kPartialFloorMeters=50`, `kPartialFloorFraction=0.05` exported from `coverage_threshold.dart` for 07-04 tuning.
 - **Plan 07-01 (2026-07-10) — REN-01 default: amber (#FF8C00 light / #FFA726 dark).** Maximum pop over both MapTiler dataviz light and dark styles. Green still offered as a preset. `CoverageColorPreset.amber` is the `fromString()` fallback.
 - **Plan 07-01 (2026-07-10) — domain uses `dart:ui` for Brightness, not `package:flutter/material.dart`.** Keeps `coverage_color_preset.dart` isolate-safe and widget-free — can be imported by background isolates in 07-03/07-04 without a Flutter binding dependency.
+- **Plan 07-05 (2026-07-10) — `AsyncValue.value` (nullable `T?`) used instead of `.valueOrNull`.** The latter does not exist in `flutter_riverpod 3.3.2`; `AsyncValue.value` is a nullable getter available on all three AsyncValue states (Data/Loading/Error). Downstream code using Riverpod async providers must use `.value` for sync nullable access.
+- **Plan 07-05 (2026-07-10) — `coveragePresetValueProvider` exposes sync amber-fallback via `Provider<CoverageColorPreset>`.** Watches `coveragePresetProvider.value ?? amber`. Map bridge (07-06) and Settings UI both use this; avoids `AsyncNotifierProvider` boilerplate in widgets that don't need loading state.
+- **Plan 07-05 (2026-07-10) — `List<Object>` + `.cast()` for `ProviderScope` overrides in tests.** Matches `data_management_section_test.dart` pattern; `List<Override>` type is not directly importable in this Riverpod version.
 
 ### Blockers/Concerns
 
@@ -475,7 +478,7 @@ Key locked-in decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-07-10 (Plan 07-01 — coverage domain — COMPLETE; 7 min execution)
-Stopped at: Plan 07-01 COMPLETE. Task commits: `1125637` coverage_datum + coverage_threshold; `19fe566` coverage_color_preset; `8efe3e9` 63 unit tests. SUMMARY.md + STATE.md + metadata commit follow. 63/63 tests green; flutter analyze clean. Phase 7: 07-01 + 07-02 complete (code + docs).
+Last session: 2026-07-10 (Plan 07-05 — settings picker — COMPLETE; ~35 min execution)
+Stopped at: Plan 07-05 COMPLETE. Task commits: `60f70ca` AppPrefs coverage preset; `caae2be` coveragePresetProvider; `c5b26b7` CoverageColorSection + Settings wiring + 9 tests. SUMMARY.md + STATE.md + metadata commit follow. 9/9 tests green; flutter analyze clean. Phase 7: 07-01 + 07-02 + 07-03 + 07-05 complete.
 Resume file: None
-Next: Phase 7 in progress. Next plan: 07-03 DrivenWayGeometryResolver (data layer — resolves way geometries from Overpass cache for the coverage overlay).
+Next: Phase 7 in progress. Next plan: 07-04 CoverageOverlayData (data layer — resolves way geometries from Overpass cache + computes CoverageOverlayData for the GeoJSON layer); then 07-06 map bridge (bridge reacts to coveragePresetValueProvider).
