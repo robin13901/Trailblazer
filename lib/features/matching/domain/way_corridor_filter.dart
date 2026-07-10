@@ -45,27 +45,46 @@ List<WayCandidate> filterWaysToTripCorridor({
   required List<WayCandidate> ways,
 }) {
   if (fixes.isEmpty || ways.isEmpty) return ways;
-
-  // 1. Build an occupancy set from the trip fixes: each fix marks its own cell
-  //    plus the 8 neighbors, giving a corridor half-width of ~one cell.
-  final occupied = <int>{};
-  for (final f in fixes) {
-    final latIdx = (f.lat / _cellDeg).floor();
-    final lonIdx = (f.lon / _cellDeg).floor();
-    for (var dy = -1; dy <= 1; dy++) {
-      for (var dx = -1; dx <= 1; dx++) {
-        occupied.add(_cellKey(latIdx + dy, lonIdx + dx));
-      }
-    }
-  }
-
-  // 2. Keep any way with a vertex — or an along-segment sample — in an
-  //    occupied cell.
+  final corridor = TripCorridor.fromFixes(fixes);
   final kept = <WayCandidate>[];
   for (final w in ways) {
-    if (_wayTouchesCorridor(w, occupied)) kept.add(w);
+    if (corridor.touchedBy(w)) kept.add(w);
   }
   return kept;
+}
+
+/// A reusable occupancy set describing the ~one-grid-cell corridor around a
+/// trip's GPS path. Build it ONCE from the fixes, then test many ways (or many
+/// tiles' worth of ways) against it — this is what lets the matcher isolate
+/// corridor-filter tile-by-tile without rebuilding the set per tile.
+class TripCorridor {
+  const TripCorridor._(this._occupied);
+
+  /// Build the occupancy set: each fix marks its own cell plus the 8 neighbors,
+  /// giving a corridor half-width of ~one cell (~250 m).
+  factory TripCorridor.fromFixes(List<GpsFix> fixes) {
+    final occupied = <int>{};
+    for (final f in fixes) {
+      final latIdx = (f.lat / _cellDeg).floor();
+      final lonIdx = (f.lon / _cellDeg).floor();
+      for (var dy = -1; dy <= 1; dy++) {
+        for (var dx = -1; dx <= 1; dx++) {
+          occupied.add(_cellKey(latIdx + dy, lonIdx + dx));
+        }
+      }
+    }
+    return TripCorridor._(occupied);
+  }
+
+  final Set<int> _occupied;
+
+  /// True when the set is empty (built from zero fixes) — callers may choose to
+  /// keep all ways in that degenerate case, matching [filterWaysToTripCorridor].
+  bool get isEmpty => _occupied.isEmpty;
+
+  /// True if any vertex — or along-segment sample — of [way] lands in the
+  /// corridor.
+  bool touchedBy(WayCandidate way) => _wayTouchesCorridor(way, _occupied);
 }
 
 bool _wayTouchesCorridor(WayCandidate way, Set<int> occupied) {
