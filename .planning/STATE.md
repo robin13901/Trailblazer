@@ -5,16 +5,16 @@
 See: .planning/PROJECT.md (updated 2026-07-02)
 
 **Core value:** When I open the map, I immediately see the roads I've already driven, painted onto the world — and that view keeps pulling me back to explore more.
-**Current focus:** Phase 8 (Regions + Focus-Area) IN PROGRESS — Wave 1 complete: 08-01 (domain), 08-02 (coverage compute), 08-03 (live camera). Wave 2 IN PROGRESS: 08-04 (focus pill) + 08-05 (region browser) complete.
+**Current focus:** Phase 8 (Regions + Focus-Area) COMPLETE — all 6 plans done: 08-01 (domain), 08-02 (coverage compute), 08-03 (live camera), 08-04 (focus pill), 08-05 (region browser), 08-06 (pill tap integration). Phase 9 next.
 
 ## Current Position
 
-Phase: 8 of 11 (Regions + Focus-Area — In Progress)
-Plan: 08-05 complete (5 of 6 plans in phase — done: 08-01, 08-02, 08-03, 08-04, 08-05)
-Status: Wave 2 in progress 2026-07-11. 08-04 (FocusAreaPill live two-line + focusPillProvider debounced); 08-05 (region browser + detail sheet + search).
-Last activity: 2026-07-11 — 08-05 complete: regionByOsmId additive lookup; regionBrowserProvider (FutureProvider %-desc, level-2 excluded); regionBrowserFilteredProvider (ranked fuzzy search); RegionCard + RegionLevelBadge; showRegionDetailSheet (DraggableScrollableSheet, 0-dim guard, Jump-to-map with ref.listenManual); RegionsScreen replaced stub; 2 provider tests + 4 screen smoke tests.
+Phase: 8 of 11 (Regions + Focus-Area — COMPLETE)
+Plan: 08-06 complete (6 of 6 plans in phase — done: 08-01, 08-02, 08-03, 08-04, 08-05, 08-06)
+Status: Phase 8 complete 2026-07-11. 08-06: GestureDetector tap on FocusAreaPill resolves current focus region via fallbackLevelsFrom chain and opens showRegionDetailSheet; widget test with in-memory DB; Phase-8 deferred device-verification checklist (10 items).
+Last activity: 2026-07-11 — 08-06 complete: pill tap → showRegionDetailSheet; _FakeLookup + NativeDatabase.memory() widget test; 08-DEVICE-VERIFICATION-DEFERRED.md written (10 items).
 
-Progress: [█████████░] ~92% (72/78 est. plans overall — Phase 1: 7/7; Phase 2: 7/7; Phase 3: 7/7; Phase 3.1: 5/5; Phase 4: 8/8 + 04-18 + 04-19 DRIVE-VERIFIED; Phase 5: 8/8 CODE-COMPLETE; Phase 6: 6/6 code-complete — 06-01..06-06 done + 06-07/06-08 gap-fixes; Phase 7: 7/7 code-complete — 07-01..07-07; Phase 8: 5/6 — 08-01, 08-02, 08-03, 08-04, 08-05)
+Progress: [██████████] ~93% (73/78 est. plans overall — Phase 1: 7/7; Phase 2: 7/7; Phase 3: 7/7; Phase 3.1: 5/5; Phase 4: 8/8 + 04-18 + 04-19 DRIVE-VERIFIED; Phase 5: 8/8 CODE-COMPLETE; Phase 6: 6/6 code-complete — 06-01..06-06 done + 06-07/06-08 gap-fixes; Phase 7: 7/7 code-complete — 07-01..07-07; Phase 8: 6/6 COMPLETE — 08-01..08-06)
 
 ## Performance Metrics
 
@@ -485,6 +485,9 @@ Key locked-in decisions affecting current work:
 - **Plan 08-05 (2026-07-11) — `regionByOsmId(int osmId)` additive reverse lookup on AdminRegionLookup.** Linear scan over `_byLevel.values` buckets, O(N) over ~20K regions — same memory posture as `regionAt`. OSM ids are globally unique across admin levels (RESEARCH line 491) so no level disambiguation needed.
 - **Plan 08-05 (2026-07-11) — Level 2 excluded from region browser.** Same rationale as `kComputeAdminLevels = [4,6,8,9,10]`: a Deutschland card would accumulate the entire DE road network and is not a useful display item. Level 2 remains available for the focus pill fallback (Plan 08-04).
 - **Plan 08-05 (2026-07-11) — `levelLabel()` and `RegionLevelBadge` exposed as public top-level function + public widget.** Reused by both RegionCard and RegionDetailSheet without duplication.
+- **Plan 08-06 (2026-07-11) — Pill tap resolves region with same fallbackLevelsFrom chain as background notifier.** Pill and sheet always show the same region. `_openSheet` reads `liveCameraProvider` + `adminRegionLookupProvider.ensureLoaded()` + `fallbackLevelsFrom(zoom)` loop — identical to `FocusPillNotifier._resolve()`.
+- **Plan 08-06 (2026-07-11) — `context.mounted` guarded after each `await` in tap handler.** Handles orientation changes / navigator dismount during async resolution (`ensureLoaded`, `getByRegionId`). Standard Flutter async-tap safety pattern.
+- **Plan 08-06 (2026-07-11) — Widget test uses `NativeDatabase.memory()` not fake DAO subclass.** `CoverageCacheDao` requires non-null `AppDatabase`; passing `null as dynamic` throws a runtime cast error. In-memory DB is fast, hermetic, and correctly exercises the DAO seeding path.
 
 ### Blockers/Concerns
 
@@ -500,7 +503,7 @@ Key locked-in decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-07-11 (Plan 08-05 — Region Browser + Detail Sheet — COMPLETE; ~16 min execution; sibling 08-04 also complete)
-Stopped at: Plan 08-05 COMPLETE. Task 1 commit `ab2b3ef` (regionByOsmId + regionBrowserProvider); Task 2 commit `cf25217` (RegionCard + RegionDetailSheet); Task 3 commit `498a8ce` (RegionsScreen + 2 provider tests + 4 screen tests). SUMMARY.md at .planning/phases/08-regions-focus-area/08-05-SUMMARY.md. flutter analyze clean; all 80 regions+admin tests pass.
+Last session: 2026-07-11 (Plan 08-06 — Pill Tap Integration — COMPLETE; ~25 min execution; Phase 8 fully complete)
+Stopped at: Plan 08-06 COMPLETE. Task 1 commit `937e092` (pill tap wiring); Task 2 commit `462cb4a` (pill tap widget test); Task 3 commit `c8645f7` (Phase-8 deferred device checklist). SUMMARY.md at .planning/phases/08-regions-focus-area/08-06-SUMMARY.md. flutter analyze clean; all tests pass.
 Resume file: None
-Next: 08-06 (Wire-up / integration pass — final plan in Phase 8)
+Next: Phase 9 (Vehicles) — Phase 8 on-device confirms deferred to next drive (08-DEVICE-VERIFICATION-DEFERRED.md)
