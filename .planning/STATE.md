@@ -5,16 +5,16 @@
 See: .planning/PROJECT.md (updated 2026-07-02)
 
 **Core value:** When I open the map, I immediately see the roads I've already driven, painted onto the world — and that view keeps pulling me back to explore more.
-**Current focus:** Phase 8 (Regions + Focus-Area) IN PROGRESS — Wave 1 complete: 08-01 (domain), 08-02 (coverage compute), 08-03 (live camera). Phase 7 fully code-complete 2026-07-10.
+**Current focus:** Phase 8 (Regions + Focus-Area) IN PROGRESS — Wave 1 complete: 08-01 (domain), 08-02 (coverage compute), 08-03 (live camera). Wave 2 IN PROGRESS: 08-04 (focus pill) + 08-05 (region browser) complete.
 
 ## Current Position
 
 Phase: 8 of 11 (Regions + Focus-Area — In Progress)
-Plan: 08-03 complete (3 of 6 plans in phase — done: 08-01, 08-02, 08-03)
-Status: Wave 1 complete 2026-07-11. 08-01 (ZoomLevelMapper + RegionCoverage, 52 tests); 08-02 (CoverageComputeService + provider); 08-03 (liveCameraProvider + onCameraMove wiring, 7 tests).
-Last activity: 2026-07-11 — 08-03 complete: LiveCamera value class, LiveCameraNotifier.update(), liveCameraProvider (plain NotifierProvider), onCameraMove wired in MapWidget (onCameraIdle untouched), 7 provider unit tests.
+Plan: 08-05 complete (5 of 6 plans in phase — done: 08-01, 08-02, 08-03, 08-04, 08-05)
+Status: Wave 2 in progress 2026-07-11. 08-04 (FocusAreaPill live two-line + focusPillProvider debounced); 08-05 (region browser + detail sheet + search).
+Last activity: 2026-07-11 — 08-05 complete: regionByOsmId additive lookup; regionBrowserProvider (FutureProvider %-desc, level-2 excluded); regionBrowserFilteredProvider (ranked fuzzy search); RegionCard + RegionLevelBadge; showRegionDetailSheet (DraggableScrollableSheet, 0-dim guard, Jump-to-map with ref.listenManual); RegionsScreen replaced stub; 2 provider tests + 4 screen smoke tests.
 
-Progress: [█████████░] ~90% (70/78 est. plans overall — Phase 1: 7/7; Phase 2: 7/7; Phase 3: 7/7; Phase 3.1: 5/5; Phase 4: 8/8 + 04-18 + 04-19 DRIVE-VERIFIED; Phase 5: 8/8 CODE-COMPLETE; Phase 6: 6/6 code-complete — 06-01..06-06 done + 06-07/06-08 gap-fixes; Phase 7: 7/7 code-complete — 07-01..07-07; Phase 8: 3/6 — 08-01, 08-02, 08-03)
+Progress: [█████████░] ~92% (72/78 est. plans overall — Phase 1: 7/7; Phase 2: 7/7; Phase 3: 7/7; Phase 3.1: 5/5; Phase 4: 8/8 + 04-18 + 04-19 DRIVE-VERIFIED; Phase 5: 8/8 CODE-COMPLETE; Phase 6: 6/6 code-complete — 06-01..06-06 done + 06-07/06-08 gap-fixes; Phase 7: 7/7 code-complete — 07-01..07-07; Phase 8: 5/6 — 08-01, 08-02, 08-03, 08-04, 08-05)
 
 ## Performance Metrics
 
@@ -476,6 +476,11 @@ Key locked-in decisions affecting current work:
 - **Plan 08-02 (2026-07-11) — `CoverageComputeService.recompute()` calls `deleteAll()` then upserts.** Stale rows (ways that disappeared from the Overpass cache) are cleaned each cycle. No MERGE logic needed; Phase-8 has no partial-update semantic.
 - **Plan 08-02 (2026-07-11) — unawaited recompute in `TripsInboxRepository.confirmTrip`.** Fires after `CoverageInvalidator.invalidateForTrip`; fire-and-forget so the user's Keep is never blocked. Error returned as Err internally and silently swallowed by the caller.
 - **Plan 08-02 (2026-07-11) — `getAllWithCoverage()` filter is `driven_length_m > 0` (Drift isBiggerThanValue).** Total-only rows (ways in region but none driven) are excluded from the browser list. Callers wanting total-only rows use `getByRegionId` directly.
+- **Plan 08-05 (2026-07-11) — `StateProvider<String>` removed in flutter_riverpod 3.x; replaced by `NotifierProvider<SearchQueryNotifier, String>`.** `SearchQueryNotifier` uses getter/setter pair matching the `MapControllerNotifier` pattern (STATE Plan 02-03). Callers use `ref.read(regionSearchQueryProvider.notifier).query = value`.
+- **Plan 08-05 (2026-07-11) — `StatefulNavigationShell.maybeOf(context)` for nullable shell access.** `.of(context)` returns non-nullable `StatefulNavigationShellState` — null-check on it triggers "comparison always true" analyzer warning. `.maybeOf()` returns the nullable form matching the plan's "if not reachable, context.go('/')" fallback.
+- **Plan 08-05 (2026-07-11) — `regionByOsmId(int osmId)` additive reverse lookup on AdminRegionLookup.** Linear scan over `_byLevel.values` buckets, O(N) over ~20K regions — same memory posture as `regionAt`. OSM ids are globally unique across admin levels (RESEARCH line 491) so no level disambiguation needed.
+- **Plan 08-05 (2026-07-11) — Level 2 excluded from region browser.** Same rationale as `kComputeAdminLevels = [4,6,8,9,10]`: a Deutschland card would accumulate the entire DE road network and is not a useful display item. Level 2 remains available for the focus pill fallback (Plan 08-04).
+- **Plan 08-05 (2026-07-11) — `levelLabel()` and `RegionLevelBadge` exposed as public top-level function + public widget.** Reused by both RegionCard and RegionDetailSheet without duplication.
 
 ### Blockers/Concerns
 
@@ -491,7 +496,7 @@ Key locked-in decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-07-11 (Plan 08-02 — CoverageComputeService — COMPLETE; ~13 min execution; Plan 08-03 also complete in parallel Wave 1)
-Stopped at: Plan 08-02 COMPLETE. Task 1 commit `a624713` (CoverageComputeService + provider); Task 2 commit `ba9c2cb` (getAllWithCoverage + recompute hook in confirmTrip); Task 3 commit `626cb1b` (7-scenario unit test). SUMMARY.md created at .planning/phases/08-regions-focus-area/08-02-SUMMARY.md. flutter analyze clean; 401 tests pass (regions+coverage+trips suites).
+Last session: 2026-07-11 (Plan 08-05 — Region Browser + Detail Sheet — COMPLETE; ~16 min execution; sibling 08-04 also complete)
+Stopped at: Plan 08-05 COMPLETE. Task 1 commit `ab2b3ef` (regionByOsmId + regionBrowserProvider); Task 2 commit `cf25217` (RegionCard + RegionDetailSheet); Task 3 commit `498a8ce` (RegionsScreen + 2 provider tests + 4 screen tests). SUMMARY.md at .planning/phases/08-regions-focus-area/08-05-SUMMARY.md. flutter analyze clean; all 80 regions+admin tests pass.
 Resume file: None
-Next: Wave 2 plans 08-04 (focus pill), 08-05 (region browser), 08-06 (region detail sheet) — Wave 1 (08-01, 08-02, 08-03) all complete.
+Next: 08-06 (Wire-up / integration pass — final plan in Phase 8)
