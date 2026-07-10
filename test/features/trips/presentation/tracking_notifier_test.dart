@@ -49,6 +49,17 @@ class _NoopWayCandidateSource implements WayCandidateSource {
   }) async {
     return const [];
   }
+
+  @override
+  Future<List<RawTilePayload>> fetchRawTilesInBbox({
+    required double minLat,
+    required double minLon,
+    required double maxLat,
+    required double maxLon,
+    bool throwOnError = true,
+  }) async {
+    return const [];
+  }
 }
 
 class _AlwaysOnlineConnectivity implements ConnectivitySeam {

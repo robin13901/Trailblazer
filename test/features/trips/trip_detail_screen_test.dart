@@ -66,6 +66,20 @@ class _FakeWaySource implements WayCandidateSource {
     }
     return ways;
   }
+
+  @override
+  Future<List<RawTilePayload>> fetchRawTilesInBbox({
+    required double minLat,
+    required double minLon,
+    required double maxLat,
+    required double maxLon,
+    bool throwOnError = true,
+  }) async {
+    if (throwError) {
+      throw const NetworkError('offline', statusCode: 0);
+    }
+    return const [];
+  }
 }
 
 /// Records raw/matched adds so tests can assert which overlay branch ran.

@@ -10,8 +10,10 @@
 
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:auto_explore/features/matching/data/overpass_response_parser.dart';
+import 'package:auto_explore/features/matching/data/tile_bbox_math.dart';
 import 'package:auto_explore/features/matching/data/way_candidate_source.dart';
 import 'package:auto_explore/features/matching/domain/way_candidate.dart';
 
@@ -32,14 +34,12 @@ class FixtureWayCandidateSource implements WayCandidateSource {
 
   final List<WayCandidate> _ways;
 
-  @override
-  Future<List<WayCandidate>> fetchWaysInBbox({
-    required double minLat,
-    required double minLon,
-    required double maxLat,
-    required double maxLon,
-    bool throwOnError = true,
-  }) async {
+  List<WayCandidate> _waysInBbox(
+    double minLat,
+    double minLon,
+    double maxLat,
+    double maxLon,
+  ) {
     return _ways.where((w) {
       return w.geometry.any(
         (p) =>
@@ -49,5 +49,56 @@ class FixtureWayCandidateSource implements WayCandidateSource {
             p.longitude <= maxLon,
       );
     }).toList();
+  }
+
+  @override
+  Future<List<WayCandidate>> fetchWaysInBbox({
+    required double minLat,
+    required double minLon,
+    required double maxLat,
+    required double maxLon,
+    bool throwOnError = true,
+  }) async {
+    return _waysInBbox(minLat, minLon, maxLat, maxLon);
+  }
+
+  @override
+  Future<List<RawTilePayload>> fetchRawTilesInBbox({
+    required double minLat,
+    required double minLon,
+    required double maxLat,
+    required double maxLon,
+    bool throwOnError = true,
+  }) async {
+    // Re-emit the bbox ways as ONE gzipped Overpass envelope so the matcher
+    // isolate's decode/parse/filter path is exercised end-to-end from a
+    // fixture (mirrors GoldenFixtureExporter's re-emit approach).
+    final ways = _waysInBbox(minLat, minLon, maxLat, maxLon);
+    final envelope = {
+      'version': 0.6,
+      'elements': [
+        for (final w in ways)
+          {
+            'type': 'way',
+            'id': w.wayId,
+            'geometry': [
+              for (final p in w.geometry) {'lat': p.latitude, 'lon': p.longitude},
+            ],
+            'tags': {'highway': w.highwayClass},
+          },
+      ],
+    };
+    final gz = gzip.encode(utf8.encode(jsonEncode(envelope)));
+    return [
+      RawTilePayload(
+        payloadGzip: Uint8List.fromList(gz),
+        bbox: LatLonBbox(
+          minLat: minLat,
+          minLon: minLon,
+          maxLat: maxLat,
+          maxLon: maxLon,
+        ),
+      ),
+    ];
   }
 }

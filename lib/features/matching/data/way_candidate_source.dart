@@ -9,15 +9,31 @@
 // must apply the Kfz allowlist (`kfzHighwayClasses` in
 // `lib/features/matching/domain/way_candidate.dart`) and deduplicate by
 // `wayId` across tile boundaries.
-//
-// The interface intentionally exposes a single method — future
-// implementations may add sibling helpers, but the matcher only depends on
-// this call, so `one_member_abstracts` is disabled at the file level.
-// ignore_for_file: one_member_abstracts
 
+import 'dart:typed_data';
+
+import 'package:auto_explore/features/matching/data/tile_bbox_math.dart';
 import 'package:auto_explore/features/matching/domain/way_candidate.dart';
+import 'package:meta/meta.dart';
 
-/// Abstract seam consumed by the future map-matcher (Phase 5).
+/// One cached/fetched tile's raw gzipped Overpass JSON plus its tile bbox.
+///
+/// Returned by [WayCandidateSource.fetchRawTilesInBbox] so the matcher isolate
+/// can decode + parse + filter the payload itself — keeping that CPU work OFF
+/// the main isolate (Plan 06-07 re-drive #3). [payloadGzip] is a [Uint8List]
+/// so it crosses the isolate SendPort untouched.
+@immutable
+class RawTilePayload {
+  const RawTilePayload({required this.payloadGzip, required this.bbox});
+
+  /// `gzip(utf8(overpassJson))` straight from the cache row.
+  final Uint8List payloadGzip;
+
+  /// The tile's geographic bounds — used for the post-parse bbox-clip.
+  final LatLonBbox bbox;
+}
+
+/// Abstract seam consumed by the map-matcher (Phase 5).
 ///
 /// `fetchWaysInBbox` returns every Kfz-allowlisted [WayCandidate] whose
 /// geometry intersects the requested bbox. Coordinate order is
@@ -31,6 +47,21 @@ import 'package:auto_explore/features/matching/domain/way_candidate.dart';
 ///     the network error. Used by the offline-drain path (04-15 coordinator).
 abstract class WayCandidateSource {
   Future<List<WayCandidate>> fetchWaysInBbox({
+    required double minLat,
+    required double minLon,
+    required double maxLat,
+    required double maxLon,
+    bool throwOnError = true,
+  });
+
+  /// Like [fetchWaysInBbox] but returns the RAW gzipped tile payloads without
+  /// decoding/parsing them — the decode + parse + dedupe + clip + corridor
+  /// filter happens later, inside the matcher isolate (Plan 06-07). This keeps
+  /// the CPU-heavy stage off the main isolate; only cache reads + network
+  /// fetches (async I/O) run here.
+  ///
+  /// `throwOnError` has the same semantics as [fetchWaysInBbox].
+  Future<List<RawTilePayload>> fetchRawTilesInBbox({
     required double minLat,
     required double minLon,
     required double maxLat,

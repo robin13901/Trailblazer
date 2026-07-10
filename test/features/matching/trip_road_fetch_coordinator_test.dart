@@ -37,6 +37,21 @@ class FakeWayCandidateSource implements WayCandidateSource {
     }
     return const [];
   }
+
+  @override
+  Future<List<RawTilePayload>> fetchRawTilesInBbox({
+    required double minLat,
+    required double minLon,
+    required double maxLat,
+    required double maxLon,
+    bool throwOnError = true,
+  }) async {
+    calls++;
+    if (shouldThrow) {
+      throw Exception('fake network failure');
+    }
+    return const [];
+  }
 }
 
 class FakeConnectivitySeam implements ConnectivitySeam {

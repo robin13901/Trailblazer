@@ -22,12 +22,43 @@
 //
 // Timeout per test: 30 s (see Timeout annotations) to fail fast on hangs.
 
+import 'dart:convert';
+import 'dart:io' show gzip;
+import 'dart:typed_data';
+
 import 'package:auto_explore/features/matching/data/match_job.dart';
 import 'package:auto_explore/features/matching/data/matcher_isolate.dart';
+import 'package:auto_explore/features/matching/data/tile_bbox_math.dart';
 import 'package:auto_explore/features/matching/domain/gps_fix.dart';
 import 'package:auto_explore/features/matching/domain/way_candidate.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:maplibre_gl/maplibre_gl.dart' show LatLng;
+
+// ---------------------------------------------------------------------------
+// Tile helpers — the isolate now takes gzipped Overpass tiles, not parsed ways.
+// ---------------------------------------------------------------------------
+
+/// A generous bbox covering all test geometry (~central Germany).
+const _testBbox = LatLonBbox(minLat: 49, minLon: 8, maxLat: 51, maxLon: 10);
+
+/// Gzip a synthetic single-tile Overpass envelope wrapping [ways].
+Uint8List _gzTile(List<WayCandidate> ways) {
+  final env = {
+    'version': 0.6,
+    'elements': [
+      for (final w in ways)
+        {
+          'type': 'way',
+          'id': w.wayId,
+          'geometry': [
+            for (final p in w.geometry) {'lat': p.latitude, 'lon': p.longitude},
+          ],
+          'tags': {'highway': w.highwayClass},
+        },
+    ],
+  };
+  return Uint8List.fromList(gzip.encode(utf8.encode(jsonEncode(env))));
+}
 
 // ---------------------------------------------------------------------------
 // Constants and geometry helpers
@@ -130,7 +161,8 @@ void main() {
         final result = await iso.match(
           tripId: 1,
           fixes: fixes,
-          ways: ways,
+          gzippedTiles: [_gzTile(ways)],
+          tileBboxes: [_testBbox],
         );
 
         // The trivial 2-fix trace on a 100-m east way should produce at least
@@ -169,8 +201,18 @@ void main() {
         final wayB = _northOffsetWay();
 
         // Fire both jobs without awaiting the first one.
-        final futureA = iso.match(tripId: 10, fixes: fixesA, ways: [wayA]);
-        final futureB = iso.match(tripId: 20, fixes: fixesB, ways: [wayB]);
+        final futureA = iso.match(
+          tripId: 10,
+          fixes: fixesA,
+          gzippedTiles: [_gzTile([wayA])],
+          tileBboxes: [_testBbox],
+        );
+        final futureB = iso.match(
+          tripId: 20,
+          fixes: fixesB,
+          gzippedTiles: [_gzTile([wayB])],
+          tileBboxes: [_testBbox],
+        );
 
         // Await both concurrently.
         final results = await Future.wait([futureA, futureB]);
@@ -220,7 +262,8 @@ void main() {
             _fix(0, 150, dtSecs: 1),
             _fix(0, 250, dtSecs: 2),
           ],
-          ways: [_eastWay()],
+          gzippedTiles: [_gzTile([_eastWay()])],
+          tileBboxes: [_testBbox],
         );
 
         final cancellable = iso.match(
@@ -229,7 +272,8 @@ void main() {
             _fix(0, 50),
             _fix(0, 150, dtSecs: 1),
           ],
-          ways: [_eastWay()],
+          gzippedTiles: [_gzTile([_eastWay()])],
+          tileBboxes: [_testBbox],
         );
 
         // Send cancel immediately after enqueueing job 2.
@@ -288,7 +332,8 @@ void main() {
         final result = await iso.match(
           tripId: 1,
           fixes: fixes,
-          ways: [way],
+          gzippedTiles: [_gzTile([way])],
+          tileBboxes: [_testBbox],
           onProgress: (processed, total) => calls.add((processed, total)),
         );
 

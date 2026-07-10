@@ -46,6 +46,16 @@ class _FakeWaySource implements WayCandidateSource {
     bool throwOnError = true,
   }) async =>
       ways;
+
+  @override
+  Future<List<RawTilePayload>> fetchRawTilesInBbox({
+    required double minLat,
+    required double minLon,
+    required double maxLat,
+    required double maxLon,
+    bool throwOnError = true,
+  }) async =>
+      const [];
 }
 
 WayCandidate _way(int id) => WayCandidate(

@@ -17,12 +17,14 @@
 
 import 'dart:async';
 import 'dart:isolate';
+import 'dart:typed_data';
 
 import 'package:auto_explore/features/matching/data/match_job.dart';
+import 'package:auto_explore/features/matching/data/tile_bbox_math.dart';
+import 'package:auto_explore/features/matching/data/tile_way_pipeline.dart';
 import 'package:auto_explore/features/matching/domain/gps_fix.dart';
 import 'package:auto_explore/features/matching/domain/hmm_matcher.dart';
 import 'package:auto_explore/features/matching/domain/match_result.dart';
-import 'package:auto_explore/features/matching/domain/way_candidate.dart';
 import 'package:logging/logging.dart';
 
 /// Long-lived isolate wrapping [HmmMatcher] for off-main-thread matching.
@@ -108,6 +110,11 @@ class MatcherIsolate {
   /// Enqueue a matching job and return a [Future] that resolves with the
   /// [MatchResult] when the worker replies.
   ///
+  /// [gzippedTiles] + [tileBboxes] are the raw cached Overpass payloads for the
+  /// trip's bbox; the worker gunzips + parses + dedupes + bbox-clips +
+  /// corridor-filters them tile-by-tile (Plan 06-07 re-drive #3) before running
+  /// the matcher, so no way decoding/parsing happens on the main isolate.
+  ///
   /// Throws [StateError] if [start] has not been called.
   ///
   /// Multiple calls may be in flight concurrently; each future is
@@ -120,7 +127,8 @@ class MatcherIsolate {
   Future<MatchResult> match({
     required int tripId,
     required List<GpsFix> fixes,
-    required List<WayCandidate> ways,
+    required List<Uint8List> gzippedTiles,
+    required List<LatLonBbox> tileBboxes,
     void Function(int processed, int total)? onProgress,
   }) {
     if (!_started) throw StateError('MatcherIsolate not started');
@@ -129,7 +137,8 @@ class MatcherIsolate {
       jobSeq: seq,
       tripId: tripId,
       fixes: fixes,
-      ways: ways,
+      gzippedTiles: gzippedTiles,
+      tileBboxes: tileBboxes,
     );
     final comp = Completer<MatchResult>();
     _pending[seq] = comp;
@@ -204,9 +213,18 @@ void _matcherWorker(SendPort mainPort) {
         return;
       }
       try {
+        // Plan 06-07 (re-drive #3): decode + parse + dedupe + bbox-clip +
+        // corridor-filter the raw tiles HERE, in the worker, tile-by-tile —
+        // never on the main isolate. Peak memory is one tile's ways + the
+        // corridor survivors, not the full bbox way-set.
+        final ways = parseAndFilterTiles(
+          gzippedTiles: msg.gzippedTiles,
+          tileBboxes: msg.tileBboxes,
+          fixes: msg.fixes,
+        );
         final result = matcher.match(
           fixes: msg.fixes,
-          ways: msg.ways,
+          ways: ways,
           onProgress: (processed, total) {
             mainPort.send(
               MatchJobProgress(

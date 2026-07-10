@@ -9,9 +9,11 @@
 // primitive/enum fields — Sendable.
 // GpsFix uses double + DateTime fields — Sendable.
 
+import 'dart:typed_data';
+
+import 'package:auto_explore/features/matching/data/tile_bbox_math.dart';
 import 'package:auto_explore/features/matching/domain/gps_fix.dart';
 import 'package:auto_explore/features/matching/domain/match_result.dart';
-import 'package:auto_explore/features/matching/domain/way_candidate.dart';
 import 'package:meta/meta.dart';
 
 /// Payload sent from the main isolate to the worker for one matching job.
@@ -20,16 +22,21 @@ import 'package:meta/meta.dart';
 /// - [jobSeq]: int correlation key.
 /// - [tripId]: int trip identifier (also used as cancel key).
 /// - [fixes]: `List<GpsFix>` — each GpsFix holds only `double` + `DateTime`.
-/// - [ways]: `List<WayCandidate>` — each WayCandidate holds ints, Strings,
-///   enums, and `List<LatLng>` (2 doubles per entry). No closures, no Futures,
-///   no Drift objects.
+/// - [gzippedTiles]: `List<Uint8List>` — raw `gzip(utf8(overpassJson))` cache
+///   payloads. The worker gunzips + parses + dedupes + bbox-clips +
+///   corridor-filters these tile-by-tile (Plan 06-07 re-drive #3), so the
+///   heavy CPU work runs OFF the main isolate and the full way-set never lands
+///   on the main heap. `Uint8List` crosses the SendPort untouched.
+/// - [tileBboxes]: `List<LatLonBbox>` parallel to [gzippedTiles] — each tile's
+///   geographic bounds for the post-parse clip. Four doubles each, Sendable.
 @immutable
 class MatchJob {
   const MatchJob({
     required this.jobSeq,
     required this.tripId,
     required this.fixes,
-    required this.ways,
+    required this.gzippedTiles,
+    required this.tileBboxes,
   });
 
   /// Monotonically-increasing sequence number assigned by `MatcherIsolate`.
@@ -44,10 +51,12 @@ class MatchJob {
   /// `DateTime` fields — safe to copy across isolate boundaries.
   final List<GpsFix> fixes;
 
-  /// Road candidates in the vicinity of the trip. Each [WayCandidate] holds
-  /// ints, Strings, `OnewayDirection` enum, and `List<LatLng>` — all
-  /// Sendable.
-  final List<WayCandidate> ways;
+  /// Raw gzipped Overpass tile payloads. Decoded + parsed + filtered inside
+  /// the worker isolate (never on the main isolate). Parallel to [tileBboxes].
+  final List<Uint8List> gzippedTiles;
+
+  /// Per-tile geographic bounds, parallel to [gzippedTiles].
+  final List<LatLonBbox> tileBboxes;
 }
 
 /// Progress update sent back from the worker isolate to the main isolate

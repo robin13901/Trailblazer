@@ -9,9 +9,14 @@
 //   5. cancel deletes any intervals already written for the trip.
 //   6. processPending processes all pending trips in FIFO order.
 
+import 'dart:convert';
+import 'dart:io' show gzip;
+import 'dart:typed_data';
+
 import 'package:auto_explore/core/db/app_database.dart';
 import 'package:auto_explore/core/db/daos/driven_way_intervals_dao.dart';
 import 'package:auto_explore/features/matching/data/matcher_isolate.dart';
+import 'package:auto_explore/features/matching/data/tile_bbox_math.dart';
 import 'package:auto_explore/features/matching/data/trip_match_coordinator.dart';
 import 'package:auto_explore/features/matching/data/way_candidate_source.dart';
 import 'package:auto_explore/features/matching/domain/driven_way_interval_draft.dart';
@@ -30,7 +35,8 @@ import 'package:maplibre_gl/maplibre_gl.dart' show LatLng;
 // Fakes
 // ---------------------------------------------------------------------------
 
-/// [WayCandidateSource] that returns a pre-configured list (or empty).
+/// [WayCandidateSource] whose raw-tiles path re-emits a canned way list as one
+/// gzipped Overpass envelope (or no tiles when [ways] is empty).
 class _FakeWayCandidateSource implements WayCandidateSource {
   _FakeWayCandidateSource({this.ways = const []});
 
@@ -45,6 +51,37 @@ class _FakeWayCandidateSource implements WayCandidateSource {
     bool throwOnError = true,
   }) async =>
       ways;
+
+  @override
+  Future<List<RawTilePayload>> fetchRawTilesInBbox({
+    required double minLat,
+    required double minLon,
+    required double maxLat,
+    required double maxLon,
+    bool throwOnError = true,
+  }) async {
+    if (ways.isEmpty) return [];
+    final envelope = {
+      'version': 0.6,
+      'elements': [
+        for (final w in ways)
+          {
+            'type': 'way',
+            'id': w.wayId,
+            'geometry': [
+              for (final p in w.geometry) {'lat': p.latitude, 'lon': p.longitude},
+            ],
+            'tags': {'highway': w.highwayClass},
+          },
+      ],
+    };
+    return [
+      RawTilePayload(
+        payloadGzip: Uint8List.fromList(gzip.encode(utf8.encode(jsonEncode(envelope)))),
+        bbox: LatLonBbox(minLat: minLat, minLon: minLon, maxLat: maxLat, maxLon: maxLon),
+      ),
+    ];
+  }
 }
 
 /// Minimal [MatcherIsolate] that completes every job with a canned [MatchResult].
@@ -67,7 +104,8 @@ class _FakeMatcherIsolate extends MatcherIsolate {
   Future<MatchResult> match({
     required int tripId,
     required List<GpsFix> fixes,
-    required List<WayCandidate> ways,
+    required List<Uint8List> gzippedTiles,
+    required List<LatLonBbox> tileBboxes,
     void Function(int processed, int total)? onProgress,
   }) async {
     if (!_started) throw StateError('not started');

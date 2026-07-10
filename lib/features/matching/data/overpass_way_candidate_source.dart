@@ -81,6 +81,72 @@ class OverpassWayCandidateSource implements WayCandidateSource {
     required double maxLon,
     bool throwOnError = true,
   }) async {
+    final freshCached = await _collectFreshTiles(
+      minLat: minLat,
+      minLon: minLon,
+      maxLat: maxLat,
+      maxLon: maxLon,
+      throwOnError: throwOnError,
+    );
+
+    // Decode every cached tile's payload, dedupe, and bbox-clip.
+    //
+    // NOTE (Plan 06-07): this decode path runs on the CALLING isolate and is
+    // therefore only appropriate for SMALL, single-trip callers (the detail
+    // screen overlay + golden-fixture exporter). The matching pipeline uses
+    // [fetchRawTilesInBbox] instead and decodes inside the matcher isolate.
+    final seenIds = <int>{};
+    final results = <WayCandidate>[];
+    for (final row in freshCached.values) {
+      final rawJson = utf8.decode(gzip.decode(row.payloadGzip));
+      final candidates = _parser.parseWays(rawJson);
+      for (final c in candidates) {
+        if (!seenIds.add(c.wayId)) continue;
+        if (!_geometryTouchesBbox(c, minLat, minLon, maxLat, maxLon)) continue;
+        results.add(c);
+      }
+    }
+    return results;
+  }
+
+  @override
+  Future<List<RawTilePayload>> fetchRawTilesInBbox({
+    required double minLat,
+    required double minLon,
+    required double maxLat,
+    required double maxLon,
+    bool throwOnError = true,
+  }) async {
+    final freshCached = await _collectFreshTiles(
+      minLat: minLat,
+      minLon: minLon,
+      maxLat: maxLat,
+      maxLon: maxLon,
+      throwOnError: throwOnError,
+    );
+    // Return the raw gzipped payloads + tile bboxes WITHOUT decoding — the
+    // matcher isolate does the decode/parse/filter (Plan 06-07). Only the
+    // async cache reads + network fetches above ran on this isolate.
+    return [
+      for (final entry in freshCached.entries)
+        RawTilePayload(
+          payloadGzip: Uint8List.fromList(entry.value.payloadGzip),
+          bbox: _tileMath.tileToBbox(entry.key),
+        ),
+    ];
+  }
+
+  /// Cache-pass + fetch-missing shared by [fetchWaysInBbox] and
+  /// [fetchRawTilesInBbox]. Returns the fresh cache rows keyed by tile. No
+  /// decoding happens here — only Drift reads and (bounded-concurrency)
+  /// network fetches.
+  Future<Map<TileId, OverpassWayCacheData>> _collectFreshTiles({
+    required double minLat,
+    required double minLon,
+    required double maxLat,
+    required double maxLon,
+    required bool throwOnError,
+  }) async {
     final tiles = _tileMath.bboxToZ12Tiles(minLat, minLon, maxLat, maxLon);
     final cutoff = _now().subtract(kOverpassCacheTtl);
 
@@ -123,19 +189,7 @@ class OverpassWayCandidateSource implements WayCandidateSource {
       }
     }
 
-    // 3. Decode every cached tile's payload, dedupe, and bbox-clip.
-    final seenIds = <int>{};
-    final results = <WayCandidate>[];
-    for (final row in freshCached.values) {
-      final rawJson = utf8.decode(gzip.decode(row.payloadGzip));
-      final candidates = _parser.parseWays(rawJson);
-      for (final c in candidates) {
-        if (!seenIds.add(c.wayId)) continue;
-        if (!_geometryTouchesBbox(c, minLat, minLon, maxLat, maxLon)) continue;
-        results.add(c);
-      }
-    }
-    return results;
+    return freshCached;
   }
 
   Future<void> _fetchWorker({

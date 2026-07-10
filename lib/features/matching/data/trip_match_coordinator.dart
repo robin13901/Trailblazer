@@ -10,7 +10,6 @@ import 'package:auto_explore/features/matching/data/matcher_isolate.dart';
 import 'package:auto_explore/features/matching/data/way_candidate_source.dart';
 import 'package:auto_explore/features/matching/domain/driven_way_interval_draft.dart';
 import 'package:auto_explore/features/matching/domain/gps_fix.dart';
-import 'package:auto_explore/features/matching/domain/way_corridor_filter.dart';
 import 'package:auto_explore/features/trips/data/trips_dao.dart';
 import 'package:auto_explore/features/trips/data/trips_repository.dart';
 import 'package:drift/drift.dart' show Value;
@@ -102,17 +101,21 @@ class TripMatchCoordinator {
       return;
     }
 
-    // Fetch ways via cache-first WayCandidateSource.
-    final ways = await _source.fetchWaysInBbox(
+    // Fetch RAW gzipped tiles (cache-first). No decode/parse here — the
+    // matcher isolate does that tile-by-tile (Plan 06-07 re-drive #3), so the
+    // heavy CPU work stays off the main isolate and the full way-set never
+    // lands on the main heap next to the resident MapLibre GL surface.
+    final rawTiles = await _source.fetchRawTilesInBbox(
       minLat: tripRow.bboxMinLat!,
       minLon: tripRow.bboxMinLon!,
       maxLat: tripRow.bboxMaxLat!,
       maxLon: tripRow.bboxMaxLon!,
       throwOnError: false,
     );
-    if (ways.isEmpty) {
+    if (rawTiles.isEmpty) {
       _log.warning(
-        'trip $tripId has no ways in bbox — marking matched with 0 intervals',
+        'trip $tripId has no road tiles in bbox — marking matched with 0 '
+        'intervals',
       );
       await _tripsRepository.transitionToMatched(tripId);
       return;
@@ -139,23 +142,12 @@ class TripMatchCoordinator {
         )
         .toList(growable: false);
 
-    // Corridor pre-filter (Plan 06-07): a long trip's bbox can contain tens of
-    // thousands of ways (measured: 29,497 / 13.7 MB for a 96 km commute).
-    // Shipping all of them across the isolate boundary + R-Tree-indexing them
-    // on top of the resident ~529 MB MapLibre GL surface OOM-kills the app.
-    // Keep only ways within ~one grid cell of the actual trip path — a ~20x
-    // reduction with no matchable-road loss (the matcher's own candidate
-    // radius is 25 m, far tighter than this corridor).
-    final corridorWays = filterWaysToTripCorridor(fixes: fixes, ways: ways);
-    _log.info(
-      'trip $tripId corridor filter: ${ways.length} → ${corridorWays.length} ways',
-    );
-
     try {
       final result = await _isolate.match(
         tripId: tripId,
         fixes: fixes,
-        ways: corridorWays,
+        gzippedTiles: [for (final t in rawTiles) t.payloadGzip],
+        tileBboxes: [for (final t in rawTiles) t.bbox],
         onProgress: (processed, total) {
           if (total > 0) {
             _progressSink?.call(tripId, processed / total);
