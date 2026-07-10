@@ -5,16 +5,16 @@
 See: .planning/PROJECT.md (updated 2026-07-02)
 
 **Core value:** When I open the map, I immediately see the roads I've already driven, painted onto the world — and that view keeps pulling me back to explore more.
-**Current focus:** Phase 6 (Inbox + Match Wire-Up) COMPLETE 2026-07-09 — verifier PASS 6/6 code-level must-haves; 8 plans (06-01..06-06 + gap-plans 06-07/06-08). On-device crash fix PROVEN (96 km / 6,295-pt commute matched to 814 intervals, app alive). Behavioral drive-confirms deferred to user (`06-MANUAL-TESTS-DEFERRED.md`). Phase 7 (Coverage Rendering) is next — user plans/executes it overnight.
+**Current focus:** Phase 7 (Coverage Rendering) IN PROGRESS — 07-01 (coverage domain) + 07-02 (requirements reconciliation docs) complete. REN-01 orange/amber, REN-02 de-scoped, Gate G2 RESOLVED = FAIL (GeoJSON data-driven expressions). Next: 07-03 DrivenWayGeometryResolver.
 
 ## Current Position
 
-Phase: 6 of 11 (Inbox + Match Wire-Up — COMPLETE 2026-07-09, verifier PASS)
-Plan: Phase 6 closed — 06-01..06-06 + gap-plans 06-07 (crash/heading/UI) + 06-08 (manual-only recording)
-Status: Phase 6 COMPLETE. Verifier PASS 6/6 code-level must-haves (`06-VERIFICATION.md`, status human_needed = only behavioral drive-confirms remain, no code gaps). 531 tests green, analyze clean. Gap-fixes this session resolved a failed 06-05 on-device checkpoint: (06-07) crash fix — removed dead offstage MapLibreMap, isolated the 12 MB admin parse, single-flight guard, way-corridor filter (the 96 km-trip OOM fix, PROVEN on-device); motion-vector heading; dropped card thumbnail; real matching %. (06-08) removed automatic recording — manual-only, FGB scoped to manual sessions (supersedes TRK-01/TRK-04). All manual/on-device tests catalogued in `06-MANUAL-TESTS-DEFERRED.md` for the user's later drive batch.
-Last activity: 2026-07-09 — Phase 6 close-out: 06-05 + gap SUMMARYs, 06-06 complete, verifier PASS, ROADMAP/REQUIREMENTS/STATE updated. NOTE: `flutter build apk --debug` without `--dart-define=MAPTILER_KEY` shows a blank map (missing tile key, not a bug) — always launch with `--dart-define-from-file=env/dev.json`.
+Phase: 7 of 11 (Coverage Rendering — In Progress)
+Plan: 07-02 complete (2 of 7 plans in phase)
+Status: Phase 7 in progress. 07-01 (coverage domain + CoverageDatum + 5-preset palette) complete; 07-02 (requirements reconciliation — REQUIREMENTS.md/ROADMAP.md/PROJECT.md) complete. Gate G2 resolved: GeoJSON data-driven expressions chosen. Docs-only plan — no code touched, no test run needed.
+Last activity: 2026-07-10 — 07-02 complete: reconciled REN-01 (orange/amber), REN-02 (de-scoped), REN-05 (Gate G2 FAIL → GeoJSON expressions) into REQUIREMENTS.md, ROADMAP.md, PROJECT.md. NOTE: `flutter build apk --debug` without `--dart-define=MAPTILER_KEY` shows a blank map (missing tile key, not a bug) — always launch with `--dart-define-from-file=env/dev.json`.
 
-Progress: [█████████░] ~78% (60/77 est. plans overall — Phase 1: 7/7; Phase 2: 7/7; Phase 3: 7/7; Phase 3.1: 5/5; Phase 4: 8/8 + 04-18 + 04-19 DRIVE-VERIFIED; Phase 5: 8/8 CODE-COMPLETE; Phase 6: 6/6 code-complete — 06-01..06-06 done + 06-07/06-08 gap-fixes)
+Progress: [█████████░] ~79% (62/77 est. plans overall — Phase 1: 7/7; Phase 2: 7/7; Phase 3: 7/7; Phase 3.1: 5/5; Phase 4: 8/8 + 04-18 + 04-19 DRIVE-VERIFIED; Phase 5: 8/8 CODE-COMPLETE; Phase 6: 6/6 code-complete — 06-01..06-06 done + 06-07/06-08 gap-fixes; Phase 7: 2/7 in progress — 07-01 + 07-02)
 
 ## Performance Metrics
 
@@ -49,7 +49,7 @@ Key locked-in decisions affecting current work:
 - Roadmap: `flutter_background_geolocation` chosen; accept future Android release-license cost (~USD 400–1200) if App Store publication happens.
 - Roadmap: OSM admin levels 2/4/6/8/9/10 (including Stadtteil + Ortsteil) in scope for v1.
 - Roadmap: OSM extract delivered via first-launch Wi-Fi download (~200 MB) — no bundling.
-- Roadmap: Two spike gates open — G1 (P2 Liquid Glass over MapLibre) and G2 (P7 `feature-state` availability).
+- Roadmap: Two spike gates — G1 (P2 Liquid Glass) PASS 2026-07-04; G2 (P7 feature-state) RESOLVED 2026-07-09 = FAIL → GeoJSON data-driven expressions chosen (see PROJECT.md Key Decisions).
 - **Plan 01-01 (2026-07-03):** Dropped `custom_lint ^0.8.1` and `riverpod_lint ^3.1.4` from pubspec — irresolvable analyzer conflict with `drift_dev 2.34` (analyzer ^13 vs ^8). Re-introduce once upstream custom_lint releases analyzer 13-compatible build.
 - **Plan 01-01 (2026-07-03):** Local Flutter toolchain upgraded 3.38.1 → 3.44.4 (stable channel) to satisfy pubspec constraint `>=3.44.0`.
 - **Plan 01-01 (2026-07-03):** All imports use `package:auto_explore/…` prefix (very_good_analysis `always_use_package_imports`). Pubspec deps alphabetized (`sort_pub_dependencies`).
