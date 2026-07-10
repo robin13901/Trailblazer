@@ -128,6 +128,20 @@ class AdminRegionLookup {
     return null;
   }
 
+  /// Reverse lookup by OSM relation id (across all levels — ids are globally
+  /// unique, RESEARCH.md line 491). Returns null if not loaded or not found.
+  /// Cheap linear scan over ~20K regions (same memory posture as regionAt).
+  AdminRegion? regionByOsmId(int osmId) {
+    final byLevel = _byLevel;
+    if (byLevel == null) return null;
+    for (final bucket in byLevel.values) {
+      for (final r in bucket) {
+        if (r.osmId == osmId) return r;
+      }
+    }
+    return null;
+  }
+
   /// Clears the in-memory cache; next [regionAt] reload from disk. Used by
   /// the runtime refresher after replacing the docs-dir copy.
   void invalidate() {
