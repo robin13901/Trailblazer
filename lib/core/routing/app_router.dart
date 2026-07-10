@@ -1,3 +1,4 @@
+import 'package:auto_explore/features/coverage/presentation/stress/stress_coverage_screen.dart';
 import 'package:auto_explore/features/map/presentation/map_screen.dart';
 import 'package:auto_explore/features/onboarding/presentation/onboarding_screen.dart';
 import 'package:auto_explore/features/onboarding/presentation/splash_screen.dart';
@@ -61,6 +62,14 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         GoRoute(
           path: '/settings/diagnostics',
           builder: (context, state) => const TrackingDiagnosticsScreen(),
+        ),
+      // Dev-only REN-04 stress harness (Plan 07-07). Loads 50k synthetic ways
+      // through the production coverage overlay and measures P90 frame time.
+      // `kDebugMode` const ensures tree-shaking removes route + widget in release.
+      if (kDebugMode)
+        GoRoute(
+          path: '/settings/stress-coverage',
+          builder: (context, state) => const StressCoverageScreen(),
         ),
       // Full-screen trip-detail route (Plan 06-05 Task 3). Lives OUTSIDE the
       // bottom-nav StatefulShellRoute — tapping a trip card/row pushes this on

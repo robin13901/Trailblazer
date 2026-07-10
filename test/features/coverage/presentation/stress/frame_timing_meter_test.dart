@@ -35,13 +35,13 @@ void main() {
 
     test('90x16.6ms + 10x50ms: p90 is in the tail (reflects slow frames)', () {
       // 100 frames total; P90 index = floor(100 * 0.9) = 90 (0-indexed).
-      // Sorted: [16.6 x90, 50.0 x10]
-      // sorted[90] = 50.0 (first slow frame) → p90 > 33.3 ms.
+      // Sorted: [16.6 x90, 50 x10]
+      // sorted[90] = 50 (first slow frame) → p90 > 33.3 ms.
       for (var i = 0; i < 90; i++) {
         meter.addFrameMs(16.6);
       }
       for (var i = 0; i < 10; i++) {
-        meter.addFrameMs(50.0);
+        meter.addFrameMs(50);
       }
       expect(meter.p90FrameMs, greaterThan(33.3));
     });
@@ -51,7 +51,7 @@ void main() {
         meter.addFrameMs(16.6);
       }
       for (var i = 0; i < 10; i++) {
-        meter.addFrameMs(50.0);
+        meter.addFrameMs(50);
       }
       expect(meter.passes, isFalse);
     });
@@ -88,7 +88,7 @@ void main() {
       }
       // At this point the window should have been trimmed. Verify by adding
       // one more slow frame and checking p90.
-      meter.addFrameMs(100.0);
+      meter.addFrameMs(100);
       // Window has the most recent 600 frames: 599 fast + 1 slow.
       // p90 index = 600 * 9 ~/ 10 = 540 → sorted frame 540 (of 600) is still
       // the fast 16.6 value; the slow frame is at index 599.
@@ -108,7 +108,7 @@ void main() {
       // Fill with slow frames, then overfill with fast frames.
       // After trim, only the fast tail survives.
       for (var i = 0; i < 600; i++) {
-        meter.addFrameMs(50.0); // slow
+        meter.addFrameMs(50); // slow
       }
       // Now add 600 fast frames — triggers 600 trim events; slow frames gone.
       for (var i = 0; i < 600; i++) {
@@ -124,7 +124,7 @@ void main() {
 
     test('reset clears all frames', () {
       for (var i = 0; i < 10; i++) {
-        meter.addFrameMs(50.0);
+        meter.addFrameMs(50);
       }
       meter.reset();
       expect(meter.p90FrameMs, equals(0));
@@ -137,13 +137,13 @@ void main() {
     // -----------------------------------------------------------------------
 
     test('single frame: p90 equals that frame', () {
-      meter.addFrameMs(20.0);
-      expect(meter.p90FrameMs, closeTo(20.0, 0.001));
-      expect(meter.passes, isTrue); // 20.0 <= 33.3
+      meter.addFrameMs(20);
+      expect(meter.p90FrameMs, closeTo(20, 0.001));
+      expect(meter.passes, isTrue); // 20 <= 33.3
     });
 
     test('single slow frame: passes == false', () {
-      meter.addFrameMs(100.0);
+      meter.addFrameMs(100);
       expect(meter.passes, isFalse);
     });
   });

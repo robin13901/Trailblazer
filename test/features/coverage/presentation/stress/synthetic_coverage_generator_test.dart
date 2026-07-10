@@ -29,7 +29,7 @@ void main() {
     });
 
     test('all points are within Germany bounding box', () {
-      final ways = syntheticCoverageWays(count: 100, seed: 42);
+      final ways = syntheticCoverageWays(count: 100);
       for (final way in ways) {
         for (final pt in way.geometry) {
           expect(
@@ -87,11 +87,11 @@ void main() {
     });
 
     test('datum fraction is in [0.0, 1.0] for all ways', () {
-      final ways = syntheticCoverageWays(count: 100, seed: 42);
+      final ways = syntheticCoverageWays(count: 100);
       for (final way in ways) {
         expect(
           way.datum.fraction,
-          inInclusiveRange(0.0, 1.0),
+          inInclusiveRange(0, 1),
           reason: 'fraction ${way.datum.fraction} out of [0, 1]',
         );
       }
@@ -101,7 +101,7 @@ void main() {
         () {
       // Smoke-test the default parameter signature — do NOT actually call with
       // 50k in a unit test. Calling with count: 1 exercises the path.
-      expect(syntheticCoverageWays(count: 1, seed: 42).length, equals(1));
+      expect(syntheticCoverageWays(count: 1).length, equals(1));
     });
   });
 

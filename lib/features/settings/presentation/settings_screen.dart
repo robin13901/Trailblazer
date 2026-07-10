@@ -47,6 +47,7 @@ class SettingsScreen extends StatelessWidget {
             Divider(height: 1),
             _SectionHeader('Developer'),
             _DiagnosticsTile(),
+            _StressCoverageTile(),
           ],
         ],
       ),
@@ -64,6 +65,22 @@ class _DiagnosticsTile extends StatelessWidget {
       subtitle: const Text('Live FGB state, fix counters, permissions'),
       trailing: const Icon(Icons.chevron_right),
       onTap: () => context.push('/settings/diagnostics'),
+    );
+  }
+}
+
+/// REN-04 stress harness entry (Plan 07-07).
+/// Compiled out of release builds — only present in debug.
+class _StressCoverageTile extends StatelessWidget {
+  const _StressCoverageTile();
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      title: const Text('Coverage stress test'),
+      subtitle: const Text('50k segments · fps meter'),
+      trailing: const Icon(Icons.chevron_right),
+      onTap: () => context.push('/settings/stress-coverage'),
     );
   }
 }
