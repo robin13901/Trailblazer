@@ -134,11 +134,11 @@
 
 ### Coverage Rendering (REN)
 
-- [ ] **REN-01**: Driven Kfz-ways are rendered on the map in a distinctive color (default: warm green) using MapLibre `feature-state` API
-- [ ] **REN-02**: Driven Feldweg/Fußweg ways are rendered in a distinct secondary color (default: dashed blue). NOTE (2026-07-07): Feldwege are rendered as static base geometry from the pmtiles roads layer; per-way driven-state coloring (feature-state) applies to Kfz ways only.
-- [ ] **REN-03**: Partial coverage on a way is rendered with a proportional gradient or reduced opacity (fallback if per-segment coloring impossible)
+- [ ] **REN-01**: Driven Kfz-ways are rendered on the map in a distinctive color (default: orange/amber; default color deviation locked 2026-07-09 — green remains one of 5 presets) via a runtime GeoJSON source with data-driven paint expressions (feature-state unavailable on mobile — see Gate G2)
+- [~] **REN-02**: **DE-SCOPED v1 (2026-07-09):** Feldweg/Fußweg ways receive NO Phase-7 coverage styling — they render as plain Phase-4 base pmtiles geometry only. No dashed-blue, no driven-state color. Intentionally not-in-v1; may revive as a "show trails/tracks" toggle in a later milestone. (Original spec: "Driven Feldweg/Fußweg ways rendered in a distinct secondary color (default: dashed blue).")
+- [ ] **REN-03**: Partial coverage on a way is rendered with a proportional gradient or reduced opacity (fallback if per-segment coloring impossible). v1 uses whole-way reduced-opacity scaling (the documented fallback); per-segment/gradient coloring deferred to v1.x.
 - [ ] **REN-04**: Rendering scales to ≥ 50 000 driven segments without dropping below 30 fps on target devices (stress test in P7)
-- [ ] **REN-05**: **P7 gate**: if `maplibre_gl` `setFeatureState` is unavailable, fall back to sharded GeoJSON sources per 5×5 km tile
+- [ ] **REN-05**: **P7 gate — Gate G2 RESOLVED 2026-07-09 = FAIL.** `setFeatureState` throws `UnimplementedError` on iOS+Android in maplibre_gl 0.26.2 (web-only). Resolution: single runtime GeoJSON source per brightness + data-driven paint expressions (`is_full`/`fraction` GeoJSON props evaluated GPU-side); the '5×5 km sharded GeoJSON' literal wording is satisfied by this GeoJSON-source path — per-tile sharding is an optional Phase-8+ optimization, not v1-mandatory.
 - [ ] **REN-06**: Coverage colors are customisable per user in settings (from a small preset palette)
 
 ### Region List View (REG)
@@ -244,7 +244,7 @@ Explicitly excluded. Documented to prevent scope creep.
 - Mapped to phases: 112 / 112 (100 %)
 - Unmapped: 0
 
-Every requirement maps to exactly one phase. Phase Gates in ROADMAP.md carry two open decisions (G1 = UI-05 fallback; G2 = REN-05 fallback) that will resolve when their spike phase runs.
+Every requirement maps to exactly one phase. Phase Gates in ROADMAP.md: G1 = UI-05 (PASS 2026-07-04); G2 = REN-05 (RESOLVED 2026-07-09 = FAIL → GeoJSON data-driven expressions chosen).
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
@@ -314,7 +314,7 @@ Every requirement maps to exactly one phase. Phase Gates in ROADMAP.md carry two
 | COV-05 | Phase 6: Inbox + Match Wire-Up | Complete (physical table `coverage_cache`) |
 | COV-06 | Phase 6: Inbox + Match Wire-Up | Complete (3/4 triggers; counts_for_coverage → P9) |
 | REN-01 | Phase 7: Coverage Rendering | Pending |
-| REN-02 | Phase 7: Coverage Rendering | Pending |
+| REN-02 | Phase 7: Coverage Rendering | De-scoped (v1) — 2026-07-09 |
 | REN-03 | Phase 7: Coverage Rendering | Pending |
 | REN-04 | Phase 7: Coverage Rendering | Pending |
 | REN-05 | Phase 7: Coverage Rendering (Gate G2) | Pending |
