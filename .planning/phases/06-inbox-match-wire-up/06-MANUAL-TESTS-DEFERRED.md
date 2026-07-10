@@ -17,8 +17,8 @@ flutter run -d <device> --dart-define-from-file=env/dev.json
 ## Checklist
 
 ### Crash / stability
-- ✅(proven) **Trips tab stays alive with trips actively matching.** Forced on-device 2026-07-09: the 96 km / 6,295-point commute trip matched to 814 driven-way intervals with the app alive at stable ~906 MB (previously OOM-crashed at 30–45 s). Corridor filter + single-flight admin parse fix confirmed.
-- ☐ Open the Trips tab with 2+ pending/matching trips present; confirm no freeze and no crash over several minutes of use.
+- ✅(proven) **Trips/History tab stays alive with trips actively matching.** Root cause of the repeated freeze→OOM crash was the Overpass tile decode+parse (13.7 MB / ~29k ways for a 96 km trip) running on the **main isolate** before the matcher started — blocking the UI (jank, no %) and OOM-spiking the heap. Fixed 2026-07-10 by moving gunzip+parse+dedupe+clip+corridor-filter INTO the matcher isolate, tile-by-tile (`6a05728`). PROVEN on-device: reset BOTH commute trips (7+8, ~6k pts each) to pending, opened History → app survived 90s+, both matched (798 + 814 intervals), memory oscillated 491↔755 MB and recovered (old build climbed monotonically to a kill at 30–45s). Frame skips now confined to a ~4.6s cold-start window (map GL init), none during matching.
+- ☐ Confirm in normal use (your own drives): open History with trips matching, over several minutes, no freeze/crash; the real matching % advances.
 
 ### Inbox + History UI (06-05)
 - ☐ Inbox cards show place names, date · duration · distance, dormant vehicle chip. (No map thumbnail — removed by request.)
