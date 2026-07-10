@@ -84,21 +84,27 @@ class TripsInboxRepository {
   ///
   /// Hard delete in strict order:
   /// 1. Invalidate cache FIRST — the invalidator reads the trip's bbox,
-  ///    which must still exist.
+  ///    which must still exist. Best-effort: if it fails, we log + swallow
+  ///    and STILL delete (mirrors [confirmTrip]). A discard must never be
+  ///    stranded by a cache-layer hiccup — the user asked for the trip gone.
+  ///    A stale cache row at worst triggers a recompute on the next read.
   /// 2. Delete `driven_way_intervals` explicitly — the FK is
   ///    ON DELETE SET NULL, so deleting the trip would orphan them.
   /// 3. Delete the trip row (cascades `trip_points`).
-  ///
-  /// If the invalidator errors, the discard aborts and surfaces the error —
-  /// we do NOT delete the trip while the cache is in an unknown state.
   Future<Result<void>> discardTrip(int tripId) async {
     try {
-      // 1. Invalidate cache FIRST — needs the bbox from the trip row.
+      // 1. Invalidate cache FIRST — needs the bbox from the trip row. If it
+      //    errors, log + swallow: the delete below is what the user asked
+      //    for and must proceed regardless (was: aborted here, which left
+      //    the card stuck in the inbox whenever invalidation hiccupped).
       final invalidation = await _invalidator.invalidateForTripDelete(tripId);
       if (invalidation.isErr) {
-        return invalidation.when(
-          ok: (_) => const Ok(null),
-          err: Err.new,
+        invalidation.when(
+          ok: (_) {},
+          err: (e) => _log.warning(
+            'discardTrip($tripId): coverage invalidation failed '
+            '(proceeding with delete anyway): $e',
+          ),
         );
       }
       // 2. Delete intervals (FK is SET NULL, not CASCADE).

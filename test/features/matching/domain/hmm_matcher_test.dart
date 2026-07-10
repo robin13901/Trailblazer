@@ -461,5 +461,55 @@ void main() {
       expect(bLen, greaterThan(15),
           reason: 'pass-through B should span ~full 20 m, got $bLen');
     });
+
+    // -------------------------------------------------------------------------
+    // Test 11: over-draw guard — a stray fix on a LONG parallel neighbour
+    // must NOT be promoted to full-length (2026-07-10 regression).
+    // -------------------------------------------------------------------------
+    test(
+        '11. stray fix on a long parallel neighbour is NOT extended to full '
+        'length (over-draw guard)', () {
+      // Main road A: 300 m east at y=0. Neighbour N: a 60 m parallel road
+      // 8 m to the north (within GPS noise) — LONGER than the 30 m connector
+      // threshold, so it is not a junction stub. The vehicle drives A
+      // straight through; ONE noisy fix lands on N, bracketed by A on both
+      // sides. Pre-guard this looked like a pass-through and N was painted as
+      // fully driven. The guard must keep N's span tiny (measured, not
+      // extended) so the coverage floor later discards it.
+      final wayA = WayCandidate(
+        wayId: 1,
+        highwayClass: 'residential',
+        geometry: [_ll(0, 0), _ll(0, 100), _ll(0, 200), _ll(0, 300)],
+      );
+      final wayN = WayCandidate(
+        wayId: 2,
+        highwayClass: 'residential',
+        geometry: [_ll(8, 120), _ll(8, 180)], // 60 m parallel neighbour
+      );
+
+      final fixes = [
+        _fix(0, 20),
+        _fix(0, 60, dtSecs: 2),
+        _fix(0, 110, dtSecs: 4),
+        // ONE noisy fix pulled onto the neighbour N (0.5 m from N, 7.5 m from A)
+        _fix(7.5, 150, dtSecs: 5),
+        _fix(0, 190, dtSecs: 6),
+        _fix(0, 240, dtSecs: 8),
+        _fix(0, 290, dtSecs: 10),
+      ];
+
+      final result = _matcher.match(fixes: fixes, ways: [wayA, wayN]);
+
+      final nIntervals =
+          result.intervals.where((iv) => iv.wayId == 2).toList();
+      // N may or may not attract the stray fix depending on the decoder, but
+      // if it does, its interval must NOT have been extended to full length.
+      for (final iv in nIntervals) {
+        final span = (iv.endMeters - iv.startMeters).abs();
+        expect(span, lessThan(30),
+            reason: 'neighbour N must keep its measured (tiny) span, not be '
+                'extended to its full 60 m — got $span');
+      }
+    });
   });
 }

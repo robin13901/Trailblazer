@@ -233,7 +233,7 @@ void main() {
       expect(await tripCount(id), 0);
     });
 
-    test('invalidator error → discard aborts, trip + intervals still present',
+    test('invalidator error → discard STILL deletes (error swallowed)',
         () async {
       final id = await seedTrip(status: TripStatus.matched);
       await seedIntervals(id, 2);
@@ -244,11 +244,15 @@ void main() {
       final repo = buildRepo(invalidator);
 
       final result = await repo.discardTrip(id);
-      expect(result.isErr, isTrue);
-      expect(await tripCount(id), 1);
-      // No delete calls were issued.
-      expect(log.contains('deleteByTrip'), isFalse);
-      expect(log.contains('deleteTrip'), isFalse);
+      // A cache-invalidation hiccup must NOT strand the card: the delete
+      // proceeds and the trip is gone (regression for the 2026-07-10
+      // "Discard does nothing" report — invalidation was OOM-failing behind
+      // the 43 MB admin parse and aborting the delete).
+      expect(result.isOk, isTrue);
+      expect(await tripCount(id), 0);
+      expect(await orphanIntervalCount(), 0);
+      // The deletes were still issued despite the invalidation error.
+      expect(log, ['invalidateForTripDelete', 'deleteByTrip', 'deleteTrip']);
     });
 
     test('fail-matched trip (bbox null): invalidator Ok(0), delete completes',

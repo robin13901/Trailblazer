@@ -3,11 +3,22 @@
 // polygon asset. `regionAt(lat, lon, level)` returns the containing region
 // at the requested admin_level in <5 ms after the first load.
 //
-// Index: hash grid at 0.01° cells (approx 1.1 km at DE latitudes).
+// Index: regions are bucketed by admin_level; a lookup scans only its
+// level's bucket, bbox-culling before the (expensive) point-in-polygon test.
 // Bundled asset lives at `assets/admin/germany_admin.geojson.gz`. If a
 // runtime-refreshed copy exists at `<AppDocsDir>/admin/germany_admin.geojson.gz`
 // (dropped by [AdminBundleRefresher] in Plan 04-16 Task 3), that copy is
 // preferred.
+//
+// MEMORY (2026-07-10 crash fix): the previous implementation built a
+// 0.01°-cell hash grid over every region's bbox. A single stray
+// admin_level-2 country polygon (the Netherlands, clipped into the DE
+// extract) enumerated ~32.5M cells on its own — the grid ballooned to
+// ~37M int entries (~900 MB) and, doubled by the compute→SendPort copy,
+// spiked the process to ~4 GB and got LMK-killed on the Trips tab (which
+// reverse-geocodes every card). The grid is gone: with ~20K regions a
+// per-level bbox scan is a few microseconds and allocates nothing beyond
+// the region list itself.
 
 import 'dart:convert';
 import 'dart:io';
@@ -20,21 +31,6 @@ import 'package:path_provider/path_provider.dart';
 
 /// Path of the bundled asset in the app rootBundle.
 const String kAdminBundleAssetPath = 'assets/admin/germany_admin.geojson.gz';
-
-/// Grid cell size in degrees.
-const double _gridCellDeg = 0.01;
-
-/// Parsed output of the admin bundle: the region list plus the hash grid.
-///
-/// Returned from the [compute] isolate as a plain Dart object; both fields
-/// are Lists/Maps of primitives (and [AdminRegion], which is itself built
-/// from primitive Lists), so they copy cleanly across the SendPort boundary.
-class _ParsedAdminBundle {
-  const _ParsedAdminBundle(this.regions, this.grid);
-
-  final List<AdminRegion> regions;
-  final Map<int, List<int>> grid;
-}
 
 /// Locates the containing admin region for a given `(lat, lon, adminLevel)`.
 class AdminRegionLookup {
@@ -51,7 +47,10 @@ class AdminRegionLookup {
   final Future<Directory> Function() _docsDirLoader;
 
   List<AdminRegion>? _regions;
-  Map<int, List<int>>? _grid;
+
+  /// Regions bucketed by `adminLevel` so a lookup scans only the relevant
+  /// level. Built once from [_regions] after the parse completes.
+  Map<int, List<AdminRegion>>? _byLevel;
   int _bundleLoadCount = 0;
 
   /// In-flight load future — single-flight guard. Without this, concurrent
@@ -85,9 +84,9 @@ class AdminRegionLookup {
   Future<void> _load() async {
     try {
       final bytes = await _loadBundleBytes();
-      final parsed = await compute(_parseAdminBundle, bytes);
-      _regions = parsed.regions;
-      _grid = parsed.grid;
+      final regions = await compute(_parseAdminBundle, bytes);
+      _regions = regions;
+      _byLevel = _bucketByLevel(regions);
       _bundleLoadCount++;
     } finally {
       // Clear the guard so a post-[invalidate] reload can run again. On
@@ -96,27 +95,34 @@ class AdminRegionLookup {
     }
   }
 
+  static Map<int, List<AdminRegion>> _bucketByLevel(
+    List<AdminRegion> regions,
+  ) {
+    final byLevel = <int, List<AdminRegion>>{};
+    for (final r in regions) {
+      (byLevel[r.adminLevel] ??= <AdminRegion>[]).add(r);
+    }
+    return byLevel;
+  }
+
   /// Looks up the containing region at [adminLevel] for the given point.
   ///
   /// Returns `null` when no region at that level contains the point
   /// (over water, over a level not represented in the bundle, or outside
   /// Germany).
+  ///
+  /// Scans only the requested level's bucket, bbox-culling each candidate
+  /// before the point-in-polygon test. ~20K regions total across all levels,
+  /// so even a full-level scan (a few thousand bbox checks) is microseconds.
   Future<AdminRegion?> regionAt(
     double lat,
     double lon,
     int adminLevel,
   ) async {
     await ensureLoaded();
-    final grid = _grid!;
-    final regions = _regions!;
-    final cellY = (lat / _gridCellDeg).floor();
-    final cellX = (lon / _gridCellDeg).floor();
-    final key = _cellKey(cellY, cellX);
-    final candidates = grid[key];
+    final candidates = _byLevel![adminLevel];
     if (candidates == null) return null;
-    for (final idx in candidates) {
-      final region = regions[idx];
-      if (region.adminLevel != adminLevel) continue;
+    for (final region in candidates) {
       if (region.containsPoint(lat, lon)) return region;
     }
     return null;
@@ -126,7 +132,7 @@ class AdminRegionLookup {
   /// the runtime refresher after replacing the docs-dir copy.
   void invalidate() {
     _regions = null;
-    _grid = null;
+    _byLevel = null;
     _loading = null;
   }
 
@@ -148,32 +154,25 @@ class AdminRegionLookup {
     return byteData.buffer
         .asUint8List(byteData.offsetInBytes, byteData.lengthInBytes);
   }
-
-  static int _cellKey(int cellY, int cellX) {
-    // Pack signed 20-bit cell coords into one int; y in high bits.
-    // Global DE bbox stays well within +/- 20-bit range at 0.01° cells.
-    final ny = (cellY + (1 << 19)) & 0xFFFFF;
-    final nx = (cellX + (1 << 19)) & 0xFFFFF;
-    return (ny << 20) | nx;
-  }
 }
 
-/// Isolate entry point: inflate + parse the bundle bytes into regions + grid.
+/// Isolate entry point: inflate + parse the bundle bytes into a region list.
 ///
 /// Runs via [compute] on a background isolate. Takes the raw (still gzipped)
 /// asset bytes — the asset bundle itself is not reachable off the UI isolate,
 /// so the caller reads the bytes first and hands them over here. The returned
-/// [_ParsedAdminBundle] is plain Lists/Maps of primitives (+[AdminRegion]),
-/// which copy cleanly back across the SendPort boundary.
-_ParsedAdminBundle _parseAdminBundle(Uint8List bytes) {
+/// `List<AdminRegion>` is built from primitive Lists, so it copies cleanly
+/// back across the SendPort boundary. The lookup then buckets it by level on
+/// the UI isolate (a cheap O(n) pass).
+List<AdminRegion> _parseAdminBundle(Uint8List bytes) {
   final decoded = utf8.decode(gzip.decode(bytes));
   final json = jsonDecode(decoded);
   if (json is! Map<String, dynamic>) {
-    return const _ParsedAdminBundle([], {});
+    return const [];
   }
   final features = json['features'];
   if (features is! List) {
-    return const _ParsedAdminBundle([], {});
+    return const [];
   }
 
   final regions = <AdminRegion>[];
@@ -181,25 +180,7 @@ _ParsedAdminBundle _parseAdminBundle(Uint8List bytes) {
     final region = _regionFromFeature(f);
     if (region != null) regions.add(region);
   }
-
-  // Build hash grid: map cell key → list of region indices whose bbox
-  // overlaps that cell.
-  final grid = <int, List<int>>{};
-  for (var i = 0; i < regions.length; i++) {
-    final r = regions[i];
-    final minCellY = (r.bboxMinLat / _gridCellDeg).floor();
-    final maxCellY = (r.bboxMaxLat / _gridCellDeg).floor();
-    final minCellX = (r.bboxMinLon / _gridCellDeg).floor();
-    final maxCellX = (r.bboxMaxLon / _gridCellDeg).floor();
-    for (var y = minCellY; y <= maxCellY; y++) {
-      for (var x = minCellX; x <= maxCellX; x++) {
-        final key = AdminRegionLookup._cellKey(y, x);
-        (grid[key] ??= <int>[]).add(i);
-      }
-    }
-  }
-
-  return _ParsedAdminBundle(regions, grid);
+  return regions;
 }
 
 AdminRegion? _regionFromFeature(Object? raw) {

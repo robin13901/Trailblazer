@@ -1,10 +1,12 @@
 // Trailblazer Phase 6, Plan 06-05 Task 2:
-// TripsScreen — the Trips tab, sub-tabbed into Inbox (pending/matched) and
-// History (confirmed + in-flight). Replaces the Phase-3 placeholder.
+// TripsScreen — the Trips tab, sub-tabbed into History (confirmed + in-flight)
+// and Inbox (pending/matched). Replaces the Phase-3 placeholder.
 //
 // Above the tabs: MatchingQueuePill (visible only when in-flight count > 0).
-// Landing tab: Inbox when pending trips exist on first snapshot, else History
-// (guarded by `_initialTabResolved` so later list updates never force-jump).
+// Tab order (2026-07-10): History is the default LEFT tab (index 0), Inbox is
+// on the RIGHT (index 1). Landing tab: History by default, jumping to Inbox
+// only when pending trips exist on the first snapshot (guarded by
+// `_initialTabResolved` so later list updates never force-jump).
 //
 // Thumbnails are rendered purely on the Canvas via `ThumbnailRenderer.
 // renderFallback` (see TripThumbnail) — no live MapLibre surface is hosted
@@ -47,12 +49,13 @@ class _TripsScreenState extends ConsumerState<TripsScreen>
     super.dispose();
   }
 
-  /// Resolve the landing tab from the first inbox snapshot: Inbox when pending
-  /// trips exist, else History. Runs at most once (guarded).
+  /// Resolve the landing tab from the first inbox snapshot. History is the
+  /// default (index 0); jump to Inbox (index 1) only when pending trips exist
+  /// so the user sees the trips awaiting a decision. Runs at most once.
   void _resolveInitialTab(List<TripListItem> inbox) {
     if (_initialTabResolved) return;
     _initialTabResolved = true;
-    final targetIndex = inbox.isNotEmpty ? 0 : 1;
+    final targetIndex = inbox.isNotEmpty ? 1 : 0;
     if (_tab.index != targetIndex) {
       // Defer to after the current build to avoid mutating during build.
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -74,16 +77,16 @@ class _TripsScreenState extends ConsumerState<TripsScreen>
             TabBar(
               controller: _tab,
               tabs: const [
-                Tab(text: 'Inbox'),
                 Tab(text: 'History'),
+                Tab(text: 'Inbox'),
               ],
             ),
             Expanded(
               child: TabBarView(
                 controller: _tab,
                 children: const [
-                  _InboxTab(),
                   _HistoryTab(),
+                  _InboxTab(),
                 ],
               ),
             ),

@@ -117,9 +117,9 @@ void main() {
     );
     await tester.pump();
     expect(find.byType(TripCard), findsNWidgets(2));
-    // Inbox is the active tab.
+    // Inbox is the active tab (index 1 after the 2026-07-10 History/Inbox swap).
     final tabView = tester.widget<TabBarView>(find.byType(TabBarView));
-    expect(tabView.controller!.index, 0);
+    expect(tabView.controller!.index, 1);
   });
 
   testWidgets('empty inbox + 3 history → lands on History, 3 HistoryRows', (
@@ -135,8 +135,9 @@ void main() {
       ],
     );
     await tester.pump();
+    // History is the default tab (index 0 after the swap).
     final tabView = tester.widget<TabBarView>(find.byType(TabBarView));
-    expect(tabView.controller!.index, 1);
+    expect(tabView.controller!.index, 0);
     expect(find.byType(HistoryRow), findsNWidgets(3));
   });
 
@@ -144,11 +145,11 @@ void main() {
     tester,
   ) async {
     // Documented choice: with no pending trips the landing tab is History
-    // (inbox.isEmpty → index 1), so the History empty state is what shows.
+    // (index 0 after the swap), so the History empty state is what shows.
     await _pump(tester, inbox: const [], history: const []);
     await tester.pump();
     final tabView = tester.widget<TabBarView>(find.byType(TabBarView));
-    expect(tabView.controller!.index, 1);
+    expect(tabView.controller!.index, 0);
     expect(find.byType(HistoryEmptyState), findsOneWidget);
   });
 
@@ -213,17 +214,17 @@ void main() {
         child: MaterialApp.router(routerConfig: router),
       ),
     );
-    // First snapshot: empty inbox → lands on History (index 1).
+    // First snapshot: empty inbox → lands on History (index 0 after swap).
     controller.add(const []);
     await tester.pump();
     await tester.pump();
     final tabView = tester.widget<TabBarView>(find.byType(TabBarView));
-    expect(tabView.controller!.index, 1);
+    expect(tabView.controller!.index, 0);
 
     // Later: inbox gains an item. Landing was already resolved → no re-jump.
     controller.add([_item(1, TripStatus.matched)]);
     await tester.pump();
     await tester.pump();
-    expect(tabView.controller!.index, 1);
+    expect(tabView.controller!.index, 0);
   });
 }

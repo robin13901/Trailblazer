@@ -25,6 +25,29 @@ import 'package:auto_explore/features/matching/domain/way_candidate.dart';
 import 'package:auto_explore/features/matching/domain/way_segment_index.dart';
 import 'package:maplibre_gl/maplibre_gl.dart' show LatLng;
 
+/// Maximum full length (m) of a way eligible for unconditional pass-through
+/// extension. A genuine junction connector — the short link the vehicle drives
+/// straight through between two roads — is typically only a handful of meters
+/// long and legitimately catches just 1-2 GPS fixes, so its measured span
+/// collapses to ~0. Ways at or below this length are treated as connectors and
+/// extended to full length to close the junction gap.
+///
+/// Ways LONGER than this are NOT connectors: a normal parallel road that
+/// caught a few stray GPS fixes must NOT be promoted to fully-driven from a
+/// tiny excursion (2026-07-10 over-draw regression). It extends only when the
+/// measured span already proves real traversal (see
+/// [kMinTraversedFractionForExtend]). 30 m matches the `isFullyCovered`
+/// small-way branch in `coverage_threshold.dart`.
+const double kMaxPassThroughConnectorMeters = 30;
+
+/// For pass-through ways LONGER than [kMaxPassThroughConnectorMeters], the
+/// measured span must cover at least this fraction of the full way length
+/// before we extend to full length. A brief GPS excursion onto a neighbouring
+/// parallel road covers only a small fraction, so it fails this gate and keeps
+/// its conservative measured span (which the coverage short-way floor then
+/// discards). A real end-to-end drive covers most of the way and passes.
+const double kMinTraversedFractionForExtend = 0.5;
+
 /// Orchestrator that maps a raw GPS trace + road-candidate list to a
 /// [MatchResult] containing per-fix [MatchedStep]s and collapsed
 /// [DrivenWayIntervalDraft]s.
@@ -155,13 +178,32 @@ class HmmMatcher {
       // extend the interval to the FULL way length so the connector renders.
       // Ways only touched at the trip start/end, or bounded by a confidence
       // gap, keep the conservative measured span (we can't prove traversal).
+      //
+      // Over-draw guard (2026-07-10): the raw pass-through test alone marked
+      // NEIGHBOURING parallel roads as fully driven — GPS noise drops 1-2
+      // fixes onto a road running alongside the real one, and because that
+      // stray run is bracketed by the real road it looked like a pass-through
+      // and got extended to full length. So extend ONLY when there is real
+      // evidence of traversal:
+      //   (a) the way is a genuine short connector (≤ connector length) — a
+      //       1-2-fix run on a ≤30 m link is the expected, legitimate case; OR
+      //   (b) the measured span already covers a majority of the way — a real
+      //       end-to-end drive. A brief excursion onto a longer parallel road
+      //       covers only a sliver, fails both, and stays conservative (the
+      //       coverage short-way floor then discards it).
       if (enteredFromOtherWay && exitedToOtherWay) {
         final way = waysById[runWayId];
         if (way != null) {
           final len = _polylineLengthMeters(way.geometry);
           if (len > 0) {
-            start = 0;
-            end = len;
+            final measuredSpan = end - start;
+            final isShortConnector = len <= kMaxPassThroughConnectorMeters;
+            final coversMajority =
+                measuredSpan >= len * kMinTraversedFractionForExtend;
+            if (isShortConnector || coversMajority) {
+              start = 0;
+              end = len;
+            }
           }
         }
       }
