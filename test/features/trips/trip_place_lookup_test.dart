@@ -39,6 +39,9 @@ class _FakeAdminRegionLookup implements AdminRegionLookup {
   void invalidate() {}
 
   @override
+  AdminRegion? regionByOsmId(int osmId) => null;
+
+  @override
   int get regionCount => 0;
 
   @override
