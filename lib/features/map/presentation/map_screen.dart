@@ -70,9 +70,19 @@ class MapScreen extends ConsumerWidget {
       // UI-06: no AppBar.
       body: Stack(
         children: [
-          // Full-screen map — always in the tree so MapLibre keeps its state
-          // across tab switches (indexedStack semantics preserve it).
-          const Positioned.fill(child: MapWidget()),
+          // Full-screen map — mounted ONLY while the Map tab is active. On
+          // Trips/Regions the MapWidget is replaced by a cheap themed
+          // placeholder so MapLibre's ~500 MB GL surface is released while the
+          // map isn't visible (memory fix, 2026-07-10). The live camera is
+          // persisted to cameraStateProvider on every idle, and MapWidget
+          // seeds its initial position from it, so returning to the Map tab
+          // restores the exact view (brief tile refetch aside).
+          if (isMapTab)
+            const Positioned.fill(child: MapWidget())
+          else
+            Positioned.fill(
+              child: ColoredBox(color: Theme.of(context).colorScheme.surface),
+            ),
 
           // Headless listener: drives cameraStateProvider on tracking
           // transitions. No visible UI — renders a SizedBox.shrink. Wrapped

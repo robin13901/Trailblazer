@@ -9,6 +9,7 @@ import 'package:auto_explore/features/map/presentation/providers/map_style_loade
 import 'package:auto_explore/features/map/presentation/providers/map_style_provider.dart';
 import 'package:auto_explore/features/map/presentation/widgets/map_style_fade.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart' show SchedulerPhase;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:maplibre_gl/maplibre_gl.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -64,6 +65,10 @@ class _MapWidgetState extends ConsumerState<MapWidget>
   // (ref is unsafe to read after unmount — cache the notifier in initState).
   late MapControllerNotifier _mapControllerNotifier;
 
+  /// The controller this widget instance registered, so dispose only clears
+  /// the provider if a faster-mounting successor hasn't already replaced it.
+  MapLibreMapController? _ownController;
+
   /// Controls the opacity crossfade: `true` = fully visible, `false` = faded
   /// out while setStyle() is in progress.
   bool _styleVisible = true;
@@ -79,7 +84,26 @@ class _MapWidgetState extends ConsumerState<MapWidget>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    _mapControllerNotifier.controller = null;
+    // Clear the shared controller only if this instance still owns it, so a
+    // fast remount (leaving + returning to the Map tab) that already
+    // registered a new controller is not clobbered.
+    //
+    // Deferred to a microtask: dispose now runs while the parent (MapScreen)
+    // is rebuilding to swap the map out on a tab change, and mutating a
+    // provider mid-build throws. The captured notifier stays valid for the
+    // ProviderScope's lifetime, so the identity-guarded clear is safe.
+    final notifier = _mapControllerNotifier;
+    final own = _ownController;
+    scheduleMicrotask(() {
+      // Best-effort: if the whole ProviderScope was torn down before the
+      // microtask ran (e.g. widget-test teardown), the notifier read throws
+      // UnmountedRefException — nothing to clear in that case.
+      try {
+        if (notifier.controller == own) notifier.controller = null;
+      } on Object {
+        // Scope gone — no-op.
+      }
+    });
     super.dispose();
   }
 
@@ -164,10 +188,22 @@ class _MapWidgetState extends ConsumerState<MapWidget>
       visible: _styleVisible,
       child: MapLibreMap(
         styleString: styleUrl,
-        initialCameraPosition: CameraPosition(
-          target: widget.initialTarget,
-          zoom: widget.initialZoom,
-        ),
+        // Seed from the persisted CameraState when it holds a real position
+        // (lat/lng != 0,0 sentinel) so that disposing + recreating the map on
+        // a tab switch (memory fix — the map's ~500 MB GL surface is freed
+        // while off the Map tab) returns to where the user left it. Falls back
+        // to the widget's initial target on a genuine cold start.
+        initialCameraPosition: (cameraState.latitude != 0 ||
+                cameraState.longitude != 0)
+            ? CameraPosition(
+                target: LatLng(cameraState.latitude, cameraState.longitude),
+                zoom: cameraState.zoom,
+                bearing: cameraState.bearing,
+              )
+            : CameraPosition(
+                target: widget.initialTarget,
+                zoom: widget.initialZoom,
+              ),
         // 02-CONTEXT.md: flat 2D only — tilt is the only non-default gesture flag.
         tiltGesturesEnabled: false,
         // Plan 04-19 (2026-07-09): hide MapLibre's built-in top-right
@@ -208,6 +244,7 @@ class _MapWidgetState extends ConsumerState<MapWidget>
         // NOTE: useHybridComposition NOT set — do not override on Android
         // Impeller. See Pitfall 2.
         onMapCreated: (c) {
+          _ownController = c;
           ref.read(mapControllerProvider.notifier).controller = c;
           widget.onMapCreated?.call(c);
         },
@@ -215,6 +252,27 @@ class _MapWidgetState extends ConsumerState<MapWidget>
         // Pan/rotate dismisses follow mode.
         onCameraTrackingDismissed: () {
           ref.read(cameraStateProvider.notifier).setFollowMode(FollowMode.none);
+        },
+        // Persist the live camera position on every idle so a dispose+recreate
+        // across a tab switch (memory fix) can restore the exact view. Reads
+        // the controller's tracked position (trackCameraPosition: true).
+        //
+        // Write synchronously only when the scheduler is idle. The platform can
+        // deliver camera-idle during a build/layout phase (notably fakes in
+        // widget tests), and modifying a provider mid-build throws — in that
+        // case we simply skip this sample; the next idle (or the seed on
+        // remount) covers it. No post-frame deferral, so no risk of touching a
+        // torn-down ref after the test ends.
+        onCameraIdle: () {
+          if (!mounted) return;
+          final phase = WidgetsBinding.instance.schedulerPhase;
+          final safe = phase == SchedulerPhase.idle ||
+              phase == SchedulerPhase.postFrameCallbacks;
+          if (!safe) return;
+          final pos = ref.read(mapControllerProvider)?.cameraPosition;
+          if (pos != null) {
+            ref.read(cameraStateProvider.notifier).updateFromMap(pos);
+          }
         },
       ),
     );
