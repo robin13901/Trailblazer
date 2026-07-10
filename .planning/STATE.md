@@ -5,16 +5,16 @@
 See: .planning/PROJECT.md (updated 2026-07-02)
 
 **Core value:** When I open the map, I immediately see the roads I've already driven, painted onto the world — and that view keeps pulling me back to explore more.
-**Current focus:** Phase 7 (Coverage Rendering) IN PROGRESS — 07-01 + 07-02 + 07-03 + 07-04 + 07-05 complete. REN-01 orange/amber, REN-02 de-scoped, Gate G2 RESOLVED = FAIL (GeoJSON data-driven expressions). RESEARCH open-Q1/Q3/Q4 all closed. Next: 07-06 map bridge wiring.
+**Current focus:** Phase 7 (Coverage Rendering) IN PROGRESS — 07-01..07-07 all complete (07-06 concurrent same wave). REN-01 orange/amber, REN-02 de-scoped, Gate G2 RESOLVED = FAIL (GeoJSON data-driven expressions). RESEARCH open-Q1/Q3/Q4 all closed. Phase 7 code-complete; deferred: on-device REN-04 50k fps read + REN-03 drive verification.
 
 ## Current Position
 
 Phase: 7 of 11 (Coverage Rendering — In Progress)
-Plan: 07-04 complete (5 of 7 plans in phase — out-of-order: 07-01, 07-02, 07-03, 07-04, 07-05 done)
-Status: Phase 7 in progress. 07-01 (coverage domain + CoverageDatum + 5-preset palette) complete; 07-02 (requirements reconciliation) complete; 07-03 (DrivenWayGeometryResolver + watchUnionBbox + reactive providers + 11 resolver tests) complete; 07-04 (GeoJSON render bridge: buildCoverageFeatureCollection + CoverageOverlayApplier + coverageLinePaintExpressions + Q3/Q4 closed) complete; 07-05 (AppPrefs coverage preset persistence + settings wiring) complete. RESEARCH open-Q1/Q3/Q4 all CLOSED.
-Last activity: 2026-07-10 — 07-04 complete: buildCoverageFeatureCollection (pure GeoJSON builder, compute-isolate safe); CoverageOverlayApplier abstract + MapLibreCoverageOverlayApplier (remove-then-readd, full setLayerProperties, runtime getLayerIds() belowLayerId); coverageLinePaintExpressions pure expression builder (test seam); coverageOverlayApplierProvider; 25 new tests (11 builder + 14 expression/provider); RESEARCH open-Q3 (full setLayerProperties) and open-Q4 (belowLayerId heuristic) CLOSED. Gate G2 confirmed (no setFeatureState anywhere).
+Plan: 07-07 complete (7 of 7 plans in phase — all done: 07-01..07-07)
+Status: Phase 7 code-complete. 07-01 (coverage domain + CoverageDatum + 5-preset palette) complete; 07-02 (requirements reconciliation) complete; 07-03 (DrivenWayGeometryResolver + watchUnionBbox + reactive providers + 11 resolver tests) complete; 07-04 (GeoJSON render bridge: buildCoverageFeatureCollection + CoverageOverlayApplier + coverageLinePaintExpressions + Q3/Q4 closed) complete; 07-05 (AppPrefs coverage preset persistence + settings wiring) complete; 07-06 (map bridge wiring — concurrent) complete; 07-07 (REN-04 stress harness: synthetic 50k generator + FrameTimingMeter + StressCoverageScreen + debug route) complete.
+Last activity: 2026-07-10 — 07-07 complete: syntheticCoverageWays (deterministic Germany-bbox, compute-safe), FrameTimingMeter (P90 rolling 600-frame window, addFrameMs seam, 14 tests), StressCoverageScreen (production CoverageOverlayApplier, FrameTiming callback, PASS/FAIL banner), /settings/stress-coverage kDebugMode-gated route + _StressCoverageTile in Settings Developer section; 23 unit tests total; flutter analyze clean. On-device 50k fps read deferred to next device session.
 
-Progress: [█████████░] ~82% (65/77 est. plans overall — Phase 1: 7/7; Phase 2: 7/7; Phase 3: 7/7; Phase 3.1: 5/5; Phase 4: 8/8 + 04-18 + 04-19 DRIVE-VERIFIED; Phase 5: 8/8 CODE-COMPLETE; Phase 6: 6/6 code-complete — 06-01..06-06 done + 06-07/06-08 gap-fixes; Phase 7: 5/7 in progress — 07-01 + 07-02 + 07-03 + 07-04 + 07-05)
+Progress: [█████████░] ~88% (67/77 est. plans overall — Phase 1: 7/7; Phase 2: 7/7; Phase 3: 7/7; Phase 3.1: 5/5; Phase 4: 8/8 + 04-18 + 04-19 DRIVE-VERIFIED; Phase 5: 8/8 CODE-COMPLETE; Phase 6: 6/6 code-complete — 06-01..06-06 done + 06-07/06-08 gap-fixes; Phase 7: 7/7 code-complete — 07-01..07-07)
 
 ## Performance Metrics
 
@@ -484,7 +484,7 @@ Key locked-in decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-07-10 (Plan 07-03 — geometry resolver — COMPLETE; ~16 min execution)
-Stopped at: Plan 07-03 COMPLETE. Task commits: `2faabe0` getAllIntervals/getDistinctWayIds; `ba77b69` CoverageWay/CoverageOverlayData/DrivenWayGeometryResolver; `3c19afe` watchUnionBbox + providers + 11 tests. SUMMARY.md + STATE.md + metadata commit follow. 14 new tests (8+6+5 reactivity) green; flutter analyze clean. Phase 7: 07-01 + 07-02 + 07-03 + 07-05 complete.
+Last session: 2026-07-10 (Plan 07-07 — REN-04 stress harness — COMPLETE; ~16 min execution)
+Stopped at: Plan 07-07 COMPLETE. Task commits: `c4a7fce` synthetic generator; `66a96f9` FrameTimingMeter; `f9e5784` StressCoverageScreen + route + settings tile. SUMMARY.md created at .planning/phases/07-coverage-rendering/07-07-SUMMARY.md. STATE.md updated. 23 unit tests green; flutter analyze clean. Phase 7: 07-01..07-07 code-complete. Deferred: on-device REN-04 50k fps read.
 Resume file: None
-Next: Phase 7 in progress. Next plan: 07-04 GeoJSON render bridge (bridge coverageOverlayDataProvider → MapLibre GeoJSON FeatureCollection + paint layers; uses coveragePresetValueProvider for colors).
+Next: Phase 8 (regions) or deferred on-device verification drive for Phase 7 (REN-04 fps + REN-03 paint quality).
