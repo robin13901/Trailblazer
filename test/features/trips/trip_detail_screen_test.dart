@@ -1,4 +1,4 @@
-// Trailblazer Phase 6, Plan 06-05 Task 3 tests:
+// Trailblazer Phase 6, Plan 06-05 Task 3 tests (route render swapped 06-07):
 // TripDetailScreen + loadTripDetailData.
 //
 // Two layers of coverage:
@@ -6,10 +6,9 @@
 //      segments + matched%), and the two offline fallbacks (Issue 6). Uses an
 //      in-memory Drift DB + a fake WayCandidateSource.
 //   2. TripDetailScreen (widget) — delete → dialog → discardTrip + pop; the
-//      fail-matched + offline banners; the stat strip; and the style-swap
-//      re-apply (Pitfall Q1). The overlay applier is overridden with a
-//      recording fake so the raw/matched adds are observable without a live
-//      MapLibre platform view.
+//      fail-matched + offline banners; the stat strip; and that the route is
+//      rendered via the map-free [TripRouteView] (no second MapLibre surface —
+//      06-07 re-drive #4 crash fix).
 
 import 'dart:async';
 
@@ -19,7 +18,6 @@ import 'package:auto_explore/core/db/daos/driven_way_intervals_dao.dart';
 import 'package:auto_explore/core/errors/domain_error.dart';
 import 'package:auto_explore/core/errors/result.dart';
 import 'package:auto_explore/features/map/presentation/providers/location_permission_provider.dart';
-import 'package:auto_explore/features/map/presentation/widgets/map_widget.dart';
 import 'package:auto_explore/features/matching/data/matching_providers.dart';
 import 'package:auto_explore/features/matching/data/way_candidate_source.dart';
 import 'package:auto_explore/features/matching/domain/way_candidate.dart';
@@ -29,7 +27,7 @@ import 'package:auto_explore/features/trips/data/trips_repository_inbox_extensio
 import 'package:auto_explore/features/trips/domain/trip_list_item.dart';
 import 'package:auto_explore/features/trips/domain/trip_status.dart';
 import 'package:auto_explore/features/trips/presentation/trip_detail_screen.dart';
-import 'package:auto_explore/features/trips/presentation/widgets/trip_overlay_layers.dart';
+import 'package:auto_explore/features/trips/presentation/widgets/trip_route_view.dart';
 import 'package:drift/drift.dart' hide isNotNull, isNull;
 import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
@@ -38,8 +36,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:maplibre_gl/maplibre_gl.dart';
 import 'package:permission_handler/permission_handler.dart';
-
-import '../../helpers/fake_maplibre_platform.dart';
 
 // ---------------------------------------------------------------------------
 // Fakes
@@ -79,39 +75,6 @@ class _FakeWaySource implements WayCandidateSource {
       throw const NetworkError('offline', statusCode: 0);
     }
     return const [];
-  }
-}
-
-/// Records raw/matched adds so tests can assert which overlay branch ran.
-class _RecordingApplier implements TripOverlayApplier {
-  final List<String> log = [];
-
-  @override
-  Future<void> addRawPolyline(
-    MapLibreMapController? controller, {
-    required int tripId,
-    required List<LatLng> polyline,
-    required Color color,
-  }) async {
-    log.add('raw');
-  }
-
-  @override
-  Future<void> addMatchedIntervalLayers(
-    MapLibreMapController? controller, {
-    required int tripId,
-    required List<List<LatLng>> matchedSegments,
-    required Color color,
-  }) async {
-    log.add('matched');
-  }
-
-  @override
-  Future<void> removeTripOverlay(
-    MapLibreMapController? controller,
-    int tripId,
-  ) async {
-    log.add('remove');
   }
 }
 
@@ -351,25 +314,19 @@ void main() {
   group('TripDetailScreen', () {
     late AppDatabase db;
 
-    setUp(() {
-      final prev = MapLibrePlatform.createInstance;
-      addTearDown(() => MapLibrePlatform.createInstance = prev);
-      MapLibrePlatform.createInstance = FakeMapLibrePlatform.new;
-    });
-
     tearDown(() async {
       await db.close();
     });
 
     /// Build the screen inside a router (so context.pop works) with the DB +
-    /// way source + overlay applier overridden.
+    /// way source overridden. No MapLibre platform fake is needed — the detail
+    /// screen renders the route with the map-free [TripRouteView] (06-07).
     Future<int> pumpScreen(
       WidgetTester tester, {
       required TripStatus status,
       required List<WayCandidate> ways,
       bool throwError = false,
       List<({int wayId, double start, double end})> intervals = const [],
-      TripOverlayApplier? applier,
       TripsInboxRepository? repo,
     }) async {
       db = AppDatabase(NativeDatabase.memory());
@@ -409,8 +366,6 @@ void main() {
             wayCandidateSourceProvider.overrideWithValue(
               _FakeWaySource(ways: ways, throwError: throwError),
             ),
-            if (applier != null)
-              tripOverlayApplierProvider.overrideWithValue(applier),
             if (repo != null)
               tripsInboxRepositoryProvider.overrideWithValue(repo),
             locationPermissionProvider
@@ -431,58 +386,61 @@ void main() {
       return tripId;
     }
 
+    /// Reads the [TripRouteView] mounted by the screen so tests can assert the
+    /// route geometry it was handed (raw always; matched only when non-fail,
+    /// non-offline).
+    TripRouteView routeView(WidgetTester tester) =>
+        tester.widget<TripRouteView>(find.byType(TripRouteView));
+
     testWidgets(
-      'fail-matched: banner shown, matched adder NOT called, raw IS called',
+      'fail-matched: banner shown, route view has raw but NO matched segments',
       (tester) async {
-        final applier = _RecordingApplier();
         await pumpScreen(
           tester,
           status: TripStatus.matched, // 0 intervals → fail-matched
           ways: const [],
-          applier: applier,
         );
         await tester.pump();
 
         expect(find.textContaining('No roads matched'), findsOneWidget);
-        expect(applier.log, contains('raw'));
-        expect(applier.log, isNot(contains('matched')));
+        final view = routeView(tester);
+        expect(view.data.rawPolyline, isNotEmpty);
+        expect(view.data.matchedSegments, isEmpty);
       },
     );
 
-    testWidgets('non-fail: no banner, both raw + matched adders called',
+    testWidgets('non-fail: no banner, route view has raw + matched segments',
         (tester) async {
-      final applier = _RecordingApplier();
       await pumpScreen(
         tester,
         status: TripStatus.confirmed,
         ways: [_way(1)],
         intervals: const [(wayId: 1, start: 0, end: 50)],
-        applier: applier,
       );
       await tester.pump();
 
       expect(find.textContaining('No roads matched'), findsNothing);
       expect(find.textContaining('unavailable offline'), findsNothing);
-      expect(applier.log, contains('raw'));
-      expect(applier.log, contains('matched'));
+      final view = routeView(tester);
+      expect(view.data.rawPolyline, isNotEmpty);
+      expect(view.data.matchedSegments, isNotEmpty);
     });
 
-    testWidgets('offline: banner shown, matched NOT called, raw IS called',
+    testWidgets('offline: banner shown, route view has raw but NO matched',
         (tester) async {
-      final applier = _RecordingApplier();
       await pumpScreen(
         tester,
         status: TripStatus.confirmed,
         ways: const [],
         throwError: true,
         intervals: const [(wayId: 1, start: 0, end: 50)],
-        applier: applier,
       );
       await tester.pump();
 
       expect(find.textContaining('unavailable offline'), findsOneWidget);
-      expect(applier.log, contains('raw'));
-      expect(applier.log, isNot(contains('matched')));
+      final view = routeView(tester);
+      expect(view.data.rawPolyline, isNotEmpty);
+      expect(view.data.matchedSegments, isEmpty);
       // Delete button still present (functional).
       expect(find.byIcon(Icons.delete_outline), findsOneWidget);
     });
@@ -490,18 +448,16 @@ void main() {
     testWidgets(
       'offline: empty ways while intervals exist → same offline behavior',
       (tester) async {
-        final applier = _RecordingApplier();
         await pumpScreen(
           tester,
           status: TripStatus.confirmed,
           ways: const [], // source returns nothing, no throw
           intervals: const [(wayId: 1, start: 0, end: 50)],
-          applier: applier,
         );
         await tester.pump();
 
         expect(find.textContaining('unavailable offline'), findsOneWidget);
-        expect(applier.log, isNot(contains('matched')));
+        expect(routeView(tester).data.matchedSegments, isEmpty);
       },
     );
 
@@ -549,32 +505,19 @@ void main() {
       expect(find.text('home'), findsOneWidget);
     });
 
-    testWidgets('style-swap re-triggers the overlay apply routine',
+    testWidgets('renders the map-free TripRouteView (no MapLibre surface)',
         (tester) async {
-      final applier = _RecordingApplier();
       await pumpScreen(
         tester,
         status: TripStatus.confirmed,
         ways: [_way(1)],
         intervals: const [(wayId: 1, start: 0, end: 50)],
-        applier: applier,
       );
       await tester.pump();
 
-      final callsAfterInitial = applier.log.length;
-      expect(callsAfterInitial, greaterThan(0));
-
-      // MapWidget.onStyleLoaded fires again on a brightness-driven style swap
-      // (Pitfall Q1). Grab the wired callback and invoke it directly to prove
-      // the overlay is re-applied (a fresh 'remove' + 'raw' + 'matched').
-      final mapWidget = tester.widget<MapWidget>(find.byType(MapWidget));
-      expect(mapWidget.onStyleLoaded, isNotNull);
-      mapWidget.onStyleLoaded!.call();
-      await tester.pump();
-      await tester.pump();
-
-      expect(applier.log.length, greaterThan(callsAfterInitial));
-      expect(applier.log, contains('remove'));
+      // The whole point of 06-07 re-drive #4: exactly one route view, and it is
+      // the static painter, not a second MapLibre platform view.
+      expect(find.byType(TripRouteView), findsOneWidget);
     });
   });
 }

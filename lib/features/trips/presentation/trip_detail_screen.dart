@@ -1,21 +1,22 @@
-// Trailblazer Phase 6, Plan 06-05 Task 3:
+// Trailblazer Phase 6, Plan 06-05 Task 3 (route render swapped in 06-07):
 // TripDetailScreen — the full-screen `/trips/:id` detail view.
 //
-// Renders a trip's raw GPS polyline (muted gray) plus its matched intervals
-// (accent) on a MapWidget, a compact stat strip, and a delete action that runs
-// the same ordered discard as the Inbox card. Two banners cover the edge
-// cases:
+// Renders a trip's raw GPS polyline (muted) plus its matched intervals
+// (accent) as a STATIC route render ([TripRouteView] — a CustomPainter, no
+// MapLibre surface), a compact stat strip, and a delete action that runs the
+// same ordered discard as the Inbox card. Two banners cover the edge cases:
 //   * Fail-matched (intervalCount == 0) — "No roads matched" warning banner;
 //     the matched overlay is skipped.
 //   * Offline (way geometry unavailable — network error + cache miss, or
 //     empty ways while intervals exist) — info banner; only the raw polyline
 //     draws (Issue 6).
 //
-// **Pitfall Q1**: MapWidget swaps style on brightness change, wiping ALL
-// programmatic sources + layers. The overlay-apply routine is wired to
-// `MapWidget.onStyleLoaded`, which fires on EVERY style load (initial + swap),
-// so the polyline + intervals are re-added after each swap. `applyTripOverlay`
-// clean-removes any prior overlay first, so repeated calls are idempotent.
+// **Why no map here (06-07 re-drive #4):** mounting a second live MapLibreMap
+// on this route spun up a second native GL/EGL surface (~500 MB) on top of the
+// Map tab's, OOM-crashing the app on navigation. TripRouteView paints the same
+// geometry the loader already computes. The MapLibre overlay helpers in
+// `trip_overlay_layers.dart` are retained for Phase 7's app-wide coverage
+// rendering on the single Map-tab map.
 
 import 'dart:async';
 import 'dart:math' as math;
@@ -23,8 +24,6 @@ import 'dart:math' as math;
 import 'package:auto_explore/core/db/app_database_providers.dart';
 import 'package:auto_explore/core/db/daos/driven_way_intervals_dao.dart';
 import 'package:auto_explore/core/errors/domain_error.dart';
-import 'package:auto_explore/features/map/presentation/providers/map_controller_provider.dart';
-import 'package:auto_explore/features/map/presentation/widgets/map_widget.dart';
 import 'package:auto_explore/features/matching/data/matching_providers.dart';
 import 'package:auto_explore/features/matching/data/way_candidate_source.dart';
 import 'package:auto_explore/features/matching/domain/way_candidate.dart';
@@ -37,7 +36,9 @@ import 'package:auto_explore/features/trips/presentation/widgets/debug_export_bu
 import 'package:auto_explore/features/trips/presentation/widgets/discard_confirmation_dialog.dart';
 import 'package:auto_explore/features/trips/presentation/widgets/trip_card.dart'
     show formatDistance, formatDuration, tripBounds;
-import 'package:auto_explore/features/trips/presentation/widgets/trip_overlay_layers.dart';
+import 'package:auto_explore/features/trips/presentation/widgets/trip_overlay_layers.dart'
+    show TripDetailData;
+import 'package:auto_explore/features/trips/presentation/widgets/trip_route_view.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -270,25 +271,6 @@ class TripDetailScreen extends ConsumerStatefulWidget {
 }
 
 class _TripDetailScreenState extends ConsumerState<TripDetailScreen> {
-  /// Re-applies the trip overlay to the current map controller. Wired to
-  /// [MapWidget.onStyleLoaded] so it runs on the initial style load AND on
-  /// every brightness-driven style swap (Pitfall Q1).
-  Future<void> _applyOverlay() async {
-    final data = ref.read(tripDetailDataProvider(widget.tripId)).value;
-    if (data == null) return;
-    final applier = ref.read(tripOverlayApplierProvider);
-    final controller = ref.read(mapControllerProvider);
-    final scheme = Theme.of(context).colorScheme;
-    await applyTripOverlay(
-      applier,
-      controller,
-      data,
-      // Raw trace muted; matched intervals in the accent color.
-      rawColor: scheme.outline,
-      matchedColor: scheme.primary,
-    );
-  }
-
   Future<void> _onDelete() async {
     final confirmed = await DiscardConfirmationDialog.show(context);
     if (!confirmed || !mounted) return;
@@ -329,22 +311,19 @@ class _TripDetailScreenState extends ConsumerState<TripDetailScreen> {
   }
 
   Widget _buildBody(TripDetailData data) {
-    // Re-apply overlay whenever data resolves/changes (covers the case where
-    // the style loaded before data was ready).
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) unawaited(_applyOverlay());
-    });
-
+    final scheme = Theme.of(context).colorScheme;
     return Column(
       children: [
         if (data.item.isFailMatched) const _FailMatchedBanner(),
         if (data.offline) const _OfflineBanner(),
         Expanded(
-          child: MapWidget(
-            initialTarget: data.rawPolyline.isNotEmpty
-                ? data.rawPolyline.first
-                : const LatLng(51.16, 10.45),
-            onStyleLoaded: () => unawaited(_applyOverlay()),
+          // Static route render — NO MapLibre surface. Mounting a second live
+          // map here OOM-crashed the app on navigation (Plan 06-07 re-drive
+          // #4); TripRouteView paints the same geometry with a CustomPainter.
+          child: TripRouteView(
+            data: data,
+            rawColor: scheme.outline,
+            matchedColor: scheme.primary,
           ),
         ),
         _StatStrip(data: data),
