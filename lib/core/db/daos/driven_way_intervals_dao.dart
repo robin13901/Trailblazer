@@ -37,4 +37,36 @@ class DrivenWayIntervalsDao extends DatabaseAccessor<AppDatabase>
     return (delete(drivenWayIntervals)..where((t) => t.tripId.equals(tripId)))
         .go();
   }
+
+  /// Returns ALL driven-way interval rows, ordered by `wayId` ascending.
+  ///
+  /// Used by the Phase-7 geometry resolver to compute per-way coverage
+  /// across ALL driven trips (not just one trip). The resolver groups
+  /// rows by `wayId` in Dart — avoids a fragile GROUP_CONCAT aggregate.
+  ///
+  /// No JOIN on trips.status: Phase 6 only writes intervals for trips
+  /// that reached the matcher, and both `matched` and `confirmed` statuses
+  /// represent "driven" for rendering purposes. Rows whose `tripId` was
+  /// SET NULL (after a trip deletion) are included — the driven geometry
+  /// is way-centric and survives trip lifecycle events by design
+  /// (Plan 01-02 FK cascade policy: driven_intervals -> trips SET NULL).
+  Future<List<DrivenWayInterval>> getAllIntervals() {
+    return (select(drivenWayIntervals)
+          ..orderBy([(t) => OrderingTerm.asc(t.wayId)]))
+        .get();
+  }
+
+  /// Returns a deduplicated list of all driven way IDs, sorted ascending.
+  ///
+  /// Convenience query when only the set of wayIds is needed (e.g. to
+  /// decide whether to trigger a geometry resolution pass without reading
+  /// the full interval payload). The resolver can also derive distinct ids
+  /// from `getAllIntervals`, but this avoids materialising row payloads.
+  Future<List<int>> getDistinctWayIds() async {
+    final rows = await customSelect(
+      'SELECT DISTINCT way_id FROM driven_way_intervals ORDER BY way_id',
+      readsFrom: {drivenWayIntervals},
+    ).get();
+    return rows.map((r) => r.read<int>('way_id')).toList();
+  }
 }

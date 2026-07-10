@@ -156,5 +156,114 @@ void main() {
       expect(rows, hasLength(1));
       expect(rows.first.direction, 'forward');
     });
+
+    test(
+      'getAllIntervals returns all rows across multiple trips, ordered by wayId',
+      () async {
+        final trip1 = await seedTrip();
+        final trip2 = await seedTrip();
+        final ts = DateTime(2026, 7, 8);
+
+        await dao.insertBatch([
+          DrivenWayIntervalsCompanion.insert(
+            wayId: 30,
+            tripId: Value(trip2),
+            startMeters: 0,
+            endMeters: 200,
+            matchedAt: Value(ts),
+          ),
+          DrivenWayIntervalsCompanion.insert(
+            wayId: 10,
+            tripId: Value(trip1),
+            startMeters: 0,
+            endMeters: 100,
+            matchedAt: Value(ts),
+          ),
+          DrivenWayIntervalsCompanion.insert(
+            wayId: 10,
+            tripId: Value(trip2),
+            startMeters: 100,
+            endMeters: 150,
+            matchedAt: Value(ts),
+          ),
+          DrivenWayIntervalsCompanion.insert(
+            wayId: 20,
+            tripId: Value(trip1),
+            startMeters: 50,
+            endMeters: 300,
+            matchedAt: Value(ts),
+          ),
+        ]);
+
+        final all = await dao.getAllIntervals();
+        expect(all, hasLength(4));
+        // Ordered by wayId ascending.
+        expect(all.map((r) => r.wayId).toList(), [10, 10, 20, 30]);
+      },
+    );
+
+    test(
+      'getAllIntervals includes rows with null tripId (SET NULL after trip deletion)',
+      () async {
+        final tripId = await seedTrip();
+        final ts = DateTime(2026, 7, 10);
+
+        await dao.insertBatch([
+          DrivenWayIntervalsCompanion.insert(
+            wayId: 99,
+            tripId: Value(tripId),
+            startMeters: 0,
+            endMeters: 500,
+            matchedAt: Value(ts),
+          ),
+        ]);
+
+        // Delete the trip — FK SET NULL on driven_way_intervals.
+        await tripsDao.deleteTrip(tripId);
+
+        // Row still exists with null tripId.
+        final all = await dao.getAllIntervals();
+        expect(all, hasLength(1));
+        expect(all.first.wayId, 99);
+        expect(all.first.tripId, isNull);
+      },
+    );
+
+    test(
+      'getDistinctWayIds returns sorted unique way IDs',
+      () async {
+        final trip1 = await seedTrip();
+        final trip2 = await seedTrip();
+        final ts = DateTime(2026, 7, 10);
+
+        await dao.insertBatch([
+          DrivenWayIntervalsCompanion.insert(
+            wayId: 50,
+            tripId: Value(trip1),
+            startMeters: 0,
+            endMeters: 100,
+            matchedAt: Value(ts),
+          ),
+          DrivenWayIntervalsCompanion.insert(
+            wayId: 10,
+            tripId: Value(trip2),
+            startMeters: 0,
+            endMeters: 100,
+            matchedAt: Value(ts),
+          ),
+          DrivenWayIntervalsCompanion.insert(
+            wayId: 50,
+            tripId: Value(trip2),
+            startMeters: 100,
+            endMeters: 200,
+            matchedAt: Value(ts),
+          ),
+        ]);
+
+        final ids = await dao.getDistinctWayIds();
+        // Two distinct ids, sorted ascending.
+        expect(ids, [10, 50]);
+      },
+    );
   });
 }
