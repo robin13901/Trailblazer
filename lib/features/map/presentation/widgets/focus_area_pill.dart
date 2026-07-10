@@ -1,4 +1,4 @@
-// Trailblazer Phase 8, Plan 08-04 (Wave 2):
+// Trailblazer Phase 8, Plan 08-04 (Wave 2) + 08-06 (Wave 3):
 // Live two-line FocusAreaPill — replaces the Phase-2 stub.
 //
 // Watches focusPillProvider; renders region name over coverage % via GlassPill.
@@ -6,13 +6,17 @@
 // completes, so the pill is never blank and GlassPill's 0-dim guard is never
 // hit with zero content.
 //
-// No tap handler here — Plan 08-05 (region browser) wires the tap to the
-// detail sheet. FocusAreaPill remains a drop-in replacement in map_screen.dart
-// (no changes to the Stack or Flexible/Expanded wrapping — 0-width crash
-// remains prevented by the existing Center in map_screen.dart:165).
+// Plan 08-06: Tapping the pill resolves the current focus region (same
+// fallback chain as the background notifier) and opens showRegionDetailSheet.
 
+import 'package:auto_explore/features/admin/data/admin_region_providers.dart';
+import 'package:auto_explore/features/coverage/data/coverage_providers.dart';
+import 'package:auto_explore/features/map/presentation/providers/live_camera_provider.dart';
 import 'package:auto_explore/features/map/presentation/widgets/glass_pill.dart';
+import 'package:auto_explore/features/regions/domain/region_coverage.dart';
+import 'package:auto_explore/features/regions/domain/zoom_level_mapper.dart';
 import 'package:auto_explore/features/regions/presentation/providers/focus_pill_provider.dart';
+import 'package:auto_explore/features/regions/presentation/widgets/region_detail_sheet.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -20,6 +24,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 ///
 /// Renders inside [GlassPill] — inherits the G1 gate flag (liquid glass vs.
 /// semi-transparent fallback) and the 0-dim guard.
+///
+/// Tapping the pill resolves the region currently under the map view (same
+/// fallback chain as [FocusPillNotifier]) and opens [showRegionDetailSheet].
 ///
 /// Drop-in replacement for the Phase-2 stub — map_screen.dart is unchanged.
 class FocusAreaPill extends ConsumerWidget {
@@ -39,27 +46,74 @@ class FocusAreaPill extends ConsumerWidget {
 
     return Semantics(
       label: 'Focus area: $name, coverage $percent',
-      child: GlassPill(
-        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 18),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              name,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: theme.textTheme.bodyMedium
-                  ?.copyWith(fontWeight: FontWeight.w600),
-            ),
-            Text(
-              percent,
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onSurface.withValues(alpha: 0.8),
+      button: true,
+      child: GestureDetector(
+        onTap: () => _openSheet(context, ref),
+        child: GlassPill(
+          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 18),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.bodyMedium
+                    ?.copyWith(fontWeight: FontWeight.w600),
               ),
-            ),
-          ],
+              Text(
+                percent,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurface.withValues(alpha: 0.8),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
+  }
+
+  /// Resolves the region currently under the map view (same fallback chain
+  /// as [FocusPillNotifier]) and opens [showRegionDetailSheet].
+  Future<void> _openSheet(BuildContext context, WidgetRef ref) async {
+    final camera = ref.read(liveCameraProvider);
+    final lookup = ref.read(adminRegionLookupProvider);
+    await lookup.ensureLoaded();
+
+    // Resolve the SAME region the pill is showing: walk fallbackLevelsFrom(zoom).
+    final zoom = camera?.zoom ?? 16.0;
+    final lat = camera?.latitude ?? 0.0;
+    final lon = camera?.longitude ?? 0.0;
+
+    final region = await () async {
+      for (final level in fallbackLevelsFrom(zoom)) {
+        final r = await lookup.regionAt(lat, lon, level);
+        if (r != null) return r;
+      }
+      return null;
+    }();
+
+    // Nothing under view (e.g. genuinely outside Germany with no fallback).
+    if (region == null) return;
+
+    // Guard: context may have unmounted during the async region lookup.
+    if (!context.mounted) return;
+
+    final cacheDao = ref.read(coverageCacheDaoProvider);
+    final row = await cacheDao.getByRegionId(region.osmId.toString());
+
+    // Guard: context may have unmounted during the async cache read.
+    if (!context.mounted) return;
+
+    final rc = RegionCoverage(
+      osmId: region.osmId,
+      adminLevel: region.adminLevel,
+      name: region.nameDe ?? region.name,
+      drivenLengthM: row?.drivenLengthM ?? 0,
+      totalLengthM: row?.totalLengthM ?? 0,
+    );
+
+    await showRegionDetailSheet(context, rc);
   }
 }
