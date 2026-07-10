@@ -1,3 +1,4 @@
+import 'package:auto_explore/features/coverage/domain/coverage_color_preset.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -11,6 +12,7 @@ class AppPrefs {
   AppPrefs(this._prefs);
 
   static const String kAdminBundleVersion = 'admin_bundle_version';
+  static const String kCoveragePreset = 'coverage_preset';
 
   final SharedPreferencesAsync _prefs;
 
@@ -25,6 +27,17 @@ class AppPrefs {
   /// by `AdminBundleRefresher` after every successful runtime refresh.
   Future<void> setAdminBundleVersion(String version) =>
       _prefs.setString(kAdminBundleVersion, version);
+
+  /// Returns the stored [CoverageColorPreset], defaulting to [CoverageColorPreset.amber]
+  /// when no value has been persisted yet.
+  Future<CoverageColorPreset> getCoveragePreset() async {
+    final s = await _prefs.getString(kCoveragePreset);
+    return s == null ? CoverageColorPreset.amber : CoverageColorPreset.fromString(s);
+  }
+
+  /// Persists [p] as the user-chosen coverage color preset.
+  Future<void> setCoveragePreset(CoverageColorPreset p) =>
+      _prefs.setString(kCoveragePreset, p.name);
 }
 
 /// Provider for the singleton [AppPrefs].
