@@ -2,6 +2,7 @@ import 'package:auto_explore/core/db/app_database.dart';
 import 'package:auto_explore/features/trips/domain/trip_status.dart';
 import 'package:auto_explore/features/trips/domain/trip_summary.dart';
 import 'package:drift/drift.dart';
+import 'package:maplibre_gl/maplibre_gl.dart' show LatLng, LatLngBounds;
 
 /// Drift DAO for the trips and trip_points tables.
 ///
@@ -164,5 +165,62 @@ class TripsDao extends DatabaseAccessor<AppDatabase> {
       updateKind: UpdateKind.delete,
     );
     return rows;
+  }
+
+  /// Reactive stream of the union bounding-box across all matched and
+  /// confirmed trips.
+  ///
+  /// Returns `null` when no trips with bbox columns populated exist (e.g.
+  /// fresh install or all trips deleted). Returns a [LatLngBounds] otherwise.
+  ///
+  /// **Reactivity mechanism (MANDATORY for 07-06 truth #3):**
+  /// Implemented via `customSelect(...).watchSingle()` with an EXPLICIT
+  /// `readsFrom: {trips, drivenWayIntervals}` set. Drift invalidates the
+  /// stream on ANY write to either table — including a `matched→confirmed`
+  /// status flip by `TripsInboxDao.transitionToConfirmed` (which writes to
+  /// `trips`) AND any new interval write by the matcher (which writes to
+  /// `drivenWayIntervals`). The aggregate query targets only `trips`, but
+  /// the `readsFrom` set deliberately includes `drivenWayIntervals` so a
+  /// future intervals-only mutation path (background re-match, Phase 8
+  /// backfill) also triggers a recompute without extra wiring.
+  ///
+  /// **Do NOT optimise this trigger** to fire only when the aggregated
+  /// MIN/MAX value actually changes — the table-write invalidation is the
+  /// mechanism, not value-diff. A `matched→confirmed` flip does not change
+  /// the `status IN ('matched','confirmed')` membership but still re-emits,
+  /// which is correct: the resolver re-reads `getAllIntervals()` on every
+  /// call and picks up any freshly-written intervals.
+  ///
+  /// **Live-refresh chain:**
+  ///   confirmTrip (TripsInboxDao.transitionToConfirmed)
+  ///     → trips table write
+  ///     → watchUnionBbox re-emits
+  ///     → tripsUnionBoundsProvider emits
+  ///     → coverageOverlayDataProvider re-calls resolve()
+  ///     → 07-06 bridge re-applies GeoJSON overlay
+  Stream<LatLngBounds?> watchUnionBbox() {
+    return customSelect(
+      '''
+SELECT
+  MIN(bbox_min_lat) AS min_lat,
+  MIN(bbox_min_lon) AS min_lon,
+  MAX(bbox_max_lat) AS max_lat,
+  MAX(bbox_max_lon) AS max_lon
+FROM trips
+WHERE status IN ('matched', 'confirmed')''',
+      readsFrom: {trips, attachedDatabase.drivenWayIntervals},
+    ).watchSingle().map((row) {
+      final minLat = row.readNullable<double>('min_lat');
+      final minLon = row.readNullable<double>('min_lon');
+      final maxLat = row.readNullable<double>('max_lat');
+      final maxLon = row.readNullable<double>('max_lon');
+      if (minLat == null || minLon == null || maxLat == null || maxLon == null) {
+        return null;
+      }
+      return LatLngBounds(
+        southwest: LatLng(minLat, minLon),
+        northeast: LatLng(maxLat, maxLon),
+      );
+    });
   }
 }
