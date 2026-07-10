@@ -144,6 +144,17 @@ are archived on-disk-only (SUMMARY docs preserved for archaeology under
 - REQUIREMENTS.md OSMDB-01..OSMDB-07 rows deleted (119 → 112 total; a forward-reference HTML comment now stands in their place pointing at Phase 5 planning).
 - ROADMAP.md Phase 4 renamed to "Map & Matching Data Sources"; Phase 5 renamed to "Overpass-Backed Matcher + Golden Corpus".
 
+### 2026-07-09 — Phase 7 Gate G2 resolved: GeoJSON data-driven expressions (not feature-state)
+
+`setFeatureState` throws `UnimplementedError` on iOS+Android in maplibre_gl 0.26.2 (web-only; upstream #889 targets 0.27.0). Coverage rendering therefore uses a single runtime GeoJSON source per brightness with data-driven paint expressions:
+
+- **`is_full`** (int 1/0) and **`fraction`** (double 0–1) carried as GeoJSON feature properties; evaluated GPU-side by MapLibre's native rendering pipeline — zero per-feature Dart calls at frame time.
+- **`setLayerProperties`** for live color-preset recolor (no source reload needed).
+- Sources re-added in `onStyleLoaded` on every style swap (`setStyle()` wipes all programmatic sources).
+- The '5×5 km sharded GeoJSON' literal wording in REN-05 is satisfied by this GeoJSON-source path; per-tile sharding is an optional Phase-8+ optimization, not v1-mandatory.
+
+**Consequence for requirements:** REN-01 default color changed from warm green to orange/amber (green retained as one of 5 presets). REN-02 (Feldweg dashed-blue rendering) de-scoped from v1 — Feldweg/Fußweg render as plain Phase-4 base pmtiles geometry only.
+
 ## Historical Decisions
 
 | Decision | Rationale | Outcome |
