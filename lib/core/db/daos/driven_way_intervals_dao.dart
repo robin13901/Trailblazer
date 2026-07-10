@@ -69,4 +69,19 @@ class DrivenWayIntervalsDao extends DatabaseAccessor<AppDatabase>
     ).get();
     return rows.map((r) => r.read<int>('way_id')).toList();
   }
+
+  /// Returns the distinct non-null `trip_id`s that currently have stored
+  /// intervals, sorted ascending. Used by the one-shot re-match migration
+  /// (`TripMatchCoordinator.rematchAllStoredTrips`) to find which already-
+  /// matched trips need reprocessing after a matcher-algorithm change. Rows
+  /// whose `trip_id` was SET NULL (trip deleted) are excluded — there is no
+  /// trip left to re-match.
+  Future<List<int>> getDistinctTripIds() async {
+    final rows = await customSelect(
+      'SELECT DISTINCT trip_id FROM driven_way_intervals '
+      'WHERE trip_id IS NOT NULL ORDER BY trip_id',
+      readsFrom: {drivenWayIntervals},
+    ).get();
+    return rows.map((r) => r.read<int>('trip_id')).toList();
+  }
 }

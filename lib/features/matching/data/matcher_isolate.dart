@@ -62,11 +62,25 @@ class MatcherIsolate {
   int _seq = 0;
   bool _started = false;
 
+  /// In-flight start future — single-flight guard. `_started` only flips true
+  /// AFTER `await ready.future` completes, so two callers racing `start()`
+  /// during that async gap would both pass the `_started` check and each call
+  /// `_mainPort.listen()` — the second throws "Stream has already been listened
+  /// to". Sharing one future collapses concurrent starts into one. (The
+  /// provider fires start() at construction; the rematch migration also awaits
+  /// start() — these two raced on cold start, 2026-07-10.)
+  Future<void>? _starting;
+
   /// Spawn the worker isolate and wait until it is ready to accept jobs.
   ///
-  /// Idempotent — calling start() when already started is a no-op.
-  Future<void> start() async {
-    if (_started) return;
+  /// Idempotent — calling start() when already started is a no-op, and
+  /// concurrent calls share a single in-flight spawn.
+  Future<void> start() {
+    if (_started) return Future<void>.value();
+    return _starting ??= _start();
+  }
+
+  Future<void> _start() async {
     final ready = Completer<SendPort>();
 
     _mainPort.listen((msg) {
@@ -104,6 +118,7 @@ class MatcherIsolate {
     _isolate = await Isolate.spawn(_matcherWorker, _mainPort.sendPort);
     _workerPort = await ready.future;
     _started = true;
+    _starting = null;
     _log.info('matcher isolate started');
   }
 

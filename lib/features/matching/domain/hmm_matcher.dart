@@ -25,19 +25,19 @@ import 'package:auto_explore/features/matching/domain/way_candidate.dart';
 import 'package:auto_explore/features/matching/domain/way_segment_index.dart';
 import 'package:maplibre_gl/maplibre_gl.dart' show LatLng;
 
-/// Maximum full length (m) of a way eligible for unconditional pass-through
-/// extension. A genuine junction connector — the short link the vehicle drives
-/// straight through between two roads — is typically only a handful of meters
-/// long and legitimately catches just 1-2 GPS fixes, so its measured span
-/// collapses to ~0. Ways at or below this length are treated as connectors and
-/// extended to full length to close the junction gap.
+/// Maximum full length (m) of a way eligible for the topology-based
+/// pass-through extension. A genuine junction connector — the short link the
+/// vehicle drives straight through between two roads — is typically only a
+/// handful of meters and legitimately catches just 1-2 GPS fixes, so its
+/// measured span collapses to ~0. Short ways at or below this length are
+/// extended to full length ONLY when the topology check confirms a real
+/// pass-through (entered one end, exited the other — see
+/// `_isPassThroughConnector`).
 ///
-/// Ways LONGER than this are NOT connectors: a normal parallel road that
-/// caught a few stray GPS fixes must NOT be promoted to fully-driven from a
-/// tiny excursion (2026-07-10 over-draw regression). It extends only when the
-/// measured span already proves real traversal (see
-/// [kMinTraversedFractionForExtend]). 30 m matches the `isFullyCovered`
-/// small-way branch in `coverage_threshold.dart`.
+/// Ways LONGER than this never use the topology path; they extend only when
+/// the measured span already proves traversal ([kMinTraversedFractionForExtend]).
+/// 30 m matches the `isFullyCovered` small-way branch in
+/// `coverage_threshold.dart`.
 const double kMaxPassThroughConnectorMeters = 30;
 
 /// For pass-through ways LONGER than [kMaxPassThroughConnectorMeters], the
@@ -47,6 +47,13 @@ const double kMaxPassThroughConnectorMeters = 30;
 /// its conservative measured span (which the coverage short-way floor then
 /// discards). A real end-to-end drive covers most of the way and passes.
 const double kMinTraversedFractionForExtend = 0.5;
+
+/// How close (m) an adjacent way's nearest vertex must be to a connector's
+/// endpoint node to count as "attached" there. OSM junction nodes are shared
+/// exactly between ways, but GPS-cache geometry and densification can nudge
+/// coordinates slightly; 12 m tolerates that without merging distinct nodes of
+/// a short connector (whose two ends are >= its full length apart).
+const double kConnectorEndpointToleranceMeters = 12;
 
 /// Orchestrator that maps a raw GPS trace + road-candidate list to a
 /// [MatchResult] containing per-fix [MatchedStep]s and collapsed
@@ -160,10 +167,15 @@ class HmmMatcher {
     // matched way (not from a gap/null or the trip start). Half of the
     // pass-through test.
     var enteredFromOtherWay = false;
+    // The wayId of the run IMMEDIATELY BEFORE this one (the way we entered
+    // from), when [enteredFromOtherWay]. Used by the topology check to tell a
+    // genuine A→B→C pass-through from an A→B→A spur excursion.
+    int? entryWayId;
 
     // [exitedToOtherWay] completes the pass-through test: the run ends because
     // a DIFFERENT matched way immediately follows (not a gap/null or trip end).
-    void flush({required bool exitedToOtherWay}) {
+    // [exitWayId] is that following way (null on gap/trip-end).
+    void flush({required bool exitedToOtherWay, int? exitWayId}) {
       if (runWayId == null) return;
       var start = math.min(runRawStart, runRawEnd);
       var end = math.max(runRawStart, runRawEnd);
@@ -179,28 +191,33 @@ class HmmMatcher {
       // Ways only touched at the trip start/end, or bounded by a confidence
       // gap, keep the conservative measured span (we can't prove traversal).
       //
-      // Over-draw guard (2026-07-10): the raw pass-through test alone marked
-      // NEIGHBOURING parallel roads as fully driven — GPS noise drops 1-2
-      // fixes onto a road running alongside the real one, and because that
-      // stray run is bracketed by the real road it looked like a pass-through
-      // and got extended to full length. So extend ONLY when there is real
-      // evidence of traversal:
-      //   (a) the way is a genuine short connector (≤ connector length) — a
-      //       1-2-fix run on a ≤30 m link is the expected, legitimate case; OR
-      //   (b) the measured span already covers a majority of the way — a real
-      //       end-to-end drive. A brief excursion onto a longer parallel road
-      //       covers only a sliver, fails both, and stays conservative (the
-      //       coverage short-way floor then discards it).
+      // Over-draw guard (2026-07-10, revised): the raw pass-through test marked
+      // spurious ways as fully driven — an exit ramp or a side-street stub that
+      // a couple of GPS fixes drifted onto near a junction, or a parallel road.
+      // The renderer paints the WHOLE way geometry for any covered way, so the
+      // entire ramp/stub lit up ("triangle at every exit", side-street snippet).
+      // A short connector is extended ONLY when the topology confirms a real
+      // pass-through: entered from one endpoint and exited at the OTHER endpoint
+      // (a genuine A→B→C drive-through). A spur/ramp/parallel excursion enters
+      // and leaves at the SAME endpoint (A→B→A) and is NOT extended → its tiny
+      // measured span falls under the coverage floor and is dropped. Longer ways
+      // never use the topology path; they extend only when the measured span
+      // already covers a majority of the way (a real end-to-end drive).
       if (enteredFromOtherWay && exitedToOtherWay) {
         final way = waysById[runWayId];
         if (way != null) {
           final len = _polylineLengthMeters(way.geometry);
           if (len > 0) {
             final measuredSpan = end - start;
-            final isShortConnector = len <= kMaxPassThroughConnectorMeters;
             final coversMajority =
                 measuredSpan >= len * kMinTraversedFractionForExtend;
-            if (isShortConnector || coversMajority) {
+            final isConnector = len <= kMaxPassThroughConnectorMeters &&
+                _isPassThroughConnector(
+                  connector: way,
+                  entryWay: waysById[entryWayId],
+                  exitWay: waysById[exitWayId],
+                );
+            if (isConnector || coversMajority) {
               start = 0;
               end = len;
             }
@@ -236,14 +253,18 @@ class HmmMatcher {
         runRawStart = metersFromWayStart;
         runRawEnd = metersFromWayStart;
         enteredFromOtherWay = false;
+        entryWayId = null;
       } else if (s.wayId != runWayId) {
         // Different way: the previous run exited to another way → pass-through
-        // eligible. Flush it, then the new run counts as entered-from-a-way.
-        flush(exitedToOtherWay: true);
+        // eligible. Capture the way we're leaving (the entry way of the NEW
+        // run) before flushing, and tell flush which way we're exiting to.
+        final leavingWayId = runWayId;
+        flush(exitedToOtherWay: true, exitWayId: s.wayId);
         runWayId = s.wayId;
         runRawStart = metersFromWayStart;
         runRawEnd = metersFromWayStart;
         enteredFromOtherWay = true;
+        entryWayId = leavingWayId;
         continue;
       } else {
         // Same way: extend the current run.
@@ -253,6 +274,86 @@ class HmmMatcher {
     // End of trace: the final run did NOT exit to another way.
     flush(exitedToOtherWay: false);
     return out;
+  }
+
+  /// Topology test distinguishing a genuine junction connector (drove A→B→C,
+  /// must render to close the gap) from a spurious spur/ramp/parallel
+  /// excursion (drove A→B→A near a junction, must NOT render).
+  ///
+  /// A genuine pass-through enters [connector] from [entryWay] at one endpoint
+  /// node and exits to [exitWay] at the OTHER endpoint node — the connector
+  /// bridges the two roads, so the vehicle necessarily traversed its full
+  /// length. A spur/ramp dangles off a single junction node: the entry and
+  /// exit roads both attach to the SAME endpoint of [connector] (frequently
+  /// entryWay == exitWay, an A→B→A return), so the vehicle only dipped onto the
+  /// near end and turned around — the far end was never reached.
+  ///
+  /// Each neighbour is assigned to its NEAREST endpoint of the connector (not
+  /// "within tolerance of an endpoint"): a short connector is barely longer
+  /// than the endpoint tolerance, so a neighbour's vertices routinely fall
+  /// within tolerance of BOTH ends — a plain touch test then trivially passes
+  /// and defeats the check on exactly the short ways it must judge (the
+  /// 2026-07-10 residual over-draw). Nearest-endpoint assignment disambiguates:
+  /// a road that genuinely terminates at one end is nearest that end even if it
+  /// grazes the other.
+  ///
+  /// Returns true (extend to full) only when [entryWay] is nearest one endpoint
+  /// and [exitWay] is nearest the OTHER, and both are actually attached (within
+  /// tolerance). Returns false — the conservative default — when the entry and
+  /// exit are the same way (A→B→A), when either is unattached, or when both are
+  /// nearest the same endpoint, so an unknown or spur case is never over-drawn.
+  bool _isPassThroughConnector({
+    required WayCandidate connector,
+    required WayCandidate? entryWay,
+    required WayCandidate? exitWay,
+  }) {
+    final geom = connector.geometry;
+    if (geom.length < 2) return false;
+    if (entryWay == null || exitWay == null) return false;
+    // A→B→A: the same road on both sides is a spur/return, never a genuine
+    // pass-through — the vehicle left road A onto B and came straight back.
+    if (entryWay.wayId == exitWay.wayId) return false;
+
+    final startNode = geom.first;
+    final endNode = geom.last;
+
+    final entryEnd = _attachedEnd(entryWay, startNode, endNode);
+    final exitEnd = _attachedEnd(exitWay, startNode, endNode);
+    // Both must attach to the connector, at OPPOSITE endpoints.
+    if (entryEnd == _ConnectorEnd.none || exitEnd == _ConnectorEnd.none) {
+      return false;
+    }
+    return entryEnd != exitEnd;
+  }
+
+  /// Which endpoint of a connector [way] attaches to — whichever of
+  /// [startNode] / [endNode] its nearest vertex is closer to — or
+  /// [_ConnectorEnd.none] when even that nearest vertex is beyond
+  /// [kConnectorEndpointToleranceMeters] (the way does not touch the connector
+  /// at all).
+  _ConnectorEnd _attachedEnd(WayCandidate way, LatLng startNode, LatLng endNode) {
+    var dStart = double.infinity;
+    var dEnd = double.infinity;
+    for (final v in way.geometry) {
+      final ds = segmentLengthMeters(
+        aLat: v.latitude,
+        aLon: v.longitude,
+        bLat: startNode.latitude,
+        bLon: startNode.longitude,
+      );
+      if (ds < dStart) dStart = ds;
+      final de = segmentLengthMeters(
+        aLat: v.latitude,
+        aLon: v.longitude,
+        bLat: endNode.latitude,
+        bLon: endNode.longitude,
+      );
+      if (de < dEnd) dEnd = de;
+    }
+    if (math.min(dStart, dEnd) > kConnectorEndpointToleranceMeters) {
+      return _ConnectorEnd.none;
+    }
+    return dStart <= dEnd ? _ConnectorEnd.start : _ConnectorEnd.end;
   }
 
   // ---------------------------------------------------------------------------
@@ -317,3 +418,7 @@ class HmmMatcher {
     return total;
   }
 }
+
+/// Which endpoint of a short connector way an adjacent (entry/exit) way is
+/// attached to, per [HmmMatcher._attachedEnd].
+enum _ConnectorEnd { start, end, none }

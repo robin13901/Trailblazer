@@ -399,4 +399,59 @@ void main() {
     expect(await intervalsDao.getByTrip(t2), hasLength(1));
     expect(await intervalsDao.getByTrip(t3), hasLength(1));
   });
+
+  // -------------------------------------------------------------------------
+  // Test 7: rematchAllStoredTrips replaces stored intervals, preserves status
+  // -------------------------------------------------------------------------
+  test(
+      '7. rematchAllStoredTrips: replaces old intervals for every stored trip '
+      'and does NOT change trip status', () async {
+    // Two CONFIRMED trips, each with stale (pre-fix) intervals + raw points.
+    final t1 = await _insertTripWithBbox(db, status: TripStatus.confirmed);
+    final t2 = await _insertTripWithBbox(db, status: TripStatus.confirmed);
+    for (final t in [t1, t2]) {
+      await _insertTripPoint(db, t, 1);
+      await _insertTripPoint(db, t, 2);
+      // Stale intervals: 3 spurious rows per trip that the re-match must drop.
+      await intervalsDao.insertBatch([
+        for (var i = 0; i < 3; i++)
+          DrivenWayIntervalsCompanion.insert(
+            wayId: 900 + i,
+            tripId: Value(t),
+            startMeters: 0,
+            endMeters: 5,
+          ),
+      ]);
+    }
+    expect(await intervalsDao.getByTrip(t1), hasLength(3));
+    expect(await intervalsDao.getByTrip(t2), hasLength(3));
+
+    // The re-matched result: a single clean interval on the Berlin way.
+    const canned = MatchResult(
+      steps: [],
+      intervals: [
+        DrivenWayIntervalDraft(
+          wayId: 42,
+          startMeters: 0,
+          endMeters: 50,
+          direction: 'forward',
+        ),
+      ],
+      matchedFixCount: 2,
+      droppedFixCount: 0,
+    );
+    final coord = buildCoord(ways: [_berlinWay()], cannedResult: canned);
+
+    final n = await coord.rematchAllStoredTrips();
+    expect(n, 2);
+
+    // Old intervals replaced by the single fresh one, for BOTH trips.
+    for (final t in [t1, t2]) {
+      final rows = await intervalsDao.getByTrip(t);
+      expect(rows, hasLength(1));
+      expect(rows.first.wayId, 42);
+      // Status preserved — a confirmed trip stays confirmed.
+      expect(await _statusOf(db, t), TripStatus.confirmed);
+    }
+  });
 }

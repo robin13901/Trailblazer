@@ -219,4 +219,100 @@ class TripMatchCoordinator {
       await onTripReadyForMatching(trip.id);
     }
   }
+
+  /// One-shot migration: re-run the matcher over EVERY trip that already has
+  /// stored intervals, replacing them in place. Used when the matching
+  /// algorithm changes (e.g. the 2026-07-10 pass-through topology guard) so
+  /// already-matched trips repaint correctly without needing a fresh drive —
+  /// the raw GPS points are retained for matched/confirmed trips.
+  ///
+  /// For each affected trip: fetch ways (cache-first), re-match its points,
+  /// delete the old intervals, and write the new ones. Status is NOT changed
+  /// (a confirmed trip stays confirmed). Best-effort per trip: a failure is
+  /// logged and skipped, leaving that trip's existing intervals untouched.
+  ///
+  /// Returns the number of trips successfully re-matched.
+  Future<int> rematchAllStoredTrips() async {
+    await _isolate.start(); // idempotent
+
+    final tripIds = await _intervalsDao.getDistinctTripIds();
+    _log.info('rematchAllStoredTrips: ${tripIds.length} trips to reprocess');
+
+    var reprocessed = 0;
+    for (final tripId in tripIds) {
+      try {
+        final didRematch = await _rematchOne(tripId);
+        if (didRematch) reprocessed++;
+      } on Object catch (e, st) {
+        _log.warning(
+          'rematchAllStoredTrips: trip $tripId failed — keeping old '
+          'intervals: $e',
+          e,
+          st,
+        );
+      }
+    }
+    _log.info('rematchAllStoredTrips: $reprocessed/${tripIds.length} reprocessed');
+    return reprocessed;
+  }
+
+  /// Re-match a single already-stored trip in place. Returns true when new
+  /// intervals were written (old ones replaced), false when the trip could
+  /// not be re-matched (missing bbox/points/tiles) — in which case the
+  /// existing intervals are left untouched rather than wiped.
+  Future<bool> _rematchOne(int tripId) async {
+    final tripRow = await (_tripsDao.select(_tripsDao.trips)
+          ..where((t) => t.id.equals(tripId)))
+        .getSingleOrNull();
+    if (tripRow == null) return false;
+    if (tripRow.bboxMinLat == null ||
+        tripRow.bboxMinLon == null ||
+        tripRow.bboxMaxLat == null ||
+        tripRow.bboxMaxLon == null) {
+      return false;
+    }
+
+    final rawTiles = await _source.fetchRawTilesInBbox(
+      minLat: tripRow.bboxMinLat!,
+      minLon: tripRow.bboxMinLon!,
+      maxLat: tripRow.bboxMaxLat!,
+      maxLon: tripRow.bboxMaxLon!,
+      throwOnError: false,
+    );
+    if (rawTiles.isEmpty) return false;
+
+    final points = await _tripsDao.listPointsForTrip(tripId);
+    if (points.isEmpty) return false;
+
+    final fixes = points
+        .map(
+          (p) => GpsFix(
+            lat: p.lat,
+            lon: p.lon,
+            accuracyMeters: p.accuracyMeters ?? double.nan,
+            speedKmh: p.speedKmh ?? 0.0,
+            ts: p.ts,
+          ),
+        )
+        .toList(growable: false);
+
+    final result = await _isolate.match(
+      tripId: tripId,
+      fixes: fixes,
+      gzippedTiles: [for (final t in rawTiles) t.payloadGzip],
+      tileBboxes: [for (final t in rawTiles) t.bbox],
+    );
+
+    // Replace old intervals atomically-ish: delete then insert. A crash
+    // between the two would leave the trip with zero intervals, which the
+    // next migration run (or a manual recompute) repairs — acceptable for a
+    // one-shot cosmetic reprocess.
+    await _intervalsDao.deleteByTrip(tripId);
+    await _writeIntervals(tripId, result.intervals);
+    _log.info(
+      'rematchOne: trip $tripId → ${result.intervals.length} intervals '
+      '(was reprocessed)',
+    );
+    return true;
+  }
 }

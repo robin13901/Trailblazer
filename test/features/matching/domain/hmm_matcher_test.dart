@@ -511,5 +511,113 @@ void main() {
                 'extended to its full 60 m — got $span');
       }
     });
+
+    // -------------------------------------------------------------------------
+    // Test 12: spur/ramp guard — a short stub dangling off ONE junction node
+    // (A→B→A) must NOT be extended to full length (2026-07-10 "triangle at
+    // every exit" / side-street-snippet artifacts).
+    // -------------------------------------------------------------------------
+    test(
+        '12. short spur off one junction node (A→B→A) is NOT extended '
+        '(exit-triangle / side-street-stub guard)', () {
+      // Main road A runs east at y=0 through x=0..300. A short 18 m stub B
+      // dangles NORTH off the junction node at x=150 — an exit ramp or a
+      // side-street snippet. The vehicle drives A straight through; GPS noise
+      // drops ONE fix onto B near the junction. Both the entry run and the
+      // exit run are on A (A→B→A), and A attaches only to B's START endpoint
+      // (the junction) — never its far END. The topology guard must refuse to
+      // extend B, so its tiny span is later dropped by the coverage floor.
+      final wayA = WayCandidate(
+        wayId: 1,
+        highwayClass: 'residential',
+        geometry: [_ll(0, 0), _ll(0, 150), _ll(0, 300)],
+      );
+      // B: start node at the junction (0,150), end node 18 m NORTH (18,150).
+      final wayB = WayCandidate(
+        wayId: 2,
+        highwayClass: 'residential',
+        geometry: [_ll(0, 150), _ll(18, 150)],
+      );
+
+      final fixes = [
+        _fix(0, 20),
+        _fix(0, 80, dtSecs: 2),
+        _fix(0, 140, dtSecs: 4),
+        // ONE noisy fix pulled onto the near end of the stub B (~3 m up it)
+        _fix(3, 150, dtSecs: 5),
+        // Back on A, continuing east
+        _fix(0, 160, dtSecs: 6),
+        _fix(0, 220, dtSecs: 8),
+        _fix(0, 290, dtSecs: 10),
+      ];
+
+      final result = _matcher.match(fixes: fixes, ways: [wayA, wayB]);
+
+      final bIntervals =
+          result.intervals.where((iv) => iv.wayId == 2).toList();
+      // If B attracted the stray fix, its interval must NOT have been extended
+      // to full length — entry and exit both attach to B's START node only.
+      for (final iv in bIntervals) {
+        final span = (iv.endMeters - iv.startMeters).abs();
+        expect(span, lessThan(15),
+            reason: 'spur B (A→B→A off one node) must keep its tiny measured '
+                'span, not be extended to its full 18 m — got $span');
+      }
+    });
+
+    // -------------------------------------------------------------------------
+    // Test 13: spur guard — DISTINCT entry/exit roads that both attach to the
+    // SAME endpoint of a short stub must NOT extend it. This is the real-world
+    // residual case (2026-07-10 re-match): a T-junction where road A ends and
+    // road C begins at the same node, with a short dead-end stub B dangling off
+    // that node. Drive A→(brief dip onto B)→C. entryWay=A, exitWay=C differ, so
+    // the "same wayId" guard doesn't catch it — only nearest-endpoint does.
+    // -------------------------------------------------------------------------
+    test(
+        '13. distinct entry/exit both nearest the SAME connector endpoint → '
+        'NOT extended (nearest-endpoint spur guard)', () {
+      // Junction node at (0,150). Road A comes from the west and ENDS there;
+      // road C leaves to the east and STARTS there. Stub B dangles NORTH from
+      // the same node (start=junction, end=20 m north — a dead-end).
+      final wayA = WayCandidate(
+        wayId: 10,
+        highwayClass: 'residential',
+        geometry: [_ll(0, 0), _ll(0, 80), _ll(0, 150)], // ends AT junction
+      );
+      final wayC = WayCandidate(
+        wayId: 20,
+        highwayClass: 'residential',
+        geometry: [_ll(0, 150), _ll(0, 220), _ll(0, 300)], // starts AT junction
+      );
+      final wayB = WayCandidate(
+        wayId: 30,
+        highwayClass: 'residential',
+        geometry: [_ll(0, 150), _ll(20, 150)], // stub north off the junction
+      );
+
+      // Drive A east, one noisy fix dips onto the near end of stub B, then C.
+      final fixes = [
+        _fix(0, 40),
+        _fix(0, 100, dtSecs: 2),
+        _fix(0, 145, dtSecs: 4),
+        _fix(3, 150, dtSecs: 5), // ~3 m up stub B, near the junction end
+        _fix(0, 170, dtSecs: 6),
+        _fix(0, 240, dtSecs: 8),
+        _fix(0, 295, dtSecs: 10),
+      ];
+
+      final result = _matcher.match(fixes: fixes, ways: [wayA, wayB, wayC]);
+
+      final bIntervals =
+          result.intervals.where((iv) => iv.wayId == 30).toList();
+      // A and C both attach to B's START endpoint (the junction); B's far END
+      // (20 m north) was never reached. Must not extend.
+      for (final iv in bIntervals) {
+        final span = (iv.endMeters - iv.startMeters).abs();
+        expect(span, lessThan(15),
+            reason: 'stub B (A and C both attach to its junction end) must '
+                'keep its tiny span, not be extended to 20 m — got $span');
+      }
+    });
   });
 }
