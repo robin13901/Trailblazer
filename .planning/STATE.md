@@ -5,7 +5,7 @@
 See: .planning/PROJECT.md (updated 2026-07-02)
 
 **Core value:** When I open the map, I immediately see the roads I've already driven, painted onto the world — and that view keeps pulling me back to explore more.
-**Current focus:** Phase 7 (Coverage Rendering) CODE-COMPLETE — 07-01..07-07 all done. REN-01 orange/amber, REN-02 de-scoped, Gate G2 RESOLVED = FAIL (GeoJSON data-driven expressions). RESEARCH open-Q1/Q3/Q4 all closed. Deferred: on-device REN-04 50k fps read + REN-03 drive verification (07-MANUAL-TESTS-DEFERRED.md).
+**Current focus:** Phase 7 (Coverage Rendering) COMPLETE 2026-07-10 — verifier PASS 5/5 code must-haves; 07-01..07-07 all done. REN-01 orange/amber, REN-02 de-scoped, Gate G2 RESOLVED = FAIL (GeoJSON data-driven expressions). RESEARCH open-Q1/Q3/Q4 all closed. Deferred to user's next device session: 5 on-device visual confirms (first-paint, dark-mode swap, live recolor, partial-vs-full legibility, REN-04 50k fps read) — `07-MANUAL-TESTS-DEFERRED.md`. Phase 8 (Regions + Focus-Area) is next.
 
 ## Current Position
 

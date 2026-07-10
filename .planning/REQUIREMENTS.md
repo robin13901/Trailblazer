@@ -313,14 +313,14 @@ Every requirement maps to exactly one phase. Phase Gates in ROADMAP.md: G1 = UI-
 | COV-01 | Phase 6: Inbox + Match Wire-Up | Complete |
 | COV-05 | Phase 6: Inbox + Match Wire-Up | Complete (physical table `coverage_cache`) |
 | COV-06 | Phase 6: Inbox + Match Wire-Up | Complete (3/4 triggers; counts_for_coverage → P9) |
-| REN-01 | Phase 7: Coverage Rendering | Pending |
+| REN-01 | Phase 7: Coverage Rendering | Complete (orange/amber default; 5 presets; on-device first-paint deferred) |
 | REN-02 | Phase 7: Coverage Rendering | De-scoped (v1) — 2026-07-09 |
-| REN-03 | Phase 7: Coverage Rendering | Pending |
-| REN-04 | Phase 7: Coverage Rendering | Pending |
-| REN-05 | Phase 7: Coverage Rendering (Gate G2) | Pending |
-| REN-06 | Phase 7: Coverage Rendering | Pending |
-| COV-02 | Phase 7: Coverage Rendering | Pending |
-| COV-03 | Phase 7: Coverage Rendering | Pending |
+| REN-03 | Phase 7: Coverage Rendering | Complete (whole-way reduced-opacity fallback; per-segment gradient → v1.x) |
+| REN-04 | Phase 7: Coverage Rendering | Complete (50k stress harness code-complete; on-device fps read deferred) |
+| REN-05 | Phase 7: Coverage Rendering (Gate G2) | Complete (Gate G2 = FAIL; GeoJSON + data-driven expressions) |
+| REN-06 | Phase 7: Coverage Rendering | Complete (5-preset picker + AppPrefs persistence; live recolor confirm deferred) |
+| COV-02 | Phase 7: Coverage Rendering | Complete (15 m buffer threshold; ≤30 m 80% fallback) |
+| COV-03 | Phase 7: Coverage Rendering | Complete (fraction + floor; reduced-opacity render) |
 | FOC-01 | Phase 8: Regions + Focus-Area | Pending |
 | FOC-02 | Phase 8: Regions + Focus-Area | Pending |
 | FOC-03 | Phase 8: Regions + Focus-Area | Pending |

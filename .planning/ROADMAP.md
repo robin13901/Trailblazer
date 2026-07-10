@@ -19,7 +19,7 @@ Depth: **comprehensive** — 11 phases, driven by the 112 v1 requirements (FND, 
 - [x] **Phase 4: Map & Matching Data Sources** — MapTiler-hosted vector tiles + on-demand Overpass road data (cached + retry-safe) + bundled admin polygons (rescoped 2026-07-08 from the original bundled-`osm.sqlite` pipeline; drive-verified 2026-07-09 via 96 km / 1h 40 drive — see `04-VERIFICATION.md`)
 - [x] **Phase 5: Overpass-Backed Matcher + Golden Corpus** — HMM matcher consumes `WayCandidateSource` (Phase 4), matches confirmed trip polylines to driven way intervals, CI-verified against a golden corpus
 - [x] **Phase 6: Inbox + Match Wire-Up** — trip inbox, confirm/reject, matching enqueue, coverage cache infra (code-complete + verifier PASS 6/6 must-haves 2026-07-09; on-device crash fix PROVEN — 96 km trip matched to 814 intervals; behavioral drive-confirms deferred to user)
-- [ ] **Phase 7: Coverage Rendering** — driven-ways painted on the map (feature-state fallback gate)
+- [x] **Phase 7: Coverage Rendering** — driven Kfz-ways painted on the map via GeoJSON + data-driven paint expressions (Gate G2 resolved = FAIL: feature-state unavailable on mobile); orange/amber default + 5-preset picker; 50k fps stress harness code-complete (verifier PASS 5/5 code must-haves 2026-07-10; 5 on-device visual confirms deferred to user — `07-MANUAL-TESTS-DEFERRED.md`)
 - [ ] **Phase 8: Regions + Focus-Area** — admin region browser, zoom-aware focus pill, coverage aggregation
 - [ ] **Phase 9: Vehicles + Bluetooth** — full vehicle CRUD, BT-fingerprint hints, per-vehicle color prefs
 - [ ] **Phase 10: Settings + Backup** — encrypted App DB backup/restore, OSM extract updates, diagnostics
@@ -206,15 +206,15 @@ Plans:
   3. Map maintains ≥ 30 fps on target devices with 50 000 driven segments loaded (stress-tested against faked coverage).
   4. Coverage renders via a runtime GeoJSON source + data-driven paint expressions (Gate G2 resolved: feature-state unavailable on mobile in maplibre_gl 0.26.2).
   5. User can pick coverage colors from a small preset palette in settings; changes apply live without full map reload.
-**Plans:** 7 plans (4 waves)
+**Plans:** 7 plans (4 waves) — all complete 2026-07-10
 Plans:
-- [ ] 07-01-PLAN.md — coverage domain: threshold (COV-02), fraction+floor (COV-03), CoverageDatum, 5-preset palette (REN-01)
-- [ ] 07-02-PLAN.md — reconcile REN-01/02/05 + Gate G2 into REQUIREMENTS/ROADMAP/PROJECT docs
-- [ ] 07-03-PLAN.md — DrivenWayGeometryResolver: driven wayIds -> Overpass-cache geometry + per-way coverage data
-- [ ] 07-04-PLAN.md — render overlay: GeoJSON source + data-driven paint expressions (Gate G2 resolution), belowLayerId, live recolor
-- [ ] 07-05-PLAN.md — Settings coverage-color picker: 5 preset swatches, AppPrefs persistence, coveragePresetProvider (REN-06)
-- [ ] 07-06-PLAN.md — CoverageOverlayBridge: wire data+preset+style-swap to the live map (deferred on-device checkpoint)
-- [ ] 07-07-PLAN.md — REN-04 stress harness: debug-only 50k-segment fps meter through the production overlay
+- [x] 07-01-PLAN.md — coverage domain: threshold (COV-02), fraction+floor (COV-03), CoverageDatum, 5-preset palette (REN-01)
+- [x] 07-02-PLAN.md — reconcile REN-01/02/05 + Gate G2 into REQUIREMENTS/ROADMAP/PROJECT docs
+- [x] 07-03-PLAN.md — DrivenWayGeometryResolver: driven wayIds -> Overpass-cache geometry + per-way coverage data
+- [x] 07-04-PLAN.md — render overlay: GeoJSON source + data-driven paint expressions (Gate G2 resolution), belowLayerId, live recolor
+- [x] 07-05-PLAN.md — Settings coverage-color picker: 5 preset swatches, AppPrefs persistence, coveragePresetProvider (REN-06)
+- [x] 07-06-PLAN.md — CoverageOverlayBridge: wire data+preset+style-swap to the live map (deferred on-device checkpoint)
+- [x] 07-07-PLAN.md — REN-04 stress harness: debug-only 50k-segment fps meter through the production overlay
 
 ### Phase 8: Regions + Focus-Area
 **Goal:** The user can browse coverage by admin region; the focus-area pill tracks their map view; per-region percentages are accurate and cached.
@@ -278,7 +278,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 | 4. Map & Matching Data Sources | 8/8 | ✓ Complete (code-complete 2026-07-08; drive-verified 2026-07-09 via 96 km / 1h 40 drive — see `04-VERIFICATION.md` + `04-18-SUMMARY.md`) — 8 rescoped plans (04-11..04-17 + 04-16-1); original 04-01..04-10 + 04-10-1-* archived on disk | 2026-07-09 |
 | 5. Overpass-Backed Matcher + Golden Corpus | 8/8 | ✓ Complete (code-complete; matcher-domain coverage 93.8 %; MMT-09 partial — 1 seed + CI gate shipped, 19 fixtures inherited by Phase 6) | 2026-07-08 |
 | 6. Inbox + Match Wire-Up | 6/6 | ✓ Complete (verifier PASS 6/6; +2 gap plans 06-07/06-08; on-device crash fix proven; behavioral drive-confirms deferred) | 2026-07-09 |
-| 7. Coverage Rendering | 0/TBD | Not started | - |
+| 7. Coverage Rendering | 7/7 | ✓ Complete (verifier PASS 5/5 code must-haves; Gate G2 resolved = FAIL → GeoJSON + data-driven expressions; 5 on-device visual confirms deferred) | 2026-07-10 |
 | 8. Regions + Focus-Area | 0/TBD | Not started | - |
 | 9. Vehicles + Bluetooth | 0/TBD | Not started | - |
 | 10. Settings + Backup | 0/TBD | Not started | - |
