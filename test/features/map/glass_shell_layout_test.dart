@@ -1,3 +1,7 @@
+import 'package:auto_explore/features/coverage/data/coverage_overlay_data.dart';
+import 'package:auto_explore/features/coverage/data/coverage_overlay_providers.dart';
+import 'package:auto_explore/features/coverage/domain/coverage_color_preset.dart';
+import 'package:auto_explore/features/coverage/presentation/coverage_preset_provider.dart';
 import 'package:auto_explore/features/map/data/tile_provider_config.dart';
 import 'package:auto_explore/features/map/presentation/map_screen.dart';
 import 'package:auto_explore/features/map/presentation/providers/location_permission_provider.dart';
@@ -42,6 +46,15 @@ Future<void> pumpMapScreen(WidgetTester tester) async {
           ),
         ),
         trackingStateProvider.overrideWith(_FakeTrackingNotifier.new),
+        // CoverageOverlayBridge is now mounted in MapScreen. Override the
+        // coverage data provider chain so this test does not need a real
+        // database or Overpass network.
+        coverageOverlayDataProvider.overrideWith(
+          (ref) => Stream.value(CoverageOverlayData.empty),
+        ),
+        coveragePresetProvider.overrideWith(_FakeCoveragePresetNotifier.new),
+        coveragePresetValueProvider
+            .overrideWithValue(CoverageColorPreset.amber),
       ],
       child: const MaterialApp(
         home: MapScreen(),
@@ -88,6 +101,20 @@ class _FakeTrackingNotifier extends Notifier<TrackingState>
 
   @override
   Future<void> stopActive() async => stopActiveCalled++;
+}
+
+/// Fake CoveragePresetNotifier that stays amber and never reads AppPrefs.
+///
+/// Injected via coveragePresetProvider override so glass_shell_layout_test
+/// avoids the SharedPreferences platform channel.
+class _FakeCoveragePresetNotifier
+    extends AsyncNotifier<CoverageColorPreset>
+    implements CoveragePresetNotifier {
+  @override
+  Future<CoverageColorPreset> build() async => CoverageColorPreset.amber;
+
+  @override
+  Future<void> select(CoverageColorPreset preset) async {}
 }
 
 void main() {

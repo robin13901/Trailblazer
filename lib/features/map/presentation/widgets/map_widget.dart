@@ -5,6 +5,7 @@ import 'package:auto_explore/features/map/domain/follow_mode.dart';
 import 'package:auto_explore/features/map/presentation/providers/camera_state_provider.dart';
 import 'package:auto_explore/features/map/presentation/providers/location_permission_provider.dart';
 import 'package:auto_explore/features/map/presentation/providers/map_controller_provider.dart';
+import 'package:auto_explore/features/map/presentation/providers/map_style_loaded_provider.dart';
 import 'package:auto_explore/features/map/presentation/providers/map_style_provider.dart';
 import 'package:auto_explore/features/map/presentation/widgets/map_style_fade.dart';
 import 'package:flutter/material.dart';
@@ -109,20 +110,24 @@ class _MapWidgetState extends ConsumerState<MapWidget>
     ref.read(mapStyleUrlProvider.notifier).updateFromBrightness(b);
     final newStyleUrl = ref.read(mapStyleUrlProvider);
     await controller.setStyle(newStyleUrl);
-    // onStyleLoadedCallback will call _onStyleLoaded which fades back in.
-    // NOTE: Phase 2 has no programmatic layers. If Phase 7+ adds
-    // coverage sources via addSource(), they MUST be re-added inside
-    // _onStyleLoaded() after setStyle() — the native map wipes all
-    // programmatic sources on style reload.
+    // onStyleLoadedCallback will call _onStyleLoaded which fades back in and
+    // bumps mapStyleLoadedTickProvider, causing CoverageOverlayBridge to
+    // re-add the coverage source + layer (wiped by setStyle — Pitfall 1).
   }
 
   /// Called by `onStyleLoadedCallback` on every style load (initial + after
-  /// `setStyle`). Fades the map back in and notifies the parent widget.
+  /// `setStyle`). Fades the map back in, bumps the style-load tick so
+  /// `CoverageOverlayBridge` re-adds coverage sources (which were wiped by
+  /// `setStyle()` — RESEARCH Pitfall 1), and notifies the parent widget.
   void _onStyleLoaded() {
     if (!mounted) return;
     setState(() {
       _styleVisible = true;
     });
+    // Bump the style-load tick so CoverageOverlayBridge re-adds the coverage
+    // source + layer. setStyle() wipes all programmatic sources on the native
+    // side, so the bridge must re-add them on every style (re)load.
+    ref.read(mapStyleLoadedTickProvider.notifier).bump();
     widget.onStyleLoaded?.call();
   }
 

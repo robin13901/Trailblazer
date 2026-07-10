@@ -1,3 +1,4 @@
+import 'package:auto_explore/features/coverage/presentation/coverage_overlay_bridge.dart';
 import 'package:auto_explore/features/map/domain/follow_mode.dart';
 import 'package:auto_explore/features/map/presentation/providers/camera_state_provider.dart';
 import 'package:auto_explore/features/map/presentation/providers/location_permission_provider.dart';
@@ -86,6 +87,21 @@ class MapScreen extends ConsumerWidget {
             width: 0,
             height: 0,
             child: TrackingCameraSync(),
+          ),
+
+          // Headless coverage overlay bridge: watches the style-load tick,
+          // coverage data, and preset — drives the MapLibre GeoJSON source +
+          // line layer via CoverageOverlayApplier. Placed OUTSIDE the
+          // isMapTab block so it persists across tab switches and keeps
+          // listening while the user browses Trips / Regions. Zero-size
+          // Positioned mirrors the TrackingCameraSync placement so it
+          // does not size the Stack or intercept hit-tests.
+          const Positioned(
+            top: 0,
+            left: 0,
+            width: 0,
+            height: 0,
+            child: CoverageOverlayBridge(),
           ),
 
           // Non-map tabs render their Scaffold (opaque background) over the
