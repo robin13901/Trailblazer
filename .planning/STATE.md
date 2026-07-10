@@ -5,16 +5,16 @@
 See: .planning/PROJECT.md (updated 2026-07-02)
 
 **Core value:** When I open the map, I immediately see the roads I've already driven, painted onto the world — and that view keeps pulling me back to explore more.
-**Current focus:** Phase 7 (Coverage Rendering) IN PROGRESS — 07-01 (coverage domain) + 07-02 (requirements reconciliation docs) + 07-03 (DrivenWayIntervalsDao.getAllIntervals + getDistinctWayIds) + 07-05 (settings color picker) complete. REN-01 orange/amber, REN-02 de-scoped, Gate G2 RESOLVED = FAIL (GeoJSON data-driven expressions). Next: 07-04 CoverageOverlayData / 07-06 map bridge.
+**Current focus:** Phase 7 (Coverage Rendering) IN PROGRESS — 07-01 (coverage domain) + 07-02 (requirements reconciliation docs) + 07-03 (geometry resolver + reactive providers) + 07-05 (settings color picker) complete. REN-01 orange/amber, REN-02 de-scoped, Gate G2 RESOLVED = FAIL (GeoJSON data-driven expressions). RESEARCH open-Q1 closed. Next: 07-04 GeoJSON render bridge.
 
 ## Current Position
 
 Phase: 7 of 11 (Coverage Rendering — In Progress)
-Plan: 07-05 complete (4 of 7 plans in phase)
-Status: Phase 7 in progress. 07-01 (coverage domain + CoverageDatum + 5-preset palette) complete; 07-02 (requirements reconciliation) complete; 07-03 (DrivenWayIntervalsDao query methods) complete; 07-05 (AppPrefs coverage preset persistence + coveragePresetProvider + CoverageColorSection + Settings wiring) complete. Gate G2 resolved: GeoJSON data-driven expressions chosen.
-Last activity: 2026-07-10 — 07-05 complete: AppPrefs extended with getCoveragePreset/setCoveragePreset; coveragePresetProvider (AsyncNotifier, no codegen) + coveragePresetValueProvider; CoverageColorSection 5-swatch picker wired into Settings screen; 9 new tests green; flutter analyze clean. NOTE: AsyncValue.value (nullable getter) used — .valueOrNull does not exist in flutter_riverpod 3.3.2. NOTE: `flutter build apk --debug` without `--dart-define=MAPTILER_KEY` shows a blank map (missing tile key, not a bug) — always launch with `--dart-define-from-file=env/dev.json`.
+Plan: 07-03 complete (3 of 7 plans in phase — out-of-order: 07-01, 07-02, 07-05 also done)
+Status: Phase 7 in progress. 07-01 (coverage domain + CoverageDatum + 5-preset palette) complete; 07-02 (requirements reconciliation) complete; 07-03 (DrivenWayGeometryResolver + watchUnionBbox + reactive providers + 11 resolver tests) complete; 07-05 (AppPrefs coverage preset persistence + settings wiring) complete. RESEARCH open-Q1 (geometry resolver) CLOSED. Gate G2 resolved: GeoJSON data-driven expressions chosen.
+Last activity: 2026-07-10 — 07-03 complete: getAllIntervals/getDistinctWayIds DAO; CoverageWay/CoverageOverlayData value types; DrivenWayGeometryResolver (cache-first, degrade to .empty on error); TripsDao.watchUnionBbox customSelect+readsFrom{trips,drivenWayIntervals}; coverageOverlayDataProvider (StreamProvider for mandatory live-refresh); 14 new tests (8 DAO + 6 resolver classification + 5 Drift reactivity re-emit proofs including confirmTrip trigger). NOTE: AsyncValue.value (nullable getter) used — .valueOrNull does not exist in flutter_riverpod 3.3.2. NOTE: `flutter build apk --debug` without `--dart-define=MAPTILER_KEY` shows a blank map (missing tile key, not a bug) — always launch with `--dart-define-from-file=env/dev.json`.
 
-Progress: [█████████░] ~80% (63/77 est. plans overall — Phase 1: 7/7; Phase 2: 7/7; Phase 3: 7/7; Phase 3.1: 5/5; Phase 4: 8/8 + 04-18 + 04-19 DRIVE-VERIFIED; Phase 5: 8/8 CODE-COMPLETE; Phase 6: 6/6 code-complete — 06-01..06-06 done + 06-07/06-08 gap-fixes; Phase 7: 4/7 in progress — 07-01 + 07-02 + 07-03 + 07-05)
+Progress: [█████████░] ~80% (64/77 est. plans overall — Phase 1: 7/7; Phase 2: 7/7; Phase 3: 7/7; Phase 3.1: 5/5; Phase 4: 8/8 + 04-18 + 04-19 DRIVE-VERIFIED; Phase 5: 8/8 CODE-COMPLETE; Phase 6: 6/6 code-complete — 06-01..06-06 done + 06-07/06-08 gap-fixes; Phase 7: 4/7 in progress — 07-01 + 07-02 + 07-03 + 07-05)
 
 ## Performance Metrics
 
@@ -463,6 +463,10 @@ Key locked-in decisions affecting current work:
 - **Plan 07-05 (2026-07-10) — `AsyncValue.value` (nullable `T?`) used instead of `.valueOrNull`.** The latter does not exist in `flutter_riverpod 3.3.2`; `AsyncValue.value` is a nullable getter available on all three AsyncValue states (Data/Loading/Error). Downstream code using Riverpod async providers must use `.value` for sync nullable access.
 - **Plan 07-05 (2026-07-10) — `coveragePresetValueProvider` exposes sync amber-fallback via `Provider<CoverageColorPreset>`.** Watches `coveragePresetProvider.value ?? amber`. Map bridge (07-06) and Settings UI both use this; avoids `AsyncNotifierProvider` boilerplate in widgets that don't need loading state.
 - **Plan 07-05 (2026-07-10) — `List<Object>` + `.cast()` for `ProviderScope` overrides in tests.** Matches `data_management_section_test.dart` pattern; `List<Override>` type is not directly importable in this Riverpod version.
+- **Plan 07-03 (2026-07-10) — `getAllIntervals()` includes SET-NULL rows.** Driven coverage is way-centric and survives trip deletion (FK ON DELETE SET NULL). No JOIN on trips.status — Phase 6 only writes intervals for matched/confirmed-path trips; both statuses mean "driven" for rendering.
+- **Plan 07-03 (2026-07-10) — `watchUnionBbox` uses Drift table-write invalidation, NOT value-diff.** `customSelect(...).watchSingle()` with `readsFrom: {trips, drivenWayIntervals}`. A `matched→confirmed` status flip writes to `trips` → Drift re-emits even though `status IN ('matched','confirmed')` membership does not change. This is the mandatory live-refresh trigger for 07-06 truth #3.
+- **Plan 07-03 (2026-07-10) — `coverageOverlayDataProvider` is `StreamProvider`, NOT `FutureProvider`.** FutureProvider caches its result and does not re-run on upstream emission. StreamProvider rebuilds on every `tripsUnionBoundsProvider` emission, enabling the live-refresh chain.
+- **Plan 07-03 (2026-07-10) — `DrivenWayGeometryResolver` is stateless; error posture is degrade-to-empty.** Never throws — degrades to `CoverageOverlayData.empty` on DomainError or unexpected error (06-05 on-device crash lesson). Missing geometry ways silently skipped at `log.fine` level.
 
 ### Blockers/Concerns
 
@@ -478,7 +482,7 @@ Key locked-in decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-07-10 (Plan 07-05 — settings picker — COMPLETE; ~35 min execution)
-Stopped at: Plan 07-05 COMPLETE. Task commits: `60f70ca` AppPrefs coverage preset; `caae2be` coveragePresetProvider; `c5b26b7` CoverageColorSection + Settings wiring + 9 tests. SUMMARY.md + STATE.md + metadata commit follow. 9/9 tests green; flutter analyze clean. Phase 7: 07-01 + 07-02 + 07-03 + 07-05 complete.
+Last session: 2026-07-10 (Plan 07-03 — geometry resolver — COMPLETE; ~16 min execution)
+Stopped at: Plan 07-03 COMPLETE. Task commits: `2faabe0` getAllIntervals/getDistinctWayIds; `ba77b69` CoverageWay/CoverageOverlayData/DrivenWayGeometryResolver; `3c19afe` watchUnionBbox + providers + 11 tests. SUMMARY.md + STATE.md + metadata commit follow. 14 new tests (8+6+5 reactivity) green; flutter analyze clean. Phase 7: 07-01 + 07-02 + 07-03 + 07-05 complete.
 Resume file: None
-Next: Phase 7 in progress. Next plan: 07-04 CoverageOverlayData (data layer — resolves way geometries from Overpass cache + computes CoverageOverlayData for the GeoJSON layer); then 07-06 map bridge (bridge reacts to coveragePresetValueProvider).
+Next: Phase 7 in progress. Next plan: 07-04 GeoJSON render bridge (bridge coverageOverlayDataProvider → MapLibre GeoJSON FeatureCollection + paint layers; uses coveragePresetValueProvider for colors).
