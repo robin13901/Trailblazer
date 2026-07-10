@@ -1,4 +1,5 @@
 import 'package:auto_explore/features/settings/presentation/widgets/about_section.dart';
+import 'package:auto_explore/features/settings/presentation/widgets/coverage_color_section.dart';
 import 'package:auto_explore/features/settings/presentation/widgets/data_management_section.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -27,6 +28,9 @@ class SettingsScreen extends StatelessWidget {
           Divider(height: 1),
           _SectionHeader('Data'),
           DataManagementSection(),
+          Divider(height: 1),
+          _SectionHeader('Coverage'),
+          CoverageColorSection(),
           Divider(height: 1),
           _SectionHeader('Coming later'),
           ListTile(
