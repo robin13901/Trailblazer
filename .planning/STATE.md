@@ -5,16 +5,16 @@
 See: .planning/PROJECT.md (updated 2026-07-02)
 
 **Core value:** When I open the map, I immediately see the roads I've already driven, painted onto the world — and that view keeps pulling me back to explore more.
-**Current focus:** Phase 7 (Coverage Rendering) COMPLETE 2026-07-10 — verifier PASS 5/5 code must-haves; 07-01..07-07 all done. REN-01 orange/amber, REN-02 de-scoped, Gate G2 RESOLVED = FAIL (GeoJSON data-driven expressions). RESEARCH open-Q1/Q3/Q4 all closed. Deferred to user's next device session: 5 on-device visual confirms (first-paint, dark-mode swap, live recolor, partial-vs-full legibility, REN-04 50k fps read) — `07-MANUAL-TESTS-DEFERRED.md`. Phase 8 (Regions + Focus-Area) is next.
+**Current focus:** Phase 8 (Regions + Focus-Area) IN PROGRESS — 08-01 complete (domain primitives: zoom mapper + RegionCoverage). Wave 1 siblings 08-02/08-03 running in parallel. Phase 7 fully code-complete 2026-07-10.
 
 ## Current Position
 
-Phase: 7 of 11 (Coverage Rendering — Code-Complete)
-Plan: 07-06 complete (7 of 7 plans in phase — all done: 07-01..07-07)
-Status: Phase 7 fully code-complete. 07-01 (coverage domain + CoverageDatum + 5-preset palette) complete; 07-02 (requirements reconciliation) complete; 07-03 (DrivenWayGeometryResolver + watchUnionBbox + reactive providers + 11 resolver tests) complete; 07-04 (GeoJSON render bridge: buildCoverageFeatureCollection + CoverageOverlayApplier + coverageLinePaintExpressions + Q3/Q4 closed) complete; 07-05 (AppPrefs coverage preset persistence + settings wiring) complete; 07-06 (CoverageOverlayBridge tick-driven map wiring + 4 bridge tests) complete; 07-07 (REN-04 stress harness: synthetic 50k generator + FrameTimingMeter + StressCoverageScreen + debug route) complete.
-Last activity: 2026-07-10 — 07-06 complete: mapStyleLoadedTickProvider (StyleTickNotifier bump()), CoverageOverlayBridge ConsumerStatefulWidget (tick-driven, null-controller passthrough, unawaited+log+swallow), MapWidget._onStyleLoaded bumps tick, CoverageOverlayBridge mounted in MapScreen alongside TrackingCameraSync (tab-persistent), 4 bridge unit tests with recording-fake applier, glass_shell_layout_test coverage provider overrides, 07-MANUAL-TESTS-DEFERRED.md cataloged (5-step on-device procedure).
+Phase: 8 of 11 (Regions + Focus-Area — In Progress)
+Plan: 08-01 complete (1 of 6 plans in phase — done: 08-01; running in parallel: 08-02, 08-03)
+Status: 08-01 (zoom_level_mapper + RegionCoverage domain primitives, 52 unit tests) complete 2026-07-11.
+Last activity: 2026-07-11 — 08-01 complete: zoomToAdminLevel breakpoints, kFallbackLevels, fallbackLevelsFrom, RegionCoverage value type, coveragePercent/formatPercent, 52 unit tests green.
 
-Progress: [█████████░] ~88% (67/77 est. plans overall — Phase 1: 7/7; Phase 2: 7/7; Phase 3: 7/7; Phase 3.1: 5/5; Phase 4: 8/8 + 04-18 + 04-19 DRIVE-VERIFIED; Phase 5: 8/8 CODE-COMPLETE; Phase 6: 6/6 code-complete — 06-01..06-06 done + 06-07/06-08 gap-fixes; Phase 7: 7/7 code-complete — 07-01..07-07)
+Progress: [█████████░] ~88% (68/78 est. plans overall — Phase 1: 7/7; Phase 2: 7/7; Phase 3: 7/7; Phase 3.1: 5/5; Phase 4: 8/8 + 04-18 + 04-19 DRIVE-VERIFIED; Phase 5: 8/8 CODE-COMPLETE; Phase 6: 6/6 code-complete — 06-01..06-06 done + 06-07/06-08 gap-fixes; Phase 7: 7/7 code-complete — 07-01..07-07; Phase 8: 1/6 — 08-01)
 
 ## Performance Metrics
 
@@ -468,6 +468,9 @@ Key locked-in decisions affecting current work:
 - **Plan 07-03 (2026-07-10) — `getAllIntervals()` includes SET-NULL rows.** Driven coverage is way-centric and survives trip deletion (FK ON DELETE SET NULL). No JOIN on trips.status — Phase 6 only writes intervals for matched/confirmed-path trips; both statuses mean "driven" for rendering.
 - **Plan 07-03 (2026-07-10) — `watchUnionBbox` uses Drift table-write invalidation, NOT value-diff.** `customSelect(...).watchSingle()` with `readsFrom: {trips, drivenWayIntervals}`. A `matched→confirmed` status flip writes to `trips` → Drift re-emits even though `status IN ('matched','confirmed')` membership does not change. This is the mandatory live-refresh trigger for 07-06 truth #3.
 - **Plan 07-03 (2026-07-10) — `coverageOverlayDataProvider` is `StreamProvider`, NOT `FutureProvider`.** FutureProvider caches its result and does not re-run on upstream emission. StreamProvider rebuilds on every `tripsUnionBoundsProvider` emission, enabling the live-refresh chain.
+- **Plan 08-01 (2026-07-11) — `flutter_test` not `test` in test files.** `depend_on_referenced_packages` lint fires when importing `package:test/test.dart` (only transitive). Always use `package:flutter_test/flutter_test.dart` even for pure-Dart unit tests with no widget involvement; `flutter_test` re-exports the `test` API.
+- **Plan 08-01 (2026-07-11) — `RegionCoverage` equality keyed on (osmId, drivenLengthM, totalLengthM) only.** adminLevel and name excluded — two snapshots of the same region at different times are equal if their driven/total lengths match; name changes should not break provider caches.
+- **Plan 08-01 (2026-07-11) — Zoom breakpoints locked.** <6→2, <9→4, <11→6, <13→8, <15→9, >=15→10. kFallbackLevels=[10,9,8,6,4,2]. Do not change without updating zoom_level_mapper_test.dart.
 - **Plan 07-03 (2026-07-10) — `DrivenWayGeometryResolver` is stateless; error posture is degrade-to-empty.** Never throws — degrades to `CoverageOverlayData.empty` on DomainError or unexpected error (06-05 on-device crash lesson). Missing geometry ways silently skipped at `log.fine` level.
 
 ### Blockers/Concerns
@@ -484,7 +487,7 @@ Key locked-in decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-07-10 (Plan 07-07 — REN-04 stress harness — COMPLETE; ~16 min execution)
-Stopped at: Plan 07-07 COMPLETE. Task commits: `c4a7fce` synthetic generator; `66a96f9` FrameTimingMeter; `f9e5784` StressCoverageScreen + route + settings tile. SUMMARY.md created at .planning/phases/07-coverage-rendering/07-07-SUMMARY.md. STATE.md updated. 23 unit tests green; flutter analyze clean. Phase 7: 07-01..07-07 code-complete. Deferred: on-device REN-04 50k fps read.
+Last session: 2026-07-11 (Plan 08-01 — Regions domain primitives — COMPLETE; ~5 min execution)
+Stopped at: Plan 08-01 COMPLETE. Task 1 bundled in sibling 08-03 commit `b8dc502` (parallel-wave hygiene); Task 2 commit `9504acd`. SUMMARY.md created at .planning/phases/08-regions-focus-area/08-01-SUMMARY.md. STATE.md updated. 52 unit tests green; flutter analyze clean. Phase 8: 08-01 done; 08-02/08-03 running in parallel.
 Resume file: None
-Next: Phase 8 (regions) or deferred on-device verification drive for Phase 7 (REN-04 fps + REN-03 paint quality).
+Next: Wave 1 parallel plans 08-02 (CoverageComputeService) and 08-03 (liveCameraProvider) — both may already be complete (sibling agents running simultaneously). Then Wave 2: 08-04 (focus pill), 08-05 (region browser), 08-06 (region detail sheet).
