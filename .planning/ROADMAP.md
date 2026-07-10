@@ -226,7 +226,15 @@ Plans:
   3. Region browser has per-admin-level tabs; default sort is % descending; alternative sorts (alphabetical, driven km, total km, last-driven) and fuzzy search all work; the list is lazy-loaded for Germany-scale thousands of Ortsteile.
   4. "Jump to on map" from any region zooms the map to the region's bounding box.
   5. Coverage percentages are computed via `Σ driven Kfz-length / Σ total Kfz-length` on a compute isolate (Feldweg/Fußweg excluded from both numerator and denominator); total-km and unique-km stats are visible per vehicle and globally.
-**Plans:** TBD (6–9)
+**Plans:** 6 plans in 3 waves (planned 2026-07-10 — several SC amended by `08-CONTEXT.md`; honor amendments)
+
+Plans:
+- [ ] 08-01-PLAN.md — Wave 1: domain layer — zoom_level_mapper (breakpoints + parent-fallback chain) + RegionCoverage value type + coverage-% math (pure Dart, unit-tested)
+- [ ] 08-02-PLAN.md — Wave 1: CoverageComputeService — FIRST writer of coverage_cache (levels 4/6/8/9/10, level 2 excluded); getAllWithCoverage read; recompute hook after confirmTrip invalidation; per-vehicle + time TODO hooks (COV-04/07/08)
+- [ ] 08-03-PLAN.md — Wave 1: shared map infra — liveCameraProvider + onCameraMove wired in map_widget.dart (isolated so Wave-2 pill never collides on the file)
+- [ ] 08-04-PLAN.md — Wave 2: focus pill — focusPillProvider (debounced live camera → region + %, hold-last-value, parent fallback) + two-line FocusAreaPill replacing the stub (FOC-01..05/07)
+- [ ] 08-05-PLAN.md — Wave 2: region browser — flat coverage-gated %-desc card list + global fuzzy search + lazy ListView + draggable Liquid Glass detail sheet (stats-only) + Jump-to-on-map (REG-02/04/06/07, COV-04)
+- [ ] 08-06-PLAN.md — Wave 3: integration — pill tap → detail sheet + single deferred on-device verification checklist (defer-to-next-drive, no blocking checkpoint)
 
 ### Phase 9: Vehicles + Bluetooth
 **Goal:** Full vehicle profiles with Bluetooth-fingerprint hints replace the P3/P6 placeholder default vehicle.
