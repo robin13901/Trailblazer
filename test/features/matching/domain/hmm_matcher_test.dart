@@ -408,5 +408,58 @@ void main() {
       final rC = _matcher.match(fixes: fixesC, ways: [wayA]);
       expect(rC.matchedFixCount + rC.droppedFixCount, fixesC.length);
     });
+
+    test(
+        '10. pass-through connector (A→B→C, single fix on short B) → '
+        "B's interval spans its full length, not a zero-length point", () {
+      // Three collinear residential ways forming a continuous drive east:
+      //   A: x 0..100   B (connector): x 100..120 (20 m)   C: x 120..300
+      // The vehicle drives straight through; B — being only 20 m — catches a
+      // single GPS fix at its midpoint. Pre-fix this collapsed to a
+      // ~zero-length interval and the coverage renderer dropped B (junction
+      // gap). The pass-through fix must extend B to its full 20 m.
+      final wayA = WayCandidate(
+        wayId: 1,
+        highwayClass: 'residential',
+        geometry: [_ll(0, 0), _ll(0, 50), _ll(0, 100)],
+      );
+      final wayB = WayCandidate(
+        wayId: 2,
+        highwayClass: 'residential',
+        geometry: [_ll(0, 100), _ll(0, 120)],
+      );
+      final wayC = WayCandidate(
+        wayId: 3,
+        highwayClass: 'residential',
+        geometry: [_ll(0, 120), _ll(0, 200), _ll(0, 300)],
+      );
+
+      final fixes = [
+        // Dense on A
+        _fix(0, 20),
+        _fix(0, 60, dtSecs: 2),
+        _fix(0, 95, dtSecs: 4),
+        // ONE fix on the short connector B (its midpoint ~x=110)
+        _fix(0, 110, dtSecs: 5),
+        // Dense on C
+        _fix(0, 130, dtSecs: 6),
+        _fix(0, 200, dtSecs: 9),
+        _fix(0, 280, dtSecs: 12),
+      ];
+
+      final result = _matcher.match(fixes: fixes, ways: [wayA, wayB, wayC]);
+
+      final bIntervals =
+          result.intervals.where((iv) => iv.wayId == 2).toList();
+      expect(bIntervals, isNotEmpty,
+          reason: 'connector B must produce an interval');
+      final bLen = bIntervals
+          .map((iv) => (iv.endMeters - iv.startMeters).abs())
+          .reduce((a, b) => a > b ? a : b);
+      // B is ~20 m; the pass-through extension must cover essentially all of
+      // it (well above the ~0 the single-fix run would otherwise yield).
+      expect(bLen, greaterThan(15),
+          reason: 'pass-through B should span ~full 20 m, got $bLen');
+    });
   });
 }

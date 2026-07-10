@@ -23,6 +23,7 @@ import 'package:auto_explore/features/matching/domain/segment_geometry.dart';
 import 'package:auto_explore/features/matching/domain/viterbi_decoder.dart';
 import 'package:auto_explore/features/matching/domain/way_candidate.dart';
 import 'package:auto_explore/features/matching/domain/way_segment_index.dart';
+import 'package:maplibre_gl/maplibre_gl.dart' show LatLng;
 
 /// Orchestrator that maps a raw GPS trace + road-candidate list to a
 /// [MatchResult] containing per-fix [MatchedStep]s and collapsed
@@ -132,13 +133,39 @@ class HmmMatcher {
     int? runWayId;
     double runRawStart = 0; // meters at the first step of the current run
     double runRawEnd = 0; // meters at the latest step of the current run
+    // True when this run began by transitioning DIRECTLY from a different
+    // matched way (not from a gap/null or the trip start). Half of the
+    // pass-through test.
+    var enteredFromOtherWay = false;
 
-    void flush() {
+    // [exitedToOtherWay] completes the pass-through test: the run ends because
+    // a DIFFERENT matched way immediately follows (not a gap/null or trip end).
+    void flush({required bool exitedToOtherWay}) {
       if (runWayId == null) return;
-      final start = math.min(runRawStart, runRawEnd);
-      final end = math.max(runRawStart, runRawEnd);
-      final direction =
-          runRawEnd >= runRawStart ? 'forward' : 'backward';
+      var start = math.min(runRawStart, runRawEnd);
+      var end = math.max(runRawStart, runRawEnd);
+      final direction = runRawEnd >= runRawStart ? 'forward' : 'backward';
+
+      // Pass-through recall fix (2026-07-10): a way the vehicle demonstrably
+      // ENTERED from another way and EXITED to another way was traversed
+      // end-to-end — but a short junction connector often catches only 1-2
+      // GPS fixes, so the raw [start..end] collapses to a near-zero-length
+      // point and the coverage renderer drops it (→ visible gap at the
+      // junction). When both the entry and exit are ways (a true pass-through),
+      // extend the interval to the FULL way length so the connector renders.
+      // Ways only touched at the trip start/end, or bounded by a confidence
+      // gap, keep the conservative measured span (we can't prove traversal).
+      if (enteredFromOtherWay && exitedToOtherWay) {
+        final way = waysById[runWayId];
+        if (way != null) {
+          final len = _polylineLengthMeters(way.geometry);
+          if (len > 0) {
+            start = 0;
+            end = len;
+          }
+        }
+      }
+
       out.add(
         DrivenWayIntervalDraft(
           wayId: runWayId!,
@@ -152,31 +179,37 @@ class HmmMatcher {
 
     for (final s in steps) {
       if (s == null) {
-        // Confidence gap: flush the current run and wait for the next
-        // non-null step.
-        flush();
+        // Confidence gap: flush the current run (NOT a pass-through — we don't
+        // know the vehicle exited to another way) and wait for the next step.
+        flush(exitedToOtherWay: false);
         continue;
       }
 
       final metersFromWayStart = _metersFromWayStart(s, waysById);
 
       if (runWayId == null) {
-        // Start a new run.
+        // Start a new run after a gap/null or at trip start — NOT entered from
+        // another matched way, so reset the pass-through entry flag.
         runWayId = s.wayId;
         runRawStart = metersFromWayStart;
         runRawEnd = metersFromWayStart;
+        enteredFromOtherWay = false;
       } else if (s.wayId != runWayId) {
-        // Different way: flush the previous run, start a new one.
-        flush();
+        // Different way: the previous run exited to another way → pass-through
+        // eligible. Flush it, then the new run counts as entered-from-a-way.
+        flush(exitedToOtherWay: true);
         runWayId = s.wayId;
         runRawStart = metersFromWayStart;
         runRawEnd = metersFromWayStart;
+        enteredFromOtherWay = true;
+        continue;
       } else {
         // Same way: extend the current run.
         runRawEnd = metersFromWayStart;
       }
     }
-    flush();
+    // End of trace: the final run did NOT exit to another way.
+    flush(exitedToOtherWay: false);
     return out;
   }
 
@@ -224,5 +257,21 @@ class HmmMatcher {
     }
 
     return acc;
+  }
+
+  /// Total Haversine length of a way polyline, summed over its segments.
+  /// Used by the pass-through recall fix to extend a traversed connector's
+  /// interval to the full way length.
+  double _polylineLengthMeters(List<LatLng> geometry) {
+    var total = 0.0;
+    for (var i = 0; i < geometry.length - 1; i++) {
+      total += segmentLengthMeters(
+        aLat: geometry[i].latitude,
+        aLon: geometry[i].longitude,
+        bLat: geometry[i + 1].latitude,
+        bLon: geometry[i + 1].longitude,
+      );
+    }
+    return total;
   }
 }
