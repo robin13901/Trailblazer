@@ -64,6 +64,15 @@ class CoverageCacheDao extends DatabaseAccessor<AppDatabase> {
   /// P10 admin-swap flow will call this. Returns rows removed.
   Future<int> deleteAll() => delete(_table).go();
 
+  /// All cached rows with any driven coverage (driven_length_m > 0), for the
+  /// Phase-8 region browser. Names/levels are resolved from AdminRegionLookup
+  /// by the caller (no region_name column — RESEARCH.md line 227).
+  Future<List<CoverageCacheData>> getAllWithCoverage() {
+    return (select(_table)
+          ..where((r) => r.drivenLengthM.isBiggerThanValue(0)))
+        .get();
+  }
+
   /// Bump `invalidation_gen` by 1 without touching lengths — Phase-8
   /// path where the cache is marked stale but the row survives until
   /// recompute overwrites it. P6 does not use this method itself.

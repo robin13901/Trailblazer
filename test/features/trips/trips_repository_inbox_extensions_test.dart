@@ -2,12 +2,23 @@
 // TripsInboxRepository — Keep (confirm + invalidate) and Discard (invalidate
 // → delete intervals → delete trip) flows against an in-memory Drift DB with
 // a recording fake CoverageInvalidator + recording DAO subclasses.
+//
+// Phase 8 (08-02): added _NoopComputeService to satisfy the new required
+// `computeService` constructor parameter. The service is fire-and-forget;
+// these tests do not verify recompute behavior (that is covered by
+// coverage_compute_service_test.dart).
 
 import 'package:auto_explore/core/db/app_database.dart';
 import 'package:auto_explore/core/db/daos/driven_way_intervals_dao.dart';
 import 'package:auto_explore/core/errors/domain_error.dart';
 import 'package:auto_explore/core/errors/result.dart';
+import 'package:auto_explore/features/admin/data/admin_region.dart';
+import 'package:auto_explore/features/admin/data/admin_region_lookup.dart';
+import 'package:auto_explore/features/coverage/data/coverage_cache_dao.dart';
 import 'package:auto_explore/features/coverage/data/coverage_invalidator.dart';
+import 'package:auto_explore/features/matching/data/way_candidate_source.dart';
+import 'package:auto_explore/features/matching/domain/way_candidate.dart';
+import 'package:auto_explore/features/regions/data/coverage_compute_service.dart';
 import 'package:auto_explore/features/trips/data/trips_dao.dart';
 import 'package:auto_explore/features/trips/data/trips_dao_inbox_queries.dart';
 import 'package:auto_explore/features/trips/data/trips_repository_inbox_extensions.dart';
@@ -74,12 +85,75 @@ class _RecordingIntervalsDao extends DrivenWayIntervalsDao {
   }
 }
 
+/// Minimal fake AdminRegionLookup — always returns null; ensureLoaded is a no-op.
+/// Used to construct _NoopComputeService without loading the real bundle.
+class _NullAdminRegionLookup implements AdminRegionLookup {
+  @override
+  Future<void> ensureLoaded() async {}
+
+  @override
+  Future<AdminRegion?> regionAt(double lat, double lon, int adminLevel) async =>
+      null;
+
+  @override
+  void invalidate() {}
+
+  @override
+  int get regionCount => 0;
+
+  @override
+  int get bundleLoadCount => 0;
+}
+
+/// Minimal fake WayCandidateSource — always returns empty lists.
+/// Used to construct _NoopComputeService without hitting the network.
+class _EmptyWayCandidateSource implements WayCandidateSource {
+  @override
+  Future<List<WayCandidate>> fetchWaysInBbox({
+    required double minLat,
+    required double minLon,
+    required double maxLat,
+    required double maxLon,
+    bool throwOnError = true,
+  }) async =>
+      const [];
+
+  @override
+  Future<List<RawTilePayload>> fetchRawTilesInBbox({
+    required double minLat,
+    required double minLon,
+    required double maxLat,
+    required double maxLon,
+    bool throwOnError = true,
+  }) async =>
+      const [];
+}
+
+/// No-op CoverageComputeService — overrides recompute() so that the
+/// fire-and-forget call in confirmTrip completes immediately with Ok(0).
+/// Tests for the actual recompute behavior live in
+/// test/features/regions/data/coverage_compute_service_test.dart.
+class _NoopComputeService extends CoverageComputeService {
+  _NoopComputeService(AppDatabase db)
+      : super(
+          intervalsDao: DrivenWayIntervalsDao(db),
+          waySource: _EmptyWayCandidateSource(),
+          regionLookup: _NullAdminRegionLookup(),
+          cacheDao: CoverageCacheDao(db),
+          tripsDao: TripsDao(db),
+        );
+
+  @override
+  Future<Result<int>> recompute() async => const Ok(0);
+}
+
 void main() {
   late AppDatabase db;
   late TripsInboxDao inboxDao;
   late TripsDao tripsDao;
   late DrivenWayIntervalsDao intervalsDao;
   late List<String> log;
+  late _NoopComputeService computeService;
 
   setUp(() async {
     db = AppDatabase(NativeDatabase.memory());
@@ -87,6 +161,7 @@ void main() {
     inboxDao = TripsInboxDao(db);
     tripsDao = _RecordingTripsDao(db, log);
     intervalsDao = _RecordingIntervalsDao(db, log);
+    computeService = _NoopComputeService(db);
     // Trigger beforeOpen PRAGMAs (foreign_keys=ON for cascade + SET NULL).
     await db.customSelect('SELECT 1').getSingle();
   });
@@ -161,6 +236,7 @@ void main() {
       tripsDao: tripsDao,
       intervalsDao: intervalsDao,
       invalidator: invalidator,
+      computeService: computeService,
     );
   }
 

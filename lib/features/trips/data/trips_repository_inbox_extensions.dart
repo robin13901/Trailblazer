@@ -12,12 +12,16 @@
 //     intervals (FK is ON DELETE SET NULL, not CASCADE), THEN delete the
 //     trip row (which cascades trip_points).
 
+import 'dart:async';
+
 import 'package:auto_explore/core/db/app_database_providers.dart';
 import 'package:auto_explore/core/db/daos/driven_way_intervals_dao.dart';
 import 'package:auto_explore/core/errors/domain_error.dart';
 import 'package:auto_explore/core/errors/result.dart';
 import 'package:auto_explore/features/coverage/data/coverage_invalidator.dart';
 import 'package:auto_explore/features/coverage/data/coverage_providers.dart';
+import 'package:auto_explore/features/regions/data/coverage_compute_providers.dart';
+import 'package:auto_explore/features/regions/data/coverage_compute_service.dart';
 import 'package:auto_explore/features/trips/data/trips_dao.dart';
 import 'package:auto_explore/features/trips/data/trips_dao_inbox_queries.dart';
 import 'package:auto_explore/features/trips/data/trips_repository_providers.dart';
@@ -32,17 +36,20 @@ class TripsInboxRepository {
     required TripsDao tripsDao,
     required DrivenWayIntervalsDao intervalsDao,
     required CoverageInvalidator invalidator,
+    required CoverageComputeService computeService,
     Logger? logger,
   })  : _inboxDao = inboxDao,
         _tripsDao = tripsDao,
         _intervalsDao = intervalsDao,
         _invalidator = invalidator,
+        _computeService = computeService,
         _log = logger ?? Logger('TripsInboxRepository');
 
   final TripsInboxDao _inboxDao;
   final TripsDao _tripsDao;
   final DrivenWayIntervalsDao _intervalsDao;
   final CoverageInvalidator _invalidator;
+  final CoverageComputeService _computeService;
   final Logger _log;
 
   /// Keep (INB-03 + COV-06 trigger 1 / SC3).
@@ -72,6 +79,11 @@ class TripsInboxRepository {
           ),
         );
       }
+      // 3. Re-populate cache rows the invalidator just deleted.
+      //    Fire-and-forget: user's Keep must never be blocked on recompute.
+      //    If recompute errors, it returns Err internally — swallowed here.
+      //    The next confirmTrip / coverage read will re-trigger it.
+      unawaited(_computeService.recompute()); // re-populate cache post-invalidation
       return const Ok(null);
       // Catches all throwables (Error + Exception) for DomainError.wrap.
       // ignore: avoid_catches_without_on_clauses
@@ -138,5 +150,6 @@ final tripsInboxRepositoryProvider = Provider<TripsInboxRepository>((ref) {
     tripsDao: ref.watch(tripsDaoProvider),
     intervalsDao: DrivenWayIntervalsDao(db),
     invalidator: ref.watch(coverageInvalidatorProvider),
+    computeService: ref.watch(coverageComputeServiceProvider),
   );
 });
