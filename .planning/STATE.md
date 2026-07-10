@@ -472,6 +472,10 @@ Key locked-in decisions affecting current work:
 - **Plan 08-01 (2026-07-11) — `RegionCoverage` equality keyed on (osmId, drivenLengthM, totalLengthM) only.** adminLevel and name excluded — two snapshots of the same region at different times are equal if their driven/total lengths match; name changes should not break provider caches.
 - **Plan 08-01 (2026-07-11) — Zoom breakpoints locked.** <6→2, <9→4, <11→6, <13→8, <15→9, >=15→10. kFallbackLevels=[10,9,8,6,4,2]. Do not change without updating zoom_level_mapper_test.dart.
 - **Plan 07-03 (2026-07-10) — `DrivenWayGeometryResolver` is stateless; error posture is degrade-to-empty.** Never throws — degrades to `CoverageOverlayData.empty` on DomainError or unexpected error (06-05 on-device crash lesson). Missing geometry ways silently skipped at `log.fine` level.
+- **Plan 08-02 (2026-07-11) — `kComputeAdminLevels = [4,6,8,9,10]` — level 2 excluded.** The Germany country row would accumulate the entire DE road network as total_length_m — not a useful Phase-8 display value. Level 9 (Ortsteil) IS included (mirrors RESEARCH.md line 263).
+- **Plan 08-02 (2026-07-11) — `CoverageComputeService.recompute()` calls `deleteAll()` then upserts.** Stale rows (ways that disappeared from the Overpass cache) are cleaned each cycle. No MERGE logic needed; Phase-8 has no partial-update semantic.
+- **Plan 08-02 (2026-07-11) — unawaited recompute in `TripsInboxRepository.confirmTrip`.** Fires after `CoverageInvalidator.invalidateForTrip`; fire-and-forget so the user's Keep is never blocked. Error returned as Err internally and silently swallowed by the caller.
+- **Plan 08-02 (2026-07-11) — `getAllWithCoverage()` filter is `driven_length_m > 0` (Drift isBiggerThanValue).** Total-only rows (ways in region but none driven) are excluded from the browser list. Callers wanting total-only rows use `getByRegionId` directly.
 
 ### Blockers/Concerns
 
@@ -487,7 +491,7 @@ Key locked-in decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-07-11 (Plan 08-03 — Live Camera Provider — COMPLETE; ~8 min execution)
-Stopped at: Plan 08-03 COMPLETE. Task 1 commit `247d693` (liveCameraProvider); Task 2 absorbed by 08-02 agent commit `a624713` (map_widget.dart onCameraMove wiring); Task 3 absorbed by 08-01 docs commit `a5ef1e0` (live_camera_provider_test.dart). SUMMARY.md created at .planning/phases/08-regions-focus-area/08-03-SUMMARY.md. flutter analyze clean; 89 map tests green.
+Last session: 2026-07-11 (Plan 08-02 — CoverageComputeService — COMPLETE; ~13 min execution; Plan 08-03 also complete in parallel Wave 1)
+Stopped at: Plan 08-02 COMPLETE. Task 1 commit `a624713` (CoverageComputeService + provider); Task 2 commit `ba9c2cb` (getAllWithCoverage + recompute hook in confirmTrip); Task 3 commit `626cb1b` (7-scenario unit test). SUMMARY.md created at .planning/phases/08-regions-focus-area/08-02-SUMMARY.md. flutter analyze clean; 401 tests pass (regions+coverage+trips suites).
 Resume file: None
 Next: Wave 2 plans 08-04 (focus pill), 08-05 (region browser), 08-06 (region detail sheet) — Wave 1 (08-01, 08-02, 08-03) all complete.
