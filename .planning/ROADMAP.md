@@ -35,11 +35,12 @@ Two research-flagged spike gates can force a fallback or new decimal phase:
 - **Pass:** Continue with full Liquid Glass shell for pill + nav + FAB + panels.
 - **Fail:** Fall back to `FrostedGlassCard` + gradient tint sampled from map; keep glass to edge panels only. Document decision in PROJECT.md Key Decisions and continue P2 with the fallback.
 
-### Gate G2 — P7 Feature-State Availability (`maplibre_gl` API)
+### Gate G2 — P7 Feature-State Availability (`maplibre_gl` API) — RESOLVED 2026-07-09 = FAIL
 - **Where:** Before P7 commits to `setFeatureState` for driven-way coloring (REN-05).
 - **Test:** Confirm `maplibre_gl` ^0.26.2 exposes `setFeatureState` on both platforms with acceptable per-frame cost at 50k features.
 - **Pass:** Ship driven-way overlay via `feature-state`.
 - **Fail:** Insert Phase 6.1 or 7.1 to build the sharded-GeoJSON-per-5×5-km-tile fallback source; document in PROJECT.md; then continue P7.
+- **Verdict (2026-07-09):** FAIL — `setFeatureState` throws `UnimplementedError` on iOS+Android in maplibre_gl 0.26.2 (web-only; upstream #889 targets 0.27.0). Resolution: single runtime GeoJSON source per brightness + data-driven paint expressions evaluated GPU-side. Documented in PROJECT.md Key Decisions.
 
 Additional research-recommended spikes: HMM parameter tuning + golden corpus recording (P5), iOS BGTaskScheduler empirical wake behavior (P11).
 
@@ -196,14 +197,14 @@ Plans:
 - [x] **Gap 06-08** — removed automatic background recording (manual-only); FGB scoped to manual sessions
 
 ### Phase 7: Coverage Rendering
-**Goal:** Driven roads paint onto the map with correct semantics for full/partial/Kfz-vs-Feldweg coverage; feature-state fallback gate (G2) resolved.
+**Goal:** Driven Kfz roads paint onto the map with full/partial coverage semantics; Gate G2 resolved.
 **Depends on:** Phases 2, 6
 **Requirements:** REN-01, REN-02, REN-03, REN-04, REN-05, REN-06, COV-02, COV-03
 **Success Criteria** (what must be TRUE):
-  1. Driven Kfz-ways render in the primary "explored" color (default warm green); Feldweg/Fußweg ways render as static base geometry from the pmtiles roads layer in a distinct secondary color (default: dashed blue). Per-way driven-state coloring applies to Kfz ways only (see REN-02 note dated 2026-07-07).
+  1. Driven Kfz-ways render in the 'explored' color (default orange/amber; 5 user-selectable presets incl. green). Per-way driven-state coloring applies to Kfz ways only; Feldweg/Fußweg render as plain base geometry (REN-02 de-scoped 2026-07-09).
   2. A way flips to "fully explored" only when merged intervals cover ≥ (length − 15 m start buffer − 15 m end buffer); partially-driven ways render with proportional gradient or documented reduced-opacity fallback.
   3. Map maintains ≥ 30 fps on target devices with 50 000 driven segments loaded (stress-tested against faked coverage).
-  4. Coverage renders via MapLibre `feature-state` — or the sharded-GeoJSON-per-5×5-km-tile fallback (Gate G2) is active and documented.
+  4. Coverage renders via a runtime GeoJSON source + data-driven paint expressions (Gate G2 resolved: feature-state unavailable on mobile in maplibre_gl 0.26.2).
   5. User can pick coverage colors from a small preset palette in settings; changes apply live without full map reload.
 **Plans:** 7 plans (4 waves)
 Plans:
