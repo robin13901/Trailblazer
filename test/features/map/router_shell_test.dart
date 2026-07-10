@@ -5,6 +5,8 @@ import 'package:auto_explore/features/map/presentation/providers/map_style_provi
 import 'package:auto_explore/features/map/presentation/widgets/bottom_nav_shell.dart';
 import 'package:auto_explore/features/map/presentation/widgets/focus_area_pill.dart';
 import 'package:auto_explore/features/onboarding/data/onboarding_flag_repository.dart';
+import 'package:auto_explore/features/regions/domain/region_coverage.dart';
+import 'package:auto_explore/features/regions/presentation/providers/region_browser_provider.dart';
 import 'package:auto_explore/features/trips/domain/trip_list_item.dart';
 import 'package:auto_explore/features/trips/presentation/providers/inbox_providers.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -69,6 +71,13 @@ Future<void> pumpAppAtMapShell(WidgetTester tester) async {
           (ref) => Stream.value(const <TripListItem>[]),
         ),
         inFlightCountProvider.overrideWith((ref) => Stream.value(0)),
+        // RegionsScreen (08-05) mounts regionBrowserProvider which loads
+        // AdminRegionLookup (asset bundle) — override so the tab settles
+        // instantly to the empty state instead of hanging pumpAndSettle on the
+        // asset-bundle load (12 MB, not available in headless tests).
+        regionBrowserProvider.overrideWith(
+          (ref) async => const <RegionCoverage>[],
+        ),
       ],
       child: const App(),
     ),
@@ -145,7 +154,12 @@ void main() {
       await tester.tap(find.text('Regions'));
       await tester.pumpAndSettle();
 
-      expect(find.text('Regions browser comes in Phase 8.'), findsOneWidget);
+      // RegionsScreen (08-05) replaced the stub — shows the empty-state
+      // message when no regions have been driven yet.
+      expect(
+        find.text('Noch keine befahrenen Regionen.\nFahre eine Strecke, um Regionen zu sehen.'),
+        findsOneWidget,
+      );
       expect(find.byType(FocusAreaPill), findsNothing);
     });
 
