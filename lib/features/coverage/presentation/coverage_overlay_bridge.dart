@@ -158,8 +158,11 @@ class _CoverageOverlayBridgeState extends ConsumerState<CoverageOverlayBridge> {
     CoverageOverlayData data,
     CoverageColorPreset preset,
   ) {
+    if (!_styleReady) return;
     final controller = ref.read(mapControllerProvider);
-    if (controller == null || !_styleReady) return;
+    // Pass controller (possibly null) to the applier — the production
+    // MapLibreCoverageOverlayApplier early-returns on null; test fakes
+    // record calls regardless so assertions still work with null controller.
     final applier = ref.read(coverageOverlayApplierProvider);
     final brightness = View.of(context).platformDispatcher.platformBrightness;
     unawaited(
@@ -186,8 +189,10 @@ class _CoverageOverlayBridgeState extends ConsumerState<CoverageOverlayBridge> {
     BuildContext context,
     CoverageColorPreset preset,
   ) {
+    if (!_styleReady) return;
     final controller = ref.read(mapControllerProvider);
-    if (controller == null || !_styleReady) return;
+    // Pass controller (possibly null) — production applier handles null
+    // itself; test fakes record calls regardless.
     final applier = ref.read(coverageOverlayApplierProvider);
     final brightness = View.of(context).platformDispatcher.platformBrightness;
     unawaited(
