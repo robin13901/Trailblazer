@@ -155,6 +155,19 @@ are archived on-disk-only (SUMMARY docs preserved for archaeology under
 
 **Consequence for requirements:** REN-01 default color changed from warm green to orange/amber (green retained as one of 5 presets). REN-02 (Feldweg dashed-blue rendering) de-scoped from v1 — Feldweg/Fußweg render as plain Phase-4 base pmtiles geometry only.
 
+### 2026-07-11 — Phase 8 coverage % denominator is fetched-ways-only (KNOWN LIMITATION)
+
+Per-region coverage % is `Σ driven Kfz-length / Σ total Kfz-length`, but **"total" only counts OSM ways already present in `overpass_way_cache`** — i.e. ways near trips the user has actually driven, not the region's full road network. `CoverageComputeService` has no source of the complete per-region Kfz length.
+
+**Consequences (observed on-device 2026-07-11):**
+- Coarse regions (Bundesland L4, Landkreis L6) show inflated % — their denominator is only the fetched trip-local ways, not all roads in the region.
+- A Bundesland whose only driving is inside one Landkreis shows the **identical** driven/total as that Landkreis (e.g. Bayern == Landkreis Miltenberg: 28.6 / 339.9 km), because every fetched way inside Miltenberg is also inside Bayern and no other Bavarian ways were ever fetched. The more Landkreise a trip spans, the larger (but still incomplete) the coarse denominator.
+- Fine levels (Gemeinde L8 / Ortsteil L10) are the most trustworthy, since fetched ways roughly cover the small area actually driven.
+
+**Why not fixed now (user decision 2026-07-11):** a real denominator needs either a bundled precomputed per-region total-Kfz-length table or bulk per-region Overpass area queries — a Phase 9/10-sized effort. The four sibling UI issues (German % format, jump-to-map camera, outside-DE / Deutschland pill fallback) were fixed; this one is logged and deferred.
+
+**Also (same root):** the region browser does not show a **Deutschland (Land / L2) card** — the bundled admin polygon asset has no L2 country polygon to attribute ways against, and a synthetic national total would carry the same inflated-denominator caveat. Deferred with the denominator fix. The focus pill still shows "Deutschland" at country zoom via a level-4 in-Germany probe (no %), and "—" when panned outside Germany.
+
 ## Historical Decisions
 
 | Decision | Rationale | Outcome |
