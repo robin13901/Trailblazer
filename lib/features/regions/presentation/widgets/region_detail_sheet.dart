@@ -5,19 +5,27 @@
 //   name + level tag + coverage % + km stats + Jump-to-on-map
 //   NO breadcrumb, NO driven-ways list, NO top-trips list (permanently dropped).
 //
-// Jump-to-on-map pattern (RESEARCH Pitfall 6, lines 480-487):
-//   1. Navigator.pop() — close sheet
-//   2. StatefulNavigationShell.of(context)?.goBranch(0) OR context.go('/')
-//   3. ref.listenManual(mapControllerProvider, ...) — await non-null controller,
-//      then animateCamera(CameraUpdate.newLatLngBounds(adm.bbox, padding 40))
+// Jump-to-on-map (2026-07-11 rewrite — the animateCamera-after-goBranch
+// approach never moved the camera):
+//   The shell disposes MapWidget when off the Map tab (memory fix 2026-07-10)
+//   and re-seeds its initialCameraPosition from cameraStateProvider on remount.
+//   So we SEED the target into cameraStateProvider (center + fitted zoom,
+//   follow-mode OFF) BEFORE goBranch(0). The remounting map then opens
+//   directly at the region — no controller race, no fighting the GPS snap.
+//   If the map happens to still be alive (controller non-null), we also
+//   animateCamera for an immediate smooth move.
 //
 // 0-dim guard replicates glass_pill.dart:41-48 (RESEARCH Pitfall 5).
 // withValues(alpha:) throughout; package imports only.
 
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:auto_explore/features/admin/data/admin_region.dart';
 import 'package:auto_explore/features/admin/data/admin_region_providers.dart';
+import 'package:auto_explore/features/map/domain/camera_state.dart';
+import 'package:auto_explore/features/map/domain/follow_mode.dart';
+import 'package:auto_explore/features/map/presentation/providers/camera_state_provider.dart';
 import 'package:auto_explore/features/map/presentation/providers/map_controller_provider.dart';
 import 'package:auto_explore/features/regions/domain/region_coverage.dart';
 import 'package:auto_explore/features/regions/presentation/widgets/region_card.dart';
@@ -73,74 +81,50 @@ class _RegionDetailContent extends ConsumerWidget {
   }
 
   void _handleJumpToMap(BuildContext context, WidgetRef ref) {
-    // Step 1: close the sheet.
-    Navigator.of(context).pop();
+    // Look up the region bbox first.
+    final lookup = ref.read(adminRegionLookupProvider);
+    final adm = lookup.regionByOsmId(region.osmId);
 
-    // Step 2: navigate to the map tab.
-    // StatefulNavigationShell.maybeOf() returns null outside the shell context
-    // (e.g. in widget tests).
+    if (adm != null) {
+      // Compute the target camera (bbox center + a zoom that fits the bbox to
+      // the viewport) and SEED it into cameraStateProvider with follow-mode
+      // OFF. The Map tab's MapWidget is disposed while we're on the Regions
+      // tab (memory fix 2026-07-10) and re-seeds its initialCameraPosition
+      // from this provider on remount — so after goBranch(0) the map opens
+      // ALREADY centered on the region. follow-mode none prevents MapLibre's
+      // GPS tracking from immediately snapping the camera back to the user.
+      final target = _cameraForBbox(adm);
+      ref.read(cameraStateProvider.notifier).jumpTo(target);
+
+      // If the map is still alive (rare: e.g. shell kept it mounted), also
+      // animate for an immediate smooth move. Deferred a frame so the branch
+      // switch below has taken effect.
+      final current = ref.read(mapControllerProvider);
+      if (current != null) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _animateTo(current, target);
+        });
+      }
+    }
+
+    // Close the sheet and switch to the Map tab.
+    Navigator.of(context).pop();
     final shell = StatefulNavigationShell.maybeOf(context);
     if (shell != null) {
       shell.goBranch(0);
     } else {
       context.go('/');
     }
-
-    // Step 3: look up region bbox and animate camera.
-    final lookup = ref.read(adminRegionLookupProvider);
-    final adm = lookup.regionByOsmId(region.osmId);
-    if (adm == null) return;
-
-    // The shell uses StatefulShellRoute.indexedStack, so the map tab (and its
-    // controller) stays alive while the Regions tab is on top. But the map
-    // surface was NOT the painted/frontmost branch until goBranch(0) above —
-    // issuing animateCamera in this same synchronous tick fits the bounds
-    // against a not-yet-frontmost platform view and the move is lost (bug
-    // 2026-07-11: "map opens on last position, no pan/zoom"). Defer the
-    // animation until AFTER the branch switch has painted a frame and the
-    // platform view has settled, then fit the bounds.
-    final current = ref.read(mapControllerProvider);
-    if (current != null) {
-      _animateToBboxDeferred(current, adm);
-      return;
-    }
-
-    // Cold start: map tab has never mounted (controller still null). Wait for
-    // onMapCreated to set the controller, then animate (also deferred).
-    ProviderSubscription<MapLibreMapController?>? sub;
-    sub = ref.listenManual(mapControllerProvider, (_, next) {
-      if (next != null) {
-        _animateToBboxDeferred(next, adm);
-        sub?.close();
-      }
-    });
   }
 
-  /// Fits the camera to [adm]'s bbox once the map surface has come forward.
-  /// Waits for the next frame (so the IndexedStack has painted the map branch)
-  /// plus a short settle delay for the platform view to size, then animates.
-  void _animateToBboxDeferred(MapLibreMapController controller, AdminRegion adm) {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      Future<void>.delayed(const Duration(milliseconds: 320), () {
-        _animateToBbox(controller, adm);
-      });
-    });
-  }
-
-  void _animateToBbox(MapLibreMapController controller, AdminRegion adm) {
+  void _animateTo(MapLibreMapController controller, CameraState target) {
     // Wrap in try/catch — map must never crash (06-05 lesson).
     try {
       unawaited(
         controller.animateCamera(
-          CameraUpdate.newLatLngBounds(
-            LatLngBounds(
-              southwest: LatLng(adm.bboxMinLat, adm.bboxMinLon),
-              northeast: LatLng(adm.bboxMaxLat, adm.bboxMaxLon),
-            ),
-            left: 40,
-            top: 40,
-            right: 40,
-            bottom: 40,
+          CameraUpdate.newLatLngZoom(
+            LatLng(target.latitude, target.longitude),
+            target.zoom,
           ),
           duration: const Duration(milliseconds: 600),
         ),
@@ -150,6 +134,56 @@ class _RegionDetailContent extends ConsumerWidget {
     }
   }
 }
+
+/// Computes a [CameraState] that centers on [adm]'s bbox and picks a zoom that
+/// fits the bbox into a typical phone viewport (follow-mode OFF so the seeded
+/// position is not overridden by GPS tracking on map remount).
+CameraState _cameraForBbox(AdminRegion adm) {
+  final centerLat = (adm.bboxMinLat + adm.bboxMaxLat) / 2;
+  final centerLon = (adm.bboxMinLon + adm.bboxMaxLon) / 2;
+  return CameraState(
+    latitude: centerLat,
+    longitude: centerLon,
+    zoom: _zoomForBbox(adm),
+    // Explicit: follow-mode OFF is the whole point (prevents the remounted
+    // map's GPS tracking from snapping away from the seeded region).
+    // ignore: avoid_redundant_argument_values
+    followMode: FollowMode.none,
+  );
+}
+
+/// Web-mercator "fit bounds" zoom for the given bbox. Picks the zoom at which
+/// the bbox's larger dimension fills ~80% of a nominal 384×760 dp viewport
+/// (with a small margin), clamped to a sane [4, 15] range so a tiny Ortsteil
+/// doesn't zoom to street level and a Bundesland doesn't clip.
+double _zoomForBbox(AdminRegion adm) {
+  const worldTile = 512.0; // MapLibre tile size in the zoom formula
+  const viewportW = 384.0;
+  const viewportH = 760.0;
+  const fraction = 0.8; // fill ~80% of the viewport, leaving margin
+
+  final lonSpan = (adm.bboxMaxLon - adm.bboxMinLon).abs().clamp(1e-6, 360.0);
+
+  // Longitude: fraction of the world width the bbox occupies.
+  final lonZoom =
+      _log2((viewportW / worldTile) * (360.0 / lonSpan) * fraction);
+
+  // Latitude: use the mercator-projected span so tall regions fit vertically.
+  final latRad1 = adm.bboxMinLat * math.pi / 180.0;
+  final latRad2 = adm.bboxMaxLat * math.pi / 180.0;
+  final mercSpan =
+      (_mercatorY(latRad2) - _mercatorY(latRad1)).abs().clamp(1e-9, 2 * math.pi);
+  final latZoom =
+      _log2((viewportH / worldTile) * (2 * math.pi / mercSpan) * fraction);
+
+  final z = math.min(lonZoom, latZoom);
+  return z.clamp(4.0, 15.0);
+}
+
+double _mercatorY(double latRad) =>
+    math.log(math.tan(math.pi / 4 + latRad / 2));
+
+double _log2(double x) => math.log(x) / math.ln2;
 
 /// The glass-styled panel rendered inside the DraggableScrollableSheet.
 class _GlassDetailPanel extends StatelessWidget {

@@ -31,6 +31,16 @@ class CameraStateNotifier extends Notifier<CameraState> {
   /// re-center tap → [FollowMode.location]).
   void setFollowMode(FollowMode mode) =>
       state = state.copyWith(followMode: mode);
+
+  /// Replace the entire camera state (position + zoom + follow mode).
+  ///
+  /// Used by "Jump to on map" (region detail sheet, 2026-07-11): the Map tab's
+  /// MapWidget is disposed while off-tab and re-seeds its initialCameraPosition
+  /// from this provider on remount, so writing the target here makes the map
+  /// open already centered on the region. Setting [FollowMode.none] prevents
+  /// MapLibre's GPS tracking from snapping the camera back to the user.
+  // ignore: use_setters_to_change_properties — semantic "jump" verb, not a setter
+  void jumpTo(CameraState target) => state = target;
 }
 
 /// Provider for the current [CameraState].
