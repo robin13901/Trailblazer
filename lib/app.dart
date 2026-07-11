@@ -1,9 +1,11 @@
 import 'dart:async';
 
+import 'package:auto_explore/core/errors/result.dart';
 import 'package:auto_explore/core/prefs/app_prefs.dart';
 import 'package:auto_explore/core/routing/app_router.dart';
 import 'package:auto_explore/core/theme/app_theme.dart';
 import 'package:auto_explore/features/matching/data/matching_providers.dart';
+import 'package:auto_explore/features/regions/data/coverage_compute_providers.dart';
 import 'package:auto_explore/features/trips/data/trips_repository_providers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -23,15 +25,21 @@ class _AppState extends ConsumerState<App> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    // One-shot matcher-rematch migration: after a matcher-algorithm change we
-    // re-process every already-stored trip once so old coverage repaints with
-    // the new logic (e.g. the 2026-07-10 pass-through topology guard that
-    // stops exit-ramps / side-street stubs / parallel roads from over-drawing).
-    // Guarded by a prefs version stamp so it runs exactly once per bump.
-    // Deferred to after first frame so it never blocks startup; fire-and-forget.
+    // One-shot startup migrations, run in order after the first frame so they
+    // never block startup; fire-and-forget. Each is guarded by its own prefs
+    // version stamp so it runs exactly once per bump.
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      unawaited(_runMatcherRematchMigrationIfNeeded());
+      unawaited(_runStartupMigrations());
     });
+  }
+
+  /// Runs one-shot startup migrations in order, best-effort. The coverage
+  /// recompute runs AFTER the matcher rematch so it reads settled
+  /// `driven_way_intervals` (the rematch can rewrite intervals, which the
+  /// recompute then aggregates into `coverage_cache`).
+  Future<void> _runStartupMigrations() async {
+    await _runMatcherRematchMigrationIfNeeded();
+    await _runCoverageRecomputeMigrationIfNeeded();
   }
 
   /// Runs the one-shot re-match migration when the stored matcher-rematch
@@ -58,6 +66,50 @@ class _AppState extends ConsumerState<App> with WidgetsBindingObserver {
       // ignore: avoid_catches_without_on_clauses
     } catch (e, st) {
       _log.warning('matcher-rematch migration failed (will retry): $e', e, st);
+    }
+  }
+
+  /// Runs the one-shot coverage-cache recompute when the stored version is
+  /// behind [AppPrefs.kCurrentCoverageRecomputeVersion]. Phase 8 shipped the
+  /// `coverage_cache` writer, but trips confirmed before that never triggered
+  /// the post-confirm `recompute()` hook, so `coverage_cache` stayed empty and
+  /// the region browser + focus pill showed nothing despite driven intervals
+  /// existing. This backfills those pre-Phase-8 trips exactly once.
+  ///
+  /// Best-effort: logs and swallows all errors so a hiccup never blocks the
+  /// app, and only stamps the new version after a successful pass so a failed
+  /// run (e.g. admin bundle still loading) retries on the next launch.
+  Future<void> _runCoverageRecomputeMigrationIfNeeded() async {
+    final prefs = ref.read(appPrefsProvider);
+    try {
+      final applied = await prefs.getCoverageRecomputeVersion() ?? 0;
+      if (applied >= AppPrefs.kCurrentCoverageRecomputeVersion) return;
+      _log.info(
+        'coverage-recompute migration: applied=$applied '
+        'current=${AppPrefs.kCurrentCoverageRecomputeVersion} — recomputing',
+      );
+      final result =
+          await ref.read(coverageComputeServiceProvider).recompute();
+      // recompute() never throws — it returns Result. Only stamp on Ok so a
+      // failed pass retries next launch.
+      if (result case Ok(value: final written)) {
+        await prefs.setCoverageRecomputeVersion(
+          AppPrefs.kCurrentCoverageRecomputeVersion,
+        );
+        _log.info('coverage-recompute migration: done ($written regions)');
+      } else {
+        _log.warning(
+          'coverage-recompute migration: recompute returned Err — will retry',
+        );
+      }
+      // Catch every throwable: a cache backfill must never crash startup.
+      // ignore: avoid_catches_without_on_clauses
+    } catch (e, st) {
+      _log.warning(
+        'coverage-recompute migration failed (will retry): $e',
+        e,
+        st,
+      );
     }
   }
 

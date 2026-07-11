@@ -30,6 +30,22 @@ class AppPrefs {
   /// passed on short stubs and left the artifacts extended).
   static const int kCurrentMatcherRematchVersion = 2;
 
+  /// Version stamp of the last coverage-cache recompute migration applied to
+  /// this device. Bumped whenever `coverage_cache` needs a one-shot
+  /// repopulation for already-stored trips (e.g. Phase 8 shipped the cache
+  /// writer, but trips confirmed before it never triggered the post-confirm
+  /// `recompute()` hook). The startup migration compares this against
+  /// [kCurrentCoverageRecomputeVersion] and runs
+  /// `CoverageComputeService.recompute()` once when they differ.
+  static const String kCoverageRecomputeVersion = 'coverage_recompute_version';
+
+  /// Current coverage-recompute migration version. Bump to force a one-shot
+  /// `coverage_cache` repopulation on the next launch. `1` = 2026-07-11
+  /// Phase-8 backfill: trips confirmed before the Phase-8 recompute hook
+  /// existed left `coverage_cache` empty, so the region browser + focus pill
+  /// showed nothing despite driven intervals existing.
+  static const int kCurrentCoverageRecomputeVersion = 1;
+
   final SharedPreferencesAsync _prefs;
 
   /// The matcher-rematch version already applied on this device, or null when
@@ -43,6 +59,18 @@ class AppPrefs {
   /// migration never runs twice for the same version.
   Future<void> setMatcherRematchVersion(int version) =>
       _prefs.setInt(kMatcherRematchVersion, version);
+
+  /// The coverage-recompute migration version already applied on this device,
+  /// or null when it has never run (fresh install, or first launch after the
+  /// backfill shipped).
+  Future<int?> getCoverageRecomputeVersion() =>
+      _prefs.getInt(kCoverageRecomputeVersion);
+
+  /// Records [version] as the coverage-recompute migration applied on this
+  /// device. Written only after `CoverageComputeService.recompute()` succeeds
+  /// so a failed run retries on the next launch.
+  Future<void> setCoverageRecomputeVersion(int version) =>
+      _prefs.setInt(kCoverageRecomputeVersion, version);
 
   /// Returns the last-known admin-bundle version stamp, or null when the
   /// user has never triggered a runtime refresh (in which case the
