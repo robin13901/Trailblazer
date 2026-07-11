@@ -13,9 +13,19 @@ double coveragePercent(double drivenLengthM, double totalLengthM) {
   return (drivenLengthM / totalLengthM * 100).clamp(0, 100).toDouble();
 }
 
-/// One-decimal display string, e.g. "26.4%". CONTEXT.md line 49: one decimal
-/// everywhere (pill, cards, sheet).
-String formatPercent(double percent) => '${percent.toStringAsFixed(1)}%';
+/// One-decimal display string in German format, e.g. "26,4 %".
+/// CONTEXT.md line 49: one decimal everywhere (pill, cards, sheet).
+/// 2026-07-11: user requested German locale "XX,X %" — comma decimal and a
+/// space before the percent sign.
+String formatPercent(double percent) => '${oneDecimalDe(percent)} %';
+
+/// One-decimal number in German format, e.g. 26.4 -> "26,4". Shared by the
+/// percent label and the km stats so the whole region UI reads German-locale.
+String oneDecimalDe(double value) => value.toStringAsFixed(1).replaceAll('.', ',');
+
+/// Formatted "driven / total km" string in German format, e.g. "3,2 / 12,1 km".
+String formatKmStats(double drivenKm, double totalKm) =>
+    '${oneDecimalDe(drivenKm)} / ${oneDecimalDe(totalKm)} km';
 
 /// Immutable per-region coverage snapshot. `osmId` is the OSM relation id
 /// (coverage_cache.region_id == osmId.toString(); RESEARCH.md line 218,

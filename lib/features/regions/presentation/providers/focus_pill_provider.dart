@@ -91,20 +91,47 @@ class FocusPillNotifier extends Notifier<FocusPillState> {
     final lookup = ref.read(adminRegionLookupProvider);
     await lookup.ensureLoaded();
 
-    // Walk the fallback chain: first non-null region wins. Level 2
-    // (Deutschland) is the final backstop — the pill is NEVER blank.
+    // Walk the fallback chain: first non-null region wins. The bundle has no
+    // level-2 (country) polygon, so a `[2]`-only chain (country zoom) resolves
+    // nothing here — Deutschland is handled explicitly below.
     final levels = fallbackLevelsFrom(camera.zoom);
     final region = await () async {
       for (final level in levels) {
-        final r = await lookup.regionAt(camera.latitude, camera.longitude, level);
+        if (level == 2) continue; // no country polygon in the bundle
+        final r =
+            await lookup.regionAt(camera.latitude, camera.longitude, level);
         if (r != null) return r;
       }
       return null;
     }();
 
-    // Guard: if ALL levels returned null (genuinely outside Germany), keep
-    // the last known value — the pill stays populated rather than going blank.
-    if (region == null) return;
+    // Out-of-order guard: only commit if this is still the latest request.
+    if (myId != _requestId) return;
+
+    // No admin region resolved at any finer level. Distinguish "zoomed out /
+    // over water but still within Germany" from "genuinely outside Germany".
+    // Level 4 (Bundesländer) tiles the whole country, so a point-in-any-L4
+    // test answers "are we over Germany?". (bug 2026-07-11: pill froze on the
+    // last Bundesland at country zoom and when panning abroad, because the old
+    // code kept the last value whenever the chain missed.)
+    if (region == null) {
+      final inGermany = await lookup.regionAt(
+            camera.latitude,
+            camera.longitude,
+            4,
+          ) !=
+          null;
+      if (myId != _requestId) return;
+      state = inGermany
+          // Over DE at a level with no polygon (country zoom / small water
+          // gap): show the national label. No national % is computed (issue #2
+          // — no true country denominator), so percent stays blank ("—%").
+          ? const FocusPillState(name: 'Deutschland')
+          // Genuinely outside all German polygons: neutral placeholder rather
+          // than a stale region (user decision 2026-07-11).
+          : const FocusPillState(name: '—');
+      return;
+    }
 
     // Coverage cache: PK point-read — very fast.
     final cacheDao = ref.read(coverageCacheDaoProvider);
@@ -123,7 +150,7 @@ class FocusPillNotifier extends Notifier<FocusPillState> {
     if (myId != _requestId) return;
 
     state = FocusPillState(
-      name: region.name,
+      name: region.nameDe ?? region.name,
       percentLabel: percentLabel,
     );
   }

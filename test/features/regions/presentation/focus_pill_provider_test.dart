@@ -6,9 +6,11 @@
 //      name and percentLabel after debounce.
 //   2. Fallback chain: regionAt(level 9) null, regionAt(level 8) returns
 //      region → state.name is the level-8 name.
-//   3. Hold-last-value: after a first resolve, push camera over an all-null
-//      area; state STILL holds the previous name (never blanks).
-//   4. No-cache row → percentLabel is null (widget shows "—%").
+//   3. Fallback chain (level 8 wins).
+//   4. Outside Germany (all levels incl. L4 null) → pill shows "—".
+//   5. Over Germany at country zoom / water (L4 probe hits, finer null) →
+//      pill shows "Deutschland".
+//   6. No-cache row → percentLabel is null (widget shows "— %").
 
 import 'package:auto_explore/core/db/app_database.dart';
 import 'package:auto_explore/features/admin/data/admin_region.dart';
@@ -175,7 +177,7 @@ void main() {
 
     test(
       '2. resolve: camera over seeded region → name=Grebenhain, '
-      'percentLabel=26.4%',
+      'percentLabel=26,4 %',
       () async {
         final region = _grebenhainRegion();
         // zoom=14 → fallbackLevelsFrom(14)=[9,8,6,4,2]; level 9 null → 8 wins
@@ -189,7 +191,7 @@ void main() {
 
         final s = c.read(focusPillProvider);
         expect(s.name, 'Grebenhain');
-        expect(s.percentLabel, '26.4%');
+        expect(s.percentLabel, '26,4 %');
       },
     );
 
@@ -212,36 +214,69 @@ void main() {
     );
 
     test(
-      '4. hold-last-value: after first resolve, all-null camera does not '
-      'blank the state',
+      '4. outside Germany: all levels null → pill shows "—" (not a stale '
+      'region)',
       () async {
         final region = _grebenhainRegion();
         final c = _makeContainer(
           resolver: (lat, _, level) {
-            // Return region for Grebenhain area (lat > 50), null for 0,0
+            // Grebenhain area (lat > 50): level 8 resolves. Elsewhere (0,0):
+            // ALL levels null, including level 4 → genuinely outside Germany.
             if (lat > 50) return level == 8 ? region : null;
-            return null; // all null → outside Germany
+            return null;
           },
           db: db,
         );
         addTearDown(c.dispose);
 
-        // First: push a camera over Grebenhain → resolves to the region
+        // First: over Grebenhain → resolves to the region.
         await _pushCamera(c);
         expect(c.read(focusPillProvider).name, 'Grebenhain');
 
-        // Second: push camera to 0,0 (all levels null) → HOLD last value
+        // Second: pan to 0,0 (all levels null incl. L4) → outside Germany.
+        // New behavior (2026-07-11): show neutral "—", do NOT freeze on the
+        // last region.
         await _pushNoRegionCamera(c);
+        final s = c.read(focusPillProvider);
         expect(
-          c.read(focusPillProvider).name,
-          'Grebenhain',
-          reason: 'Pill must hold last value when area is outside Germany',
+          s.name,
+          '—',
+          reason: 'Outside all German polygons → neutral placeholder',
         );
+        expect(s.percentLabel, isNull);
       },
     );
 
     test(
-      '5. no cache row → percentLabel is null (region exists, no coverage)',
+      '5. over Germany at country zoom (chain is [2] only, L4 probe hits) → '
+      'pill shows "Deutschland"',
+      () async {
+        final region = _grebenhainRegion();
+        final c = _makeContainer(
+          // Region resolves ONLY at level 4. At country zoom (zoom<6),
+          // fallbackLevelsFrom = [2]; the loop skips level 2 and finds
+          // nothing, so the explicit level-4 "are we over Germany?" probe
+          // runs and hits → Deutschland.
+          resolver: (_, _, level) => level == 4 ? region : null,
+          db: db,
+        );
+        addTearDown(c.dispose);
+
+        // Country-zoom camera (zoom 4) anywhere; only the L4 probe matters.
+        c.read(focusPillProvider);
+        c.read(liveCameraProvider.notifier).update(
+              const CameraPosition(target: LatLng(51, 10), zoom: 4),
+            );
+        await Future<void>.delayed(const Duration(milliseconds: 400));
+
+        final s = c.read(focusPillProvider);
+        expect(s.name, 'Deutschland');
+        expect(s.percentLabel, isNull);
+      },
+    );
+
+    test(
+      '6. no cache row → percentLabel is null (region exists, no coverage)',
       () async {
         final region = _grebenhainRegion();
         // DB does NOT have a row for this region (use a fresh empty db)

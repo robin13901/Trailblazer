@@ -42,7 +42,7 @@ class FocusAreaPill extends ConsumerWidget {
     // with zero-height content). After first resolve, name + % remain visible
     // during subsequent re-resolves (CONTEXT.md lines 29, 55).
     final name = state.name ?? 'Standort';
-    final percent = state.percentLabel ?? '—%';
+    final percent = state.percentLabel ?? '— %';
 
     return Semantics(
       label: 'Focus area: $name, coverage $percent',

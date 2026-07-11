@@ -91,21 +91,39 @@ class _RegionDetailContent extends ConsumerWidget {
     final adm = lookup.regionByOsmId(region.osmId);
     if (adm == null) return;
 
-    // If the controller is already non-null (map tab was recently active),
-    // animate immediately.
+    // The shell uses StatefulShellRoute.indexedStack, so the map tab (and its
+    // controller) stays alive while the Regions tab is on top. But the map
+    // surface was NOT the painted/frontmost branch until goBranch(0) above —
+    // issuing animateCamera in this same synchronous tick fits the bounds
+    // against a not-yet-frontmost platform view and the move is lost (bug
+    // 2026-07-11: "map opens on last position, no pan/zoom"). Defer the
+    // animation until AFTER the branch switch has painted a frame and the
+    // platform view has settled, then fit the bounds.
     final current = ref.read(mapControllerProvider);
     if (current != null) {
-      _animateToBbox(current, adm);
+      _animateToBboxDeferred(current, adm);
       return;
     }
 
-    // Otherwise wait for the map tab to remount and set the controller.
+    // Cold start: map tab has never mounted (controller still null). Wait for
+    // onMapCreated to set the controller, then animate (also deferred).
     ProviderSubscription<MapLibreMapController?>? sub;
     sub = ref.listenManual(mapControllerProvider, (_, next) {
       if (next != null) {
-        _animateToBbox(next, adm);
+        _animateToBboxDeferred(next, adm);
         sub?.close();
       }
+    });
+  }
+
+  /// Fits the camera to [adm]'s bbox once the map surface has come forward.
+  /// Waits for the next frame (so the IndexedStack has painted the map branch)
+  /// plus a short settle delay for the platform view to size, then animates.
+  void _animateToBboxDeferred(MapLibreMapController controller, AdminRegion adm) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      Future<void>.delayed(const Duration(milliseconds: 320), () {
+        _animateToBbox(controller, adm);
+      });
     });
   }
 
@@ -124,7 +142,7 @@ class _RegionDetailContent extends ConsumerWidget {
             right: 40,
             bottom: 40,
           ),
-          duration: const Duration(milliseconds: 500),
+          duration: const Duration(milliseconds: 600),
         ),
       );
     } on Object {
@@ -224,9 +242,7 @@ class _GlassDetailPanel extends StatelessWidget {
                 // km stats (CONTEXT.md line 50: driven km + total km).
                 _StatRow(
                   label: 'Strecke',
-                  value:
-                      '${region.drivenKm.toStringAsFixed(1)} / '
-                      '${region.totalKm.toStringAsFixed(1)} km',
+                  value: formatKmStats(region.drivenKm, region.totalKm),
                   valueStyle: theme.textTheme.bodyLarge,
                 ),
                 const SizedBox(height: 32),

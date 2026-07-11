@@ -84,9 +84,9 @@ void main() {
     expect(find.text('Bayern'), findsOneWidget);
 
     // % labels visible (one decimal, with % suffix).
-    expect(find.text('60.0%'), findsOneWidget);
-    expect(find.text('20.0%'), findsOneWidget);
-    expect(find.text('5.0%'), findsOneWidget);
+    expect(find.text('60,0 %'), findsOneWidget);
+    expect(find.text('20,0 %'), findsOneWidget);
+    expect(find.text('5,0 %'), findsOneWidget);
 
     // Search field present.
     expect(find.byType(TextField), findsOneWidget);

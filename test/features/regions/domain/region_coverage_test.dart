@@ -42,24 +42,24 @@ void main() {
   });
 
   group('formatPercent', () {
-    test('formats 26.4 as "26.4%"', () {
-      expect(formatPercent(26.4), '26.4%');
+    test('formats 26.4 as "26,4 %" (German locale)', () {
+      expect(formatPercent(26.4), '26,4 %');
     });
 
-    test('formats 0 as "0.0%"', () {
-      expect(formatPercent(0), '0.0%');
+    test('formats 0 as "0,0 %"', () {
+      expect(formatPercent(0), '0,0 %');
     });
 
-    test('formats 100 as "100.0%"', () {
-      expect(formatPercent(100), '100.0%');
+    test('formats 100 as "100,0 %"', () {
+      expect(formatPercent(100), '100,0 %');
     });
 
-    test('formats 25 as "25.0%" (one decimal)', () {
-      expect(formatPercent(25), '25.0%');
+    test('formats 25 as "25,0 %" (one decimal)', () {
+      expect(formatPercent(25), '25,0 %');
     });
 
-    test('formats 3.14159 as "3.1%" (one decimal, truncated)', () {
-      expect(formatPercent(3.14159), '3.1%');
+    test('formats 3.14159 as "3,1 %" (one decimal, truncated)', () {
+      expect(formatPercent(3.14159), '3,1 %');
     });
   });
 
@@ -72,8 +72,8 @@ void main() {
       totalLengthM: 2000,
     );
 
-    test('percentLabel is "25.0%"', () {
-      expect(rc.percentLabel, '25.0%');
+    test('percentLabel is "25,0 %"', () {
+      expect(rc.percentLabel, '25,0 %');
     });
 
     test('drivenKm is 0.5', () {
@@ -147,8 +147,8 @@ void main() {
         expect(empty.percent, 0.0);
       });
 
-      test('percentLabel is "0.0%" when totalLengthM is 0', () {
-        expect(empty.percentLabel, '0.0%');
+      test('percentLabel is "0,0 %" when totalLengthM is 0', () {
+        expect(empty.percentLabel, '0,0 %');
       });
     });
 
@@ -165,8 +165,8 @@ void main() {
         expect(overdriven.percent, 100.0);
       });
 
-      test('percentLabel is "100.0%"', () {
-        expect(overdriven.percentLabel, '100.0%');
+      test('percentLabel is "100,0 %"', () {
+        expect(overdriven.percentLabel, '100,0 %');
       });
     });
   });

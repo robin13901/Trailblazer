@@ -41,8 +41,7 @@ class RegionCard extends StatelessWidget {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final tag = levelLabel(region.adminLevel);
-    final kmStats =
-        '${region.drivenKm.toStringAsFixed(1)} / ${region.totalKm.toStringAsFixed(1)} km';
+    final kmStats = formatKmStats(region.drivenKm, region.totalKm);
 
     return InkWell(
       onTap: onTap,

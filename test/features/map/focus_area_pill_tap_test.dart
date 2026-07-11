@@ -109,7 +109,7 @@ Future<void> _pumpPillWithFakes(
       overrides: [
         focusPillProvider.overrideWith(
           () => _FixedFocusPillNotifier(
-            const FocusPillState(name: _kTestName, percentLabel: '12.3%'),
+            const FocusPillState(name: _kTestName, percentLabel: '12,3 %'),
           ),
         ),
         liveCameraProvider.overrideWith(

@@ -2,10 +2,10 @@
 // FocusAreaPill widget tests.
 //
 // Tests:
-//   1. With a seeded FocusPillState(name: 'Grebenhain', percentLabel: '26.4%')
+//   1. With a seeded FocusPillState(name: 'Grebenhain', percentLabel: '26,4 %')
 //      → both texts render.
 //   2. With empty FocusPillState() (initial, no value) → placeholder texts
-//      'Standort' + '—%' render and the widget does NOT throw.
+//      'Standort' + '— %' render and the widget does NOT throw.
 //      Exercises the GlassPillFallback path (platformBlurEnabled = false).
 
 import 'package:auto_explore/core/theme/liquid_glass_settings.dart';
@@ -72,12 +72,12 @@ void main() {
           tester,
           const FocusPillState(
             name: 'Grebenhain',
-            percentLabel: '26.4%',
+            percentLabel: '26,4 %',
           ),
         );
 
         expect(find.text('Grebenhain'), findsOneWidget);
-        expect(find.text('26.4%'), findsOneWidget);
+        expect(find.text('26,4 %'), findsOneWidget);
       },
     );
 
@@ -90,7 +90,7 @@ void main() {
 
         // Placeholder texts from hold-last-value fallback.
         expect(find.text('Standort'), findsOneWidget);
-        expect(find.text('—%'), findsOneWidget);
+        expect(find.text('— %'), findsOneWidget);
       },
     );
 
@@ -114,7 +114,7 @@ void main() {
         );
 
         expect(find.text('Grebenhain'), findsOneWidget);
-        expect(find.text('—%'), findsOneWidget);
+        expect(find.text('— %'), findsOneWidget);
       },
     );
   });
