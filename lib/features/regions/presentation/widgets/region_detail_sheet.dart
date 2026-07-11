@@ -152,15 +152,18 @@ CameraState _cameraForBbox(AdminRegion adm) {
   );
 }
 
-/// Web-mercator "fit bounds" zoom for the given bbox. Picks the zoom at which
-/// the bbox's larger dimension fills ~80% of a nominal 384×760 dp viewport
-/// (with a small margin), clamped to a sane [4, 15] range so a tiny Ortsteil
-/// doesn't zoom to street level and a Bundesland doesn't clip.
+/// Web-mercator "fit bounds" zoom for the given bbox, plus a +2 tighten so the
+/// region fills more of the viewport (user feedback 2026-07-11 — the bare fit
+/// framed the bbox too loosely). Picks the zoom at which the bbox's larger
+/// dimension fills ~80% of a nominal 384×760 dp viewport, adds 2 levels, and
+/// clamps to a sane [4, 16] range so a tiny Ortsteil doesn't zoom past street
+/// level and a Bundesland doesn't clip.
 double _zoomForBbox(AdminRegion adm) {
   const worldTile = 512.0; // MapLibre tile size in the zoom formula
   const viewportW = 384.0;
   const viewportH = 760.0;
   const fraction = 0.8; // fill ~80% of the viewport, leaving margin
+  const tightenLevels = 2.0; // user feedback: zoom in two more levels
 
   final lonSpan = (adm.bboxMaxLon - adm.bboxMinLon).abs().clamp(1e-6, 360.0);
 
@@ -176,8 +179,8 @@ double _zoomForBbox(AdminRegion adm) {
   final latZoom =
       _log2((viewportH / worldTile) * (2 * math.pi / mercSpan) * fraction);
 
-  final z = math.min(lonZoom, latZoom);
-  return z.clamp(4.0, 15.0);
+  final z = math.min(lonZoom, latZoom) + tightenLevels;
+  return z.clamp(4.0, 16.0);
 }
 
 double _mercatorY(double latRad) =>
