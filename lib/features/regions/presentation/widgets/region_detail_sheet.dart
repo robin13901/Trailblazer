@@ -135,15 +135,19 @@ class _RegionDetailContent extends ConsumerWidget {
   }
 }
 
-/// Computes a [CameraState] that centers on [adm]'s bbox and picks a zoom that
-/// fits the bbox into a typical phone viewport (follow-mode OFF so the seeded
-/// position is not overridden by GPS tracking on map remount).
+/// Computes a [CameraState] centered on [adm]'s LABEL POINT (the pole of
+/// inaccessibility — where the map draws the region name), with a zoom that
+/// fits the bbox into a typical phone viewport. Follow-mode OFF so the seeded
+/// position is not overridden by GPS tracking on map remount.
+///
+/// Centering on the label point, not the bbox center, matches what the user
+/// sees: the bbox center falls outside irregular regions and lands off the
+/// name (user feedback 2026-07-11).
 CameraState _cameraForBbox(AdminRegion adm) {
-  final centerLat = (adm.bboxMinLat + adm.bboxMaxLat) / 2;
-  final centerLon = (adm.bboxMinLon + adm.bboxMaxLon) / 2;
+  final label = adm.labelPoint; // [lat, lon]
   return CameraState(
-    latitude: centerLat,
-    longitude: centerLon,
+    latitude: label[0],
+    longitude: label[1],
     zoom: _zoomForBbox(adm),
     // Explicit: follow-mode OFF is the whole point (prevents the remounted
     // map's GPS tracking from snapping away from the seeded region).
