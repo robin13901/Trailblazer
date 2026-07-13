@@ -45,6 +45,9 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<!-- ==== file_picker: allows FileType.custom document picking (e.g. .trailblazer) ==== -->
+	<key>LSSupportsOpeningDocumentsInPlace</key>
+	<true/>
 	<!-- ==== Trailblazer permission strings ==== -->
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Trailblazer records your route while you drive to show which roads you've explored.</string>
