@@ -10,9 +10,9 @@ See: .planning/PROJECT.md (updated 2026-07-02)
 ## Current Position
 
 Phase: 9 of 10 (Settings + Backup — in progress)
-Plan: 09-06 complete (6 of N plans in phase — done: 09-01, 09-02, 09-03, 09-04, 09-06)
-Status: 09-06 complete 2026-07-13 — Overpass cache counters + DiagnosticsMetrics + HUD Matcher/cache section + kDebugMode gate removed. flutter analyze clean, 4/4 counter tests green.
-Last activity: 2026-07-13 — 09-06 complete: cache hit/miss counters on OverpassWayCandidateSource; DiagnosticsMetrics + readDiagnosticsMetrics; HUD extended with queue depth + cache hit rate; kDebugMode gate removed so screen works in release. Prior: 09-02 SUMMARY created: FilePlatform interface + FilePickerPlatformAdapter.
+Plan: 09-05 complete (7 of N plans in phase — done: 09-01, 09-02, 09-03, 09-04, 09-05, 09-06)
+Status: 09-05 complete 2026-07-13 — DataBackupSection widget: Export + Restore flows wiring BackupService + FilePlatform; 5/5 widget tests green over FakeBackupService + FakeFilePlatform.
+Last activity: 2026-07-13 — 09-05 complete: DataBackupSection ConsumerStatefulWidget with export (createBackup → shareFile) + restore (pickBackupFile → destructive confirm → restore → SnackBar) flows; all mounted/messenger guards in place; sealed Result switch; 5 widget tests: export, restore-confirm, restore-cancel, restore-fail, pick-cancelled.
 
 Progress: [██████████] ~94% (74/78 est. plans overall — Phase 1: 7/7; Phase 2: 7/7; Phase 3: 7/7; Phase 3.1: 5/5; Phase 4: 8/8 + 04-18 + 04-19 DRIVE-VERIFIED; Phase 5: 8/8 CODE-COMPLETE; Phase 6: 6/6 code-complete — 06-01..06-06 done + 06-07/06-08 gap-fixes; Phase 7: 7/7 code-complete — 07-01..07-07; Phase 8: 6/6 COMPLETE — 08-01..08-06; Phase 9: 09-01..09-04 done)
 
