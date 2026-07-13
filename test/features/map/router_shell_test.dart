@@ -11,12 +11,15 @@ import 'package:auto_explore/features/map/presentation/widgets/bottom_nav_shell.
 import 'package:auto_explore/features/map/presentation/widgets/focus_area_pill.dart';
 import 'package:auto_explore/features/onboarding/data/onboarding_flag_repository.dart';
 import 'package:auto_explore/features/onboarding/data/permission_service_provider.dart';
+import 'package:auto_explore/features/regions/data/coverage_compute_providers.dart';
+import 'package:auto_explore/features/regions/data/region_total_length_service.dart';
 import 'package:auto_explore/features/regions/domain/region_coverage.dart';
 import 'package:auto_explore/features/regions/presentation/providers/region_browser_provider.dart';
 import 'package:auto_explore/features/settings/data/backup_service_provider.dart';
 import 'package:auto_explore/features/settings/data/file_platform_provider.dart';
 import 'package:auto_explore/features/trips/domain/trip_list_item.dart';
 import 'package:auto_explore/features/trips/presentation/providers/inbox_providers.dart';
+import 'package:auto_explore/features/trips/presentation/widgets/history_empty_state.dart';
 import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -53,6 +56,18 @@ class _FakeAdminBundleRefresher implements AdminBundleRefresher {
 
   @override
   Future<void> refreshFromOverpass() async {}
+}
+
+/// No-op [RegionTotalLengthService] — the App startup migration chain calls
+/// `computeMissingTotals()`, which would otherwise construct the real
+/// OverpassClient (leaving a pending HttpClient timer that outlives the test
+/// widget tree). This fake returns 0 without touching the network.
+class _FakeRegionTotalLengthService implements RegionTotalLengthService {
+  @override
+  dynamic noSuchMethod(Invocation invocation) async => null;
+
+  @override
+  Future<int> computeMissingTotals() async => 0;
 }
 
 /// Pumps the full [App] with onboarding already complete and all platform
@@ -117,6 +132,13 @@ Future<void> pumpAppAtMapShell(WidgetTester tester) async {
         tripsUnionBoundsProvider.overrideWith(
           (ref) => const Stream.empty(),
         ),
+        // coveragePathsProvider wraps TripsDao.watchCoveragePaths() (a Drift
+        // watch). Like tripsUnionBoundsProvider above, override it with an
+        // empty stream so no Drift stream subscription (and its cleanup timer)
+        // is created — a pending timer would fail the test on teardown.
+        coveragePathsProvider.overrideWith(
+          (ref) => const Stream<List<String>>.empty(),
+        ),
         // SettingsScreen sections that hit platform channels:
         backupServiceProvider.overrideWithValue(FakeBackupService()),
         filePlatformProvider.overrideWithValue(FakeFilePlatform()),
@@ -125,6 +147,11 @@ Future<void> pumpAppAtMapShell(WidgetTester tester) async {
         // the real Overpass HTTP client + path_provider channels.
         adminBundleRefresherProvider
             .overrideWithValue(_FakeAdminBundleRefresher()),
+        // App startup calls RegionTotalLengthService.computeMissingTotals();
+        // stub it so no real OverpassClient/HttpClient is constructed (which
+        // would leave a pending timer failing the test).
+        regionTotalLengthServiceProvider
+            .overrideWithValue(_FakeRegionTotalLengthService()),
       ],
       child: const App(),
     ),
@@ -152,7 +179,7 @@ void main() {
         expect(find.byType(BottomNavShell), findsOneWidget);
         // Onboarding text + the Inbox empty-state are NOT present on the map.
         expect(find.text('Welcome to Trailblazer'), findsNothing);
-        expect(find.text('No trips waiting'), findsNothing);
+        expect(find.text('Keine Fahrten ausstehend'), findsNothing);
       },
     );
 
@@ -162,14 +189,14 @@ void main() {
       await pumpAppAtMapShell(tester);
 
       // Tap the Trips tab inside the bottom pill.
-      await tester.tap(find.text('Trips'));
+      await tester.tap(find.text('Fahrten'));
       await tester.pumpAndSettle();
 
-      // Real TripsScreen (06-05) is visible: both Inbox/History sub-tab
-      // labels render regardless of which tab lands active (streams are
-      // overridden to empty above, so this settles instantly).
-      expect(find.text('Inbox'), findsOneWidget);
-      expect(find.text('History'), findsOneWidget);
+      // Real TripsScreen is visible: the Inbox/History sub-tabs were removed
+      // (2026-07-13), so with empty history the HistoryEmptyState renders.
+      // The nav labels ('Trips') remain in the bottom pill.
+      expect(find.byType(HistoryEmptyState), findsOneWidget);
+      expect(find.byType(TabBar), findsNothing);
       // Bottom nav pill is still visible (always rendered).
       expect(find.byType(BottomNavShell), findsOneWidget);
       // Chrome is hidden on non-map tabs.
@@ -182,15 +209,15 @@ void main() {
       await pumpAppAtMapShell(tester);
 
       // Navigate to Trips, then back to Map.
-      await tester.tap(find.text('Trips'));
+      await tester.tap(find.text('Fahrten'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Map'));
+      await tester.tap(find.text('Karte'));
       await tester.pumpAndSettle();
 
       // Map chrome is visible again.
       expect(find.byType(FocusAreaPill), findsOneWidget);
       // TripsScreen empty-state is gone.
-      expect(find.text('No trips waiting'), findsNothing);
+      expect(find.text('Keine Fahrten ausstehend'), findsNothing);
     });
 
     testWidgets('tapping Regions tab shows RegionsScreen placeholder', (
@@ -198,7 +225,7 @@ void main() {
     ) async {
       await pumpAppAtMapShell(tester);
 
-      await tester.tap(find.text('Regions'));
+      await tester.tap(find.text('Regionen'));
       await tester.pumpAndSettle();
 
       // RegionsScreen (08-05) replaced the stub — shows the empty-state
@@ -223,13 +250,13 @@ void main() {
 
       // Settings button is visible on Map tab.
       // The button's Semantics label is 'Settings'.
-      await tester.tap(find.bySemanticsLabel('Settings'));
+      await tester.tap(find.bySemanticsLabel('Einstellungen'));
       await tester.pumpAndSettle();
 
       // Assert we landed on the Settings screen — the About section header
       // ('ABOUT') is a stable landmark surfaced in Phase 2 for map-attribution
       // credits (Protomaps / OSM). Content beneath will grow in Phase 10.
-      expect(find.text('ABOUT'), findsOneWidget);
+      expect(find.text('ÜBER'), findsOneWidget);
     });
   });
 }

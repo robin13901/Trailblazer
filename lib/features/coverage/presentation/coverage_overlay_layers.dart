@@ -53,15 +53,6 @@ import 'package:maplibre_gl/maplibre_gl.dart';
 /// Full-way line opacity (solid, unmistakable). Tunable.
 const double _kFullOpacity = 0.92;
 
-/// Scale factor applied to the `fraction` property to derive partial-way opacity. Tunable.
-const double _kPartialOpacityScale = 0.85;
-
-/// Minimum partial-way opacity floor — ensures even low-fraction ways are
-/// visible as "I drove here". Tunable. Tuning recommendation: lower this
-/// toward 0.15 if too many ghost traces appear on golden corpus; raise
-/// toward 0.35 if barely-driven roads are too invisible. Tunable.
-const double _kPartialOpacityFloor = 0.25;
-
 // ---------------------------------------------------------------------------
 // MapLibre source / layer identifier constants
 // ---------------------------------------------------------------------------
@@ -76,34 +67,19 @@ const String coverageLayerId = 'coverage_layer';
 // Pure expression builder (Task 3 test seam)
 // ---------------------------------------------------------------------------
 
-/// Builds the three MapLibre data-driven paint expressions for the coverage
-/// line layer, parameterised by [preset] and [brightness].
+/// Builds the MapLibre data-driven paint expressions for the coverage line
+/// layer, parameterised by [preset] and [brightness].
 ///
-/// Returned as a Dart record so the caller can destructure each expression
-/// individually — useful in tests that assert expression structure without
-/// constructing a [MapLibreMapController].
+/// 2026-07-13 (coverage-from-trail rework): the persistent coverage line is
+/// now the trimmed on-road GPS trail, drawn SOLID in a single color. The
+/// former partial-driven light-gradient opacity/color ramp (keyed on
+/// `is_full` / `fraction`) was removed per user feedback — every driven
+/// segment is painted at full opacity in [CoverageColors.fullHex].
 ///
-/// All expressions are plain [List<dynamic>] — the correct type for passing
-/// into [LineLayerProperties]'s [dynamic]-typed fields via the method-channel
-/// JSON encoder (RESEARCH Pitfall 5: passing a [List] where a string is
-/// expected works because the fields are [dynamic] and pass through
-/// `addIfPresent` verbatim).
-///
-/// **lineColor** — `case` on `is_full`:
-///   - 1 (full)  → [CoverageColors.fullHex]
-///   - 0 (partial) → [CoverageColors.partialHex]
-///
-/// **lineOpacity** — `case` on `is_full`:
-///   - 1 (full)    → [_kFullOpacity] (0.92)
-///   - 0 (partial) → `max(floor, fraction * scale)` — fraction-driven with
-///                    a minimum floor (RESEARCH §REN-03)
-///
-/// **lineWidth** — `interpolate` on zoom (RESEARCH §"Zoom-Scaled Line Width"):
-///   z8 → 2.5 px  (country skeleton)
-///   z11 → 3.0 px
-///   z13 → 4.0 px
-///   z15 → 5.0 px (street-level legibility)
-///   z18 → 7.0 px (matches rendered road width)
+/// **lineColor** — constant [CoverageColors.fullHex].
+/// **lineOpacity** — constant [_kFullOpacity].
+/// **lineWidth** — `interpolate` on zoom (unchanged):
+///   z8 → 2.5 px, z11 → 3.0, z13 → 4.0, z15 → 5.0, z18 → 7.0 px.
 ({
   List<dynamic> lineColor,
   List<dynamic> lineOpacity,
@@ -114,23 +90,10 @@ const String coverageLayerId = 'coverage_layer';
 ) {
   final colors = preset.forBrightness(brightness);
 
-  final lineColor = <dynamic>[
-    'case',
-    ['==', ['get', 'is_full'], 1],
-    colors.fullHex,
-    colors.partialHex,
-  ];
+  // Solid single color — no is_full/fraction case (gradient removed).
+  final lineColor = <dynamic>['literal', colors.fullHex];
 
-  final lineOpacity = <dynamic>[
-    'case',
-    ['==', ['get', 'is_full'], 1],
-    _kFullOpacity,
-    <dynamic>[
-      'max',
-      _kPartialOpacityFloor,
-      <dynamic>['*', _kPartialOpacityScale, <dynamic>['get', 'fraction']],
-    ],
-  ];
+  final lineOpacity = <dynamic>['literal', _kFullOpacity];
 
   // Zoom-interpolated width stops from RESEARCH §"Zoom-Scaled Line Width".
   // At z8 country scale the 2.5 px width keeps the driven-road network

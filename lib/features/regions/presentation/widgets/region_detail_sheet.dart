@@ -23,11 +23,13 @@ import 'dart:math' as math;
 
 import 'package:auto_explore/features/admin/data/admin_region.dart';
 import 'package:auto_explore/features/admin/data/admin_region_providers.dart';
+import 'package:auto_explore/features/coverage/data/coverage_overlay_providers.dart';
 import 'package:auto_explore/features/map/domain/camera_state.dart';
 import 'package:auto_explore/features/map/domain/follow_mode.dart';
 import 'package:auto_explore/features/map/presentation/providers/camera_state_provider.dart';
 import 'package:auto_explore/features/map/presentation/providers/map_controller_provider.dart';
 import 'package:auto_explore/features/regions/domain/region_coverage.dart';
+import 'package:auto_explore/features/regions/presentation/providers/region_sheet_open_provider.dart';
 import 'package:auto_explore/features/regions/presentation/widgets/region_card.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -35,23 +37,33 @@ import 'package:go_router/go_router.dart';
 import 'package:maplibre_gl/maplibre_gl.dart';
 
 /// Opens a draggable bottom sheet with stats for [region].
+///
+/// Sets [regionSheetOpenProvider] true for the sheet's lifetime so the map
+/// shell can hide its bottom nav pill (which would otherwise overlap the
+/// sheet card — on-device feedback 2026-07-13).
 Future<void> showRegionDetailSheet(
   BuildContext context,
+  WidgetRef ref,
   RegionCoverage region,
-) {
-  return showModalBottomSheet<void>(
-    context: context,
-    isScrollControlled: true,
-    backgroundColor: Colors.transparent,
-    builder: (_) => DraggableScrollableSheet(
-      initialChildSize: 0.4,
-      maxChildSize: 0.85,
-      builder: (ctx, scrollController) => _RegionDetailContent(
-        region: region,
-        scrollController: scrollController,
+) async {
+  ref.read(regionSheetOpenProvider.notifier).isOpen = true;
+  try {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => DraggableScrollableSheet(
+        initialChildSize: 0.4,
+        maxChildSize: 0.85,
+        builder: (ctx, scrollController) => _RegionDetailContent(
+          region: region,
+          scrollController: scrollController,
+        ),
       ),
-    ),
-  );
+    );
+  } finally {
+    ref.read(regionSheetOpenProvider.notifier).isOpen = false;
+  }
 }
 
 class _RegionDetailContent extends ConsumerWidget {
@@ -81,19 +93,18 @@ class _RegionDetailContent extends ConsumerWidget {
   }
 
   void _handleJumpToMap(BuildContext context, WidgetRef ref) {
-    // Look up the region bbox first.
+    // Look up the region polygon.
     final lookup = ref.read(adminRegionLookupProvider);
     final adm = lookup.regionByOsmId(region.osmId);
 
     if (adm != null) {
-      // Compute the target camera (bbox center + a zoom that fits the bbox to
-      // the viewport) and SEED it into cameraStateProvider with follow-mode
-      // OFF. The Map tab's MapWidget is disposed while we're on the Regions
-      // tab (memory fix 2026-07-10) and re-seeds its initialCameraPosition
-      // from this provider on remount — so after goBranch(0) the map opens
-      // ALREADY centered on the region. follow-mode none prevents MapLibre's
-      // GPS tracking from immediately snapping the camera back to the user.
-      final target = _cameraForBbox(adm);
+      // Prefer centering on the centroid of THIS region's driven coverage —
+      // that's where the roads the user actually drove are (the town/village),
+      // which matches what they expect to see (on-device feedback: the bare
+      // label point landed in the municipality's forest, not the town).
+      // Fall back to the region label point when no coverage falls inside.
+      final drivenCenter = _drivenCentroidInRegion(ref, adm);
+      final target = _cameraForBbox(adm, override: drivenCenter);
       ref.read(cameraStateProvider.notifier).jumpTo(target);
 
       // If the map is still alive (rare: e.g. shell kept it mounted), also
@@ -117,6 +128,29 @@ class _RegionDetailContent extends ConsumerWidget {
     }
   }
 
+  /// Mean of all persisted coverage-path points that fall inside [adm]. This
+  /// is the center of what the user actually drove in the region — the town /
+  /// village, not the region's geometric label point (which can land in
+  /// uninhabited forest). Returns null when no coverage falls inside.
+  List<double>? _drivenCentroidInRegion(WidgetRef ref, AdminRegion adm) {
+    final data = ref.read(coverageOverlayDataProvider).value;
+    if (data == null || data.ways.isEmpty) return null;
+    var sumLat = 0.0;
+    var sumLon = 0.0;
+    var n = 0;
+    for (final way in data.ways) {
+      for (final p in way.geometry) {
+        if (adm.containsPoint(p.latitude, p.longitude)) {
+          sumLat += p.latitude;
+          sumLon += p.longitude;
+          n++;
+        }
+      }
+    }
+    if (n == 0) return null;
+    return [sumLat / n, sumLon / n];
+  }
+
   void _animateTo(MapLibreMapController controller, CameraState target) {
     // Wrap in try/catch — map must never crash (06-05 lesson).
     try {
@@ -135,20 +169,19 @@ class _RegionDetailContent extends ConsumerWidget {
   }
 }
 
-/// Computes a [CameraState] centered on [adm]'s LABEL POINT (the pole of
-/// inaccessibility — where the map draws the region name), with a zoom that
-/// fits the bbox into a typical phone viewport. Follow-mode OFF so the seeded
-/// position is not overridden by GPS tracking on map remount.
-///
-/// Centering on the label point, not the bbox center, matches what the user
-/// sees: the bbox center falls outside irregular regions and lands off the
-/// name (user feedback 2026-07-11).
-CameraState _cameraForBbox(AdminRegion adm) {
-  final label = adm.labelPoint; // [lat, lon]
+/// Computes a [CameraState] for "jump to region". Centers on `override` when
+/// provided (the driven-coverage centroid — the town the user actually drove),
+/// otherwise the region's label point (pole of inaccessibility). Zoom fits the
+/// region bbox to the viewport. Follow-mode OFF so the seeded position is not
+/// overridden by GPS tracking on map remount.
+CameraState _cameraForBbox(AdminRegion adm, {List<double>? override}) {
+  final center = override ?? adm.labelPoint; // [lat, lon]
   return CameraState(
-    latitude: label[0],
-    longitude: label[1],
-    zoom: _zoomForBbox(adm),
+    latitude: center[0],
+    longitude: center[1],
+    // When we have a driven centroid, tighten one extra level so the town
+    // fills the view; otherwise use the plain bbox fit.
+    zoom: _zoomForBbox(adm, extraTighten: override != null ? 1.0 : 0.0),
     // Explicit: follow-mode OFF is the whole point (prevents the remounted
     // map's GPS tracking from snapping away from the seeded region).
     // ignore: avoid_redundant_argument_values
@@ -156,18 +189,19 @@ CameraState _cameraForBbox(AdminRegion adm) {
   );
 }
 
-/// Web-mercator "fit bounds" zoom for the given bbox, plus a +2 tighten so the
-/// region fills more of the viewport (user feedback 2026-07-11 — the bare fit
-/// framed the bbox too loosely). Picks the zoom at which the bbox's larger
-/// dimension fills ~80% of a nominal 384×760 dp viewport, adds 2 levels, and
-/// clamps to a sane [4, 16] range so a tiny Ortsteil doesn't zoom past street
-/// level and a Bundesland doesn't clip.
-double _zoomForBbox(AdminRegion adm) {
+/// Web-mercator "fit bounds" zoom for the region bbox, plus a small tighten so
+/// the region fills more of the viewport. Picks the zoom at which the bbox's
+/// larger dimension fills ~80% of a nominal 384×760 dp viewport, adds
+/// larger dimension fills ~80% of a nominal 384×760 dp viewport, adds a base
+/// tighten plus [extraTighten] levels, and clamps to a sane [4, 15] range
+/// so a tiny Ortsteil doesn't zoom past street level and a Bundesland doesn't
+/// clip.
+double _zoomForBbox(AdminRegion adm, {double extraTighten = 0.0}) {
   const worldTile = 512.0; // MapLibre tile size in the zoom formula
   const viewportW = 384.0;
   const viewportH = 760.0;
   const fraction = 0.8; // fill ~80% of the viewport, leaving margin
-  const tightenLevels = 2.0; // user feedback: zoom in two more levels
+  const baseTighten = 1.0; // modest tighten; +2 overshot (2026-07-13 feedback)
 
   final lonSpan = (adm.bboxMaxLon - adm.bboxMinLon).abs().clamp(1e-6, 360.0);
 
@@ -183,8 +217,8 @@ double _zoomForBbox(AdminRegion adm) {
   final latZoom =
       _log2((viewportH / worldTile) * (2 * math.pi / mercSpan) * fraction);
 
-  final z = math.min(lonZoom, latZoom) + tightenLevels;
-  return z.clamp(4.0, 16.0);
+  final z = math.min(lonZoom, latZoom) + baseTighten + extraTighten;
+  return z.clamp(4.0, 15.0);
 }
 
 double _mercatorY(double latRad) =>
@@ -270,20 +304,51 @@ class _GlassDetailPanel extends StatelessWidget {
                   ],
                 ),
                 const SizedBox(height: 20),
-                // Coverage % — one decimal (CONTEXT.md line 49).
-                _StatRow(
-                  label: 'Befahren',
-                  value: region.percentLabel,
-                  valueStyle: theme.textTheme.headlineMedium?.copyWith(
-                    fontWeight: FontWeight.w700,
-                    color: colorScheme.primary,
+                // Coverage % — one decimal (CONTEXT.md line 49). While the
+                // real region total is still computing, show a spinner + hint
+                // instead of a misleading percentage.
+                if (region.totalPending)
+                  _StatRow(
+                    label: 'Befahren',
+                    valueWidget: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: colorScheme.primary.withValues(alpha: 0.7),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Text(
+                          'wird berechnet …',
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color:
+                                colorScheme.onSurface.withValues(alpha: 0.6),
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                else
+                  _StatRow(
+                    label: 'Befahren',
+                    value: region.percentLabel,
+                    valueStyle: theme.textTheme.headlineMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
+                      color: colorScheme.primary,
+                    ),
                   ),
-                ),
                 const SizedBox(height: 12),
-                // km stats (CONTEXT.md line 50: driven km + total km).
+                // km stats (CONTEXT.md line 50: driven km + total km). Total is
+                // hidden while pending (we don't have the real total yet).
                 _StatRow(
                   label: 'Strecke',
-                  value: formatKmStats(region.drivenKm, region.totalKm),
+                  value: region.totalPending
+                      ? '${oneDecimalDe(region.drivenKm)} km gefahren'
+                      : formatKmStats(region.drivenKm, region.totalKm),
                   valueStyle: theme.textTheme.bodyLarge,
                 ),
                 const SizedBox(height: 32),
@@ -291,7 +356,7 @@ class _GlassDetailPanel extends StatelessWidget {
                 FilledButton.icon(
                   onPressed: onJumpToMap,
                   icon: const Icon(Icons.map_outlined),
-                  label: const Text('Im Karte anzeigen'),
+                  label: const Text('Auf Karte anzeigen'),
                   style: FilledButton.styleFrom(
                     minimumSize: const Size.fromHeight(48),
                   ),
@@ -305,17 +370,23 @@ class _GlassDetailPanel extends StatelessWidget {
   }
 }
 
-/// Label + value stats row.
+/// Label + value stats row. Pass either [value] (+ optional [valueStyle]) or
+/// a custom [valueWidget] (e.g. a spinner while a stat is still computing).
 class _StatRow extends StatelessWidget {
   const _StatRow({
     required this.label,
-    required this.value,
+    this.value,
     this.valueStyle,
-  });
+    this.valueWidget,
+  }) : assert(
+          value != null || valueWidget != null,
+          'provide value or valueWidget',
+        );
 
   final String label;
-  final String value;
+  final String? value;
   final TextStyle? valueStyle;
+  final Widget? valueWidget;
 
   @override
   Widget build(BuildContext context) {
@@ -329,7 +400,8 @@ class _StatRow extends StatelessWidget {
             color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
           ),
         ),
-        Text(value, style: valueStyle ?? theme.textTheme.bodyLarge),
+        valueWidget ??
+            Text(value!, style: valueStyle ?? theme.textTheme.bodyLarge),
       ],
     );
   }

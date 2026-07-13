@@ -16,11 +16,12 @@ class PermissionWhenInUsePage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     return PermissionRationalePage(
       icon: Icons.location_on,
-      title: 'Location while using Trailblazer',
+      title: 'Standort während der Nutzung von Trailblazer',
       body:
-          'Trailblazer draws the roads you drive on the map. It first needs '
-          "permission to see your location while you're using the app.",
-      primaryLabel: 'Continue',
+          'Trailblazer zeichnet die von dir gefahrenen Straßen auf der Karte '
+          'nach. Zuerst braucht die App die Berechtigung, deinen Standort zu '
+          'sehen, während du die App verwendest.',
+      primaryLabel: 'Weiter',
       onPrimary: () async {
         await ref.read(permissionServiceProvider).requestWhenInUse();
         await pageController.nextPage(

@@ -44,6 +44,11 @@ final regionSearchQueryProvider =
 ///
 /// Join: coverage_cache row (driven_length_m > 0) → AdminRegionLookup.regionByOsmId
 /// → RegionCoverage value type.
+///
+/// Total km: prefers the REAL region-wide total (`real_total_length_m`,
+/// computed once by RegionTotalLengthService). While that is still null the
+/// card is marked `totalPending` (spinner) and falls back to the legacy
+/// trip-bbox total so a number is available for sorting.
 final regionBrowserProvider = FutureProvider<List<RegionCoverage>>((ref) async {
   final lookup = ref.watch(adminRegionLookupProvider);
   await lookup.ensureLoaded(); // main isolate — RESEARCH Pitfall 1
@@ -56,17 +61,22 @@ final regionBrowserProvider = FutureProvider<List<RegionCoverage>>((ref) async {
     final region = lookup.regionByOsmId(osmId);
     if (region == null) continue; // stale row without a polygon
     if (region.adminLevel == 2) continue; // exclude Deutschland (RESEARCH 273)
+    final realTotal = row.realTotalLengthM;
     out.add(
       RegionCoverage(
         osmId: osmId,
         adminLevel: region.adminLevel,
         name: region.nameDe ?? region.name,
         drivenLengthM: row.drivenLengthM,
-        totalLengthM: row.totalLengthM,
+        // Prefer the real region-wide total; fall back to the legacy bbox
+        // total until it lands.
+        totalLengthM: realTotal ?? row.totalLengthM,
+        totalPending: realTotal == null,
       ),
     );
   }
-  // %-descending sort (CONTEXT.md line 35).
+  // %-descending sort (CONTEXT.md line 35). Pending rows sort by their
+  // fallback %, which is fine — they reorder once the real total lands.
   out.sort((a, b) => b.percent.compareTo(a.percent));
   return out;
 });

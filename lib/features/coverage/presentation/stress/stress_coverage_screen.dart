@@ -120,7 +120,7 @@ class _StressCoverageScreenState extends ConsumerState<StressCoverageScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Coverage Stress Test'),
+        title: const Text('Abdeckung Stresstest'),
         backgroundColor: Colors.black87,
         foregroundColor: Colors.white,
       ),
@@ -191,7 +191,7 @@ class _BannerOverlay extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Loaded: ${featureCount == null ? '---' : '$featureCount features'}',
+            'Geladen: ${featureCount == null ? '---' : '$featureCount Features'}',
             style: const TextStyle(color: Colors.white, fontSize: 12),
           ),
           const SizedBox(height: 2),
@@ -220,7 +220,7 @@ class _BannerOverlay extends StatelessWidget {
           ),
           const SizedBox(height: 2),
           const Text(
-            'Pan / zoom for 10 s; read P90 / fps above.',
+            'Zum Testen 10 s schwenken / zoomen; P90 / fps oben ablesen.',
             style: TextStyle(color: Colors.white70, fontSize: 11),
           ),
         ],

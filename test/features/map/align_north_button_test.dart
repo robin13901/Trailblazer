@@ -61,7 +61,7 @@ void main() {
       await _pumpAlignNorth(tester);
 
       final semantics = tester.getSemantics(find.byType(AlignNorthButton));
-      expect(semantics.label, 'Align map to north');
+      expect(semantics.label, 'Nach Norden ausrichten');
     });
 
     testWidgets('renders a navigation compass icon', (tester) async {

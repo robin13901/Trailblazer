@@ -68,7 +68,7 @@ class _StatusPill extends ConsumerWidget {
           borderRadius: BorderRadius.circular(12),
         ),
         child: Text(
-          'No roads matched',
+          'Keine Straßen abgeglichen',
           style: theme.textTheme.labelSmall?.copyWith(color: warning),
         ),
       );
@@ -96,7 +96,7 @@ class _StatusPill extends ConsumerWidget {
               ),
             ),
             const SizedBox(width: 8),
-            Text('Matching… $percent%', style: theme.textTheme.labelSmall),
+            Text('Wird abgeglichen … $percent %', style: theme.textTheme.labelSmall),
           ],
         );
       }
@@ -115,7 +115,7 @@ class _StatusPill extends ConsumerWidget {
             ),
           ),
           const SizedBox(width: 8),
-          Text('Matching…', style: theme.textTheme.labelSmall),
+          Text('Wird abgeglichen …', style: theme.textTheme.labelSmall),
         ],
       );
     }
@@ -139,7 +139,7 @@ class _PlaceNames extends ConsumerWidget {
         item.startLon == null ||
         item.endLat == null ||
         item.endLon == null) {
-      return Text('Location', style: style);
+      return Text('Standort', style: style);
     }
 
     final places = ref.watch(
@@ -153,7 +153,7 @@ class _PlaceNames extends ConsumerWidget {
 
     final label = places.maybeWhen(
       data: (p) => placeNamesLabel(p.startName, p.endName),
-      orElse: () => 'Location…',
+      orElse: () => 'Standort…',
     );
     return Text(label, style: style);
   }

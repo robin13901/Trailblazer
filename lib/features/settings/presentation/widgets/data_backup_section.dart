@@ -45,7 +45,7 @@ class _DataBackupSectionState extends ConsumerState<DataBackupSection> {
               );
           if (!mounted) return;
           messenger.showSnackBar(
-            const SnackBar(content: Text('Backup ready to share')),
+            const SnackBar(content: Text('Backup bereit zum Teilen')),
           );
         case Err(:final error):
           messenger.showSnackBar(
@@ -71,16 +71,16 @@ class _DataBackupSectionState extends ConsumerState<DataBackupSection> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Replace all data?'),
+        title: const Text('Alle Daten ersetzen?'),
         content: const Text(
-          'Restoring will PERMANENTLY replace all current trips, coverage, '
-          'and settings with the contents of this backup. '
-          'This cannot be undone.',
+          'Beim Wiederherstellen werden alle aktuellen Fahrten, Abdeckungs- '
+          'und Einstellungsdaten DAUERHAFT durch den Inhalt dieses Backups '
+          'ersetzt. Dies kann nicht rückgängig gemacht werden.',
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text('Cancel'),
+            child: const Text('Abbrechen'),
           ),
           FilledButton(
             style: FilledButton.styleFrom(
@@ -88,7 +88,7 @@ class _DataBackupSectionState extends ConsumerState<DataBackupSection> {
               foregroundColor: Theme.of(dialogContext).colorScheme.onError,
             ),
             onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: const Text('Replace'),
+            child: const Text('Ersetzen'),
           ),
         ],
       ),
@@ -108,13 +108,13 @@ class _DataBackupSectionState extends ConsumerState<DataBackupSection> {
           // appDatabaseProvider was invalidated inside restore(); dependents
           // rebuild on the next frame. Show feedback and let the tree refresh.
           messenger.showSnackBar(
-            const SnackBar(content: Text('Backup restored')),
+            const SnackBar(content: Text('Backup wiederhergestellt')),
           );
         case Err(:final error):
           // Validation or I/O failed — live DB is intact (safety-snapshot
           // contract in BackupService).
           messenger.showSnackBar(
-            SnackBar(content: Text('Restore failed: ${error.message}')),
+            SnackBar(content: Text('Wiederherstellung fehlgeschlagen: ${error.message}')),
           );
       }
     } finally {
@@ -131,8 +131,8 @@ class _DataBackupSectionState extends ConsumerState<DataBackupSection> {
       children: [
         // Export tile
         ListTile(
-          title: const Text('Back up my data'),
-          subtitle: const Text('Creates a shareable copy of all your trips & coverage'),
+          title: const Text('Meine Daten sichern'),
+          subtitle: const Text('Erstellt eine teilbare Kopie all deiner Fahrten & Abdeckung'),
           trailing: _exporting
               ? const SizedBox(
                   width: 24,
@@ -145,9 +145,9 @@ class _DataBackupSectionState extends ConsumerState<DataBackupSection> {
 
         // Restore tile
         ListTile(
-          title: const Text('Restore from backup'),
+          title: const Text('Aus Backup wiederherstellen'),
           subtitle: const Text(
-            'Replaces ALL current data with a backup file',
+            'Ersetzt ALLE aktuellen Daten durch eine Backup-Datei',
           ),
           trailing: _restoring
               ? const SizedBox(

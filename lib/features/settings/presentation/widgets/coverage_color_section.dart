@@ -26,8 +26,8 @@ class CoverageColorSection extends ConsumerWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const ListTile(
-          title: Text('Coverage color'),
-          subtitle: Text('Applies to your explored roads on the map.'),
+          title: Text('Abdeckungsfarbe'),
+          subtitle: Text('Gilt für deine befahrenen Straßen auf der Karte.'),
         ),
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),

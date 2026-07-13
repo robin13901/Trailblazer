@@ -36,8 +36,8 @@ class AboutSection extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
-            'Trailblazer paints the roads you have driven onto an offline '
-            'map of the world.',
+            'Trailblazer zeichnet die von dir gefahrenen Straßen auf einer '
+            'Offline-Weltkarte nach.',
           ),
           const SizedBox(height: 8),
           // ── App version ──────────────────────────────────────────────────
@@ -51,7 +51,7 @@ class AboutSection extends StatelessWidget {
           // ── OSS licenses ─────────────────────────────────────────────────
           ListTile(
             contentPadding: EdgeInsets.zero,
-            title: const Text('Open-source licenses'),
+            title: const Text('Open-Source-Lizenzen'),
             trailing: const Icon(Icons.chevron_right),
             onTap: () => showLicensePage(
               context: context,
@@ -60,11 +60,11 @@ class AboutSection extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 8),
-          Text('Map data credits', style: theme.textTheme.titleSmall),
+          Text('Kartendaten-Quellen', style: theme.textTheme.titleSmall),
           const SizedBox(height: 6),
           // MapTiler free-tier attribution — required by TOS.
           Semantics(
-            label: 'MapTiler copyright link',
+            label: 'MapTiler-Copyright-Link',
             link: true,
             child: Text.rich(
               TextSpan(
@@ -84,7 +84,7 @@ class AboutSection extends StatelessWidget {
           const SizedBox(height: 6),
           // OpenStreetMap ODbL attribution — required by ODbL.
           Semantics(
-            label: 'OpenStreetMap copyright link',
+            label: 'OpenStreetMap-Copyright-Link',
             link: true,
             child: Text.rich(
               TextSpan(
@@ -97,13 +97,13 @@ class AboutSection extends StatelessWidget {
                       ..onTap = () =>
                           _open('https://www.openstreetmap.org/copyright'),
                   ),
-                  const TextSpan(text: ' contributors'),
+                  const TextSpan(text: ' Mitwirkende'),
                 ],
               ),
             ),
           ),
           const SizedBox(height: 12),
-          Text('Rendered with', style: theme.textTheme.titleSmall),
+          Text('Gerendert mit', style: theme.textTheme.titleSmall),
           const SizedBox(height: 6),
           Text.rich(
             TextSpan(

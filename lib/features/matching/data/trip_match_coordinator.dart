@@ -5,11 +5,14 @@
 
 import 'package:auto_explore/core/db/app_database.dart';
 import 'package:auto_explore/core/db/daos/driven_way_intervals_dao.dart';
+import 'package:auto_explore/features/coverage/data/coverage_path_codec.dart';
 import 'package:auto_explore/features/matching/data/match_job.dart';
 import 'package:auto_explore/features/matching/data/matcher_isolate.dart';
 import 'package:auto_explore/features/matching/data/way_candidate_source.dart';
+import 'package:auto_explore/features/matching/domain/coverage_path_builder.dart';
 import 'package:auto_explore/features/matching/domain/driven_way_interval_draft.dart';
 import 'package:auto_explore/features/matching/domain/gps_fix.dart';
+import 'package:auto_explore/features/matching/domain/match_result.dart';
 import 'package:auto_explore/features/trips/data/trips_dao.dart';
 import 'package:auto_explore/features/trips/data/trips_repository.dart';
 import 'package:drift/drift.dart' show Value;
@@ -155,6 +158,7 @@ class TripMatchCoordinator {
         },
       );
       await _writeIntervals(tripId, result.intervals);
+      await _writeCoveragePath(tripId, fixes, result);
       await _tripsRepository.transitionToMatched(tripId);
       _progressSink?.call(tripId, 1);
       _clearProgress(tripId);
@@ -199,6 +203,25 @@ class TripMatchCoordinator {
     await _intervalsDao.insertBatch(companions);
   }
 
+  /// Compute and persist the trimmed on-road coverage polyline for [tripId]
+  /// (2026-07-13 coverage-from-trail rework). Keeps the raw GPS coordinates of
+  /// fixes the matcher accepted as on-road (dropping parking-lot / off-road
+  /// wander), split into contiguous runs. Stored on the trip row so it becomes
+  /// the persistent visible coverage line and survives raw-GPS retention.
+  Future<void> _writeCoveragePath(
+    int tripId,
+    List<GpsFix> fixes,
+    MatchResult result,
+  ) async {
+    final fixesLatLon = [
+      for (final f in fixes) [f.lat, f.lon],
+    ];
+    final segments = coveragePathFromMatch(fixesLatLon, result.steps);
+    // Persist even when empty ('[]') so a re-match that now finds nothing
+    // clears a previously-stored path rather than leaving stale geometry.
+    await _tripsDao.writeCoveragePath(tripId, encodeCoveragePath(segments));
+  }
+
   /// Invoked when the user deletes an in-flight trip. Cancels the isolate
   /// job (best-effort) and deletes any intervals already written. The trip
   /// row itself is deleted by the caller (CASCADE on trip_points).
@@ -233,9 +256,18 @@ class TripMatchCoordinator {
   ///
   /// Returns the number of trips successfully re-matched.
   Future<int> rematchAllStoredTrips() async {
+    // Check for work BEFORE starting the isolate — on an empty DB (fresh
+    // install, or a widget test) there is nothing to rematch, and spawning the
+    // matcher isolate would leave a pending timer that outlives a headless
+    // test's widget tree.
+    final tripIds = await _intervalsDao.getDistinctTripIds();
+    if (tripIds.isEmpty) {
+      _log.info('rematchAllStoredTrips: no stored trips — nothing to do');
+      return 0;
+    }
+
     await _isolate.start(); // idempotent
 
-    final tripIds = await _intervalsDao.getDistinctTripIds();
     _log.info('rematchAllStoredTrips: ${tripIds.length} trips to reprocess');
 
     var reprocessed = 0;
@@ -309,6 +341,7 @@ class TripMatchCoordinator {
     // one-shot cosmetic reprocess.
     await _intervalsDao.deleteByTrip(tripId);
     await _writeIntervals(tripId, result.intervals);
+    await _writeCoveragePath(tripId, fixes, result);
     _log.info(
       'rematchOne: trip $tripId → ${result.intervals.length} intervals '
       '(was reprocessed)',

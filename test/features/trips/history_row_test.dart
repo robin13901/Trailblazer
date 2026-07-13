@@ -78,8 +78,8 @@ class _FixedProgressNotifier extends MatchProgressNotifier {
 void main() {
   testWidgets('confirmed trip → no status pill', (tester) async {
     await _pumpRow(tester, _item(status: TripStatus.confirmed));
-    expect(find.text('No roads matched'), findsNothing);
-    expect(find.text('Matching…'), findsNothing);
+    expect(find.text('Keine Straßen abgeglichen'), findsNothing);
+    expect(find.text('Wird abgeglichen …'), findsNothing);
     expect(find.byType(CircularProgressIndicator), findsNothing);
   });
 
@@ -90,16 +90,16 @@ void main() {
       tester,
       _item(status: TripStatus.matched, intervalCount: 0),
     );
-    expect(find.text('No roads matched'), findsOneWidget);
+    expect(find.text('Keine Straßen abgeglichen'), findsOneWidget);
 
     // The chip text uses the theme error color.
-    final textWidget = tester.widget<Text>(find.text('No roads matched'));
+    final textWidget = tester.widget<Text>(find.text('Keine Straßen abgeglichen'));
     expect(textWidget.style?.color, AppTheme.light.colorScheme.error);
   });
 
   testWidgets('pending trip → "Matching…" + spinner', (tester) async {
     await _pumpRow(tester, _item(status: TripStatus.pending, intervalCount: 0));
-    expect(find.text('Matching…'), findsOneWidget);
+    expect(find.text('Wird abgeglichen …'), findsOneWidget);
     expect(find.byType(CircularProgressIndicator), findsOneWidget);
   });
 
@@ -108,7 +108,7 @@ void main() {
       tester,
       _item(status: TripStatus.pendingRoadData, intervalCount: 0),
     );
-    expect(find.text('Matching…'), findsOneWidget);
+    expect(find.text('Wird abgeglichen …'), findsOneWidget);
     expect(find.byType(CircularProgressIndicator), findsOneWidget);
   });
 
@@ -122,8 +122,8 @@ void main() {
     );
 
     // Real percentage rendered (37% = round(0.37 * 100)).
-    expect(find.text('Matching… 37%'), findsOneWidget);
-    expect(find.text('Matching…'), findsNothing);
+    expect(find.text('Wird abgeglichen … 37 %'), findsOneWidget);
+    expect(find.text('Wird abgeglichen …'), findsNothing);
 
     // The spinner is determinate: value is set.
     final indicator = tester.widget<CircularProgressIndicator>(
@@ -142,7 +142,7 @@ void main() {
       progress: const {7: 0.5},
     );
 
-    expect(find.text('Matching…'), findsOneWidget);
+    expect(find.text('Wird abgeglichen …'), findsOneWidget);
     final indicator = tester.widget<CircularProgressIndicator>(
       find.byType(CircularProgressIndicator),
     );

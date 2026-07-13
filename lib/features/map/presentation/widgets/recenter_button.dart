@@ -36,7 +36,7 @@ class RecenterButton extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return Semantics(
-      label: 'Recenter map on my location',
+      label: 'Auf meinen Standort zentrieren',
       button: true,
       child: GestureDetector(
         onTap: () async {
@@ -88,6 +88,7 @@ class RecenterButton extends ConsumerWidget {
         },
         child: const GlassCircle(
           size: 64,
+          overMap: true,
           child: Icon(Icons.my_location, size: 26),
         ),
       ),

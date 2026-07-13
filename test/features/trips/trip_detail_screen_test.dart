@@ -402,7 +402,7 @@ void main() {
         );
         await tester.pump();
 
-        expect(find.textContaining('No roads matched'), findsOneWidget);
+        expect(find.textContaining('Keine Straßen abgeglichen'), findsOneWidget);
         final view = routeView(tester);
         expect(view.data.rawPolyline, isNotEmpty);
         expect(view.data.matchedSegments, isEmpty);
@@ -419,8 +419,8 @@ void main() {
       );
       await tester.pump();
 
-      expect(find.textContaining('No roads matched'), findsNothing);
-      expect(find.textContaining('unavailable offline'), findsNothing);
+      expect(find.textContaining('Keine Straßen abgeglichen'), findsNothing);
+      expect(find.textContaining('offline nicht verfügbar'), findsNothing);
       final view = routeView(tester);
       expect(view.data.rawPolyline, isNotEmpty);
       expect(view.data.matchedSegments, isNotEmpty);
@@ -437,7 +437,7 @@ void main() {
       );
       await tester.pump();
 
-      expect(find.textContaining('unavailable offline'), findsOneWidget);
+      expect(find.textContaining('offline nicht verfügbar'), findsOneWidget);
       final view = routeView(tester);
       expect(view.data.rawPolyline, isNotEmpty);
       expect(view.data.matchedSegments, isEmpty);
@@ -456,7 +456,7 @@ void main() {
         );
         await tester.pump();
 
-        expect(find.textContaining('unavailable offline'), findsOneWidget);
+        expect(find.textContaining('offline nicht verfügbar'), findsOneWidget);
         expect(routeView(tester).data.matchedSegments, isEmpty);
       },
     );
@@ -471,9 +471,9 @@ void main() {
       );
       await tester.pump();
 
-      expect(find.textContaining('Duration: 42 min'), findsOneWidget);
-      expect(find.textContaining('Distance: 28.4 km'), findsOneWidget);
-      expect(find.textContaining('Matched:'), findsOneWidget);
+      expect(find.textContaining('Dauer: 42 min'), findsOneWidget);
+      expect(find.textContaining('Distanz: 28.4 km'), findsOneWidget);
+      expect(find.textContaining('Abgeglichen:'), findsOneWidget);
     });
 
     testWidgets('delete → dialog → discardTrip(tripId) + pop', (tester) async {
@@ -494,7 +494,7 @@ void main() {
       await tester.tap(
         find.descendant(
           of: find.byType(AlertDialog),
-          matching: find.widgetWithText(TextButton, 'Discard'),
+          matching: find.widgetWithText(TextButton, 'Verwerfen'),
         ),
       );
       await tester.pump();

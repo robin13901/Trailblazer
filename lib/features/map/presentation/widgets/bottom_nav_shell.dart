@@ -15,6 +15,7 @@ class BottomNavShell extends StatelessWidget {
   const BottomNavShell({
     required this.currentIndex,
     required this.onTap,
+    this.overMap = false,
     super.key,
   });
 
@@ -24,10 +25,16 @@ class BottomNavShell extends StatelessWidget {
   /// Called when the user taps a tab item.
   final ValueChanged<int> onTap;
 
+  /// `true` when the pill is layered over the map (Map tab). On Apple
+  /// platforms this forces the tinted fallback since the shader backdrop
+  /// cannot sample the map PlatformView. On Trips/Regions the pill sits over
+  /// an opaque Flutter surface, so `false` keeps the full glass effect.
+  final bool overMap;
+
   static const _tabs = [
-    _TabItem(icon: Icons.map_outlined, label: 'Map'),
-    _TabItem(icon: Icons.route, label: 'Trips'),
-    _TabItem(icon: Icons.flag_outlined, label: 'Regions'),
+    _TabItem(icon: Icons.map_outlined, label: 'Karte'),
+    _TabItem(icon: Icons.route, label: 'Fahrten'),
+    _TabItem(icon: Icons.flag_outlined, label: 'Regionen'),
   ];
 
   @override
@@ -44,6 +51,7 @@ class BottomNavShell extends StatelessWidget {
       width: 240,
       height: 64,
       child: GlassPill(
+        overMap: overMap,
         // Stadium shape: radius ≥ height/2 → 999 renders as full stadium.
         borderRadius: 999,
         padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),

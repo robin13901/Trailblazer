@@ -51,7 +51,7 @@ void main() {
           ),
         ),
       );
-      expect(find.text('No route to display.'), findsOneWidget);
+      expect(find.text('Keine Route zum Anzeigen.'), findsOneWidget);
       expect(find.byType(CustomPaint), findsWidgets); // background only
     });
 
@@ -79,7 +79,7 @@ void main() {
         ),
       );
       // The empty-state text must NOT appear; the CustomPaint is present.
-      expect(find.text('No route to display.'), findsNothing);
+      expect(find.text('Keine Route zum Anzeigen.'), findsNothing);
       expect(find.byType(CustomPaint), findsWidgets);
     });
   });

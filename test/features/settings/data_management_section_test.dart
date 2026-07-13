@@ -57,8 +57,8 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Refresh admin regions'), findsOneWidget);
-    expect(find.text('Using bundled version'), findsOneWidget);
+    expect(find.text('Verwaltungsregionen aktualisieren'), findsOneWidget);
+    expect(find.text('Mitgelieferte Version wird verwendet'), findsOneWidget);
   });
 
   testWidgets('renders last-refreshed timestamp when prefs set',
@@ -76,7 +76,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(
-      find.textContaining('Last refreshed: 2026-07-08T12:00Z'),
+      find.textContaining('Zuletzt aktualisiert: 2026-07-08T12:00Z'),
       findsOneWidget,
     );
   });
@@ -94,15 +94,15 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Refresh admin regions'));
+    await tester.tap(find.text('Verwaltungsregionen aktualisieren'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Refresh admin regions?'), findsOneWidget);
-    await tester.tap(find.text('Refresh'));
+    expect(find.text('Verwaltungsregionen aktualisieren?'), findsOneWidget);
+    await tester.tap(find.text('Aktualisieren'));
     await tester.pumpAndSettle();
 
     expect(fake.callCount, 1);
-    expect(find.text('Admin regions updated'), findsOneWidget);
+    expect(find.text('Verwaltungsregionen aktualisiert'), findsOneWidget);
   });
 
   testWidgets('tap → cancel → refresher NOT invoked',
@@ -118,9 +118,9 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Refresh admin regions'));
+    await tester.tap(find.text('Verwaltungsregionen aktualisieren'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Cancel'));
+    await tester.tap(find.text('Abbrechen'));
     await tester.pumpAndSettle();
 
     expect(fake.callCount, 0);
@@ -138,11 +138,11 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Refresh admin regions'));
+    await tester.tap(find.text('Verwaltungsregionen aktualisieren'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Refresh'));
+    await tester.tap(find.text('Aktualisieren'));
     await tester.pumpAndSettle();
 
-    expect(find.textContaining('Refresh failed'), findsOneWidget);
+    expect(find.textContaining('Aktualisierung fehlgeschlagen'), findsOneWidget);
   });
 }

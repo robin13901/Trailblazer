@@ -33,7 +33,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase([QueryExecutor? executor]) : super(executor ?? _openConnection());
 
   @override
-  int get schemaVersion => 4;
+  int get schemaVersion => 5;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -66,7 +66,30 @@ class AppDatabase extends _$AppDatabase {
         // actually targets v4+.
         await customStatement('DROP TABLE IF EXISTS bt_fingerprints');
         await customStatement('DROP TABLE IF EXISTS vehicles');
-        await m.alterTable(TableMigration(trips));
+        // `coveragePathJson` (added in the current Dart schema for v5) does not
+        // exist on a v3 `trips` table, so declare it as a new column here — the
+        // rebuild creates it fresh (nullable, default null) instead of trying
+        // to SELECT it from the old table. When the DB is being upgraded
+        // straight to v5 the `from < 5` block below is a no-op for trips
+        // (the column already exists); a v3→v4-only stepped upgrade leaves it
+        // present and null, which is correct.
+        await m.alterTable(
+          TableMigration(trips, newColumns: [trips.coveragePathJson]),
+        );
+      }
+      if (from < 5 && to >= 5) {
+        // v5: persistent per-trip coverage polyline (the on-road-trimmed raw
+        // GPS trail). Only add the column when it doesn't already exist — the
+        // v4 TableMigration above already creates it when upgrading through v4
+        // (from < 4). So this runs only for a DB that is already at exactly v4.
+        if (from == 4) {
+          await m.addColumn(trips, trips.coveragePathJson);
+        }
+        // v5: real per-region total road length (tiled area-clipped Overpass
+        // sum), computed once in the background and cached forever. Nullable
+        // = not yet computed → the region browser shows a spinner.
+        await m.addColumn(coverageCache, coverageCache.realTotalLengthM);
+        await m.addColumn(coverageCache, coverageCache.realTotalUpdatedAt);
       }
     },
     beforeOpen: (details) async {

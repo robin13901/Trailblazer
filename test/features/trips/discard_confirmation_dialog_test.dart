@@ -36,12 +36,12 @@ void main() {
   }
 
   testWidgets('Cancel returns false', (tester) async {
-    final result = await openAndTap(tester, 'Cancel');
+    final result = await openAndTap(tester, 'Abbrechen');
     expect(result, isFalse);
   });
 
   testWidgets('Confirm (Discard) returns true', (tester) async {
-    final result = await openAndTap(tester, 'Discard');
+    final result = await openAndTap(tester, 'Verwerfen');
     expect(result, isTrue);
   });
 
@@ -52,12 +52,12 @@ void main() {
         home: const Scaffold(body: DiscardConfirmationDialog()),
       ),
     );
-    expect(find.text('Discard this trip?'), findsOneWidget);
+    expect(find.text('Diese Fahrt verwerfen?'), findsOneWidget);
     expect(
-      find.textContaining('Raw GPS will be deleted'),
+      find.textContaining('Roh-GPS-Daten werden gelöscht'),
       findsOneWidget,
     );
-    expect(find.textContaining('cannot be undone'), findsOneWidget);
+    expect(find.textContaining('nicht rückgängig'), findsOneWidget);
   });
 
   testWidgets('Discard button uses the theme error color', (tester) async {
@@ -71,7 +71,7 @@ void main() {
 
     final discardButton = tester.widget<TextButton>(
       find.ancestor(
-        of: find.text('Discard'),
+        of: find.text('Verwerfen'),
         matching: find.byType(TextButton),
       ),
     );

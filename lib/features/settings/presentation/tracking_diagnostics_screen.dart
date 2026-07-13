@@ -119,7 +119,7 @@ class _TrackingDiagnosticsScreenState
   Widget build(BuildContext context) {
     final diag = ref.read(trackingDiagnosticsProvider);
     return Scaffold(
-      appBar: AppBar(title: const Text('Tracking diagnostics')),
+      appBar: AppBar(title: const Text('Tracking-Diagnose')),
       body: ListView(
         padding: const EdgeInsets.symmetric(vertical: 8),
         children: [
@@ -334,7 +334,7 @@ class _LastFixTile extends StatelessWidget {
       return const ListTile(
         dense: true,
         title: Text('—'),
-        subtitle: Text('no fix accepted yet'),
+        subtitle: Text('noch kein Fix akzeptiert'),
       );
     }
     final s = sample!;

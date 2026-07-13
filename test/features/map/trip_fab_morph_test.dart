@@ -71,7 +71,7 @@ void main() {
       expect(
         tester.getSemantics(find.byType(TripFab)),
         matchesSemantics(
-          label: 'Start trip',
+          label: 'Fahrt starten',
           isButton: true,
           hasTapAction: true,
         ),
@@ -113,7 +113,7 @@ void main() {
       expect(
         tester.getSemantics(find.byType(TripFab)),
         matchesSemantics(
-          label: 'Stop trip',
+          label: 'Fahrt beenden',
           isButton: true,
           hasTapAction: true,
         ),

@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math';
 
+import 'package:auto_explore/features/map/domain/camera_state.dart';
 import 'package:auto_explore/features/map/domain/follow_mode.dart';
 import 'package:auto_explore/features/map/presentation/providers/camera_state_provider.dart';
 import 'package:auto_explore/features/map/presentation/providers/live_camera_provider.dart';
@@ -73,6 +74,15 @@ class _MapWidgetState extends ConsumerState<MapWidget>
   /// Controls the opacity crossfade: `true` = fully visible, `false` = faded
   /// out while setStyle() is in progress.
   bool _styleVisible = true;
+
+  /// Whether we've already recentered the camera onto the first GPS fix after a
+  /// genuine cold start. On cold start the persisted [CameraState] is still at
+  /// the (0,0) sentinel, so `MapWidget` opens at `widget.initialTarget` (the
+  /// Berlin fallback). MapLibre's tracking mode does not reliably snap the
+  /// camera to the first fix on iOS, so we do it explicitly here: the first
+  /// `onUserLocationUpdated` fix animates the camera to the user's real
+  /// location. Set once so later fixes don't fight the user's panning.
+  bool _didColdStartRecenter = false;
 
   @override
   void initState() {
@@ -258,6 +268,36 @@ class _MapWidgetState extends ConsumerState<MapWidget>
           widget.onMapCreated?.call(c);
         },
         onStyleLoadedCallback: _onStyleLoaded,
+        // Cold-start recenter: on a genuine cold start the camera opens at the
+        // Berlin fallback (persisted position is still the 0,0 sentinel). The
+        // first real GPS fix animates the camera to the user's location — once
+        // — so the app always opens "where I am" without waiting on MapLibre's
+        // tracking-mode snap (unreliable on the first iOS fix).
+        onUserLocationUpdated: (location) {
+          if (!mounted || _didColdStartRecenter) return;
+          _didColdStartRecenter = true;
+          final persisted = ref.read(cameraStateProvider);
+          // Only take over the camera on a genuine cold start (sentinel
+          // position). If a real position was restored (tab switch, jump-to),
+          // respect it and don't yank the camera to the user.
+          if (persisted.latitude != 0 || persisted.longitude != 0) return;
+          final controller = ref.read(mapControllerProvider);
+          if (controller == null) return;
+          // Fire-and-forget; the map must never crash on a camera error.
+          unawaited(() async {
+            try {
+              await controller.animateCamera(
+                CameraUpdate.newLatLngZoom(
+                  location.position,
+                  CameraState.initial.zoom,
+                ),
+                duration: const Duration(milliseconds: 400),
+              );
+            } on Object {
+              // Swallow — cold-start recenter is best-effort.
+            }
+          }());
+        },
         // Pan/rotate dismisses follow mode.
         onCameraTrackingDismissed: () {
           ref.read(cameraStateProvider.notifier).setFollowMode(FollowMode.none);

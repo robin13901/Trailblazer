@@ -54,7 +54,7 @@ void main() {
     await tester.pumpAndSettle();
 
     // Tap the Green swatch.
-    await tester.tap(find.bySemanticsLabel('Green'));
+    await tester.tap(find.bySemanticsLabel('Grün'));
     await tester.pumpAndSettle();
 
     // Only one check icon should exist and it should be on green.

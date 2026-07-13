@@ -77,8 +77,8 @@ String formatDistance(double? meters) {
 /// Human-readable start→end place label from resolved place names. Loops
 /// collapse to a single name; nulls fall back to "Location".
 String placeNamesLabel(String? startName, String? endName) {
-  final start = startName ?? 'Location';
-  final end = endName ?? 'Location';
+  final start = startName ?? 'Standort';
+  final end = endName ?? 'Standort';
   if (startName != null && startName == endName) return start;
   return '$start → $end';
 }
@@ -219,11 +219,11 @@ class _TripCardState extends ConsumerState<TripCard> {
                     style: TextButton.styleFrom(
                       foregroundColor: theme.colorScheme.error,
                     ),
-                    child: const Text('Discard'),
+                    child: const Text('Verwerfen'),
                   ),
                   FilledButton(
                     onPressed: _onKeep,
-                    child: const Text('Keep'),
+                    child: const Text('Behalten'),
                   ),
                 ],
               ),
@@ -250,7 +250,7 @@ class _PlaceNames extends ConsumerWidget {
         item.startLon == null ||
         item.endLat == null ||
         item.endLon == null) {
-      return Text('Location', style: style);
+      return Text('Standort', style: style);
     }
 
     final places = ref.watch(
@@ -264,7 +264,7 @@ class _PlaceNames extends ConsumerWidget {
 
     final label = places.maybeWhen(
       data: (p) => placeNamesLabel(p.startName, p.endName),
-      orElse: () => 'Location…',
+      orElse: () => 'Standort…',
     );
     return Text(label, style: style);
   }

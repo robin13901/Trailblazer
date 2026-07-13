@@ -36,22 +36,22 @@ class DiscardConfirmationDialog extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return AlertDialog(
-      title: const Text('Discard this trip?'),
+      title: const Text('Diese Fahrt verwerfen?'),
       content: const Text(
-        'Raw GPS will be deleted and coverage recomputed. '
-        'This cannot be undone.',
+        'Roh-GPS-Daten werden gelöscht und die Abdeckung neu berechnet. '
+        'Dies kann nicht rückgängig gemacht werden.',
       ),
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(false),
-          child: const Text('Cancel'),
+          child: const Text('Abbrechen'),
         ),
         TextButton(
           onPressed: () => Navigator.of(context).pop(true),
           style: TextButton.styleFrom(
             foregroundColor: theme.colorScheme.error,
           ),
-          child: const Text('Discard'),
+          child: const Text('Verwerfen'),
         ),
       ],
     );

@@ -194,15 +194,15 @@ void main() {
     );
 
     testWidgets(
-      '3. sheet shows "Im Karte anzeigen" jump-to-map button',
+      '3. sheet shows "Auf Karte anzeigen" jump-to-map button',
       (tester) async {
         await _pumpPillWithFakes(tester, dao);
 
         await tester.tap(find.byType(FocusAreaPill));
         await tester.pumpAndSettle();
 
-        // 'Im Karte anzeigen' is the FilledButton label from region_detail_sheet.dart.
-        expect(find.text('Im Karte anzeigen'), findsOneWidget);
+        // 'Auf Karte anzeigen' is the FilledButton label from region_detail_sheet.dart.
+        expect(find.text('Auf Karte anzeigen'), findsOneWidget);
       },
     );
   });

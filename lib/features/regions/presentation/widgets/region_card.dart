@@ -81,13 +81,24 @@ class RegionCard extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 12),
-            Text(
-              region.percentLabel,
-              style: theme.textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w600,
-                color: colorScheme.primary,
+            if (region.totalPending)
+              // Real region-wide total still computing in the background.
+              SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: colorScheme.primary.withValues(alpha: 0.7),
+                ),
+              )
+            else
+              Text(
+                region.percentLabel,
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w600,
+                  color: colorScheme.primary,
+                ),
               ),
-            ),
           ],
         ),
       ),

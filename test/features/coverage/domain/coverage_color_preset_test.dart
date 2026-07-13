@@ -54,12 +54,12 @@ void main() {
       }
     });
 
-    test('amber label is "Amber"', () {
-      expect(CoverageColorPreset.amber.label, equals('Amber'));
+    test('amber label is "Bernstein"', () {
+      expect(CoverageColorPreset.amber.label, equals('Bernstein'));
     });
 
-    test('green label is "Green"', () {
-      expect(CoverageColorPreset.green.label, equals('Green'));
+    test('green label is "Grün"', () {
+      expect(CoverageColorPreset.green.label, equals('Grün'));
     });
   });
 

@@ -58,11 +58,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Settings')),
+      appBar: AppBar(title: const Text('Einstellungen')),
       body: ListView(
         children: [
           // ── Data & Backup ───────────────────────────────────────────────
-          const _SectionHeader('Data & Backup'),
+          const _SectionHeader('Daten & Backup'),
           const DataBackupSection(),
           const Divider(height: 1),
           const DataManagementSection(),
@@ -71,20 +71,20 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
           // ── Coverage ────────────────────────────────────────────────────
           const Divider(height: 1),
-          const _SectionHeader('Coverage'),
+          const _SectionHeader('Abdeckung'),
           const CoverageColorSection(),
 
           // ── Permissions ─────────────────────────────────────────────────
           const Divider(height: 1),
-          const _SectionHeader('Permissions'),
+          const _SectionHeader('Berechtigungen'),
           const PermissionsSection(),
 
           // ── Diagnostics ──────────────────────────────────────────────────
           const Divider(height: 1),
-          const _SectionHeader('Diagnostics'),
+          const _SectionHeader('Diagnose'),
           SwitchListTile(
-            title: const Text('Show diagnostics HUD'),
-            subtitle: const Text('Live FGB state overlay on the map'),
+            title: const Text('Diagnose-HUD anzeigen'),
+            subtitle: const Text('Live-FGB-Status als Overlay auf der Karte'),
             value: _showHud,
             onChanged: (v) => _setHudPref(show: v),
           ),
@@ -93,13 +93,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
           // ── About ────────────────────────────────────────────────────────
           const Divider(height: 1),
-          const _SectionHeader('About'),
+          const _SectionHeader('Über'),
           const AboutSection(),
 
           // ── Developer (debug-only) ────────────────────────────────────────
           if (kDebugMode) ...[
             const Divider(height: 1),
-            const _SectionHeader('Developer'),
+            const _SectionHeader('Entwickler'),
             const _StressCoverageTile(),
           ],
         ],
@@ -114,8 +114,8 @@ class _DiagnosticsTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ListTile(
-      title: const Text('Tracking diagnostics'),
-      subtitle: const Text('Live FGB state, fix counters, permissions'),
+      title: const Text('Tracking-Diagnose'),
+      subtitle: const Text('Live-FGB-Status, Fix-Zähler, Berechtigungen'),
       trailing: const Icon(Icons.chevron_right),
       onTap: () => context.push('/settings/diagnostics'),
     );
@@ -130,8 +130,8 @@ class _StressCoverageTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ListTile(
-      title: const Text('Coverage stress test'),
-      subtitle: const Text('50k segments · fps meter'),
+      title: const Text('Abdeckung-Stresstest'),
+      subtitle: const Text('50k Segmente · fps-Anzeige'),
       trailing: const Icon(Icons.chevron_right),
       onTap: () => context.push('/settings/stress-coverage'),
     );

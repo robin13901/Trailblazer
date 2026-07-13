@@ -103,8 +103,9 @@ class _NoopLiveTrailApplier implements LiveTrailApplier {
   @override
   Future<void> addOrUpdate(
     MapLibreMapController? controller,
-    List<LatLng> trail,
-  ) async {}
+    List<LatLng> trail, {
+    String? colorHex,
+  }) async {}
 
   @override
   Future<void> remove(MapLibreMapController? controller) async {}
@@ -166,11 +167,11 @@ void main() {
 
       expect(find.byType(BottomNavShell), findsOneWidget);
       // Three tab labels present.
-      expect(find.text('Map'), findsOneWidget);
-      expect(find.text('Trips'), findsOneWidget);
-      expect(find.text('Regions'), findsOneWidget);
+      expect(find.text('Karte'), findsOneWidget);
+      expect(find.text('Fahrten'), findsOneWidget);
+      expect(find.text('Regionen'), findsOneWidget);
       // Settings is NOT a tab in the pill.
-      expect(find.text('Settings'), findsNothing);
+      expect(find.text('Einstellungen'), findsNothing);
     });
 
     testWidgets('renders exactly one TripFab (UI-03)', (tester) async {
@@ -255,7 +256,7 @@ void main() {
 
       // Initially "Map" (index 0) is selected — indicator is shown.
       // Tap "Trips" tab.
-      await tester.tap(find.text('Trips'));
+      await tester.tap(find.text('Fahrten'));
       await tester.pump();
 
       // After tap, BottomNavShell should reflect index 1.

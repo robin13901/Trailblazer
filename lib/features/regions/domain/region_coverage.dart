@@ -38,6 +38,7 @@ class RegionCoverage {
     required this.name,
     required this.drivenLengthM,
     required this.totalLengthM,
+    this.totalPending = false,
   });
 
   final int osmId;
@@ -45,6 +46,11 @@ class RegionCoverage {
   final String name;
   final double drivenLengthM;
   final double totalLengthM;
+
+  /// True when the REAL region-wide total road length has not been computed
+  /// yet (the background `RegionTotalLengthService` is still working). The UI
+  /// shows a spinner instead of a percentage while this is true.
+  final bool totalPending;
 
   double get percent => coveragePercent(drivenLengthM, totalLengthM);
   String get percentLabel => formatPercent(percent);
@@ -58,8 +64,10 @@ class RegionCoverage {
       other is RegionCoverage &&
       other.osmId == osmId &&
       other.drivenLengthM == drivenLengthM &&
-      other.totalLengthM == totalLengthM;
+      other.totalLengthM == totalLengthM &&
+      other.totalPending == totalPending;
 
   @override
-  int get hashCode => Object.hash(osmId, drivenLengthM, totalLengthM);
+  int get hashCode =>
+      Object.hash(osmId, drivenLengthM, totalLengthM, totalPending);
 }

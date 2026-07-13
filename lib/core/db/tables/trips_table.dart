@@ -26,4 +26,16 @@ class Trips extends Table {
   RealColumn get bboxMaxLat => real().nullable()();
   RealColumn get bboxMaxLon => real().nullable()();
   IntColumn get pointCount => integer().nullable()();
+
+  // v5 (2026-07-13): the persistent coverage line for this trip.
+  //
+  // A JSON array of on-road polyline segments — the raw GPS trail trimmed to
+  // the fixes the matcher accepted as on-road (off-road fixes such as parking
+  // lots are dropped). Shape: `[[[lat,lon],[lat,lon],…], …]`. Rendered solid
+  // in the coverage color; this is the visible "roads I've driven" geometry.
+  //
+  // Stored on the trip row (never swept) so it survives raw-GPS retention
+  // deletion of `trip_points`. Road-matched `driven_way_intervals` remain the
+  // source for region-km math; this column is the visual layer only.
+  TextColumn get coveragePathJson => text().nullable()();
 }

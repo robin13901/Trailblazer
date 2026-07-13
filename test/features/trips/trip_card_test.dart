@@ -168,7 +168,7 @@ void main() {
 
   testWidgets('Keep tap invokes confirmTrip(tripId)', (tester) async {
     await pumpCard(tester, _item(id: 42));
-    await tester.tap(find.text('Keep'));
+    await tester.tap(find.text('Behalten'));
     await tester.pump();
     expect(repo.confirmedId, 42);
     expect(repo.log, contains('confirmTrip'));
@@ -178,13 +178,13 @@ void main() {
     'Discard confirm → discardTrip then thumbnailCache.delete',
     (tester) async {
       await pumpCard(tester, _item(id: 42));
-      await tester.tap(find.text('Discard'));
+      await tester.tap(find.text('Verwerfen'));
       await tester.pumpAndSettle();
       // Modal is up — confirm it (the dialog's Discard button, not the card's).
       await tester.tap(
         find.descendant(
           of: find.byType(AlertDialog),
-          matching: find.widgetWithText(TextButton, 'Discard'),
+          matching: find.widgetWithText(TextButton, 'Verwerfen'),
         ),
       );
       await tester.pumpAndSettle();
@@ -195,9 +195,9 @@ void main() {
 
   testWidgets('Discard cancel → no repo call, no cache delete', (tester) async {
     await pumpCard(tester, _item(id: 42));
-    await tester.tap(find.text('Discard'));
+    await tester.tap(find.text('Verwerfen'));
     await tester.pumpAndSettle();
-    await tester.tap(find.widgetWithText(TextButton, 'Cancel'));
+    await tester.tap(find.widgetWithText(TextButton, 'Abbrechen'));
     await tester.pumpAndSettle();
     expect(repo.discardedId, isNull);
     expect(cache.deleted, isEmpty);
@@ -208,12 +208,12 @@ void main() {
   ) async {
     repo = _FakeInboxRepo(discardResult: const Err(UnknownError('boom')));
     await pumpCard(tester, _item(id: 42));
-    await tester.tap(find.text('Discard'));
+    await tester.tap(find.text('Verwerfen'));
     await tester.pumpAndSettle();
     await tester.tap(
       find.descendant(
         of: find.byType(AlertDialog),
-        matching: find.widgetWithText(TextButton, 'Discard'),
+        matching: find.widgetWithText(TextButton, 'Verwerfen'),
       ),
     );
     await tester.pumpAndSettle();

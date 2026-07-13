@@ -42,7 +42,7 @@ void main() {
 
       await pumpSection(tester, fakeBackup: fakeBackup, fakeFile: fakeFile);
 
-      await tester.tap(find.text('Back up my data'));
+      await tester.tap(find.text('Meine Daten sichern'));
       await tester.pumpAndSettle();
 
       // createBackup was called and set lastExportedPath.
@@ -52,7 +52,7 @@ void main() {
       expect(fakeFile.sharedPaths, contains(fakeBackup.lastExportedPath));
 
       // Success SnackBar is visible.
-      expect(find.text('Backup ready to share'), findsOneWidget);
+      expect(find.text('Backup bereit zum Teilen'), findsOneWidget);
     });
 
     // ── Test 2: Restore confirm path ──────────────────────────────────────────
@@ -67,21 +67,21 @@ void main() {
       await pumpSection(tester, fakeBackup: fakeBackup, fakeFile: fakeFile);
 
       // Tap restore tile.
-      await tester.tap(find.text('Restore from backup'));
+      await tester.tap(find.text('Aus Backup wiederherstellen'));
       await tester.pumpAndSettle();
 
       // The destructive confirm dialog must be visible.
-      expect(find.text('Replace all data?'), findsOneWidget);
+      expect(find.text('Alle Daten ersetzen?'), findsOneWidget);
 
       // Tap the "Replace" button.
-      await tester.tap(find.text('Replace'));
+      await tester.tap(find.text('Ersetzen'));
       await tester.pumpAndSettle();
 
       // restore() was called with the picked path.
       expect(fakeBackup.restoredPaths, contains('/fake/backup.trailblazer'));
 
       // Success SnackBar is visible.
-      expect(find.text('Backup restored'), findsOneWidget);
+      expect(find.text('Backup wiederhergestellt'), findsOneWidget);
     });
 
     // ── Test 3: Restore cancel ─────────────────────────────────────────────────
@@ -94,14 +94,14 @@ void main() {
 
       await pumpSection(tester, fakeBackup: fakeBackup, fakeFile: fakeFile);
 
-      await tester.tap(find.text('Restore from backup'));
+      await tester.tap(find.text('Aus Backup wiederherstellen'));
       await tester.pumpAndSettle();
 
       // Confirm dialog is visible.
-      expect(find.text('Replace all data?'), findsOneWidget);
+      expect(find.text('Alle Daten ersetzen?'), findsOneWidget);
 
       // Tap Cancel.
-      await tester.tap(find.text('Cancel'));
+      await tester.tap(find.text('Abbrechen'));
       await tester.pumpAndSettle();
 
       // restore() must NOT have been called.
@@ -119,22 +119,22 @@ void main() {
 
       await pumpSection(tester, fakeBackup: fakeBackup, fakeFile: fakeFile);
 
-      await tester.tap(find.text('Restore from backup'));
+      await tester.tap(find.text('Aus Backup wiederherstellen'));
       await tester.pumpAndSettle();
 
       // Confirm dialog.
-      expect(find.text('Replace all data?'), findsOneWidget);
-      await tester.tap(find.text('Replace'));
+      expect(find.text('Alle Daten ersetzen?'), findsOneWidget);
+      await tester.tap(find.text('Ersetzen'));
       await tester.pumpAndSettle();
 
       // Failure SnackBar is shown.
       expect(
-        find.textContaining('Restore failed'),
+        find.textContaining('Wiederherstellung fehlgeschlagen'),
         findsOneWidget,
       );
 
       // The tiles are still present — app did not crash or navigate away.
-      expect(find.text('Restore from backup'), findsOneWidget);
+      expect(find.text('Aus Backup wiederherstellen'), findsOneWidget);
     });
 
     // ── Test 5: Pick cancelled ─────────────────────────────────────────────────
@@ -145,11 +145,11 @@ void main() {
 
       await pumpSection(tester, fakeBackup: fakeBackup, fakeFile: fakeFile);
 
-      await tester.tap(find.text('Restore from backup'));
+      await tester.tap(find.text('Aus Backup wiederherstellen'));
       await tester.pumpAndSettle();
 
       // The confirm dialog must NOT appear.
-      expect(find.text('Replace all data?'), findsNothing);
+      expect(find.text('Alle Daten ersetzen?'), findsNothing);
 
       // restore() must NOT have been called.
       expect(fakeBackup.restoredPaths, isEmpty);

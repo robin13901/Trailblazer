@@ -13,12 +13,18 @@ class GlassCircle extends StatelessWidget {
   const GlassCircle({
     required this.size,
     required this.child,
+    this.overMap = false,
     super.key,
   });
 
   /// Diameter of the circle in logical pixels.
   final double size;
   final Widget child;
+
+  /// Set `true` when this circle is layered directly over the MapLibre map.
+  /// See `GlassPill.overMap` — on Apple platforms over-map glass falls back to
+  /// the tinted look (the shader backdrop can't sample the map PlatformView).
+  final bool overMap;
 
   @override
   Widget build(BuildContext context) {
@@ -30,7 +36,10 @@ class GlassCircle extends StatelessWidget {
         ? settings.darkGlassBorder
         : settings.lightGlassBorder;
 
-    if (settings.platformSupportsBlurOverMap) {
+    final useGlass = settings.platformSupportsBlurOverMap &&
+        (!overMap || settings.supportsBlurOverPlatformView);
+
+    if (useGlass) {
       // Guard against 0-dim constraints. `liquid_glass_renderer` calls
       // `Picture.toImageSync(w, h)` during paint; if either dim is 0 that
       // throws "Invalid image dimensions" and crashes the app.

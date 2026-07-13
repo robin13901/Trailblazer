@@ -49,7 +49,11 @@ class AppPrefs {
   /// `2` = same day, corrected the topology check to assign each neighbour to
   /// its NEAREST connector endpoint (the v1 "within-tolerance" test trivially
   /// passed on short stubs and left the artifacts extended).
-  static const int kCurrentMatcherRematchVersion = 2;
+  /// `3` = 2026-07-13 coverage-from-trail rework: re-match every stored trip so
+  /// `_rematchOne` backfills the new `trips.coverage_path_json` (the trimmed
+  /// on-road GPS trail that is now the visible coverage line) for trips
+  /// recorded before schema v5.
+  static const int kCurrentMatcherRematchVersion = 3;
 
   /// Version stamp of the last coverage-cache recompute migration applied to
   /// this device. Bumped whenever `coverage_cache` needs a one-shot

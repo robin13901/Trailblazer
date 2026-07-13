@@ -45,13 +45,13 @@ void main() {
   testWidgets('count == 1 → "1 trip matching…"', (tester) async {
     await _pump(tester, 1);
 
-    expect(find.text('1 trip matching…'), findsOneWidget);
+    expect(find.text('1 Fahrt wird abgeglichen …'), findsOneWidget);
   });
 
   testWidgets('count == 5 → "5 trips matching…"', (tester) async {
     await _pump(tester, 5);
 
-    expect(find.text('5 trips matching…'), findsOneWidget);
+    expect(find.text('5 Fahrten werden abgeglichen …'), findsOneWidget);
   });
 
   testWidgets('renders via GlassPill shell with a spinner when count > 0', (

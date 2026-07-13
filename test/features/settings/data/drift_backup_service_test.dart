@@ -292,8 +292,9 @@ void main() {
       );
     });
 
-    test('validateBackup on a real VACUUM INTO output returns BackupValid(4)',
-        () async {
+    test(
+        'validateBackup on a real VACUUM INTO output returns '
+        'BackupValid(kCurrentSchemaVersion)', () async {
       final (db, dir) = await _openTempFileDb();
       addTearDown(() async {
         await db.close();

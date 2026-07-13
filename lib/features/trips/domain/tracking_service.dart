@@ -770,7 +770,7 @@ class TrackingService {
       final spd = s.currentSpeedKmh?.round().toString() ?? '—';
       // Fire-and-forget — errors logged inside the facade.
       unawaited(_facade.setNotificationText(
-        'Recording · $timeStr · $km km · $spd km/h',
+        'Aufnahme · $timeStr · $km km · $spd km/h',
       ));
     });
   }

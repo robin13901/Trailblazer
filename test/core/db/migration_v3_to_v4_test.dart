@@ -8,11 +8,17 @@ void main() {
   final verifier = SchemaVerifier(GeneratedHelper());
 
   group('v3 → v4 migration (Vehicles + Bluetooth removal)', () {
-    test('database upgrades from v3 to v4 without errors', () async {
+    // Note: validates at the CURRENT schema version (5), not 4. The v4 step
+    // rebuilds `trips` via TableMigration from the current Dart definition,
+    // which now includes the v5 `coverage_path_json` column — so the migrated
+    // schema no longer matches the frozen v4 snapshot. Migrating straight to 5
+    // still exercises the from<4 vehicle-drop path and its assertions.
+    test('database upgrades from v3 through to current schema without errors',
+        () async {
       final connection = await verifier.startAt(3);
       final db = AppDatabase(connection);
       addTearDown(db.close);
-      await verifier.migrateAndValidate(db, 4);
+      await verifier.migrateAndValidate(db, 5);
     });
 
     test('trip data survives; vehicle_id + bluetooth_hint columns are dropped',
@@ -34,7 +40,7 @@ void main() {
       final db = AppDatabase(schema.newConnection());
       addTearDown(db.close);
 
-      await verifier.migrateAndValidate(db, 4);
+      await verifier.migrateAndValidate(db, 5);
 
       // The trip row survived the TableMigration rebuild with its
       // non-vehicle data intact.
@@ -57,7 +63,7 @@ void main() {
       final db = AppDatabase(connection);
       addTearDown(db.close);
 
-      await verifier.migrateAndValidate(db, 4);
+      await verifier.migrateAndValidate(db, 5);
 
       final tables = await db
           .customSelect(

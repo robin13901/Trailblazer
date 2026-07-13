@@ -21,13 +21,13 @@ class HistoryEmptyState extends StatelessWidget {
             Icon(Icons.history, size: 64, color: muted),
             const SizedBox(height: 16),
             Text(
-              'No trip history yet',
+              'Noch keine Fahrten aufgezeichnet',
               style: theme.textTheme.titleMedium,
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 8),
             Text(
-              'Confirmed and matching trips will appear here.',
+              'Bestätigte und in Abgleich befindliche Fahrten erscheinen hier.',
               style: theme.textTheme.bodyMedium?.copyWith(color: muted),
               textAlign: TextAlign.center,
             ),

@@ -62,8 +62,8 @@ class FgbBackgroundGeolocationFacade implements BackgroundGeolocationFacade {
         // not customisable on iOS — this config is Android-only in effect)
         notification: bg.Notification(
           title: 'Trailblazer',
-          text: 'Recording · 00:00 · 0.0 km · — km/h',
-          channelName: 'Trip recording',
+          text: 'Aufnahme · 00:00 · 0,0 km · — km/h',
+          channelName: 'Fahrtaufzeichnung',
           channelId: 'trailblazer.tracking',
           priority: bg.NotificationPriority.low,
           smallIcon: 'mipmap/ic_launcher',

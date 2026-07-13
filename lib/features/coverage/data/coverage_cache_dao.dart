@@ -51,6 +51,37 @@ class CoverageCacheDao extends DatabaseAccessor<AppDatabase> {
         .getSingleOrNull();
   }
 
+  /// Write the REAL total road length (meters) computed by
+  /// `RegionTotalLengthService` for [regionId], stamping the compute time.
+  /// Upserts so a region row is created if the recompute pass hasn't run yet.
+  Future<void> writeRealTotalLength({
+    required String regionId,
+    required double realTotalLengthM,
+    required DateTime computedAt,
+  }) {
+    return into(_table).insertOnConflictUpdate(
+      CoverageCacheCompanion.insert(
+        regionId: regionId,
+        realTotalLengthM: Value(realTotalLengthM),
+        realTotalUpdatedAt: Value(computedAt),
+      ),
+    );
+  }
+
+  /// All rows that have driven coverage but no real total computed yet
+  /// (`real_total_length_m IS NULL`). These are the regions the background
+  /// `RegionTotalLengthService` still needs to process — each drives a
+  /// per-region spinner in the browser until its real total lands.
+  Future<List<CoverageCacheData>> getRegionsNeedingRealTotal() {
+    return (select(_table)
+          ..where(
+            (r) =>
+                r.drivenLengthM.isBiggerThanValue(0) &
+                r.realTotalLengthM.isNull(),
+          ))
+        .get();
+  }
+
   /// Batch-delete rows whose `region_id` is in [regionIds]. Returns the
   /// number of rows removed. Empty-input fast-path returns 0 without
   /// issuing SQL — guards SQLite's "empty IN list" error.

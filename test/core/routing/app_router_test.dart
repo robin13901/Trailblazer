@@ -61,20 +61,20 @@ void main() {
     await tester.pumpAndSettle(const Duration(seconds: 1));
 
     // Splash resolved into onboarding page 1 (3-page permission ladder).
-    expect(find.textContaining('Location while using Trailblazer'), findsOneWidget);
+    expect(find.textContaining('Standort während der Nutzung von Trailblazer'), findsOneWidget);
 
     // Tap page 1 Continue.
-    await tester.tap(find.text('Continue').first);
+    await tester.tap(find.text('Weiter').first);
     await tester.pumpAndSettle();
 
     // Page 2: Enable background location.
-    expect(find.text('Enable background location'), findsOneWidget);
-    await tester.tap(find.text('Enable background location'));
+    expect(find.text('Standort im Hintergrund aktivieren'), findsOneWidget);
+    await tester.tap(find.text('Standort im Hintergrund aktivieren'));
     await tester.pumpAndSettle();
 
     // Page 3: final step (Continue / Enable).
-    final finalLabel = find.text('Continue');
-    final enableLabel = find.text('Enable');
+    final finalLabel = find.text('Weiter');
+    final enableLabel = find.text('Aktivieren');
     if (finalLabel.evaluate().isNotEmpty) {
       await tester.tap(finalLabel);
     } else {
@@ -84,7 +84,7 @@ void main() {
 
     // MapScreen is active — BottomNavShell is the Dart-only landmark.
     expect(find.byType(BottomNavShell), findsOneWidget);
-    expect(find.textContaining('Location while using Trailblazer'), findsNothing);
+    expect(find.textContaining('Standort während der Nutzung von Trailblazer'), findsNothing);
   });
 
   testWidgets('second launch: skips onboarding, lands on map shell', (
@@ -112,7 +112,7 @@ void main() {
 
     expect(find.byType(BottomNavShell), findsOneWidget);
     expect(
-      find.textContaining('Location while using Trailblazer'),
+      find.textContaining('Standort während der Nutzung von Trailblazer'),
       findsNothing,
     );
   });

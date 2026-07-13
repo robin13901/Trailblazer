@@ -71,27 +71,27 @@ void main() {
     testWidgets('renders Data & Backup section header', (tester) async {
       await pumpScreen(tester);
       // _SectionHeader uppercases the title text.
-      expect(find.text('DATA & BACKUP'), findsOneWidget);
+      expect(find.text('DATEN & BACKUP'), findsOneWidget);
     });
 
     testWidgets('renders Coverage section header', (tester) async {
       await pumpScreen(tester);
-      expect(find.text('COVERAGE'), findsOneWidget);
+      expect(find.text('ABDECKUNG'), findsOneWidget);
     });
 
     testWidgets('renders Permissions section header', (tester) async {
       await pumpScreen(tester);
-      expect(find.text('PERMISSIONS'), findsOneWidget);
+      expect(find.text('BERECHTIGUNGEN'), findsOneWidget);
     });
 
     testWidgets('renders Diagnostics section header', (tester) async {
       await pumpScreen(tester);
-      expect(find.text('DIAGNOSTICS'), findsOneWidget);
+      expect(find.text('DIAGNOSE'), findsOneWidget);
     });
 
     testWidgets('renders About section header', (tester) async {
       await pumpScreen(tester);
-      expect(find.text('ABOUT'), findsOneWidget);
+      expect(find.text('ÜBER'), findsOneWidget);
     });
 
     // ── Placeholder removed ───────────────────────────────────────────────────
@@ -108,26 +108,26 @@ void main() {
 
     testWidgets('Back up my data tile is present', (tester) async {
       await pumpScreen(tester);
-      expect(find.text('Back up my data'), findsOneWidget);
+      expect(find.text('Meine Daten sichern'), findsOneWidget);
     });
 
     testWidgets('Restore from backup tile is present', (tester) async {
       await pumpScreen(tester);
-      expect(find.text('Restore from backup'), findsOneWidget);
+      expect(find.text('Aus Backup wiederherstellen'), findsOneWidget);
     });
 
     // ── About section (SET-09) ─────────────────────────────────────────────────
 
     testWidgets('Open-source licenses entry is present', (tester) async {
       await pumpScreen(tester);
-      expect(find.text('Open-source licenses'), findsOneWidget);
+      expect(find.text('Open-Source-Lizenzen'), findsOneWidget);
     });
 
     // ── Diagnostics HUD toggle ─────────────────────────────────────────────────
 
     testWidgets('Diagnostics HUD SwitchListTile is present', (tester) async {
       await pumpScreen(tester);
-      expect(find.text('Show diagnostics HUD'), findsOneWidget);
+      expect(find.text('Diagnose-HUD anzeigen'), findsOneWidget);
       // The toggle itself — find the Switch widget.
       expect(find.byType(Switch), findsOneWidget);
     });
@@ -137,7 +137,7 @@ void main() {
         (tester) async {
       await pumpScreen(tester);
       // Default state: HUD toggle OFF → diagnostics tile hidden.
-      expect(find.text('Tracking diagnostics'), findsNothing);
+      expect(find.text('Tracking-Diagnose'), findsNothing);
     });
 
     testWidgets(
@@ -147,7 +147,7 @@ void main() {
       // Toggle the switch ON.
       await tester.tap(find.byType(Switch));
       await tester.pumpAndSettle();
-      expect(find.text('Tracking diagnostics'), findsOneWidget);
+      expect(find.text('Tracking-Diagnose'), findsOneWidget);
     });
   });
 }

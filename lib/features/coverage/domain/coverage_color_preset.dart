@@ -86,11 +86,11 @@ extension CoverageColorPresetColors on CoverageColorPreset {
   /// Human-readable label for display in the Settings color picker.
   String get label {
     return switch (this) {
-      CoverageColorPreset.amber => 'Amber',
-      CoverageColorPreset.green => 'Green',
-      CoverageColorPreset.blue => 'Blue',
-      CoverageColorPreset.purple => 'Purple',
-      CoverageColorPreset.red => 'Red',
+      CoverageColorPreset.amber => 'Bernstein',
+      CoverageColorPreset.green => 'Grün',
+      CoverageColorPreset.blue => 'Blau',
+      CoverageColorPreset.purple => 'Lila',
+      CoverageColorPreset.red => 'Rot',
     };
   }
 

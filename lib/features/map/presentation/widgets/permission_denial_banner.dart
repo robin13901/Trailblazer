@@ -112,7 +112,7 @@ class _BannerContent extends StatelessWidget {
             children: [
               Expanded(
                 child: Text(
-                  'Enable Always for auto-trips — tap to open Settings',
+                  'Standort „Immer" aktivieren — zum Öffnen der Einstellungen tippen',
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                         fontWeight: FontWeight.w500,
                         color: const Color(0xFF3E2C00),

@@ -111,13 +111,13 @@ class _RawGpsRetentionSectionState
           SnackBar(
             content: Text(
               n == 0
-                  ? 'No GPS points to purge.'
-                  : 'Purged raw GPS points for $n older trip${n == 1 ? '' : 's'}.',
+                  ? 'Keine GPS-Punkte zum Löschen.'
+                  : 'Roh-GPS-Punkte für $n ältere Fahrt${n == 1 ? '' : 'en'} gelöscht.',
             ),
           ),
         ),
         err: (e) => messenger.showSnackBar(
-          SnackBar(content: Text('Purge failed: $e')),
+          SnackBar(content: Text('Löschen fehlgeschlagen: $e')),
         ),
       );
     }
@@ -131,22 +131,22 @@ class _RawGpsRetentionSectionState
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Purge older GPS points now?'),
+        title: const Text('Ältere GPS-Punkte jetzt löschen?'),
         content: Text(
           newDays == 0
-              ? 'All raw location points from matched trips will be deleted. '
-                  'Matched roads are unaffected.'
-              : 'Raw location points for trips older than $windowLabel will be '
-                  'deleted. Matched roads are unaffected.',
+              ? 'Alle Roh-Standortpunkte abgeglichener Fahrten werden gelöscht. '
+                  'Abgeglichene Straßen sind nicht betroffen.'
+              : 'Roh-Standortpunkte für Fahrten, die älter als $windowLabel sind, werden '
+                  'gelöscht. Abgeglichene Straßen sind nicht betroffen.',
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text('Cancel'),
+            child: const Text('Abbrechen'),
           ),
           FilledButton(
             onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: const Text('Purge'),
+            child: const Text('Löschen'),
           ),
         ],
       ),
@@ -157,17 +157,17 @@ class _RawGpsRetentionSectionState
   // ── Display helpers ───────────────────────────────────────────────────────
 
   String _labelFor(int? days) {
-    if (days == null) return 'Forever';
-    if (days == 0) return 'After matching';
-    if (days == 365) return '1 year';
-    return '$days days';
+    if (days == null) return 'Für immer';
+    if (days == 0) return 'Nach dem Abgleich';
+    if (days == 365) return '1 Jahr';
+    return '$days Tage';
   }
 
   String _subtitleFor(int? days) {
-    if (days == null) return 'Points are never deleted automatically.';
-    if (days == 0) return 'Points deleted once the trip is matched to roads.';
-    if (days == 365) return 'Points older than 1 year are deleted on resume.';
-    return 'Points older than $days days are deleted on resume.';
+    if (days == null) return 'Punkte werden nie automatisch gelöscht.';
+    if (days == 0) return 'Punkte werden gelöscht, sobald die Fahrt Straßen zugeordnet ist.';
+    if (days == 365) return 'Punkte, die älter als 1 Jahr sind, werden beim Fortsetzen gelöscht.';
+    return 'Punkte, die älter als $days Tage sind, werden beim Fortsetzen gelöscht.';
   }
 
   // ── Build ─────────────────────────────────────────────────────────────────
@@ -179,8 +179,8 @@ class _RawGpsRetentionSectionState
 
     if (!_loaded) {
       return const ListTile(
-        title: Text('Raw GPS retention'),
-        subtitle: Text('Loading…'),
+        title: Text('GPS-Rohdaten-Aufbewahrung'),
+        subtitle: Text('Wird geladen …'),
       );
     }
 
@@ -188,10 +188,11 @@ class _RawGpsRetentionSectionState
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const ListTile(
-          title: Text('Raw GPS retention'),
+          title: Text('GPS-Rohdaten-Aufbewahrung'),
           subtitle: Text(
-            'How long raw location points are kept after a trip is matched '
-            'to roads. Matched roads are unaffected by this setting.',
+            'Wie lange Roh-Standortpunkte aufbewahrt werden, nachdem eine Fahrt '
+            'Straßen zugeordnet wurde. Abgeglichene Straßen sind von dieser '
+            'Einstellung nicht betroffen.',
           ),
         ),
         RadioGroup<int?>(

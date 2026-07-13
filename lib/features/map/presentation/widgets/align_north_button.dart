@@ -35,7 +35,7 @@ class AlignNorthButton extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final bearing = ref.watch(cameraStateProvider).bearing;
     return Semantics(
-      label: 'Align map to north',
+      label: 'Nach Norden ausrichten',
       button: true,
       child: GestureDetector(
         onTap: () async {
@@ -66,6 +66,7 @@ class AlignNorthButton extends ConsumerWidget {
         },
         child: GlassCircle(
           size: 44,
+          overMap: true,
           child: Transform.rotate(
             // Counter-rotate so the arrow tracks true north as the map
             // rotates. MapLibre bearing is in degrees; Transform expects

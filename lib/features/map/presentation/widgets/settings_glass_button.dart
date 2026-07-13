@@ -21,12 +21,13 @@ class SettingsGlassButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Semantics(
-      label: 'Settings',
+      label: 'Einstellungen',
       button: true,
       child: GestureDetector(
         onTap: onTap,
         child: const GlassCircle(
           size: 44,
+          overMap: true,
           child: Icon(Icons.settings_outlined, size: 20),
         ),
       ),

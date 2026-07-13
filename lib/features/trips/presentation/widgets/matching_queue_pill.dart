@@ -26,7 +26,7 @@ class MatchingQueuePill extends ConsumerWidget {
     if (count == 0) return const SizedBox.shrink();
 
     final theme = Theme.of(context);
-    final label = count == 1 ? '1 trip matching…' : '$count trips matching…';
+    final label = count == 1 ? '1 Fahrt wird abgeglichen …' : '$count Fahrten werden abgeglichen …';
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),

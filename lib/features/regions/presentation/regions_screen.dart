@@ -91,14 +91,14 @@ class _BrowserBody extends ConsumerWidget {
   }
 }
 
-class _RegionList extends StatelessWidget {
+class _RegionList extends ConsumerWidget {
   const _RegionList({required this.list, required this.searchQuery});
 
   final List<RegionCoverage> list;
   final String searchQuery;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     if (list.isEmpty) {
       return _EmptyState(queryIsEmpty: searchQuery.trim().isEmpty);
     }
@@ -108,7 +108,7 @@ class _RegionList extends StatelessWidget {
         final region = list[i];
         return RegionCard(
           region: region,
-          onTap: () => showRegionDetailSheet(context, region),
+          onTap: () => showRegionDetailSheet(context, ref, region),
         );
       },
     );

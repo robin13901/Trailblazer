@@ -90,15 +90,16 @@ class _PermissionMotionNotificationPageState
 
     return PermissionRationalePage(
       icon: Icons.notifications_active,
-      title: isIOS ? 'Motion & Fitness' : 'Notifications and battery',
+      title: isIOS ? 'Bewegung & Fitness' : 'Benachrichtigungen und Batterie',
       body: isIOS
-          ? "iOS's Motion & Fitness sensor helps distinguish driving from "
-              'walking — this makes the auto-detect smarter.'
-          : 'Trailblazer shows a persistent notification while recording '
-              '(Android needs this to keep tracking alive). It also asks '
-              "Android to ignore battery optimizations, so the OS doesn't "
-              'kill tracking mid-trip.',
-      primaryLabel: isIOS ? 'Continue' : 'Enable',
+          ? 'Der Bewegungs- & Fitness-Sensor von iOS hilft, Fahren von Gehen zu '
+              'unterscheiden — das macht die automatische Erkennung intelligenter.'
+          : 'Trailblazer zeigt während der Aufnahme eine dauerhafte '
+              'Benachrichtigung an (Android braucht dies, um das Tracking am '
+              'Leben zu halten). Es bittet Android außerdem, die '
+              'Batterieoptimierung zu ignorieren, damit das Betriebssystem das '
+              'Tracking nicht mitten in der Fahrt beendet.',
+      primaryLabel: isIOS ? 'Weiter' : 'Aktivieren',
       onPrimary: _busy ? () {} : _onPrimary,
     );
   }

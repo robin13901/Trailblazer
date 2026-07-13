@@ -134,7 +134,7 @@ void main() {
 
     expect(find.text('pending'), findsOneWidget);
     expect(find.text('idle'), findsOneWidget);
-    expect(find.text('no fix accepted yet'), findsOneWidget);
+    expect(find.text('noch kein Fix akzeptiert'), findsOneWidget);
     expect(find.text('unknown'), findsOneWidget);
   });
 }

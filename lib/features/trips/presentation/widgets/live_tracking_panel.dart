@@ -27,9 +27,10 @@ class LiveTrackingPanel extends ConsumerWidget {
         final ss = d.inSeconds.remainder(60).toString().padLeft(2, '0');
         final km = (state.distanceMeters / 1000).toStringAsFixed(1);
         final spd = state.currentSpeedKmh?.round().toString() ?? '—';
-        final text = 'Recording · $mm:$ss · $km km · $spd km/h';
+        final text = 'Aufnahme · $mm:$ss · $km km · $spd km/h';
 
         return GlassPill(
+          overMap: true,
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
           child: Text(
             text,

@@ -42,7 +42,7 @@ void main() {
     testWidgets('visible when bannerVisible=true', (tester) async {
       await pumpBanner(tester, bannerVisible: true);
       expect(
-        find.textContaining('Enable Always for auto-trips'),
+        find.textContaining('Standort „Immer" aktivieren'),
         findsOneWidget,
       );
     });
@@ -51,7 +51,7 @@ void main() {
         (tester) async {
       await pumpBanner(tester, bannerVisible: false);
       expect(
-        find.textContaining('Enable Always for auto-trips'),
+        find.textContaining('Standort „Immer" aktivieren'),
         findsNothing,
       );
     });
@@ -78,7 +78,7 @@ void main() {
 
       // Banner is visible because bannerVisible=true is forced.
       expect(
-        find.textContaining('Enable Always for auto-trips'),
+        find.textContaining('Standort „Immer" aktivieren'),
         findsOneWidget,
       );
     });

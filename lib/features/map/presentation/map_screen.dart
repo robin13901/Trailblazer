@@ -12,6 +12,7 @@ import 'package:auto_explore/features/map/presentation/widgets/recenter_button.d
 import 'package:auto_explore/features/map/presentation/widgets/settings_glass_button.dart';
 import 'package:auto_explore/features/map/presentation/widgets/tracking_camera_sync.dart';
 import 'package:auto_explore/features/map/presentation/widgets/trip_fab.dart';
+import 'package:auto_explore/features/regions/presentation/providers/region_sheet_open_provider.dart';
 import 'package:auto_explore/features/trips/presentation/widgets/live_tracking_panel.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -66,6 +67,10 @@ class MapScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final currentIndex = navigationShell?.currentIndex ?? 0;
     final isMapTab = currentIndex == 0;
+    // Hide the bottom nav pill while a region detail sheet is open so the
+    // glass pill does not overlap the sheet card (on-device feedback
+    // 2026-07-13).
+    final regionSheetOpen = ref.watch(regionSheetOpenProvider);
 
     return Scaffold(
       // UI-06: no AppBar.
@@ -194,27 +199,32 @@ class MapScreen extends ConsumerWidget {
           // Bottom chrome — nav pill + FAB + (optional) recenter, all in
           // a single Column so their positions are structurally guaranteed
           // to line up (identical Row structure on each line).
-          Positioned(
-            left: 0,
-            right: 0,
-            bottom: 0,
-            child: SafeArea(
-              child: Padding(
-                padding: const EdgeInsets.only(bottom: _navRowBottomInset),
-                child: _BottomChrome(
-                  navShell: navigationShell != null
-                      ? BottomNavShell(
-                          currentIndex: currentIndex,
-                          onTap: navigationShell!.goBranch,
-                        )
-                      : const _LocalBottomNav(),
-                  showFab: isMapTab,
-                  showRecenter: isMapTab,
-                  showPanel: isMapTab,
+          //
+          // Hidden entirely while a region detail sheet is open so the glass
+          // nav pill does not overlap the sheet card (2026-07-13).
+          if (!regionSheetOpen)
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              child: SafeArea(
+                child: Padding(
+                  padding: const EdgeInsets.only(bottom: _navRowBottomInset),
+                  child: _BottomChrome(
+                    navShell: navigationShell != null
+                        ? BottomNavShell(
+                            currentIndex: currentIndex,
+                            onTap: navigationShell!.goBranch,
+                            overMap: isMapTab,
+                          )
+                        : const _LocalBottomNav(),
+                    showFab: isMapTab,
+                    showRecenter: isMapTab,
+                    showPanel: isMapTab,
+                  ),
                 ),
               ),
             ),
-          ),
         ],
       ),
     );

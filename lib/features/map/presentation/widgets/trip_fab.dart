@@ -31,7 +31,7 @@ class TripFab extends ConsumerWidget {
 
     return Semantics(
       button: true,
-      label: state is TrackingIdle ? 'Start trip' : 'Stop trip',
+      label: state is TrackingIdle ? 'Fahrt starten' : 'Fahrt beenden',
       child: GestureDetector(
         onTap: onTap,
         child: AnimatedSwitcher(
@@ -52,6 +52,7 @@ class _StartVariant extends StatelessWidget {
   Widget build(BuildContext context) {
     return const GlassCircle(
       size: 64,
+      overMap: true,
       child: Icon(Icons.fiber_manual_record, size: 30),
     );
   }

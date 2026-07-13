@@ -13,7 +13,7 @@ import 'package:sqlite3/sqlite3.dart';
 
 /// Current Drift schemaVersion. Must match [AppDatabase.schemaVersion].
 /// Updated here whenever the schema version bumps.
-const int kCurrentSchemaVersion = 4;
+const int kCurrentSchemaVersion = 5;
 
 /// Tables required to exist for a Trailblazer backup to be considered valid.
 const Set<String> _requiredTables = {

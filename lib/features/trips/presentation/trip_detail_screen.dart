@@ -290,11 +290,11 @@ class _TripDetailScreenState extends ConsumerState<TripDetailScreen> {
     final async = ref.watch(tripDetailDataProvider(widget.tripId));
     return Scaffold(
       appBar: AppBar(
-        title: Text('Trip #${widget.tripId}'),
+        title: Text('Fahrt Nr. ${widget.tripId}'),
         actions: [
           IconButton(
             icon: const Icon(Icons.delete_outline),
-            tooltip: 'Delete trip',
+            tooltip: 'Fahrt löschen',
             onPressed: _onDelete,
           ),
         ],
@@ -343,8 +343,8 @@ class _FailMatchedBanner extends StatelessWidget {
       icon: Icons.warning_amber_rounded,
       background: scheme.errorContainer,
       foreground: scheme.onErrorContainer,
-      message: 'No roads matched. GPS may have been indoors or in a '
-          'parking lot.',
+      message: 'Keine Straßen abgeglichen. GPS war möglicherweise in Innenräumen '
+          'oder auf einem Parkplatz.',
     );
   }
 }
@@ -360,7 +360,7 @@ class _OfflineBanner extends StatelessWidget {
       icon: Icons.cloud_off_outlined,
       background: scheme.surfaceContainerHighest,
       foreground: scheme.onSurfaceVariant,
-      message: 'Matched roads unavailable offline. Showing raw GPS trace.',
+      message: 'Abgeglichene Straßen offline nicht verfügbar. Zeige Roh-GPS-Spur.',
     );
   }
 }
@@ -417,17 +417,17 @@ class _StatStrip extends StatelessWidget {
       matchedLabel = '— (offline)';
     } else if (data.matchedFraction != null) {
       final pct = (data.matchedFraction! * 100).round();
-      matchedLabel = '${data.matchedWayCount} ways ($pct%)';
+      matchedLabel = '${data.matchedWayCount} Straßen ($pct %)';
     } else {
-      matchedLabel = '${data.matchedWayCount} ways';
+      matchedLabel = '${data.matchedWayCount} Straßen';
     }
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       child: Text(
-        'Duration: ${formatDuration(item.duration)} · '
-        'Distance: ${formatDistance(item.distanceMeters)} · '
-        'Matched: $matchedLabel',
+        'Dauer: ${formatDuration(item.duration)} · '
+        'Distanz: ${formatDistance(item.distanceMeters)} · '
+        'Abgeglichen: $matchedLabel',
         style: theme.textTheme.bodyMedium,
         textAlign: TextAlign.center,
       ),
@@ -448,7 +448,7 @@ class _ErrorBody extends StatelessWidget {
       child: Padding(
         padding: const EdgeInsets.all(32),
         child: Text(
-          'Could not load this trip.\n$message',
+          'Diese Fahrt konnte nicht geladen werden.\n$message',
           textAlign: TextAlign.center,
           style: theme.textTheme.bodyMedium?.copyWith(
             color: theme.colorScheme.error,

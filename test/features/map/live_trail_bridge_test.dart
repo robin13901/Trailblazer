@@ -43,8 +43,9 @@ class _FakeLiveTrailApplier implements LiveTrailApplier {
   @override
   Future<void> addOrUpdate(
     MapLibreMapController? controller,
-    List<LatLng> trail,
-  ) async {
+    List<LatLng> trail, {
+    String? colorHex,
+  }) async {
     calls.add(_AddOrUpdateCall(List<LatLng>.of(trail)));
   }
 

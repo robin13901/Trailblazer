@@ -22,13 +22,13 @@ class InboxEmptyState extends StatelessWidget {
             Icon(Icons.inbox_outlined, size: 64, color: muted),
             const SizedBox(height: 16),
             Text(
-              'No trips waiting',
+              'Keine Fahrten ausstehend',
               style: theme.textTheme.titleMedium,
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 8),
             Text(
-              'Drives you record will show up here for review.',
+              'Aufgezeichnete Fahrten erscheinen hier zur Überprüfung.',
               style: theme.textTheme.bodyMedium?.copyWith(color: muted),
               textAlign: TextAlign.center,
             ),

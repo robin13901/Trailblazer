@@ -1,5 +1,8 @@
 import 'dart:ui';
 
+import 'package:flutter/foundation.dart'
+    show TargetPlatform, defaultTargetPlatform;
+
 /// Shared visual + gate settings for all Liquid Glass chrome.
 ///
 /// The [platformBlurEnabled] flag is set by the Plan 02-01 G1 rendering
@@ -21,6 +24,28 @@ class LiquidGlassSettings {
   // Intentionally mutable: set once at startup, never rebuilt.
   // ignore: avoid_non_final_static_fields — flag is set once at startup.
   static bool platformBlurEnabled = false;
+
+  /// Whether real LiquidGlass may be used for chrome layered **over the map**.
+  ///
+  /// 2026-07-13 (iOS on-device): `liquid_glass_renderer` blurs via a shader
+  /// `ImageFilter` on a Flutter `BackdropFilterLayer`, which samples the
+  /// *Flutter-rasterized* backdrop. On iOS/macOS the MapLibre map is a
+  /// **PlatformView** composited by the OS outside Flutter's layer tree, so
+  /// the sample returns black — chrome renders as an opaque black square with
+  /// a visible rectangular sample region (the "black box over the map" bug).
+  ///
+  /// Android's Impeller path composites the PlatformView into the Flutter
+  /// scene, so blur-over-map is device-verified working there.
+  ///
+  /// Chrome that sits over the map (nav pill on the Map tab, FAB, focus pill,
+  /// settings/align/recenter circles, live tracking panel) passes
+  /// `overMap: true` to `GlassPill`/`GlassCircle`; those widgets fall back to
+  /// the tinted look on Apple platforms. Chrome over an opaque Flutter surface
+  /// (Trips/Regions lists, detail sheet, matching queue pill) leaves `overMap`
+  /// false and keeps the full effect on every platform.
+  bool get supportsBlurOverPlatformView =>
+      defaultTargetPlatform != TargetPlatform.iOS &&
+      defaultTargetPlatform != TargetPlatform.macOS;
 
   /// Instance accessor used by downstream widgets.
   ///

@@ -92,23 +92,23 @@ class _PermissionsSectionState extends ConsumerState<PermissionsSection>
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _PermissionRung(
-          label: 'Location Always',
+          label: 'Standort immer',
           status: _always,
         ),
         _PermissionRung(
-          label: 'Location When In Use',
+          label: 'Standort bei Nutzung',
           status: _whenInUse,
         ),
         _PermissionRung(
-          label: 'Motion / Activity',
+          label: 'Bewegung / Aktivität',
           status: _activityRecognition,
         ),
         _PermissionRung(
-          label: 'Notifications',
+          label: 'Benachrichtigungen',
           status: _notification,
         ),
         _PermissionRung(
-          label: 'Battery optimization',
+          label: 'Batterieoptimierung',
           status: _ignoreBatteryOptimizations,
         ),
       ],

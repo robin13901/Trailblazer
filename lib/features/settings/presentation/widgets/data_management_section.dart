@@ -45,18 +45,18 @@ class _DataManagementSectionState
     final confirm = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Refresh admin regions?'),
+        title: const Text('Verwaltungsregionen aktualisieren?'),
         content: const Text(
-          'This will download ~10 MB of data and may take 1-2 minutes.',
+          'Dabei werden ca. 10 MB Daten heruntergeladen, was 1-2 Minuten dauern kann.',
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text('Cancel'),
+            child: const Text('Abbrechen'),
           ),
           FilledButton(
             onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: const Text('Refresh'),
+            child: const Text('Aktualisieren'),
           ),
         ],
       ),
@@ -69,13 +69,13 @@ class _DataManagementSectionState
       await ref.read(adminBundleRefresherProvider).refreshFromOverpass();
       if (!mounted) return;
       messenger.showSnackBar(
-        const SnackBar(content: Text('Admin regions updated')),
+        const SnackBar(content: Text('Verwaltungsregionen aktualisiert')),
       );
       await _loadVersion();
     } on Object catch (e) {
       if (!mounted) return;
       messenger.showSnackBar(
-        SnackBar(content: Text('Refresh failed: $e')),
+        SnackBar(content: Text('Aktualisierung fehlgeschlagen: $e')),
       );
     } finally {
       if (mounted) setState(() => _refreshing = false);
@@ -85,12 +85,12 @@ class _DataManagementSectionState
   @override
   Widget build(BuildContext context) {
     final subtitle = !_versionLoaded
-        ? 'Loading…'
+        ? 'Wird geladen …'
         : _cachedVersion == null
-            ? 'Using bundled version'
-            : 'Last refreshed: $_cachedVersion';
+            ? 'Mitgelieferte Version wird verwendet'
+            : 'Zuletzt aktualisiert: $_cachedVersion';
     return ListTile(
-      title: const Text('Refresh admin regions'),
+      title: const Text('Verwaltungsregionen aktualisieren'),
       subtitle: Text(subtitle),
       trailing: _refreshing
           ? const SizedBox(

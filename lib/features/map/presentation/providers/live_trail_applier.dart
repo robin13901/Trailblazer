@@ -16,10 +16,14 @@ const String liveTrailSourceId = 'live_trail';
 /// MapLibre layer id for the live dashed trail.
 const String liveTrailLayerId = 'live_trail_layer';
 
-/// Accent color for the live trail. A bright cyan reads as "live / provisional"
-/// and is deliberately distinct from the coverage overlay's greens so the
-/// dashed live path is never confused with finalized matched coverage.
-const Color kLiveTrailColor = Color(0xFF00E5FF);
+/// Default color for the live trail when no coverage color is supplied.
+///
+/// 2026-07-13 (coverage-from-trail rework): the live trail now reads as
+/// "coverage being drawn live" — the bridge passes the current coverage
+/// preset color and the line is SOLID (no dash), so the persistent coverage
+/// that finalizes post-trip looks identical to what was drawn while driving.
+/// This constant is only the fallback when a color isn't provided.
+const Color kLiveTrailColor = Color(0xFFFF8C00); // amber full (light)
 
 /// GeoJSON LineString feature from [points] ([lng, lat] order, per GeoJSON).
 Map<String, dynamic> liveTrailLineFeature(List<LatLng> points) => {
@@ -33,14 +37,17 @@ Map<String, dynamic> liveTrailLineFeature(List<LatLng> points) => {
       'properties': <String, dynamic>{},
     };
 
-/// Seam for applying the live dashed trail to the map. Overridable in tests.
+/// Seam for applying the live trail to the map. Overridable in tests.
 abstract class LiveTrailApplier {
-  /// Add the dashed trail source+layer (first call) or update the source
-  /// geometry in place (subsequent calls). No-op if fewer than 2 points.
+  /// Add the trail source+layer (first call) or update the source geometry in
+  /// place (subsequent calls). No-op if fewer than 2 points. [colorHex] is the
+  /// solid line color (e.g. the current coverage preset color); defaults to
+  /// [kLiveTrailColor] when null.
   Future<void> addOrUpdate(
     MapLibreMapController? controller,
-    List<LatLng> trail,
-  );
+    List<LatLng> trail, {
+    String? colorHex,
+  });
 
   /// Remove the trail source+layer. Idempotent.
   Future<void> remove(MapLibreMapController? controller);
@@ -53,8 +60,9 @@ class MapLibreLiveTrailApplier implements LiveTrailApplier {
   @override
   Future<void> addOrUpdate(
     MapLibreMapController? controller,
-    List<LatLng> trail,
-  ) async {
+    List<LatLng> trail, {
+    String? colorHex,
+  }) async {
     if (controller == null || trail.length < 2) return;
     final feature = liveTrailLineFeature(trail);
     // Try an in-place source update first (cheap, no layer churn). If the
@@ -67,15 +75,13 @@ class MapLibreLiveTrailApplier implements LiveTrailApplier {
         liveTrailSourceId,
         liveTrailLayerId,
         LineLayerProperties(
-          lineColor: _hex(kLiveTrailColor),
-          lineWidth: 4,
-          lineOpacity: 0.9,
+          // Solid, in the coverage color — the live line and the persistent
+          // coverage line are the same look (2026-07-13). No dash.
+          lineColor: colorHex ?? _hex(kLiveTrailColor),
+          lineWidth: 5,
+          lineOpacity: 0.92,
           lineJoin: 'round',
           lineCap: 'round',
-          // Dash pattern (in line-widths): distinguishes the provisional live
-          // trail from the solid matched coverage. maplibre_gl 0.26.2 supports
-          // line-dasharray on js/android/ios/macos.
-          lineDasharray: const [2, 2],
         ),
       );
     }

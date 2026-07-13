@@ -465,7 +465,7 @@ void main() {
     // -------------------------------------------------------------------------
     test(
         'notification ticker: fires >= 3 times during a 350 ms manual trip, '
-        'each text starts with "Recording · "', () async {
+        'each text starts with "Aufnahme · "', () async {
       const intervalMs = 100;
       final svc = makeService(
         notificationInterval: const Duration(milliseconds: intervalMs),
@@ -494,8 +494,8 @@ void main() {
       for (final text in facade.notificationTexts) {
         expect(
           text,
-          startsWith('Recording · '),
-          reason: 'Every notification text must start with "Recording · "',
+          startsWith('Aufnahme · '),
+          reason: 'Every notification text must start with "Aufnahme · "',
         );
       }
 

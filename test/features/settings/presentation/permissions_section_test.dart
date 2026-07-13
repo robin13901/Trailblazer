@@ -25,11 +25,11 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('Location Always'), findsOneWidget);
-      expect(find.text('Location When In Use'), findsOneWidget);
-      expect(find.text('Motion / Activity'), findsOneWidget);
-      expect(find.text('Notifications'), findsOneWidget);
-      expect(find.text('Battery optimization'), findsOneWidget);
+      expect(find.text('Standort immer'), findsOneWidget);
+      expect(find.text('Standort bei Nutzung'), findsOneWidget);
+      expect(find.text('Bewegung / Aktivität'), findsOneWidget);
+      expect(find.text('Benachrichtigungen'), findsOneWidget);
+      expect(find.text('Batterieoptimierung'), findsOneWidget);
     });
 
     testWidgets('shows correct statuses for mixed configuration', (tester) async {

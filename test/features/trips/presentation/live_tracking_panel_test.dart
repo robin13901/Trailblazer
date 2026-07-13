@@ -77,8 +77,8 @@ void main() {
         ),
       );
 
-      // The text should start with "Recording ·".
-      expect(find.textContaining('Recording ·'), findsOneWidget);
+      // The text should start with "Aufnahme ·".
+      expect(find.textContaining('Aufnahme ·'), findsOneWidget);
       // Distance should read "1.5 km".
       expect(find.textContaining('1.5 km'), findsOneWidget);
     });
@@ -101,7 +101,7 @@ void main() {
       );
 
       // Panel is visible.
-      expect(find.textContaining('Recording ·'), findsOneWidget);
+      expect(find.textContaining('Aufnahme ·'), findsOneWidget);
 
       // Advance timer by 2 seconds — the periodic Timer should fire twice.
       // We only verify that no exception is thrown and the panel is still
@@ -109,7 +109,7 @@ void main() {
       // to change MM:SS, but the rebuild cycle itself must not crash).
       await tester.pump(const Duration(seconds: 2));
 
-      expect(find.textContaining('Recording ·'), findsOneWidget);
+      expect(find.textContaining('Aufnahme ·'), findsOneWidget);
     });
   });
 }

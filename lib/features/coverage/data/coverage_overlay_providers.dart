@@ -1,51 +1,44 @@
-// Trailblazer Phase 7, Plan 07-03:
-// Riverpod wiring for the coverage data layer:
-//   * drivenWayIntervalsDaoProvider — DAO singleton
-//   * drivenWayGeometryResolverProvider — resolver singleton
-//   * tripsUnionBoundsProvider — reactive Drift stream of union bbox
-//   * coverageOverlayDataProvider — reactive StreamProvider that re-resolves
-//     whenever the union bbox stream emits (trip confirmed mid-session)
+// Trailblazer coverage overlay providers.
+//
+// 2026-07-13 (coverage-from-trail rework): the persistent coverage line is now
+// the trimmed on-road raw-GPS trail stored per trip in `trips.coverage_path_json`
+// (written by TripMatchCoordinator). This replaces the previous
+// matched-OSM-way geometry source (DrivenWayGeometryResolver), which produced
+// intersection gaps and relied on the light-gradient partial-driven shading the
+// user asked to remove. Road-matched `driven_way_intervals` remain the source
+// for region-km math (CoverageComputeService) — matching is now technical-only,
+// not visual.
+//
+// Live-refresh chain:
+//   match/re-match writes coverage_path_json
+//     → TripsDao.watchCoveragePaths() re-emits
+//     → coveragePathsProvider emits
+//     → coverageOverlayDataProvider rebuilds
+//     → CoverageOverlayBridge re-applies the GeoJSON overlay
 //
 // All plain Provider / StreamProvider — no @Riverpod codegen (STATE 01-01).
-//
-// **Live-refresh chain (07-06 truth #3):**
-//   confirmTrip (TripsInboxDao.transitionToConfirmed)
-//     → trips table write
-//     → TripsDao.watchUnionBbox() re-emits  [readsFrom: {trips, drivenWayIntervals}]
-//     → tripsUnionBoundsProvider emits new value
-//     → coverageOverlayDataProvider rebuilds (StreamProvider watches tripsUnionBoundsProvider)
-//     → DrivenWayGeometryResolver.resolve(bounds) runs fresh
-//     → 07-06 bridge sees new CoverageOverlayData and re-applies GeoJSON overlay
-//
-// Why StreamProvider (not FutureProvider) for coverageOverlayDataProvider:
-//   A FutureProvider caches its result and does NOT re-run when upstream
-//   providers emit — only StreamProvider re-evaluates on each watch change.
-//   Using FutureProvider here would make the overlay stale after a trip
-//   confirmation mid-session, breaking 07-06 truth #3.
 
 import 'package:auto_explore/core/db/app_database_providers.dart';
 import 'package:auto_explore/core/db/daos/driven_way_intervals_dao.dart';
 import 'package:auto_explore/features/coverage/data/coverage_overlay_data.dart';
+import 'package:auto_explore/features/coverage/data/coverage_path_codec.dart';
 import 'package:auto_explore/features/coverage/data/driven_way_geometry_resolver.dart';
+import 'package:auto_explore/features/coverage/domain/coverage_datum.dart';
 import 'package:auto_explore/features/matching/data/matching_providers.dart';
 import 'package:auto_explore/features/trips/data/trips_repository_providers.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:maplibre_gl/maplibre_gl.dart' show LatLngBounds;
+import 'package:maplibre_gl/maplibre_gl.dart' show LatLng, LatLngBounds;
 
 /// Singleton [DrivenWayIntervalsDao] — plain `Provider<T>` per STATE 01-01.
 ///
-/// Backed by `appDatabaseProvider` (the singleton `AppDatabase`).
-/// Phase-5 matching providers construct their own instance directly;
-/// this provider is the coverage-layer entry point so it doesn't conflict.
+/// Retained for region-km math and any consumers that still read matched
+/// intervals directly. The visible overlay no longer uses it.
 final drivenWayIntervalsDaoProvider = Provider<DrivenWayIntervalsDao>((ref) {
   return DrivenWayIntervalsDao(ref.watch(appDatabaseProvider));
 });
 
-/// Singleton [DrivenWayGeometryResolver].
-///
-/// Injects the [DrivenWayIntervalsDao] singleton and the runtime
-/// `WayCandidateSource` (cache-first `OverpassWayCandidateSource`).
-/// Tests override `wayCandidateSourceProvider` with a fake implementation.
+/// Singleton [DrivenWayGeometryResolver]. Retained for tests / potential reuse;
+/// no longer on the visible-overlay path (kept to avoid a wider refactor).
 final drivenWayGeometryResolverProvider =
     Provider<DrivenWayGeometryResolver>((ref) {
   return DrivenWayGeometryResolver(
@@ -54,39 +47,54 @@ final drivenWayGeometryResolverProvider =
   );
 });
 
+/// Reactive stream of every trip's stored coverage-path JSON (non-empty only).
+final coveragePathsProvider = StreamProvider<List<String>>((ref) {
+  return ref.watch(tripsDaoProvider).watchCoveragePaths();
+});
+
 /// Reactive stream of the union bounding-box of all matched/confirmed trips.
 ///
-/// Backed by `TripsDao.watchUnionBbox` — see that method's doc-comment for
-/// the full reactivity rationale. Emits `null` when no trips with bbox columns
-/// exist.
-///
-/// This is a [StreamProvider], NOT a [FutureProvider], so it re-evaluates
-/// on every new Drift emission.
+/// No longer drives the visible overlay (2026-07-13 rework) but retained for
+/// consumers that reason about the driven extent. Emits `null` when no trips
+/// with bbox columns exist.
 final tripsUnionBoundsProvider = StreamProvider<LatLngBounds?>((ref) {
   return ref.watch(tripsDaoProvider).watchUnionBbox();
 });
 
-/// Reactive coverage overlay data for the map.
+/// Reactive coverage overlay data for the map, built from the trimmed on-road
+/// trail segments persisted per trip.
 ///
-/// Re-resolves whenever [tripsUnionBoundsProvider] emits — i.e. whenever a
-/// trip is confirmed, matched, or its bbox/intervals change. See the
-/// live-refresh chain at the top of this file.
+/// Each stored polyline segment becomes one [CoverageWay] with a full
+/// (`isFull: true`) datum so it renders as a solid line — there is no longer a
+/// partial-driven gradient. The `wayId` here is a synthetic running index
+/// (the segments are not OSM ways); it exists only to key the GeoJSON feature.
 ///
-/// Yields [CoverageOverlayData.empty] when:
-///   * No trips with bbox data exist (`bounds == null`).
-///   * All geometries are cache-misses (offline with empty cache).
-///   * An unexpected error occurs in the resolver (degrades gracefully).
-///
-/// **This must be a [StreamProvider].** A FutureProvider caches and will NOT
-/// re-run when tripsUnionBoundsProvider emits new values mid-session,
-/// breaking the live-refresh requirement of 07-06 truth #3.
+/// Yields [CoverageOverlayData.empty] when no trip has a stored path yet.
 final coverageOverlayDataProvider =
     StreamProvider<CoverageOverlayData>((ref) async* {
-  final boundsAsync = ref.watch(tripsUnionBoundsProvider);
-  final bounds = boundsAsync.value;
-  if (bounds == null) {
+  final pathsAsync = ref.watch(coveragePathsProvider);
+  final paths = pathsAsync.value;
+  if (paths == null || paths.isEmpty) {
     yield CoverageOverlayData.empty;
     return;
   }
-  yield await ref.watch(drivenWayGeometryResolverProvider).resolve(bounds);
+
+  final ways = <CoverageWay>[];
+  var syntheticId = 0;
+  for (final json in paths) {
+    for (final segment in decodeCoveragePath(json)) {
+      if (segment.length < 2) continue;
+      ways.add(
+        CoverageWay(
+          wayId: syntheticId++,
+          geometry: [
+            for (final p in segment) LatLng(p[0], p[1]),
+          ],
+          // Solid — full coverage, no partial gradient (2026-07-13).
+          datum: const CoverageDatum(fraction: 1, isFull: true),
+        ),
+      );
+    }
+  }
+  yield CoverageOverlayData(ways);
 });

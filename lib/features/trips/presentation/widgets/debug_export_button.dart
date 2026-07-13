@@ -52,7 +52,7 @@ class DebugExportButton extends ConsumerWidget {
       heroTag: 'export_fixture_$tripId',
       onPressed: () => _prompt(context, ref),
       icon: const Icon(Icons.save_alt_outlined),
-      label: const Text('Export fixture'),
+      label: const Text('Fixture exportieren'),
     );
   }
 
@@ -70,11 +70,11 @@ class DebugExportButton extends ConsumerWidget {
           .read(goldenFixtureExporterProvider)
           .export(tripId: tripId, slug: slug);
       messenger.showSnackBar(
-        SnackBar(content: Text('Exported to $path')),
+        SnackBar(content: Text('Exportiert nach $path')),
       );
     } on DomainError catch (e) {
       messenger.showSnackBar(
-        SnackBar(content: Text('Export failed: ${e.message}')),
+        SnackBar(content: Text('Export fehlgeschlagen: ${e.message}')),
       );
     }
   }
@@ -100,25 +100,25 @@ class _SlugPromptDialogState extends State<_SlugPromptDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text('Export golden fixture'),
+      title: const Text('Golden-Fixture exportieren'),
       content: TextField(
         controller: _controller,
         autofocus: true,
         decoration: const InputDecoration(
-          labelText: 'Fixture slug',
-          hintText: 'e.g. 002_kleinheubach_roundabout',
+          labelText: 'Fixture-Slug',
+          hintText: 'z. B. 002_kleinheubach_roundabout',
         ),
         onSubmitted: (value) => Navigator.of(context).pop(value.trim()),
       ),
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Cancel'),
+          child: const Text('Abbrechen'),
         ),
         TextButton(
           onPressed: () =>
               Navigator.of(context).pop(_controller.text.trim()),
-          child: const Text('Save'),
+          child: const Text('Speichern'),
         ),
       ],
     );

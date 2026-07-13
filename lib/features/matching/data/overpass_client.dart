@@ -20,6 +20,7 @@
 //     with a valid Overpass JSON envelope. Selected as the fallback endpoint.
 
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:auto_explore/core/errors/domain_error.dart';
 import 'package:auto_explore/features/matching/data/overpass_query_builder.dart';
@@ -117,6 +118,66 @@ class OverpassClient {
       maxLon: maxLon,
       timeoutSeconds: timeoutSeconds,
     );
+    return _postQuery(query);
+  }
+
+  /// Returns the total length in meters of all `highway=` ways inside the
+  /// region [regionAreaId] (Overpass area id = `3600000000 + osmRelationId`),
+  /// clipped to the given bbox cell. Used by `RegionTotalLengthService` to
+  /// sum a region's real road length tile-by-tile without transferring
+  /// geometry.
+  ///
+  /// Same retry/fallback contract as [fetchWaysInBbox]. Throws [DomainError]
+  /// on exhausted attempts.
+  Future<double> fetchRegionLengthInBbox({
+    required int regionAreaId,
+    required double minLat,
+    required double minLon,
+    required double maxLat,
+    required double maxLon,
+    int timeoutSeconds = 180,
+  }) async {
+    final query = _queryBuilder.buildRegionLengthInBboxQuery(
+      regionAreaId: regionAreaId,
+      minLat: minLat,
+      minLon: minLon,
+      maxLat: maxLat,
+      maxLon: maxLon,
+      timeoutSeconds: timeoutSeconds,
+    );
+    final raw = await _postQuery(query);
+    return _parseTotalMeters(raw);
+  }
+
+  /// Parses the `total_m` tag out of a `make stat total_m=sum(length())`
+  /// Overpass response. Returns 0 when the element/tag is absent (e.g. the
+  /// cell contained no roads). Throws [NetworkError] if the server returned a
+  /// `remark` error (e.g. an out-of-memory runtime error) so the caller can
+  /// retry with a smaller cell.
+  double _parseTotalMeters(String rawJson) {
+    final decoded = jsonDecode(rawJson);
+    if (decoded is! Map<String, dynamic>) return 0;
+    final remark = decoded['remark'];
+    if (remark is String && remark.toLowerCase().contains('error')) {
+      throw NetworkError('Overpass length query error: $remark');
+    }
+    final elements = decoded['elements'];
+    if (elements is! List || elements.isEmpty) return 0;
+    for (final el in elements) {
+      if (el is Map<String, dynamic>) {
+        final tags = el['tags'];
+        if (tags is Map<String, dynamic>) {
+          final v = tags['total_m'];
+          if (v is String) return double.tryParse(v) ?? 0;
+          if (v is num) return v.toDouble();
+        }
+      }
+    }
+    return 0;
+  }
+
+  /// Shared POST loop with retry + endpoint fallback for an arbitrary QL body.
+  Future<String> _postQuery(String query) async {
     final body = 'data=${Uri.encodeQueryComponent(query)}';
 
     for (var attempt = 0; attempt < 3; attempt++) {

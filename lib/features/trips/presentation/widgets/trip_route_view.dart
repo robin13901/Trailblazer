@@ -46,7 +46,7 @@ class TripRouteView extends StatelessWidget {
         color: scheme.surfaceContainerHighest,
         child: Center(
           child: Text(
-            'No route to display.',
+            'Keine Route zum Anzeigen.',
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                   color: scheme.onSurfaceVariant,
                 ),

@@ -80,17 +80,17 @@ void main() {
   /// Tap through all 3 onboarding pages.
   Future<void> tapAll(WidgetTester tester) async {
     // Page 1 — whenInUse
-    expect(find.text('Continue'), findsWidgets);
-    await tester.tap(find.text('Continue').first);
+    expect(find.text('Weiter'), findsWidgets);
+    await tester.tap(find.text('Weiter').first);
     await tester.pumpAndSettle();
 
     // Page 2 — always
-    expect(find.text('Enable background location'), findsOneWidget);
-    await tester.tap(find.text('Enable background location'));
+    expect(find.text('Standort im Hintergrund aktivieren'), findsOneWidget);
+    await tester.tap(find.text('Standort im Hintergrund aktivieren'));
     await tester.pumpAndSettle();
 
     // Page 3 — motion/notification
-    final primaryLabel = Platform.isIOS ? 'Continue' : 'Enable';
+    final primaryLabel = Platform.isIOS ? 'Weiter' : 'Aktivieren';
     expect(find.text(primaryLabel), findsOneWidget);
     await tester.tap(find.text(primaryLabel));
     await tester.pumpAndSettle();
@@ -203,7 +203,7 @@ void main() {
         flagRepo: flagRepo,
       );
 
-      expect(find.textContaining('Location while using'), findsOneWidget);
+      expect(find.textContaining('Standort während der Nutzung'), findsOneWidget);
     });
 
     testWidgets('page 2 copy renders after page 1', (tester) async {
@@ -215,10 +215,10 @@ void main() {
         flagRepo: flagRepo,
       );
 
-      await tester.tap(find.text('Continue').first);
+      await tester.tap(find.text('Weiter').first);
       await tester.pumpAndSettle();
 
-      expect(find.textContaining('Log trips in the background'), findsOneWidget);
+      expect(find.textContaining('Fahrten im Hintergrund aufzeichnen'), findsOneWidget);
     });
 
     testWidgets('page 3 copy renders after page 2', (tester) async {
@@ -230,13 +230,13 @@ void main() {
         flagRepo: flagRepo,
       );
 
-      await tester.tap(find.text('Continue').first);
+      await tester.tap(find.text('Weiter').first);
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Enable background location'));
+      await tester.tap(find.text('Standort im Hintergrund aktivieren'));
       await tester.pumpAndSettle();
 
       final expectedTitle =
-          Platform.isIOS ? 'Motion & Fitness' : 'Notifications and battery';
+          Platform.isIOS ? 'Bewegung & Fitness' : 'Benachrichtigungen und Batterie';
       expect(find.textContaining(expectedTitle), findsOneWidget);
     });
   });

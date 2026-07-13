@@ -39,4 +39,30 @@ class OverpassQueryBuilder {
         'way[highway]($minLat,$minLon,$maxLat,$maxLon);\n'
         'out geom qt;';
   }
+
+  /// Builds a QL body that returns ONLY the total length in meters of all
+  /// `highway=` ways inside [regionAreaId], clipped to the given bbox cell.
+  ///
+  /// Used by `RegionTotalLengthService` to compute a region's real total road
+  /// length tile-by-tile without transferring any geometry: the server sums
+  /// `length()` and returns a single `stat` element. Tiling by bbox keeps each
+  /// query small enough to avoid the Overpass 2 GB per-query memory ceiling
+  /// (a whole-Bundesland area query OOMs server-side — validated 2026-07-13).
+  ///
+  /// [regionAreaId] is the Overpass *area* id: `3600000000 + osmRelationId`.
+  /// Bbox order is `(south, west, north, east)`.
+  String buildRegionLengthInBboxQuery({
+    required int regionAreaId,
+    required double minLat,
+    required double minLon,
+    required double maxLat,
+    required double maxLon,
+    int timeoutSeconds = 180,
+  }) {
+    return '[out:json][timeout:$timeoutSeconds];\n'
+        'way[highway](area:$regionAreaId)'
+        '($minLat,$minLon,$maxLat,$maxLon);\n'
+        'make stat total_m=sum(length());\n'
+        'out;';
+  }
 }

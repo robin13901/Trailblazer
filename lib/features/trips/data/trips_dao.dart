@@ -95,6 +95,32 @@ class TripsDao extends DatabaseAccessor<AppDatabase> {
         const TripsCompanion(status: Value(TripStatus.matched)),
       );
 
+  /// Persist the trimmed on-road coverage polyline for [tripId] (2026-07-13
+  /// coverage-from-trail rework). [json] is the encoded segment list from
+  /// `encodeCoveragePath`; `null` clears it. Stored on the trip row so it
+  /// survives raw-GPS retention deletion of `trip_points`.
+  Future<void> writeCoveragePath(int tripId, String? json) =>
+      (update(trips)..where((t) => t.id.equals(tripId))).write(
+        TripsCompanion(coveragePathJson: Value(json)),
+      );
+
+  /// Reactive stream of every trip's stored coverage-path JSON (non-null only).
+  ///
+  /// Drives the persistent coverage overlay: each recorded trip contributes
+  /// its trimmed on-road polyline. Re-emits whenever any trip's
+  /// `coverage_path_json` changes (new match, re-match, discard).
+  Stream<List<String>> watchCoveragePaths() {
+    final query = selectOnly(trips)
+      ..addColumns([trips.coveragePathJson])
+      ..where(trips.coveragePathJson.isNotNull());
+    return query.watch().map(
+          (rows) => [
+            for (final r in rows)
+              r.read(trips.coveragePathJson) ?? '',
+          ]..removeWhere((s) => s.isEmpty),
+        );
+  }
+
   /// All trips with `status == TripStatus.pending`, ordered by `endedAt`
   /// ascending (oldest ready-to-match trip first). Used by the Phase 5
   /// match coordinator on app resume.

@@ -45,11 +45,12 @@ class FocusAreaPill extends ConsumerWidget {
     final percent = state.percentLabel ?? '— %';
 
     return Semantics(
-      label: 'Focus area: $name, coverage $percent',
+      label: 'Fokusgebiet: $name, Abdeckung $percent',
       button: true,
       child: GestureDetector(
         onTap: () => _openSheet(context, ref),
         child: GlassPill(
+          overMap: true,
           padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 18),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -114,6 +115,6 @@ class FocusAreaPill extends ConsumerWidget {
       totalLengthM: row?.totalLengthM ?? 0,
     );
 
-    await showRegionDetailSheet(context, rc);
+    await showRegionDetailSheet(context, ref, rc);
   }
 }

@@ -17,6 +17,7 @@ class GlassPill extends StatelessWidget {
     required this.child,
     this.padding = const EdgeInsets.symmetric(vertical: 12, horizontal: 20),
     this.borderRadius,
+    this.overMap = false,
     super.key,
   });
 
@@ -26,6 +27,15 @@ class GlassPill extends StatelessWidget {
   /// Override the pill corner radius. Defaults to
   /// [LiquidGlassSettings.pillBorderRadius].
   final double? borderRadius;
+
+  /// Set `true` when this pill is layered directly over the MapLibre map.
+  ///
+  /// On Apple platforms the shader-based backdrop cannot sample the map's
+  /// PlatformView (it returns black — the "black box over the map" bug,
+  /// 2026-07-13), so over-map chrome falls back to the tinted look there.
+  /// Over an opaque Flutter surface (Trips/Regions) leave this `false` to keep
+  /// the full glass effect on every platform.
+  final bool overMap;
 
   @override
   Widget build(BuildContext context) {
@@ -37,7 +47,12 @@ class GlassPill extends StatelessWidget {
         ? settings.darkGlassBorder
         : settings.lightGlassBorder;
 
-    if (settings.platformSupportsBlurOverMap) {
+    // Real glass requires (a) the startup G1 flag AND (b) — when layered over
+    // the map — a platform whose backdrop can sample the MapLibre PlatformView.
+    final useGlass = settings.platformSupportsBlurOverMap &&
+        (!overMap || settings.supportsBlurOverPlatformView);
+
+    if (useGlass) {
       // Guard against 0-dim constraints. `liquid_glass_renderer` calls
       // `Picture.toImageSync(w, h)` during paint; if either dim is 0 that
       // throws "Invalid image dimensions" and crashes the app. 0-dim can

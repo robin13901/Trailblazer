@@ -24,16 +24,17 @@ class PermissionAlwaysPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     return PermissionRationalePage(
       icon: Icons.explore,
-      title: 'Log trips in the background',
+      title: 'Fahrten im Hintergrund aufzeichnen',
       body:
-          'Trailblazer records trips even when the app is closed — so we '
-          'capture the whole drive, not just the moment you opened the app.',
-      primaryLabel: 'Enable background location',
+          'Trailblazer zeichnet Fahrten auch dann auf, wenn die App geschlossen '
+          'ist — so erfassen wir die ganze Fahrt, nicht nur den Moment, in dem '
+          'du die App geöffnet hast.',
+      primaryLabel: 'Standort im Hintergrund aktivieren',
       onPrimary: () async {
         await ref.read(permissionServiceProvider).requestAlways();
         await _advance(ref);
       },
-      secondaryLabel: 'Manual only',
+      secondaryLabel: 'Nur manuell',
       onSecondary: () => _advance(ref),
     );
   }

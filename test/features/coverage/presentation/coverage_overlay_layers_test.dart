@@ -8,8 +8,9 @@
 // unit-testable without a controller.
 //
 // Coverage:
-//   1. lineColor case expression picks correct fullHex/partialHex per brightness.
-//   2. lineOpacity has the 0.92 full branch and the ['max',0.25,...] partial branch.
+//   1. lineColor is a solid ['literal', fullHex] per brightness (gradient
+//      removed 2026-07-13 — coverage line is the trimmed on-road GPS trail).
+//   2. lineOpacity is a constant ['literal', 0.92].
 //   3. lineWidth is an 'interpolate' expression with the documented zoom stops.
 //   4. coverageOverlayApplierProvider default is MapLibreCoverageOverlayApplier.
 
@@ -22,115 +23,51 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   // -------------------------------------------------------------------------
-  // lineColor expressions per brightness
+  // lineColor expressions per brightness — solid single color
   // -------------------------------------------------------------------------
 
   group('coverageLinePaintExpressions — lineColor', () {
-    test('amber light: fullHex = #FF8C00, partialHex = #FFCD6B', () {
+    test('amber light: solid fullHex #FF8C00', () {
       final exprs = coverageLinePaintExpressions(
         CoverageColorPreset.amber,
         Brightness.light,
       );
       final lineColor = exprs.lineColor;
-      // Structure: ['case', ['==', ['get','is_full'], 1], fullHex, partialHex]
-      expect(lineColor[0], equals('case'));
-      expect(lineColor[2], equals('#FF8C00')); // full hex
-      expect(lineColor[3], equals('#FFCD6B')); // partial hex
+      // Structure: ['literal', fullHex] — no case/gradient.
+      expect(lineColor[0], equals('literal'));
+      expect(lineColor[1], equals('#FF8C00'));
     });
 
-    test('amber dark: fullHex = #FFA726, partialHex = #FFD54F', () {
+    test('amber dark: solid fullHex #FFA726', () {
       final exprs = coverageLinePaintExpressions(
         CoverageColorPreset.amber,
         Brightness.dark,
       );
-      final lineColor = exprs.lineColor;
-      expect(lineColor[2], equals('#FFA726')); // full hex dark
-      expect(lineColor[3], equals('#FFD54F')); // partial hex dark
+      expect(exprs.lineColor[1], equals('#FFA726'));
     });
 
-    test('lineColor case expression has correct is_full == 1 condition', () {
-      final exprs = coverageLinePaintExpressions(
-        CoverageColorPreset.amber,
-        Brightness.light,
-      );
-      final lineColor = exprs.lineColor;
-      // lineColor[1] is the condition: ['==', ['get', 'is_full'], 1]
-      final condition = lineColor[1] as List;
-      expect(condition[0], equals('=='));
-      final getExpr = condition[1] as List;
-      expect(getExpr[0], equals('get'));
-      expect(getExpr[1], equals('is_full'));
-      expect(condition[2], equals(1)); // int, not bool
-    });
-
-    test('green light: fullHex = #2ECC71', () {
+    test('green light: solid fullHex #2ECC71', () {
       final exprs = coverageLinePaintExpressions(
         CoverageColorPreset.green,
         Brightness.light,
       );
-      expect(exprs.lineColor[2], equals('#2ECC71'));
+      expect(exprs.lineColor[1], equals('#2ECC71'));
     });
   });
 
   // -------------------------------------------------------------------------
-  // lineOpacity expressions
+  // lineOpacity expression — constant full opacity
   // -------------------------------------------------------------------------
 
   group('coverageLinePaintExpressions — lineOpacity', () {
-    test('lineOpacity structure is a case expression', () {
+    test('opacity is a constant 0.92 literal', () {
       final exprs = coverageLinePaintExpressions(
         CoverageColorPreset.amber,
         Brightness.light,
       );
       final op = exprs.lineOpacity;
-      expect(op[0], equals('case'));
-    });
-
-    test('full-way opacity is 0.92', () {
-      final exprs = coverageLinePaintExpressions(
-        CoverageColorPreset.amber,
-        Brightness.light,
-      );
-      final op = exprs.lineOpacity;
-      // Structure: ['case', condition, 0.92, partialBranch]
-      expect(op[2], closeTo(0.92, 1e-10));
-    });
-
-    test('partial-way opacity branch starts with max', () {
-      final exprs = coverageLinePaintExpressions(
-        CoverageColorPreset.amber,
-        Brightness.light,
-      );
-      final op = exprs.lineOpacity;
-      // op[3] = partial branch: ['max', 0.25, ['*', 0.85, ['get','fraction']]]
-      final partialBranch = op[3] as List;
-      expect(partialBranch[0], equals('max'));
-    });
-
-    test('partial-way opacity floor is 0.25', () {
-      final exprs = coverageLinePaintExpressions(
-        CoverageColorPreset.amber,
-        Brightness.light,
-      );
-      final partialBranch = exprs.lineOpacity[3] as List;
-      // partialBranch[1] = floor value
-      expect(partialBranch[1], closeTo(0.25, 1e-10));
-    });
-
-    test('partial-way opacity scale factor is 0.85', () {
-      final exprs = coverageLinePaintExpressions(
-        CoverageColorPreset.amber,
-        Brightness.light,
-      );
-      final partialBranch = exprs.lineOpacity[3] as List;
-      // partialBranch[2] = ['*', 0.85, ['get','fraction']]
-      final mulExpr = partialBranch[2] as List;
-      expect(mulExpr[0], equals('*'));
-      expect(mulExpr[1], closeTo(0.85, 1e-10));
-      // mulExpr[2] = ['get', 'fraction']
-      final getExpr = mulExpr[2] as List;
-      expect(getExpr[0], equals('get'));
-      expect(getExpr[1], equals('fraction'));
+      expect(op[0], equals('literal'));
+      expect(op[1], closeTo(0.92, 1e-10));
     });
   });
 

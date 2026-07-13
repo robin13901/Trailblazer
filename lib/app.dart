@@ -40,6 +40,12 @@ class _AppState extends ConsumerState<App> with WidgetsBindingObserver {
   Future<void> _runStartupMigrations() async {
     await _runMatcherRematchMigrationIfNeeded();
     await _runCoverageRecomputeMigrationIfNeeded();
+    // After the driven-coverage cache is populated, compute the REAL
+    // region-wide total road length for any region missing it (background,
+    // once per region, tiled area-clipped Overpass sums). Runs last because it
+    // depends on coverage_cache rows existing and is the heaviest / most
+    // network-bound step. Best-effort; failures retry next launch.
+    await _computeMissingRegionTotals();
   }
 
   /// Runs the one-shot re-match migration when the stored matcher-rematch
@@ -110,6 +116,24 @@ class _AppState extends ConsumerState<App> with WidgetsBindingObserver {
         e,
         st,
       );
+    }
+  }
+
+  /// Computes the REAL per-region total road length for any region that has
+  /// driven coverage but no real total cached yet. Fire-and-forget from the
+  /// startup migration chain; the service is best-effort and never throws, so
+  /// a partial run (or a total network outage) simply leaves regions pending
+  /// (their cards show a spinner) and retries on the next launch.
+  Future<void> _computeMissingRegionTotals() async {
+    try {
+      final n = await ref
+          .read(regionTotalLengthServiceProvider)
+          .computeMissingTotals();
+      if (n > 0) _log.info('region-total compute: $n regions computed');
+      // Catch every throwable: a background total compute must never crash.
+      // ignore: avoid_catches_without_on_clauses
+    } catch (e, st) {
+      _log.warning('region-total compute failed (will retry): $e', e, st);
     }
   }
 

@@ -1,12 +1,13 @@
 // Trailblazer live-nav:
 // LiveTrailBridge — headless ConsumerStatefulWidget that paints the raw driven
-// GPS path as a DASHED polyline, live, while a trip is recording.
+// GPS path as a SOLID polyline, live, while a trip is recording.
 //
-// This is the provisional "you just drove here" feedback. It is visually
-// distinct from the SOLID OSM-matched coverage that finalizes post-trip
-// (coverage_overlay_layers.dart): dashed vs solid, and a separate accent color.
-// On trip stop the dashed trail is removed so the solid matched coverage takes
-// over cleanly.
+// 2026-07-13 (coverage-from-trail rework): the live trail is now drawn SOLID
+// in the current coverage color so it reads as "coverage being drawn live" —
+// the raw GPS trail is very accurate on-road, and the persistent coverage that
+// finalizes post-trip is this same trail trimmed to on-road segments. On trip
+// stop the live source is removed and the persistent coverage overlay
+// (coverage_overlay_layers.dart) takes over with an identical look.
 //
 // Architecture mirrors CoverageOverlayBridge:
 //   - Watches mapStyleLoadedTickProvider: a style (re)load wipes all
@@ -26,6 +27,8 @@
 
 import 'dart:async';
 
+import 'package:auto_explore/features/coverage/domain/coverage_color_preset.dart';
+import 'package:auto_explore/features/coverage/presentation/coverage_preset_provider.dart';
 import 'package:auto_explore/features/map/presentation/providers/live_trail_applier.dart';
 import 'package:auto_explore/features/map/presentation/providers/map_controller_provider.dart';
 import 'package:auto_explore/features/map/presentation/providers/map_style_loaded_provider.dart';
@@ -99,12 +102,12 @@ class _LiveTrailBridgeState extends ConsumerState<LiveTrailBridge> {
       if (_trail.length < 2) return;
       _sourceAdded = true;
       _dispatch(
-        () => applier.addOrUpdate(controller, _trailSnapshot()),
+        () => applier.addOrUpdate(controller, _trailSnapshot(), colorHex: _coverageColorHex()),
         'addOrUpdate(initial)',
       );
     } else {
       _dispatch(
-        () => applier.addOrUpdate(controller, _trailSnapshot()),
+        () => applier.addOrUpdate(controller, _trailSnapshot(), colorHex: _coverageColorHex()),
         'addOrUpdate',
       );
     }
@@ -125,12 +128,22 @@ class _LiveTrailBridgeState extends ConsumerState<LiveTrailBridge> {
     final applier = ref.read(liveTrailApplierProvider);
     _sourceAdded = true;
     _dispatch(
-      () => applier.addOrUpdate(controller, _trailSnapshot()),
+      () => applier.addOrUpdate(controller, _trailSnapshot(), colorHex: _coverageColorHex()),
       'addOrUpdate(re-add)',
     );
   }
 
   List<LatLng> _trailSnapshot() => List<LatLng>.unmodifiable(_trail);
+
+  /// Current coverage color as a `#RRGGBB` hex, matching the persistent
+  /// coverage overlay, so the live line looks identical to what finalizes
+  /// post-trip. Reads the same preset + platform brightness the overlay uses.
+  String _coverageColorHex() {
+    final preset = ref.read(coveragePresetValueProvider);
+    final brightness =
+        View.of(context).platformDispatcher.platformBrightness;
+    return preset.forBrightness(brightness).fullHex;
+  }
 
   void _dispatch(Future<void> Function() action, String label) {
     unawaited(action().catchError((Object e, StackTrace st) {
