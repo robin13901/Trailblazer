@@ -21,7 +21,7 @@ Depth: **comprehensive** — 10 phases, driven by the 106 v1 requirements (FND, 
 - [x] **Phase 6: Inbox + Match Wire-Up** — trip inbox, confirm/reject, matching enqueue, coverage cache infra (code-complete + verifier PASS 6/6 must-haves 2026-07-09; on-device crash fix PROVEN — 96 km trip matched to 814 intervals; behavioral drive-confirms deferred to user)
 - [x] **Phase 7: Coverage Rendering** — driven Kfz-ways painted on the map via GeoJSON + data-driven paint expressions (Gate G2 resolved = FAIL: feature-state unavailable on mobile); orange/amber default + 5-preset picker; 50k fps stress harness code-complete (verifier PASS 5/5 code must-haves 2026-07-10; 5 on-device visual confirms deferred to user — `07-MANUAL-TESTS-DEFERRED.md`)
 - [x] **Phase 8: Regions + Focus-Area** — admin region browser, zoom-aware focus pill, coverage aggregation (code-complete + verifier PASS 17/17 must-haves 2026-07-11; SC1/2/3/5 honored per 08-CONTEXT amendments — live pill, stats-only sheet, flat mixed-level card list, global coverage; 10 on-device visual confirms deferred to next drive — `08-DEVICE-VERIFICATION-DEFERRED.md`)
-- [ ] **Phase 9: Settings + Backup** — encrypted App DB backup/restore, OSM extract updates, diagnostics
+- [x] **Phase 9: Settings + Backup** — encrypted App DB backup/restore, OSM extract updates, diagnostics *(code-complete 2026-07-13; verifier PASS 7/7 plans; SET-01/02 de-scoped, SET-07 "encrypted"→plain archive per 09-CONTEXT; 854 tests green; 7 on-device confirms deferred — `09-VERIFICATION.md`)*
 - [ ] **Phase 10: Hardening** — patrol E2E, real-device gauntlet, iOS BG behavior, battery regression gate
 
 > **Vehicles + Bluetooth removed 2026-07-13.** The original Phase 9 (full vehicle CRUD + BT-fingerprint hints + per-vehicle color) was cut entirely at user request — the app is single-user, single-vehicle in practice and the whole aspect was dormant scaffolding (VEH-01..06 dropped; `Vehicles`/`BtFingerprints` tables + `trips.vehicle_id`/`trips.bluetooth_hint` removed via schema v4). Former Phases 10/11 renumbered down to 9/10. See PROJECT.md Key Decisions.
@@ -288,7 +288,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 | 6. Inbox + Match Wire-Up | 6/6 | ✓ Complete (verifier PASS 6/6; +2 gap plans 06-07/06-08; on-device crash fix proven; behavioral drive-confirms deferred) | 2026-07-09 |
 | 7. Coverage Rendering | 7/7 | ✓ Complete (verifier PASS 5/5 code must-haves; Gate G2 resolved = FAIL → GeoJSON + data-driven expressions; 5 on-device visual confirms deferred) | 2026-07-10 |
 | 8. Regions + Focus-Area | 6/6 | ✓ Complete (verifier PASS 17/17 must-haves; SC1/2/3/5 honored per 08-CONTEXT amendments; FOC-06/REG-03 de-scoped v1; 10 on-device confirms deferred) | 2026-07-11 |
-| 9. Settings + Backup | 0/7 | Planned (7 plans, 4 waves) | - |
+| 9. Settings + Backup | 7/7 | ✓ Complete (verifier PASS 7/7 plans; SET-01/02 de-scoped, SET-07 encrypted→plain per 09-CONTEXT; 854 tests green; 7 on-device confirms deferred) | 2026-07-13 |
 | 10. Hardening | 0/TBD | Not started | - |
 | ~~Vehicles + Bluetooth~~ | — | ✗ Removed 2026-07-13 (user request; dormant scaffolding cut, VEH-01..06 dropped, schema v4) | - |
 

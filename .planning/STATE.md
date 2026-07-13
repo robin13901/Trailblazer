@@ -5,14 +5,14 @@
 See: .planning/PROJECT.md (updated 2026-07-02)
 
 **Core value:** When I open the map, I immediately see the roads I've already driven, painted onto the world — and that view keeps pulling me back to explore more.
-**Current focus:** Phase 9 (Settings + Backup) — CODE COMPLETE (all 7 plans done). Phase 8 complete. 2026-07-13: Vehicles + Bluetooth phase REMOVED, roadmap renumbered to 10 phases.
+**Current focus:** Phase 9 (Settings + Backup) — ✓ COMPLETE (verifier PASS 7/7 plans, 854 tests green). Phase 10 (Hardening) is next and final. 2026-07-13: Vehicles + Bluetooth phase REMOVED, roadmap renumbered to 10 phases.
 
 ## Current Position
 
-Phase: 9 of 10 (Settings + Backup — CODE COMPLETE)
+Phase: 9 of 10 (Settings + Backup — ✓ COMPLETE 2026-07-13)
 Plan: 09-07 complete (7 of 7 plans in phase — done: 09-01..09-07)
-Status: 09-07 complete 2026-07-13 — Settings screen assembled: all Phase 9 sections in one screen, AboutSection with version + OSS licenses, /settings/diagnostics un-gated for release builds.
-Last activity: 2026-07-13 — 09-07 complete: Single grouped SettingsScreen (Data & Backup + Coverage + Permissions + Diagnostics HUD toggle + About) assembled from all Phase 9 section widgets; placeholder removed; diagnostics route un-gated; 12/12 integration tests green.
+Status: Phase 9 COMPLETE 2026-07-13 — verifier PASS 7/7 plans (09-VERIFICATION.md status: passed). Backup/restore engine (VACUUM INTO + wipe-and-swap), FilePlatform seam, raw-GPS retention (0/30/365/forever), read-only permissions inspector, diagnostics HUD release-toggle + cache/queue metrics, grouped Settings screen + About (version + OSS licenses). SET-01/02 de-scoped; SET-07 "encrypted"→plain `.trailblazer` archive per 09-CONTEXT. Full suite 854 tests green, flutter analyze clean. 3 pre-existing tests fixed (appDatabaseProvider overrides for the new provider-reading Settings/HUD screens). 7 on-device confirms deferred (share sheet, OS picker, round-trip, iOS doc picker, release HUD gate, permissions resume re-read, OSS license page).
+Last activity: 2026-07-13 — Phase 9 close-out: verifier PASS, ROADMAP/REQUIREMENTS/STATE updated (SET-03..09 Complete, SET-01/02 de-scoped).
 
 Progress: [██████████] ~97% (78/78 est. plans overall — Phase 1: 7/7; Phase 2: 7/7; Phase 3: 7/7; Phase 3.1: 5/5; Phase 4: 8/8 + 04-18 + 04-19 DRIVE-VERIFIED; Phase 5: 8/8 CODE-COMPLETE; Phase 6: 6/6 code-complete — 06-01..06-06 done + 06-07/06-08 gap-fixes; Phase 7: 7/7 code-complete — 07-01..07-07; Phase 8: 6/6 COMPLETE — 08-01..08-06; Phase 9: 09-01..09-07 ALL DONE)
 

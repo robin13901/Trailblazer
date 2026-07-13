@@ -152,15 +152,15 @@ is computed over all trips unconditionally. See PROJECT.md Key Decisions.
 
 ### Settings (SET)
 
-- [ ] **SET-01**: Vehicle management (list, add, edit, delete, set default)
-- [ ] **SET-02**: OSM data status: current version, size, "check for updates" action, update flow
-- [ ] **SET-03**: Permissions status inspector (location Always/whenInUse, motion activity, Bluetooth, background app refresh)
-- [ ] **SET-04**: Color palette selection for driven / partial / Feldweg overlays
-- [ ] **SET-05**: Raw GPS retention setting (default 30 days, options: 0/30/365 days/forever)
-- [ ] **SET-06**: Battery-diagnostic HUD toggle (dev/hobbyist users can see fix rate, matcher queue depth, cache-hit rate)
-- [ ] **SET-07**: Backup: user picks a destination file path (iCloud Drive on iOS, SAF picker on Android); export writes an encrypted archive of the App DB
-- [ ] **SET-08**: Restore: user picks a backup file; app validates and swaps App DB (OSM DB not touched)
-- [ ] **SET-09**: About screen with app version, OSS licenses, credits (OSM contributors)
+- [ ] ~~**SET-01**: Vehicle management~~ — DE-SCOPED 2026-07-13 (Vehicles + Bluetooth phase removed)
+- [ ] ~~**SET-02**: OSM data status / "check for updates" / update flow~~ — DE-SCOPED (no OSM extract under the Phase-4 MapTiler+Overpass rescope; credits moved to About/SET-09)
+- [x] **SET-03**: Permissions status inspector (location Always/whenInUse, motion activity, notifications, battery optimization — Bluetooth dropped with Vehicles) — Phase 9 (read-only v1)
+- [x] **SET-04**: Color palette selection for driven / partial / Feldweg overlays — Phase 9 (relocated existing Phase-7 picker into Coverage section)
+- [x] **SET-05**: Raw GPS retention setting (default 30 days, options: 0/30/365 days/forever) — Phase 9
+- [x] **SET-06**: Battery-diagnostic HUD toggle (fix rate, matcher queue depth, cache-hit rate) — Phase 9
+- [x] **SET-07**: Backup: export a shareable `.trailblazer` App DB archive via OS share sheet (SET-07 "encrypted" superseded → plain archive per 09-CONTEXT) — Phase 9
+- [x] **SET-08**: Restore: user picks a backup file; app validates and wipe-and-swaps the App DB — Phase 9
+- [x] **SET-09**: About screen with app version, OSS licenses, credits (OSM + MapTiler) — Phase 9
 
 ### Quality Gates (QUA)
 
@@ -337,15 +337,15 @@ Every requirement maps to exactly one phase. Phase Gates in ROADMAP.md: G1 = UI-
 | COV-04 | Phase 8: Regions + Focus-Area | Complete (Σ driven Kfz / Σ total Kfz per region, Feldweg/Fußweg excluded; global scope) |
 | COV-07 | Phase 8: Regions + Focus-Area | Complete (main-isolate recompute with periodic yielding per plan; separate compute isolate → optimization deferred) |
 | COV-08 | Phase 8: Regions + Focus-Area | Complete (global total/driven km; per-vehicle stats dropped 2026-07-13 with Vehicles removal) |
-| SET-01 | Phase 9: Settings + Backup | Pending |
-| SET-02 | Phase 9: Settings + Backup | Pending |
-| SET-03 | Phase 9: Settings + Backup | Pending |
-| SET-04 | Phase 9: Settings + Backup | Pending |
-| SET-05 | Phase 9: Settings + Backup | Pending |
-| SET-06 | Phase 9: Settings + Backup | Pending |
-| SET-07 | Phase 9: Settings + Backup | Pending |
-| SET-08 | Phase 9: Settings + Backup | Pending |
-| SET-09 | Phase 9: Settings + Backup | Pending |
+| SET-01 | Phase 9: Settings + Backup | De-scoped (Vehicles removed 2026-07-13) |
+| SET-02 | Phase 9: Settings + Backup | De-scoped (no OSM extract post Phase-4 rescope) |
+| SET-03 | Phase 9: Settings + Backup | Complete |
+| SET-04 | Phase 9: Settings + Backup | Complete |
+| SET-05 | Phase 9: Settings + Backup | Complete |
+| SET-06 | Phase 9: Settings + Backup | Complete |
+| SET-07 | Phase 9: Settings + Backup | Complete |
+| SET-08 | Phase 9: Settings + Backup | Complete |
+| SET-09 | Phase 9: Settings + Backup | Complete |
 | QUA-01 | Phase 10: Hardening | Pending |
 | QUA-02 | Phase 5: Overpass-Backed Matcher + Golden Corpus | Complete |
 | QUA-03 | Phase 1: Scaffolding | Complete |
