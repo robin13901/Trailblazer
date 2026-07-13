@@ -11,8 +11,8 @@ See: .planning/PROJECT.md (updated 2026-07-02)
 
 Phase: 9 of 10 (Settings + Backup — in progress)
 Plan: 09-04 complete (4 of N plans in phase — done: 09-01, 09-02, 09-03, 09-04)
-Status: 09-04 complete 2026-07-13 — PermissionsSection widget (read-only, resume-aware) + widget test 4/4 green. flutter analyze clean.
-Last activity: 2026-07-13 — 09-04 complete: PermissionsSection read-only permissions inspector. Prior: 2026-07-13 — Vehicles + Bluetooth feature removal (schema v4 + doc renumber).
+Status: 09-04 complete 2026-07-13 — PermissionsSection widget (read-only, resume-aware) + widget test 4/4 green. flutter analyze clean. 09-01 SUMMARY now committed (backup engine with VACUUM INTO + 12 tests).
+Last activity: 2026-07-13 — 09-01 SUMMARY committed: BackupService interface + DriftBackupService VACUUM INTO engine + 12-test suite. Prior: 09-04 complete: PermissionsSection read-only permissions inspector.
 
 Progress: [██████████] ~94% (74/78 est. plans overall — Phase 1: 7/7; Phase 2: 7/7; Phase 3: 7/7; Phase 3.1: 5/5; Phase 4: 8/8 + 04-18 + 04-19 DRIVE-VERIFIED; Phase 5: 8/8 CODE-COMPLETE; Phase 6: 6/6 code-complete — 06-01..06-06 done + 06-07/06-08 gap-fixes; Phase 7: 7/7 code-complete — 07-01..07-07; Phase 8: 6/6 COMPLETE — 08-01..08-06; Phase 9: 09-01..09-04 done)
 
@@ -493,6 +493,9 @@ Key locked-in decisions affecting current work:
 - **Plan 09-03 (2026-07-13) — `setShowDiagnosticsHud` uses named param `{required bool show}`.** `avoid_positional_boolean_parameters` lint requires named bool params; all callers must use `setShowDiagnosticsHud(show: true)`.
 - **Plan 09-03 (2026-07-13) — `RadioGroup` replaces deprecated `RadioListTile.groupValue/onChanged`.** Flutter 3.44 deprecates the imperative API; `RadioGroup<int?>(groupValue:, onChanged:, child: Column([RadioListTile, ...]))` is the replacement.
 - **Plan 09-03 (2026-07-13) — Resume lifecycle sweep reads AppPrefs instead of hardcoding 30 days.** `_runRetentionSweepIfNeeded()` reads `getRawGpsRetentionDays()` first; returns early when null (forever); passes `Duration(days: days)` to `sweepRawGpsRetention`. Fire-and-forget pattern preserved.
+- **Plan 09-01 (2026-07-13) — share_plus ^12.0.2 instead of ^13.2.0.** win32 ^6.0.1 (share_plus 13.x) conflicts with win32 ^5.9.0 (file_picker ^11.0.2). Downgraded; identical ShareParams/XFile API. Documented in 09-01-SUMMARY.md.
+- **Plan 09-01 (2026-07-13) — sqlite3 promoted to direct dependency.** `depend_on_referenced_packages` lint fires when importing `package:sqlite3/sqlite3.dart` from a transitive-only dep. Made direct alongside existing `dependency_overrides: sqlite3: ^3.0.0`.
+- **Plan 09-01 (2026-07-13) — DriftBackupService reads appDatabaseProvider via Ref.read() per call.** Never caches AppDatabase instance; post-restore provider invalidation causes a fresh DB instance on next read (avoids stale closed-DB reference, Pitfall 8 from research).
 
 ### Blockers/Concerns
 
@@ -508,7 +511,7 @@ Key locked-in decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-07-11 (Plan 08-06 — Pill Tap Integration — COMPLETE; ~25 min execution; Phase 8 fully complete)
-Stopped at: Plan 08-06 COMPLETE. Task 1 commit `937e092` (pill tap wiring); Task 2 commit `462cb4a` (pill tap widget test); Task 3 commit `c8645f7` (Phase-8 deferred device checklist). SUMMARY.md at .planning/phases/08-regions-focus-area/08-06-SUMMARY.md. flutter analyze clean; all tests pass.
+Last session: 2026-07-13 (Plan 09-01 — Backup Engine — COMPLETE; ~20 min execution)
+Stopped at: Plan 09-01 COMPLETE. Task commits: 845bfe2 (pubspec deps), b2d6ae5 (BackupService interface), a0277f6 (DriftBackupService impl), 39b4d4a (FakeBackupService), 5aaa306 (12 unit tests). SUMMARY.md at .planning/phases/09-settings-backup/09-01-SUMMARY.md. flutter analyze clean; all tests pass.
 Resume file: None
 Next: Phase 9 (Vehicles) — Phase 8 on-device confirms deferred to next drive (08-DEVICE-VERIFICATION-DEFERRED.md)
