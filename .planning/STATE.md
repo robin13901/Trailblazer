@@ -5,16 +5,16 @@
 See: .planning/PROJECT.md (updated 2026-07-02)
 
 **Core value:** When I open the map, I immediately see the roads I've already driven, painted onto the world — and that view keeps pulling me back to explore more.
-**Current focus:** Phase 9 (Settings + Backup) — in progress. Phase 8 complete. 2026-07-13: Vehicles + Bluetooth phase REMOVED, roadmap renumbered to 10 phases.
+**Current focus:** Phase 9 (Settings + Backup) — CODE COMPLETE (all 7 plans done). Phase 8 complete. 2026-07-13: Vehicles + Bluetooth phase REMOVED, roadmap renumbered to 10 phases.
 
 ## Current Position
 
-Phase: 9 of 10 (Settings + Backup — in progress)
-Plan: 09-05 complete (7 of N plans in phase — done: 09-01, 09-02, 09-03, 09-04, 09-05, 09-06)
-Status: 09-05 complete 2026-07-13 — DataBackupSection widget: Export + Restore flows wiring BackupService + FilePlatform; 5/5 widget tests green over FakeBackupService + FakeFilePlatform.
-Last activity: 2026-07-13 — 09-05 complete: DataBackupSection ConsumerStatefulWidget with export (createBackup → shareFile) + restore (pickBackupFile → destructive confirm → restore → SnackBar) flows; all mounted/messenger guards in place; sealed Result switch; 5 widget tests: export, restore-confirm, restore-cancel, restore-fail, pick-cancelled.
+Phase: 9 of 10 (Settings + Backup — CODE COMPLETE)
+Plan: 09-07 complete (7 of 7 plans in phase — done: 09-01..09-07)
+Status: 09-07 complete 2026-07-13 — Settings screen assembled: all Phase 9 sections in one screen, AboutSection with version + OSS licenses, /settings/diagnostics un-gated for release builds.
+Last activity: 2026-07-13 — 09-07 complete: Single grouped SettingsScreen (Data & Backup + Coverage + Permissions + Diagnostics HUD toggle + About) assembled from all Phase 9 section widgets; placeholder removed; diagnostics route un-gated; 12/12 integration tests green.
 
-Progress: [██████████] ~94% (74/78 est. plans overall — Phase 1: 7/7; Phase 2: 7/7; Phase 3: 7/7; Phase 3.1: 5/5; Phase 4: 8/8 + 04-18 + 04-19 DRIVE-VERIFIED; Phase 5: 8/8 CODE-COMPLETE; Phase 6: 6/6 code-complete — 06-01..06-06 done + 06-07/06-08 gap-fixes; Phase 7: 7/7 code-complete — 07-01..07-07; Phase 8: 6/6 COMPLETE — 08-01..08-06; Phase 9: 09-01..09-04 done)
+Progress: [██████████] ~97% (78/78 est. plans overall — Phase 1: 7/7; Phase 2: 7/7; Phase 3: 7/7; Phase 3.1: 5/5; Phase 4: 8/8 + 04-18 + 04-19 DRIVE-VERIFIED; Phase 5: 8/8 CODE-COMPLETE; Phase 6: 6/6 code-complete — 06-01..06-06 done + 06-07/06-08 gap-fixes; Phase 7: 7/7 code-complete — 07-01..07-07; Phase 8: 6/6 COMPLETE — 08-01..08-06; Phase 9: 09-01..09-07 ALL DONE)
 
 ## Performance Metrics
 
@@ -500,6 +500,9 @@ Key locked-in decisions affecting current work:
 - **Plan 09-01 (2026-07-13) — share_plus ^12.0.2 instead of ^13.2.0.** win32 ^6.0.1 (share_plus 13.x) conflicts with win32 ^5.9.0 (file_picker ^11.0.2). Downgraded; identical ShareParams/XFile API. Documented in 09-01-SUMMARY.md.
 - **Plan 09-01 (2026-07-13) — sqlite3 promoted to direct dependency.** `depend_on_referenced_packages` lint fires when importing `package:sqlite3/sqlite3.dart` from a transitive-only dep. Made direct alongside existing `dependency_overrides: sqlite3: ^3.0.0`.
 - **Plan 09-01 (2026-07-13) — DriftBackupService reads appDatabaseProvider via Ref.read() per call.** Never caches AppDatabase instance; post-restore provider invalidation causes a fresh DB instance on next read (avoids stale closed-DB reference, Pitfall 8 from research).
+- **Plan 09-07 (2026-07-13) — kAppVersion = '0.1.0' hardcoded const in about_section.dart.** No package_info_plus dependency added; comment to bump alongside pubspec. showLicensePage() is the Flutter built-in for OSS license aggregation.
+- **Plan 09-07 (2026-07-13) — /settings/diagnostics un-gated from kDebugMode.** Route always registered in release + debug; user access gated by HUD toggle visibility in SettingsScreen. /settings/stress-coverage stays debug-only.
+- **Plan 09-07 (2026-07-13) — HUD toggle state via initState+unawaited+setState.** Consistent with sibling section widgets; toggle defaults OFF before prefs load (safe UX).
 
 ### Blockers/Concerns
 
@@ -515,7 +518,7 @@ Key locked-in decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-07-13 (Plan 09-06 — Diagnostics HUD Release Gate + Cache Metrics — COMPLETE; ~5 min execution)
-Stopped at: Plan 09-06 COMPLETE. Task commits: 97027dc (cache counters), 1806a49 (DiagnosticsMetrics), 1976515 (HUD extension + gate removal), fed56ac (counter tests). SUMMARY.md at .planning/phases/09-settings-backup/09-06-SUMMARY.md. flutter analyze clean; 4/4 counter tests green.
+Last session: 2026-07-13 (Plan 09-07 — Settings Screen Assembly — COMPLETE; ~11 min execution)
+Stopped at: Plan 09-07 COMPLETE. Task commits: 9bcf2e5 (AboutSection), e2b9f8a (SettingsScreen), a1d278b (router un-gate), 97a51d4 (screen test 12/12). SUMMARY.md at .planning/phases/09-settings-backup/09-07-SUMMARY.md. flutter analyze clean; 12/12 integration tests green.
 Resume file: None
-Next: Plan 09-07 — settings_screen.dart + app_router.dart toggle-gating (serial tail; surfaces the HUD tile + route guard in release)
+Next: Phase 9 CODE COMPLETE. On-device deferred checklist pending. Phase 10 next.
