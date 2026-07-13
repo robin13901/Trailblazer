@@ -1,14 +1,24 @@
 import 'package:auto_explore/app.dart';
+import 'package:auto_explore/core/db/app_database.dart';
+import 'package:auto_explore/core/db/app_database_providers.dart';
+import 'package:auto_explore/features/admin/data/admin_bundle_refresher.dart';
+import 'package:auto_explore/features/admin/data/admin_region_providers.dart';
+import 'package:auto_explore/features/coverage/data/coverage_overlay_providers.dart';
 import 'package:auto_explore/features/map/data/tile_provider_config.dart';
 import 'package:auto_explore/features/map/presentation/providers/location_permission_provider.dart';
 import 'package:auto_explore/features/map/presentation/providers/map_style_provider.dart';
 import 'package:auto_explore/features/map/presentation/widgets/bottom_nav_shell.dart';
 import 'package:auto_explore/features/map/presentation/widgets/focus_area_pill.dart';
 import 'package:auto_explore/features/onboarding/data/onboarding_flag_repository.dart';
+import 'package:auto_explore/features/onboarding/data/permission_service_provider.dart';
 import 'package:auto_explore/features/regions/domain/region_coverage.dart';
 import 'package:auto_explore/features/regions/presentation/providers/region_browser_provider.dart';
+import 'package:auto_explore/features/settings/data/backup_service_provider.dart';
+import 'package:auto_explore/features/settings/data/file_platform_provider.dart';
 import 'package:auto_explore/features/trips/domain/trip_list_item.dart';
 import 'package:auto_explore/features/trips/presentation/providers/inbox_providers.dart';
+import 'package:drift/native.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:maplibre_gl/maplibre_gl.dart';
@@ -18,6 +28,9 @@ import 'package:shared_preferences_platform_interface/in_memory_shared_preferenc
 import 'package:shared_preferences_platform_interface/shared_preferences_async_platform_interface.dart';
 
 import '../../helpers/fake_maplibre_platform.dart';
+import '../onboarding/fakes/fake_permission_service.dart';
+import '../settings/fakes/fake_backup_service.dart';
+import '../settings/fakes/fake_file_platform.dart';
 
 /// Stub notifier that returns [PermissionStatus.granted] without hitting the
 /// permission_handler platform channel.
@@ -33,6 +46,15 @@ class _FakeLocationPermissionNotifier extends AsyncNotifier<PermissionStatus>
   Future<void> refresh() async {}
 }
 
+/// Minimal [AdminBundleRefresher] fake — never hits Overpass.
+class _FakeAdminBundleRefresher implements AdminBundleRefresher {
+  @override
+  dynamic noSuchMethod(Invocation invocation) async => null;
+
+  @override
+  Future<void> refreshFromOverpass() async {}
+}
+
 /// Pumps the full [App] with onboarding already complete and all platform
 /// channels faked, then settles past the splash screen.
 ///
@@ -43,6 +65,11 @@ Future<void> pumpAppAtMapShell(WidgetTester tester) async {
       InMemorySharedPreferencesAsync.empty();
   final repo = OnboardingFlagRepository(SharedPreferencesAsync());
   await repo.markDone();
+
+  // In-memory DB so SettingsScreen (and its child sections) can render
+  // without hitting the drift_flutter path_provider channel.
+  final db = AppDatabase(NativeDatabase.memory());
+  addTearDown(db.close);
 
   await tester.pumpWidget(
     ProviderScope(
@@ -78,6 +105,26 @@ Future<void> pumpAppAtMapShell(WidgetTester tester) async {
         regionBrowserProvider.overrideWith(
           (ref) async => const <RegionCoverage>[],
         ),
+        // SettingsScreen (09-07) reads appDatabaseProvider (via
+        // tripsRepositoryProvider in RawGpsRetentionSection) — override with
+        // an in-memory DB so the screen can render without a real Drift file.
+        appDatabaseProvider.overrideWithValue(db),
+        // tripsUnionBoundsProvider is a StreamProvider wrapping a Drift watch
+        // query. With an in-memory DB now wired, the stream successfully opens
+        // and Drift schedules a cleanup timer on dispose, which the test
+        // harness treats as a pending-timer failure. Override with an empty
+        // stream so no Drift stream subscription is ever created here.
+        tripsUnionBoundsProvider.overrideWith(
+          (ref) => const Stream.empty(),
+        ),
+        // SettingsScreen sections that hit platform channels:
+        backupServiceProvider.overrideWithValue(FakeBackupService()),
+        filePlatformProvider.overrideWithValue(FakeFilePlatform()),
+        permissionServiceProvider.overrideWithValue(FakePermissionService()),
+        // DataManagementSection calls adminBundleRefresherProvider — avoid
+        // the real Overpass HTTP client + path_provider channels.
+        adminBundleRefresherProvider
+            .overrideWithValue(_FakeAdminBundleRefresher()),
       ],
       child: const App(),
     ),
@@ -166,6 +213,12 @@ void main() {
     testWidgets('tapping settings button navigates to /settings', (
       tester,
     ) async {
+      // Expand the surface so the SettingsScreen ListView mounts all sections
+      // eagerly — the Phase 9 screen has 5 sections; 'ABOUT' is the 5th and
+      // is lazy-off-viewport in the default 800×600 test surface.
+      await tester.binding.setSurfaceSize(const Size(800, 4000));
+      addTearDown(() => tester.binding.setSurfaceSize(const Size(800, 600)));
+
       await pumpAppAtMapShell(tester);
 
       // Settings button is visible on Map tab.
