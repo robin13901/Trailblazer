@@ -10,9 +10,9 @@ See: .planning/PROJECT.md (updated 2026-07-02)
 ## Current Position
 
 Phase: 9 of 10 (Settings + Backup — in progress)
-Plan: 09-04 complete (4+ of N plans in phase — done: 09-01, 09-02, 09-03, 09-04, 09-06 partial)
-Status: 09-02 SUMMARY committed 2026-07-13. 09-04 complete: PermissionsSection widget (read-only, resume-aware) + widget test 4/4 green.
-Last activity: 2026-07-13 — 09-02 SUMMARY created: FilePlatform interface + FilePickerPlatformAdapter + FakeFilePlatform + iOS LSSupportsOpeningDocumentsInPlace. Prior: 09-04 complete: PermissionsSection.
+Plan: 09-06 complete (6 of N plans in phase — done: 09-01, 09-02, 09-03, 09-04, 09-06)
+Status: 09-06 complete 2026-07-13 — Overpass cache counters + DiagnosticsMetrics + HUD Matcher/cache section + kDebugMode gate removed. flutter analyze clean, 4/4 counter tests green.
+Last activity: 2026-07-13 — 09-06 complete: cache hit/miss counters on OverpassWayCandidateSource; DiagnosticsMetrics + readDiagnosticsMetrics; HUD extended with queue depth + cache hit rate; kDebugMode gate removed so screen works in release. Prior: 09-02 SUMMARY created: FilePlatform interface + FilePickerPlatformAdapter.
 
 Progress: [██████████] ~94% (74/78 est. plans overall — Phase 1: 7/7; Phase 2: 7/7; Phase 3: 7/7; Phase 3.1: 5/5; Phase 4: 8/8 + 04-18 + 04-19 DRIVE-VERIFIED; Phase 5: 8/8 CODE-COMPLETE; Phase 6: 6/6 code-complete — 06-01..06-06 done + 06-07/06-08 gap-fixes; Phase 7: 7/7 code-complete — 07-01..07-07; Phase 8: 6/6 COMPLETE — 08-01..08-06; Phase 9: 09-01..09-04 done)
 
@@ -488,6 +488,10 @@ Key locked-in decisions affecting current work:
 - **Plan 08-06 (2026-07-11) — Pill tap resolves region with same fallbackLevelsFrom chain as background notifier.** Pill and sheet always show the same region. `_openSheet` reads `liveCameraProvider` + `adminRegionLookupProvider.ensureLoaded()` + `fallbackLevelsFrom(zoom)` loop — identical to `FocusPillNotifier._resolve()`.
 - **Plan 08-06 (2026-07-11) — `context.mounted` guarded after each `await` in tap handler.** Handles orientation changes / navigator dismount during async resolution (`ensureLoaded`, `getByRegionId`). Standard Flutter async-tap safety pattern.
 - **Plan 08-06 (2026-07-11) — Widget test uses `NativeDatabase.memory()` not fake DAO subclass.** `CoverageCacheDao` requires non-null `AppDatabase`; passing `null as dynamic` throws a runtime cast error. In-memory DB is fast, hermetic, and correctly exercises the DAO seeding path.
+- **Plan 09-06 (2026-07-13) — Cache counters are per-instance / main-isolate only.** The matcher isolate holds its own `OverpassWayCandidateSource` copy in a separate Dart isolate with no shared memory; its counters are not surfaced. Documented as a known limitation in the source docstring.
+- **Plan 09-06 (2026-07-13) — cacheHitRate returns null (not 0.0) before first call.** Distinguishes "no data yet" from "0% hit rate" so the HUD can show `—` until at least one tile has been classified.
+- **Plan 09-06 (2026-07-13) — readDiagnosticsMetrics is a plain async function, not a Provider.** Matches the HUD's existing `_refreshAsync` polling model; avoids an extra Riverpod watch cycle for a timer-driven screen.
+- **Plan 09-06 (2026-07-13) — _ReleaseModeShortCircuit deleted; kDebugMode gate removed.** Screen now renders in release when toggled on. Route/settings-tile un-gating deferred to 09-07 (serial tail).
 - **Plan 09-03 (2026-07-13) — AppPrefs sole-owner for Phase 9 (retention + HUD keys both here).** `kRawGpsRetentionDays` (SET-05) + `kShowDiagnosticsHud` (SET-06) added in 09-03 so Plans 09-06 / 09-07 can consume getters without ever editing app_prefs.dart again. Matches the file-ownership manifest pattern.
 - **Plan 09-03 (2026-07-13) — Sentinel-int for nullable retention: -1 = forever, absent = 30 (default).** `setRawGpsRetentionDays(null)` stores -1; `getRawGpsRetentionDays()` returns null for -1 (forever) and 30 for absent key. The remove-key approach was rejected because it collapses "unset → default 30" and "explicit forever → null" into the same read path.
 - **Plan 09-03 (2026-07-13) — `setShowDiagnosticsHud` uses named param `{required bool show}`.** `avoid_positional_boolean_parameters` lint requires named bool params; all callers must use `setShowDiagnosticsHud(show: true)`.
@@ -511,7 +515,7 @@ Key locked-in decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-07-13 (Plan 09-01 — Backup Engine — COMPLETE; ~20 min execution)
-Stopped at: Plan 09-01 COMPLETE. Task commits: 845bfe2 (pubspec deps), b2d6ae5 (BackupService interface), a0277f6 (DriftBackupService impl), 39b4d4a (FakeBackupService), 5aaa306 (12 unit tests). SUMMARY.md at .planning/phases/09-settings-backup/09-01-SUMMARY.md. flutter analyze clean; all tests pass.
+Last session: 2026-07-13 (Plan 09-06 — Diagnostics HUD Release Gate + Cache Metrics — COMPLETE; ~5 min execution)
+Stopped at: Plan 09-06 COMPLETE. Task commits: 97027dc (cache counters), 1806a49 (DiagnosticsMetrics), 1976515 (HUD extension + gate removal), fed56ac (counter tests). SUMMARY.md at .planning/phases/09-settings-backup/09-06-SUMMARY.md. flutter analyze clean; 4/4 counter tests green.
 Resume file: None
-Next: Phase 9 (Vehicles) — Phase 8 on-device confirms deferred to next drive (08-DEVICE-VERIFICATION-DEFERRED.md)
+Next: Plan 09-07 — settings_screen.dart + app_router.dart toggle-gating (serial tail; surfaces the HUD tile + route guard in release)
