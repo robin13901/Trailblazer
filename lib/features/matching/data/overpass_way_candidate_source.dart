@@ -73,6 +73,38 @@ class OverpassWayCandidateSource implements WayCandidateSource {
 
   final _log = Logger('overpass_way_source');
 
+  /// Per-instance tile cache hit counter.
+  ///
+  /// Counts z12 tiles served from a fresh DB cache row in
+  /// [_collectFreshTiles]. Counters are per-instance and reset when the
+  /// provider is rebuilt (e.g. after a restore invalidation). Only the
+  /// main-isolate cache-first pre-fetch calls are counted — the matcher
+  /// isolate holds its own [OverpassWayCandidateSource] copy whose counters
+  /// are not surfaced here.
+  int _cacheHits = 0;
+
+  /// Per-instance tile cache miss counter (tile needed a network fetch).
+  /// See [_cacheHits] for the documented limitation.
+  int _cacheMisses = 0;
+
+  /// Number of tiles served from a fresh DB cache row since this instance
+  /// was created.
+  int get cacheHits => _cacheHits;
+
+  /// Number of tiles that required a network fetch since this instance was
+  /// created.
+  int get cacheMisses => _cacheMisses;
+
+  /// Cache hit rate in [0, 1], or `null` before any fetch call.
+  ///
+  /// Returns `null` (not 0) until at least one tile has been classified as
+  /// hit or miss, so callers can distinguish "no data yet" from "0 % hit
+  /// rate".
+  double? get cacheHitRate {
+    final total = _cacheHits + _cacheMisses;
+    return total == 0 ? null : _cacheHits / total;
+  }
+
   @override
   Future<List<WayCandidate>> fetchWaysInBbox({
     required double minLat,
@@ -151,14 +183,17 @@ class OverpassWayCandidateSource implements WayCandidateSource {
     final cutoff = _now().subtract(kOverpassCacheTtl);
 
     // 1. Cache pass — figure out which tiles are already fresh in the DB
-    //    and which ones need network fetch.
+    //    and which ones need network fetch. Increment [_cacheHits] /
+    //    [_cacheMisses] so callers can observe the hit rate on this instance.
     final freshCached = <TileId, OverpassWayCacheData>{};
     final missing = <TileId>[];
     for (final t in tiles) {
       final row = await _cacheDao.getByTile(t.z, t.x, t.y);
       if (row == null || row.fetchedAt.isBefore(cutoff)) {
+        _cacheMisses++;
         missing.add(t);
       } else {
+        _cacheHits++;
         freshCached[t] = row;
       }
     }
