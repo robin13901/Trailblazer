@@ -2,26 +2,30 @@ import 'dart:async';
 
 import 'package:auto_explore/features/onboarding/data/permission_service.dart';
 import 'package:auto_explore/features/onboarding/data/permission_service_provider.dart';
+import 'package:auto_explore/features/settings/data/diagnostics_metrics_provider.dart';
 import 'package:auto_explore/features/trips/data/background_geolocation_facade.dart';
 import 'package:auto_explore/features/trips/data/background_geolocation_facade_provider.dart';
 import 'package:auto_explore/features/trips/domain/tracking_diagnostics.dart';
 import 'package:auto_explore/features/trips/presentation/providers/tracking_diagnostics_provider.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:permission_handler/permission_handler.dart'
     show PermissionStatus;
 
-/// Dev-only debug HUD for the tracking subsystem (Plan 03-1-01).
+/// Diagnostics HUD for the tracking subsystem (Plan 03-1-01).
 ///
-/// Reachable only when [kDebugMode] is true, via a `DEV` ListTile in the
-/// Settings screen. Route: `/settings/diagnostics` (guarded at registration).
+/// Reachable when the `kShowDiagnosticsHud` AppPrefs toggle is ON (Plan 09-03
+/// / 09-07), via a ListTile in the Settings screen. Route:
+/// `/settings/diagnostics`. The screen renders in both debug and release
+/// builds — the kDebugMode gate was removed in Plan 09-06.
 ///
 /// Refreshes at ~2 Hz via `Timer.periodic` + `setState` — no stream or
 /// Riverpod watch, per 03-1-RESEARCH §7.2. Reads:
 ///   * [TrackingDiagnostics] via `ref.read(trackingDiagnosticsProvider)`
 ///   * `FgbState` via `_facade.currentState()` (async, cached in state)
 ///   * 5 permission-ladder rungs via [PermissionService]
+///   * Matcher queue depth + Overpass cache hit rate via
+///     [readDiagnosticsMetrics] (Plan 09-06)
 ///
 /// The screen intentionally does NOT use LiquidGlass or any glass chrome —
 /// this is functional, not decorative.
@@ -40,6 +44,7 @@ class _TrackingDiagnosticsScreenState
   Timer? _timer;
   FgbState? _facadeState;
   _PermissionSnapshot? _permissions;
+  DiagnosticsMetrics? _metrics;
 
   @override
   void initState() {
@@ -59,9 +64,9 @@ class _TrackingDiagnosticsScreenState
     super.dispose();
   }
 
-  /// Fetch the async-only fields (FgbState + permission statuses) off the
-  /// polling tick. Kept off the synchronous rebuild so the widget tree
-  /// isn't blocked on platform-channel calls.
+  /// Fetch the async-only fields (FgbState, permission statuses, and matcher /
+  /// Overpass metrics) off the polling tick. Kept off the synchronous rebuild
+  /// so the widget tree isn't blocked on platform-channel calls.
   Future<void> _refreshAsync() async {
     final facade = ref.read(backgroundGeolocationFacadeProvider);
     final perms = ref.read(permissionServiceProvider);
@@ -84,10 +89,19 @@ class _TrackingDiagnosticsScreenState
           await _safeStatus(perms.statusIgnoreBatteryOptimizations),
     );
 
+    DiagnosticsMetrics? metrics;
+    try {
+      metrics = await readDiagnosticsMetrics(ref);
+    } on Object {
+      // Swallow — DB may be unavailable during early startup; HUD shows `—`.
+      metrics = null;
+    }
+
     if (!mounted) return;
     setState(() {
       _facadeState = facadeState;
       _permissions = snapshot;
+      _metrics = metrics;
     });
   }
 
@@ -103,9 +117,6 @@ class _TrackingDiagnosticsScreenState
 
   @override
   Widget build(BuildContext context) {
-    if (!kDebugMode) {
-      return const _ReleaseModeShortCircuit();
-    }
     final diag = ref.read(trackingDiagnosticsProvider);
     return Scaffold(
       appBar: AppBar(title: const Text('Tracking diagnostics')),
@@ -193,6 +204,32 @@ class _TrackingDiagnosticsScreenState
             title: const Text('tripId'),
             trailing:
                 Text(diag.currentTripId?.toString() ?? 'idle'),
+          ),
+          const Divider(height: 1),
+          const _SectionHeader('Matcher / cache'),
+          ListTile(
+            dense: true,
+            title: const Text('queue depth'),
+            trailing: Text(_metrics?.matcherQueueDepth.toString() ?? '—'),
+          ),
+          ListTile(
+            dense: true,
+            title: const Text('cacheHits'),
+            trailing: Text(_metrics?.cacheHits.toString() ?? '—'),
+          ),
+          ListTile(
+            dense: true,
+            title: const Text('cacheMisses'),
+            trailing: Text(_metrics?.cacheMisses.toString() ?? '—'),
+          ),
+          ListTile(
+            dense: true,
+            title: const Text('hitRate'),
+            trailing: Text(
+              _metrics?.cacheHitRate != null
+                  ? '${(_metrics!.cacheHitRate! * 100).toStringAsFixed(0)}%'
+                  : '—',
+            ),
           ),
         ],
       ),
@@ -307,26 +344,6 @@ class _LastFixTile extends StatelessWidget {
       subtitle: Text(
         '${_formatRelative(s.ts)} · ±${s.accuracyMeters.toStringAsFixed(0)} m '
         '· ${s.speedKmh.toStringAsFixed(1)} km/h',
-      ),
-    );
-  }
-}
-
-class _ReleaseModeShortCircuit extends StatelessWidget {
-  const _ReleaseModeShortCircuit();
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Not available')),
-      body: const Center(
-        child: Padding(
-          padding: EdgeInsets.all(16),
-          child: Text(
-            'Tracking diagnostics is a debug-only screen and is not '
-            'available in release builds.',
-          ),
-        ),
       ),
     );
   }
