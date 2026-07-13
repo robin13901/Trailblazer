@@ -130,8 +130,35 @@ class _AppState extends ConsumerState<App> with WidgetsBindingObserver {
       // Plan 05-07: pick up any pending trips that arrived while the isolate
       // was not running (e.g. app killed mid-match).
       unawaited(ref.read(tripMatchCoordinatorProvider).processPending());
-      // Plan 05-07 (MMT-10): 30-day raw-GPS retention sweep.
-      unawaited(ref.read(tripsRepositoryProvider).sweepRawGpsRetention());
+      // Plan 09-03 (MMT-10): raw-GPS retention sweep using the persisted
+      // window. Skip when the user has chosen "forever" (null retention).
+      unawaited(_runRetentionSweepIfNeeded());
+    }
+  }
+
+  /// Reads the user-chosen raw-GPS retention window from [AppPrefs] and
+  /// runs the sweep. Skipped entirely when the window is `null` (forever).
+  ///
+  /// Fire-and-forget. Logs and swallows errors so a sweep hiccup never
+  /// crashes the app on resume.
+  Future<void> _runRetentionSweepIfNeeded() async {
+    try {
+      final days =
+          await ref.read(appPrefsProvider).getRawGpsRetentionDays();
+      if (days == null) {
+        // "Forever" — user has opted out of automatic deletion.
+        _log.fine('retention sweep skipped (window=forever)');
+        return;
+      }
+      unawaited(
+        ref.read(tripsRepositoryProvider).sweepRawGpsRetention(
+              retention: Duration(days: days),
+            ),
+      );
+      // Catches all throwables: a sweep hiccup must never crash on resume.
+      // ignore: avoid_catches_without_on_clauses
+    } catch (e, st) {
+      _log.warning('retention sweep failed: $e', e, st);
     }
   }
 
