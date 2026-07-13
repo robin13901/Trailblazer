@@ -55,14 +55,15 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           child: const SettingsScreen(),
         ),
       ),
-      // Dev-only diagnostics route (Plan 03-1-01). Registered only in debug
-      // builds — `kDebugMode` is a const, so the route entry (and its widget
-      // reference) is tree-shaken from release APK/IPA.
-      if (kDebugMode)
-        GoRoute(
-          path: '/settings/diagnostics',
-          builder: (context, state) => const TrackingDiagnosticsScreen(),
-        ),
+      // Diagnostics route — registered in all builds (debug + release).
+      // Reachable in release only when the user has enabled the
+      // 'Show diagnostics HUD' toggle in Settings > Diagnostics (Plan 09-07).
+      // The kDebugMode gate is removed so the route is not tree-shaken out of
+      // release builds, but user access is guarded by the toggle visibility.
+      GoRoute(
+        path: '/settings/diagnostics',
+        builder: (context, state) => const TrackingDiagnosticsScreen(),
+      ),
       // Dev-only REN-04 stress harness (Plan 07-07). Loads 50k synthetic ways
       // through the production coverage overlay and measures P90 frame time.
       // `kDebugMode` const ensures tree-shaking removes route + widget in release.
