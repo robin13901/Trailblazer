@@ -247,7 +247,18 @@ Plans:
   3. User can check for OSM updates and swap in a new extract; on success the coverage cache invalidates and driven-way intervals remain valid.
   4. Permissions inspector shows live status for Always/whenInUse location, motion activity, and background app refresh; raw-GPS retention setting persists and honors 0/30/365/forever options.
   5. Battery-diagnostic HUD toggle exposes fix rate, matcher queue depth, and cache-hit rate; About screen lists app version, OSS licenses, and OSM credits.
-**Plans:** TBD (5–7)
+**Plans:** 7 plans
+
+Plans:
+- [ ] 09-01-PLAN.md — Wave 1: backup/restore engine (VACUUM INTO export + validate/snapshot/wipe-swap restore) behind BackupService, Result<T>, unit-tested (SET-07/08)
+- [ ] 09-02-PLAN.md — Wave 2: FilePlatform seam (share_plus + file_picker) + Fake + iOS Info.plist doc-picker
+- [ ] 09-03-PLAN.md — Wave 1: raw-GPS retention (AppPrefs sole-owner: retention + HUD-toggle keys) + option picker + purge-now + threaded sweep (SET-05)
+- [ ] 09-04-PLAN.md — Wave 1: permissions inspector (read-only, resume-aware, reuses PermissionService) (SET-03)
+- [ ] 09-05-PLAN.md — Wave 3: Data & Backup UI (export→share, restore→pick→confirm→progress→refresh) (SET-07/08 UI)
+- [ ] 09-06-PLAN.md — Wave 2: diagnostics HUD toggle + queue-depth + Overpass cache-hit counters; kDebugMode gate removed (SET-06)
+- [ ] 09-07-PLAN.md — Wave 4 (serial tail): assemble grouped Settings screen + About version/OSS-licenses + route un-gate (SET-04/09, reconciliation)
+
+> **Scope note (per 09-CONTEXT.md — source of truth over the SC wording above):** SET-01 (vehicles) is DEAD; SET-02 / SC3 (OSM extract updates) are DROPPED — no extract exists under the rescoped MapTiler+Overpass architecture. SC1 "encrypted" is superseded to a plain `.trailblazer` archive; there is no separate OSM DB to exclude/untouch. In-scope: SET-03/04/05/06/07/08/09.
 
 ### Phase 10: Hardening
 **Goal:** The app survives real-world stress on real devices; all quality gates green; release-candidate ready.
@@ -277,7 +288,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 | 6. Inbox + Match Wire-Up | 6/6 | ✓ Complete (verifier PASS 6/6; +2 gap plans 06-07/06-08; on-device crash fix proven; behavioral drive-confirms deferred) | 2026-07-09 |
 | 7. Coverage Rendering | 7/7 | ✓ Complete (verifier PASS 5/5 code must-haves; Gate G2 resolved = FAIL → GeoJSON + data-driven expressions; 5 on-device visual confirms deferred) | 2026-07-10 |
 | 8. Regions + Focus-Area | 6/6 | ✓ Complete (verifier PASS 17/17 must-haves; SC1/2/3/5 honored per 08-CONTEXT amendments; FOC-06/REG-03 de-scoped v1; 10 on-device confirms deferred) | 2026-07-11 |
-| 9. Settings + Backup | 0/TBD | Not started | - |
+| 9. Settings + Backup | 0/7 | Planned (7 plans, 4 waves) | - |
 | 10. Hardening | 0/TBD | Not started | - |
 | ~~Vehicles + Bluetooth~~ | — | ✗ Removed 2026-07-13 (user request; dormant scaffolding cut, VEH-01..06 dropped, schema v4) | - |
 
