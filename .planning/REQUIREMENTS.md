@@ -58,19 +58,18 @@
   to be authored during Phase 5 planning.
 -->
 
-### Vehicles (VEH)
+### Vehicles (VEH) — REMOVED 2026-07-13
 
-- [ ] **VEH-01**: On first launch, user is guided through creating their first vehicle (name, model, optional color)
-- [ ] **VEH-02**: User can create, edit, delete vehicles from the settings screen
-- [ ] **VEH-03**: One vehicle can be marked as default (auto-assigned to manually started trips)
-- [ ] **VEH-04**: Each vehicle can optionally be linked to one or more Bluetooth-device fingerprints (paired MAC / device name / stable ID)
-- [ ] **VEH-05**: Each vehicle has a `counts_for_coverage` flag (default: true) — only trips with counts=true vehicles contribute to the exploration percentage
-- [ ] **VEH-06**: Vehicles can be assigned a display color for future per-vehicle coloring on the map (stored, not yet rendered in v1)
+The Vehicles + Bluetooth feature was cut entirely at user request. VEH-01..06
+are withdrawn; the `Vehicles` / `BtFingerprints` tables and the
+`trips.vehicle_id` / `trips.bluetooth_hint` columns were removed via App DB
+schema v4. Trailblazer is single-user, single-vehicle in practice — coverage
+is computed over all trips unconditionally. See PROJECT.md Key Decisions.
 
 ### Trip Tracking (TRK)
 
 - [~] **TRK-01**: ~~`flutter_background_geolocation` records GPS in the background when motion activity classifier reports `automotive` (>60 s duration) — trip auto-created as `pending`~~ **SUPERSEDED 2026-07-09** — user requested manual-only recording; automatic background trip-creation removed (Phase 6 gap-plan 06-08). See PROJECT.md Key Decisions / memory `auto-recording-removed-2026-07-09`.
-- [x] **TRK-02**: User can manually start a trip via FAB on the map screen — trip immediately created as `pending`, assigned to default vehicle, marked as `manually_started`
+- [x] **TRK-02**: User can manually start a trip via FAB on the map screen — trip immediately created as `pending`, marked as `manually_started` *(2026-07-13: "assigned to default vehicle" clause dropped — Vehicles feature removed)*
 - [x] **TRK-03**: Manually-started trips end only when user presses the Stop button (short traffic-light stops do not terminate the trip)
 - [~] **TRK-04**: ~~Auto-started trips end when motion classifier reports non-automotive for > 2 minutes (dwell termination)~~ **SUPERSEDED 2026-07-09** — moot with manual-only recording (no auto-trips exist to auto-terminate). Manual trips end only on user Stop (TRK-03).
 - [x] **TRK-05**: Per-trip captured metadata: start/end timestamp, duration, distance (from GPS integration), avg speed, max speed, raw GPS polyline (lat/lng/accuracy/timestamp/altitude), motion activity type per fix
@@ -120,7 +119,7 @@
 - [x] **COV-05**: Coverage cache table (`coverage_by_region`) stores per-region % + last-computed timestamp; recomputed only on invalidation *(physical table name is `coverage_cache`; `coverage_by_region` is the logical alias)*
 - [x] **COV-06**: Invalidation triggers: new driven intervals written, trip deleted, vehicle `counts_for_coverage` changed, OSM extract updated *(3 of 4 triggers wired; `counts_for_coverage` trigger deferred to P9 with vehicles)*
 - [ ] **COV-07**: Coverage recomputation runs on a compute isolate to keep UI responsive
-- [ ] **COV-08**: A "total km driven" and "unique km driven" statistic is maintained per vehicle and globally
+- [ ] **COV-08**: A "total km driven" and "unique km driven" statistic is maintained globally *(2026-07-13: "per vehicle" clause dropped — Vehicles feature removed)*
 
 ### Focus-Area Pill (FOC)
 
@@ -240,8 +239,8 @@ Explicitly excluded. Documented to prevent scope creep.
 ## Traceability
 
 **Coverage:**
-- v1 requirements: 112 total (was 119 pre-rescope; OSMDB-01..OSMDB-07 deleted 2026-07-08 — see PROJECT.md Key Decisions)
-- Mapped to phases: 112 / 112 (100 %)
+- v1 requirements: 106 total (was 119 pre-rescope; OSMDB-01..OSMDB-07 deleted 2026-07-08; VEH-01..06 deleted 2026-07-13 — see PROJECT.md Key Decisions)
+- Mapped to phases: 106 / 106 (100 %)
 - Unmapped: 0
 
 Every requirement maps to exactly one phase. Phase Gates in ROADMAP.md: G1 = UI-05 (PASS 2026-07-04); G2 = REN-05 (RESOLVED 2026-07-09 = FAIL → GeoJSON data-driven expressions chosen).
@@ -337,30 +336,26 @@ Every requirement maps to exactly one phase. Phase Gates in ROADMAP.md: G1 = UI-
 | REG-07 | Phase 8: Regions + Focus-Area | Complete (lazy ListView.builder) |
 | COV-04 | Phase 8: Regions + Focus-Area | Complete (Σ driven Kfz / Σ total Kfz per region, Feldweg/Fußweg excluded; global scope) |
 | COV-07 | Phase 8: Regions + Focus-Area | Complete (main-isolate recompute with periodic yielding per plan; separate compute isolate → optimization deferred) |
-| COV-08 | Phase 8: Regions + Focus-Area | Complete (global total/driven km; per-vehicle stats → Phase 9 hook, TODO in CoverageComputeService) |
-| VEH-01 | Phase 9: Vehicles + Bluetooth | Pending |
-| VEH-02 | Phase 9: Vehicles + Bluetooth | Pending |
-| VEH-03 | Phase 9: Vehicles + Bluetooth | Pending |
-| VEH-04 | Phase 9: Vehicles + Bluetooth | Pending |
-| VEH-05 | Phase 9: Vehicles + Bluetooth | Pending |
-| VEH-06 | Phase 9: Vehicles + Bluetooth | Pending |
-| SET-01 | Phase 10: Settings + Backup | Pending |
-| SET-02 | Phase 10: Settings + Backup | Pending |
-| SET-03 | Phase 10: Settings + Backup | Pending |
-| SET-04 | Phase 10: Settings + Backup | Pending |
-| SET-05 | Phase 10: Settings + Backup | Pending |
-| SET-06 | Phase 10: Settings + Backup | Pending |
-| SET-07 | Phase 10: Settings + Backup | Pending |
-| SET-08 | Phase 10: Settings + Backup | Pending |
-| SET-09 | Phase 10: Settings + Backup | Pending |
-| QUA-01 | Phase 11: Hardening | Pending |
+| COV-08 | Phase 8: Regions + Focus-Area | Complete (global total/driven km; per-vehicle stats dropped 2026-07-13 with Vehicles removal) |
+| SET-01 | Phase 9: Settings + Backup | Pending |
+| SET-02 | Phase 9: Settings + Backup | Pending |
+| SET-03 | Phase 9: Settings + Backup | Pending |
+| SET-04 | Phase 9: Settings + Backup | Pending |
+| SET-05 | Phase 9: Settings + Backup | Pending |
+| SET-06 | Phase 9: Settings + Backup | Pending |
+| SET-07 | Phase 9: Settings + Backup | Pending |
+| SET-08 | Phase 9: Settings + Backup | Pending |
+| SET-09 | Phase 9: Settings + Backup | Pending |
+| QUA-01 | Phase 10: Hardening | Pending |
 | QUA-02 | Phase 5: Overpass-Backed Matcher + Golden Corpus | Complete |
 | QUA-03 | Phase 1: Scaffolding | Complete |
-| QUA-04 | Phase 11: Hardening | Pending |
+| QUA-04 | Phase 10: Hardening | Pending |
 | QUA-05 | Phase 1: Scaffolding | Complete |
 | QUA-06 | Phase 3: Tracking MVP | Complete (user-attested — 96 km/1h40 drive 2026-07-09, no battery anomalies observed) |
-| QUA-07 | Phase 11: Hardening | Pending |
+| QUA-07 | Phase 10: Hardening | Pending |
+
+*(VEH-01..06 removed from this table 2026-07-13 — Vehicles + Bluetooth phase cut.)*
 
 ---
 *Requirements defined: 2026-07-02*
-*Last updated: 2026-07-09 (Plan 04-19 close-out — QUA-06 flipped Drive-blocked → Complete via user-attested 96 km/1h40 drive 2026-07-09; Phase 3 fully complete)*
+*Last updated: 2026-07-13 (Vehicles + Bluetooth feature removed at user request — VEH-01..06 withdrawn, schema v4 drops Vehicles/BtFingerprints tables + trips.vehicle_id/bluetooth_hint; TRK-02/COV-08 vehicle clauses struck; Phases 10/11 renumbered to 9/10)*

@@ -22,8 +22,6 @@ void main() {
         'trips',
         'trip_points',
         'driven_way_intervals',
-        'vehicles',
-        'bt_fingerprints',
         'coverage_cache',
         'app_prefs',
         'overpass_way_cache',

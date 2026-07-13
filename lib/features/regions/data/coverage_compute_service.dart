@@ -15,7 +15,6 @@
 //   6. deleteAll then upsert every region that has any total length.
 //
 // Never throws — wraps at DomainError boundary and returns Err.
-// Per-vehicle + time attribution left for Phase 9 (TODO comments preserved).
 
 import 'package:auto_explore/core/db/daos/driven_way_intervals_dao.dart';
 import 'package:auto_explore/core/errors/domain_error.dart';
@@ -67,9 +66,6 @@ class CoverageComputeService {
   final CoverageCacheDao _cacheDao;
   final TripsDao _tripsDao;
   final Logger _log;
-
-  // TODO(phase-9): add vehicleId parameter and filter driven_way_intervals by trip.vehicle_id
-  // TODO(phase-9): per-trip time attribution — durationSeconds is per-trip, not per-interval (RESEARCH Flag 1 — SKIP for Phase 8)
 
   /// Recompute and upsert coverage statistics for every admin region that
   /// has any matched/confirmed Kfz ways. Returns the number of rows written.

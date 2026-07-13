@@ -2,7 +2,7 @@
 
 ## What This Is
 
-Trailblazer is a private Flutter app (iOS + Android) that tracks which roads the user has driven with which vehicle. Every trip is map-matched against OpenStreetMap on-device; driven road segments are permanently marked as "explored" and shown as colored lines on a Google-Maps-style base map. The app aggregates coverage into a five-level administrative hierarchy (Land → Bundesland → Landkreis → Gemeinde → Ortsteil) with a live "focus area" pill that changes based on map zoom, so the user can see how much of any given town, district, or state they've explored.
+Trailblazer is a private Flutter app (iOS + Android) that tracks which roads the user has driven. Every trip is map-matched against OpenStreetMap on-device; driven road segments are permanently marked as "explored" and shown as colored lines on a Google-Maps-style base map. The app aggregates coverage into a five-level administrative hierarchy (Land → Bundesland → Landkreis → Gemeinde → Ortsteil) with a live "focus area" pill that changes based on map zoom, so the user can see how much of any given town, district, or state they've explored.
 
 The app is being built for personal use (the developer's new company Mercedes gets unlimited kilometers and he enjoys driving new streets), but it is structured to a public-release quality bar in case it ships to the App Store later.
 
@@ -26,22 +26,20 @@ Everything else in the app exists to make that view accurate, satisfying, and wo
 - [ ] Partially-driven ways displayed with partial coloring (interval-based, not binary)
 - [ ] Focus-area pill overlay at the top showing the currently-viewed admin region and its exploration percentage — content and admin level change based on map zoom (Land → Bundesland → Landkreis → Gemeinde → Ortsteil)
 
-**Vehicle Management**
-- [ ] User can create one or more vehicle profiles (name, model, optional details) on first launch and later
-- [ ] Every trip is assigned to exactly one vehicle
-- [ ] Only trips assigned to a "tracked" vehicle count towards exploration coverage
+**Vehicle Management** — ~~removed 2026-07-13~~
+- Cut entirely at user request. The app is single-user, single-vehicle in
+  practice; coverage counts all trips unconditionally. See Key Decisions.
 
 **Trip Tracking**
 - [ ] Automotive motion-activity detection auto-records trips in the background, even when the app is closed
 - [ ] Manual start/stop button for explicit "explore trip" mode
-- [ ] Bluetooth device fingerprint (paired vehicle) is stored per trip as a hint attribute, not a gate
 - [ ] Per-trip metadata: start/end time, duration, distance, average speed, max speed, raw GPS polyline, elevation profile if available
 - [ ] Manual trip end via Stop button when trip was manually started
 
 **Review Inbox**
 - [ ] On app open, all unconfirmed background-recorded trips are shown as a list
-- [ ] For each unconfirmed trip: date/time, distance, map preview, vehicle-guess badge (if Bluetooth matched)
-- [ ] User can keep + assign to vehicle, or discard the trip
+- [ ] For each unconfirmed trip: date/time, distance, map preview
+- [ ] User can keep or discard the trip
 - [ ] Only confirmed trips are map-matched and counted
 
 **Map-Matching**
@@ -120,7 +118,36 @@ Everything else in the app exists to make that view accurate, satisfying, and wo
 
 ## Key Decisions
 
-### 2026-07-08 — Phase 4 rescope: fetched tiles + on-demand Overpass matching
+### 2026-07-13 — Vehicles + Bluetooth removed entirely
+
+**Cut:** The original Phase 9 (full vehicle CRUD, first-launch vehicle
+onboarding, Bluetooth-fingerprint hints, per-vehicle display color, and the
+`counts_for_coverage` filter) is removed at user request. Trailblazer is a
+single-user, single-vehicle app in practice; the entire vehicle aspect was
+dormant scaffolding — no CRUD UI, no BT dependency, no fingerprint capture ever
+shipped, and `trips.vehicle_id` was a nullable column nothing wrote.
+
+**Removed:**
+- Requirements VEH-01..06 withdrawn (v1 total 112 → 106).
+- App DB **schema v4** migration: drops the `vehicles` + `bt_fingerprints`
+  tables and the `trips.vehicle_id` + `trips.bluetooth_hint` columns
+  (`TableMigration(trips)` recreates the table copying only surviving columns;
+  all trip/point/coverage data preserved).
+- Code: `_DormantVehicleChip` inbox badge, `vehicleId` pass-through in
+  `TripsDao`/`TripsRepository`/`TripListItem`/inbox queries, and the
+  `TODO(phase-9)` per-vehicle hooks in `CoverageComputeService`.
+- Requirement wording: TRK-02 "assigned to default vehicle" and COV-08
+  "per vehicle" clauses struck.
+
+**Impact:** `counts_for_coverage` was never read anywhere, so coverage math is
+unchanged — every trip contributes unconditionally. Former Phases 10 (Settings
++ Backup) and 11 (Hardening) renumbered to **9** and **10**. Roadmap is now
+10 phases.
+
+**V2 backlog unchanged:** VEH-V2-01..03 (pattern-based / BT auto-detect) remain
+in REQUIREMENTS.md's out-of-scope section for a possible future milestone.
+
+
 
 **Abandoned:** The bundled-`osm.sqlite` architecture from the original Phase 4
 (200 MB → 800 MB → projected 2.5 GB for full Germany at Berlin-derived densities)

@@ -22,14 +22,12 @@ class TripsDao extends DatabaseAccessor<AppDatabase> {
   Future<int> openTrip({
     required DateTime startedAt,
     required bool manuallyStarted,
-    int? vehicleId,
   }) =>
       into(trips).insert(
         TripsCompanion.insert(
           startedAt: startedAt,
           status: const Value(TripStatus.recording),
           manuallyStarted: Value(manuallyStarted),
-          vehicleId: Value(vehicleId),
         ),
       );
 

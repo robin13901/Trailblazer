@@ -11,10 +11,9 @@ import 'package:meta/meta.dart';
 
 /// Immutable read-model for one row in the inbox or history list.
 ///
-/// Field nullability mirrors schema v3: `endedAt`, `distanceMeters`,
+/// Field nullability mirrors the trips schema: `endedAt`, `distanceMeters`,
 /// `durationSeconds` and the four bbox corners are nullable; the derived
-/// start/end coordinates are null for zero-point trips. `vehicleId` stays
-/// null throughout Phase 6 (P9 populates it).
+/// start/end coordinates are null for zero-point trips.
 @immutable
 class TripListItem {
   const TripListItem({
@@ -29,7 +28,6 @@ class TripListItem {
     required this.endLat,
     required this.endLon,
     required this.intervalCount,
-    this.vehicleId,
     this.bboxMinLat,
     this.bboxMinLon,
     this.bboxMaxLat,
@@ -52,9 +50,6 @@ class TripListItem {
 
   /// Count of `driven_way_intervals` rows for this trip (Q10).
   final int intervalCount;
-
-  /// Stays null in Phase 6 — P9 introduces the Vehicles table + backfill.
-  final int? vehicleId;
 
   final double? bboxMinLat;
   final double? bboxMinLon;

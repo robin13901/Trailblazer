@@ -14,11 +14,9 @@ class Trips extends Table {
   TextColumn get status => text()
       .withDefault(const Constant('pending'))
       .map(const TripStatusConverter())();
-  IntColumn get vehicleId => integer().nullable()();
   BoolColumn get manuallyStarted =>
       boolean().withDefault(const Constant(false))();
   BoolColumn get autoStopped => boolean().withDefault(const Constant(false))();
-  TextColumn get bluetoothHint => text().nullable()();
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
 
   // v2 summary columns — added via addColumn migration (from < 2).

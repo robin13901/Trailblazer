@@ -166,13 +166,6 @@ void main() {
     expect(find.textContaining('→'), findsNothing);
   });
 
-  testWidgets('dormant vehicle chip renders (P6 always visible)', (
-    tester,
-  ) async {
-    await pumpCard(tester, _item());
-    expect(find.text('Vehicle: —'), findsOneWidget);
-  });
-
   testWidgets('Keep tap invokes confirmTrip(tripId)', (tester) async {
     await pumpCard(tester, _item(id: 42));
     await tester.tap(find.text('Keep'));

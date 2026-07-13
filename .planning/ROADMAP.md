@@ -2,9 +2,9 @@
 
 ## Overview
 
-Trailblazer is a private Flutter app (iOS + Android) that paints the roads you have driven onto an offline OSM map, aggregated across a 5-level admin hierarchy (Land → Bundesland → Landkreis → Gemeinde → Stadtteil/Ortsteil). The road from empty repo to shipped v1 is a strict dependency chain: build the CI + DB + permission foundation, prove the map + Liquid Glass shell renders on real devices, capture trips in the background, build the OSM pipeline on the dev machine, run on-device HMM map-matching against the resulting artifact, wire trips through an inbox into coverage, render driven roads on the map, then layer in region browser + focus-area pill, vehicles + Bluetooth, settings + backup, and finally harden against OEM battery killers and iOS background-task quirks.
+Trailblazer is a private Flutter app (iOS + Android) that paints the roads you have driven onto an offline OSM map, aggregated across a 5-level admin hierarchy (Land → Bundesland → Landkreis → Gemeinde → Stadtteil/Ortsteil). The road from empty repo to shipped v1 is a strict dependency chain: build the CI + DB + permission foundation, prove the map + Liquid Glass shell renders on real devices, capture trips in the background, build the OSM pipeline on the dev machine, run on-device HMM map-matching against the resulting artifact, wire trips through an inbox into coverage, render driven roads on the map, then layer in region browser + focus-area pill, settings + backup, and finally harden against OEM battery killers and iOS background-task quirks.
 
-Depth: **comprehensive** — 11 phases, driven by the 112 v1 requirements (FND, MAP, UI, OSM, VEH, TRK, INB, MMT, COV, FOC, REN, REG, SET, QUA). Two spike gates (P2 rendering, P7 feature-state) are called out separately in the Phase Gates section — they can block or divert phase execution. *(Requirement total dropped 119 → 112 in the 2026-07-08 Phase-4 rescope: OSMDB-01..OSMDB-07 deleted; the bundled-osm.sqlite runtime was abandoned. See PROJECT.md Key Decisions.)*
+Depth: **comprehensive** — 10 phases, driven by the 106 v1 requirements (FND, MAP, UI, OSM, TRK, INB, MMT, COV, FOC, REN, REG, SET, QUA). Two spike gates (P2 rendering, P7 feature-state) are called out separately in the Phase Gates section — they can block or divert phase execution. *(Requirement total dropped 119 → 112 in the 2026-07-08 Phase-4 rescope: OSMDB-01..OSMDB-07 deleted; the bundled-osm.sqlite runtime was abandoned. Then 112 → 106 on 2026-07-13 when the Vehicles + Bluetooth phase was cut and VEH-01..06 removed. See PROJECT.md Key Decisions.)*
 
 ## Phases
 
@@ -21,9 +21,10 @@ Depth: **comprehensive** — 11 phases, driven by the 112 v1 requirements (FND, 
 - [x] **Phase 6: Inbox + Match Wire-Up** — trip inbox, confirm/reject, matching enqueue, coverage cache infra (code-complete + verifier PASS 6/6 must-haves 2026-07-09; on-device crash fix PROVEN — 96 km trip matched to 814 intervals; behavioral drive-confirms deferred to user)
 - [x] **Phase 7: Coverage Rendering** — driven Kfz-ways painted on the map via GeoJSON + data-driven paint expressions (Gate G2 resolved = FAIL: feature-state unavailable on mobile); orange/amber default + 5-preset picker; 50k fps stress harness code-complete (verifier PASS 5/5 code must-haves 2026-07-10; 5 on-device visual confirms deferred to user — `07-MANUAL-TESTS-DEFERRED.md`)
 - [x] **Phase 8: Regions + Focus-Area** — admin region browser, zoom-aware focus pill, coverage aggregation (code-complete + verifier PASS 17/17 must-haves 2026-07-11; SC1/2/3/5 honored per 08-CONTEXT amendments — live pill, stats-only sheet, flat mixed-level card list, global coverage; 10 on-device visual confirms deferred to next drive — `08-DEVICE-VERIFICATION-DEFERRED.md`)
-- [ ] **Phase 9: Vehicles + Bluetooth** — full vehicle CRUD, BT-fingerprint hints, per-vehicle color prefs
-- [ ] **Phase 10: Settings + Backup** — encrypted App DB backup/restore, OSM extract updates, diagnostics
-- [ ] **Phase 11: Hardening** — patrol E2E, real-device gauntlet, iOS BG behavior, battery regression gate
+- [ ] **Phase 9: Settings + Backup** — encrypted App DB backup/restore, OSM extract updates, diagnostics
+- [ ] **Phase 10: Hardening** — patrol E2E, real-device gauntlet, iOS BG behavior, battery regression gate
+
+> **Vehicles + Bluetooth removed 2026-07-13.** The original Phase 9 (full vehicle CRUD + BT-fingerprint hints + per-vehicle color) was cut entirely at user request — the app is single-user, single-vehicle in practice and the whole aspect was dormant scaffolding (VEH-01..06 dropped; `Vehicles`/`BtFingerprints` tables + `trips.vehicle_id`/`trips.bluetooth_hint` removed via schema v4). Former Phases 10/11 renumbered down to 9/10. See PROJECT.md Key Decisions.
 
 ## Phase Gates
 
@@ -236,36 +237,24 @@ Plans:
 - [x] 08-05-PLAN.md — Wave 2: region browser — flat coverage-gated %-desc card list + global fuzzy search + lazy ListView + draggable Liquid Glass detail sheet (stats-only) + Jump-to-on-map (REG-02/04/06/07, COV-04)
 - [x] 08-06-PLAN.md — Wave 3: integration — pill tap → detail sheet + single deferred on-device verification checklist (defer-to-next-drive, no blocking checkpoint)
 
-### Phase 9: Vehicles + Bluetooth
-**Goal:** Full vehicle profiles with Bluetooth-fingerprint hints replace the P3/P6 placeholder default vehicle.
-**Depends on:** Phase 6
-**Requirements:** VEH-01, VEH-02, VEH-03, VEH-04, VEH-05, VEH-06
-**Success Criteria** (what must be TRUE):
-  1. First-launch onboarding guides the user through creating their first vehicle (name, model, optional color); they can create, edit, delete, and mark default from Settings.
-  2. User can link one or more Bluetooth fingerprints (paired MAC / device name / stable ID) to each vehicle; fingerprints stored at trip start surface as the vehicle-guess badge in the inbox.
-  3. Toggling a vehicle's `counts_for_coverage` flag invalidates the coverage cache and re-computes region % correctly (trips with `counts=false` do not contribute).
-  4. Each vehicle stores a display color for future per-vehicle map layers (not yet rendered in v1).
-  5. Every existing trip can be reassigned to any vehicle; retroactive reassignment triggers coverage-cache invalidation from P6.
-**Plans:** TBD (3–5)
-
-### Phase 10: Settings + Backup
+### Phase 9: Settings + Backup
 **Goal:** The user can back up their data, restore it, update the OSM extract, and inspect permissions + diagnostics.
-**Depends on:** Phases 1, 5, 9
+**Depends on:** Phases 1, 5
 **Requirements:** SET-01, SET-02, SET-03, SET-04, SET-05, SET-06, SET-07, SET-08, SET-09
 **Success Criteria** (what must be TRUE):
   1. User can export an encrypted App DB backup to a user-picked destination (iCloud Drive on iOS / SAF picker on Android); the OSM DB is excluded from the archive.
   2. User can restore a backup file: the archive is validated, the App DB is swapped in place, and the OSM DB is untouched.
   3. User can check for OSM updates and swap in a new extract; on success the coverage cache invalidates and driven-way intervals remain valid.
-  4. Permissions inspector shows live status for Always/whenInUse location, motion activity, Bluetooth, and background app refresh; raw-GPS retention setting persists and honors 0/30/365/forever options.
+  4. Permissions inspector shows live status for Always/whenInUse location, motion activity, and background app refresh; raw-GPS retention setting persists and honors 0/30/365/forever options.
   5. Battery-diagnostic HUD toggle exposes fix rate, matcher queue depth, and cache-hit rate; About screen lists app version, OSS licenses, and OSM credits.
 **Plans:** TBD (5–7)
 
-### Phase 11: Hardening
+### Phase 10: Hardening
 **Goal:** The app survives real-world stress on real devices; all quality gates green; release-candidate ready.
 **Depends on:** All prior phases
 **Requirements:** QUA-01, QUA-04, QUA-07
 **Success Criteria** (what must be TRUE):
-  1. Every feature module (Map, Tracking, Trips/Inbox, Vehicles, Regions, Focus-Area Pill, Settings) has widget tests covering its key screens; all green in CI.
+  1. Every feature module (Map, Tracking, Trips/Inbox, Regions, Focus-Area Pill, Settings) has widget tests covering its key screens; all green in CI.
   2. `patrol` E2E suite covers onboarding → first trip recording → inbox confirmation → matching → coverage update → region browser; runs green on both platforms in CI.
   3. Real-device gauntlet passes on iPhone (current + one older), Samsung, and Xiaomi: auto-trips survive OEM battery killers, foreground service remains alive through screen-off drives, and coverage updates after the drive.
   4. iOS `BGTaskScheduler` empirical wake behavior is documented; extract-swap failure recovery and coverage-cache invalidation edge cases have regression tests.
@@ -275,7 +264,7 @@ Plans:
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 → 9 → 10 → 11 (with 4 executable in parallel with 2/3 as it is a dev-machine deliverable). Decimal phases inserted between integers if the Phase Gates fire.
+Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 → 9 → 10 (with 4 executable in parallel with 2/3 as it is a dev-machine deliverable). Decimal phases inserted between integers if the Phase Gates fire. *(The former Phase 9 "Vehicles + Bluetooth" was removed 2026-07-13; Settings+Backup and Hardening renumbered to 9 and 10.)*
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
@@ -288,13 +277,13 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 | 6. Inbox + Match Wire-Up | 6/6 | ✓ Complete (verifier PASS 6/6; +2 gap plans 06-07/06-08; on-device crash fix proven; behavioral drive-confirms deferred) | 2026-07-09 |
 | 7. Coverage Rendering | 7/7 | ✓ Complete (verifier PASS 5/5 code must-haves; Gate G2 resolved = FAIL → GeoJSON + data-driven expressions; 5 on-device visual confirms deferred) | 2026-07-10 |
 | 8. Regions + Focus-Area | 6/6 | ✓ Complete (verifier PASS 17/17 must-haves; SC1/2/3/5 honored per 08-CONTEXT amendments; FOC-06/REG-03 de-scoped v1; 10 on-device confirms deferred) | 2026-07-11 |
-| 9. Vehicles + Bluetooth | 0/TBD | Not started | - |
-| 10. Settings + Backup | 0/TBD | Not started | - |
-| 11. Hardening | 0/TBD | Not started | - |
+| 9. Settings + Backup | 0/TBD | Not started | - |
+| 10. Hardening | 0/TBD | Not started | - |
+| ~~Vehicles + Bluetooth~~ | — | ✗ Removed 2026-07-13 (user request; dormant scaffolding cut, VEH-01..06 dropped, schema v4) | - |
 
 ## Coverage
 
-**v1 requirements mapped:** 112/112 (100 %) — no orphans. *(Was 119 pre-2026-07-08; OSMDB-01..OSMDB-07 deleted as part of the Phase-4 rescope — see PROJECT.md Key Decisions.)*
+**v1 requirements mapped:** 106/106 (100 %) — no orphans. *(Was 119 pre-2026-07-08 then 112 after the Phase-4 rescope deleted OSMDB-01..07; dropped to 106 on 2026-07-13 when VEH-01..06 were removed with the Vehicles + Bluetooth phase — see PROJECT.md Key Decisions.)*
 
 | Category | Count | Assigned to |
 |----------|-------|-------------|
@@ -302,7 +291,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 | MAP | 7 | P2 |
 | UI | 7 | P2 |
 | OSM | 8 | P4 |
-| VEH | 6 | P9 |
 | TRK | 11 | P3 |
 | INB | 8 | P6 |
 | MMT | 10 | P5 |
@@ -310,9 +298,9 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 | FOC | 7 | P8 |
 | REN | 6 | P7 |
 | REG | 7 | P8 |
-| SET | 9 | P10 |
-| QUA | 7 | P1 (QUA-03, QUA-05), P3 (QUA-06), P5 (QUA-02), P11 (QUA-01, QUA-04, QUA-07) |
+| SET | 9 | P9 |
+| QUA | 7 | P1 (QUA-03, QUA-05), P3 (QUA-06), P5 (QUA-02), P10 (QUA-01, QUA-04, QUA-07) |
 
 ---
 *Roadmap created: 2026-07-02*
-*Depth: comprehensive (11 phases)*
+*Depth: comprehensive (10 phases; Vehicles + Bluetooth removed 2026-07-13)*

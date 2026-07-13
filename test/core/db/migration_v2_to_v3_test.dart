@@ -16,15 +16,20 @@ void main() {
     });
 
     test('v2 trip row survives upgrade unchanged', () async {
-      final connection = await verifier.startAt(2);
-      final db = AppDatabase(connection);
-      addTearDown(db.close);
+      // Seed at v2 via the raw schema DB (NOT the full AppDatabase) — see the
+      // v1→v2 test for why: opening AppDatabase here would run onUpgrade to the
+      // current schemaVersion (v4, destructive) before migrateAndValidate can
+      // compare against the v3 snapshot. Uses drift `schemaAt`.
+      final schema = await verifier.schemaAt(2);
 
       // Seed a trips row at schema v2 (includes v2 bbox/pointCount columns).
-      await db.customStatement(
+      schema.rawDatabase.execute(
         'INSERT INTO trips (started_at, status, manually_started, auto_stopped) '
         "VALUES (strftime('%s', 'now'), 'pending', 0, 0)",
       );
+
+      final db = AppDatabase(schema.newConnection());
+      addTearDown(db.close);
 
       await verifier.migrateAndValidate(db, 3);
 

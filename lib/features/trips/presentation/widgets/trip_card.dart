@@ -1,9 +1,8 @@
 // Trailblazer Phase 6, Plan 06-05 Task 1:
 // TripCard — one Inbox card per pending (matched) trip.
 //
-// Shows place names, date/time · duration · distance, a DORMANT vehicle chip
-// (P9 populates it), and Keep + Discard buttons. The whole card surface is
-// tappable → /trips/:id.
+// Shows place names, date/time · duration · distance, and Keep + Discard
+// buttons. The whole card surface is tappable → /trips/:id.
 //
 // Keep flips status matched→confirmed silently (no toast on success). Discard
 // shows a confirmation modal; on confirm it runs the repository's ordered
@@ -207,8 +206,6 @@ class _TripCardState extends ConsumerState<TripCard> {
                     '${formatDistance(item.distanceMeters)}',
                     style: theme.textTheme.bodySmall,
                   ),
-                  const SizedBox(height: 10),
-                  const _DormantVehicleChip(),
                 ],
               ),
             ),
@@ -270,21 +267,5 @@ class _PlaceNames extends ConsumerWidget {
       orElse: () => 'Location…',
     );
     return Text(label, style: style);
-  }
-}
-
-/// Dormant vehicle chip — always visible in P6 (CONTEXT). P9 wires it to a
-/// real BT-derived vehicle guess.
-class _DormantVehicleChip extends StatelessWidget {
-  const _DormantVehicleChip();
-
-  @override
-  Widget build(BuildContext context) {
-    return const Chip(
-      avatar: Icon(Icons.directions_car_outlined, size: 18),
-      label: Text('Vehicle: —'),
-      visualDensity: VisualDensity.compact,
-      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-    );
   }
 }

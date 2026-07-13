@@ -37,7 +37,6 @@ void main() {
       expect(active.status, TripStatus.recording);
       expect(active.endedAt, isNull);
       expect(active.manuallyStarted, isTrue);
-      expect(active.bluetoothHint, isNull); // P3: stays NULL (Phase 9 marker)
     });
 
     test('appendPoints then closeTrip → activeTrip returns null', () async {

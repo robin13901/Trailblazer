@@ -16,18 +16,25 @@ void main() {
     });
 
     test('v1 trip row survives upgrade with NULL bbox and pointCount', () async {
-      final connection = await verifier.startAt(1);
-      final db = AppDatabase(connection);
-      addTearDown(db.close);
+      // Seed at v1 via the raw schema DB (NOT the full AppDatabase) so the
+      // insert does not open AppDatabase and prematurely run onUpgrade all the
+      // way to the current schemaVersion. This became load-bearing at v4 —
+      // the first destructive migration — where opening at the app version
+      // would drop the vehicle schema before migrateAndValidate(db, 2) can
+      // compare against the v2 snapshot. See drift `schemaAt` docs.
+      final schema = await verifier.schemaAt(1);
 
       // Seed a trips row at schema v1 (only v1 columns).
-      await db.customStatement(
+      schema.rawDatabase.execute(
         // SQL string literals require double quotes for compatibility with
         // single-quoted SQL values; cannot use Dart single quotes here.
         // ignore: prefer_single_quotes
         "INSERT INTO trips (started_at, status, manually_started, auto_stopped) "
         "VALUES (strftime('%s', 'now'), 'pending', 0, 0)",
       );
+
+      final db = AppDatabase(schema.newConnection());
+      addTearDown(db.close);
 
       // Trigger the v1→v2 migration.
       await verifier.migrateAndValidate(db, 2);

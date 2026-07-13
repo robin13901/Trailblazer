@@ -21,13 +21,11 @@ class TripsRepository {
   Future<Result<int>> openTrip({
     required DateTime startedAt,
     required bool manuallyStarted,
-    int? vehicleId,
   }) async {
     try {
       final id = await _dao.openTrip(
         startedAt: startedAt,
         manuallyStarted: manuallyStarted,
-        vehicleId: vehicleId,
       );
       return Ok(id);
       // DomainError.wrap accepts Object — must catch all throwables including
