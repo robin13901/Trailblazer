@@ -1,13 +1,18 @@
+import 'package:auto_explore/core/db/app_database.dart';
+import 'package:auto_explore/core/db/app_database_providers.dart';
+import 'package:auto_explore/features/matching/data/matching_providers.dart';
 import 'package:auto_explore/features/onboarding/data/permission_service_provider.dart';
 import 'package:auto_explore/features/settings/presentation/tracking_diagnostics_screen.dart';
 import 'package:auto_explore/features/trips/data/background_geolocation_facade_provider.dart';
 import 'package:auto_explore/features/trips/domain/tracking_diagnostics.dart';
 import 'package:auto_explore/features/trips/presentation/providers/tracking_diagnostics_provider.dart';
+import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../../helpers/fake_background_geolocation_facade.dart';
+import '../../helpers/fixture_way_candidate_source.dart';
 import '../onboarding/fakes/fake_permission_service.dart';
 
 /// Widget test for the dev-only `TrackingDiagnosticsScreen` (Plan 03-1-01).
@@ -32,6 +37,11 @@ void main() {
     await tester.binding.setSurfaceSize(const Size(800, 3000));
     addTearDown(() => tester.binding.setSurfaceSize(const Size(800, 600)));
 
+    // In-memory DB so readDiagnosticsMetrics (pendingRoadFetchesDao.listPending)
+    // never touches the drift_flutter path_provider channel.
+    final db = AppDatabase(NativeDatabase.memory());
+    addTearDown(db.close);
+
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
@@ -39,6 +49,14 @@ void main() {
           permissionServiceProvider.overrideWithValue(FakePermissionService()),
           backgroundGeolocationFacadeProvider
               .overrideWithValue(FakeBackgroundGeolocationFacade()),
+          // Override DB so pendingRoadFetchesDao.listPending() uses in-memory
+          // storage instead of real drift_flutter (requires path_provider).
+          appDatabaseProvider.overrideWithValue(db),
+          // Override wayCandidateSourceProvider so readDiagnosticsMetrics can
+          // read cache counters without touching the network or a real DB.
+          wayCandidateSourceProvider.overrideWithValue(
+            FixtureWayCandidateSource(ways: const []),
+          ),
         ],
         child: const MaterialApp(
           home: TrackingDiagnosticsScreen(),
