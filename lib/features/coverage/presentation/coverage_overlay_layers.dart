@@ -76,13 +76,16 @@ const String coverageLayerId = 'coverage_layer';
 /// `is_full` / `fraction`) was removed per user feedback — every driven
 /// segment is painted at full opacity in [CoverageColors.fullHex].
 ///
-/// **lineColor** — constant [CoverageColors.fullHex].
-/// **lineOpacity** — constant [_kFullOpacity].
+/// **lineColor** — constant [CoverageColors.fullHex] (a plain `#RRGGBB`
+///   string, NOT wrapped in a `["literal", …]` expression — `literal` is only
+///   valid for arrays/objects; wrapping a bare string/number produces an
+///   invalid MapLibre expression that crashes the native layer at add time).
+/// **lineOpacity** — constant [_kFullOpacity] (a plain double).
 /// **lineWidth** — `interpolate` on zoom (unchanged):
 ///   z8 → 2.5 px, z11 → 3.0, z13 → 4.0, z15 → 5.0, z18 → 7.0 px.
 ({
-  List<dynamic> lineColor,
-  List<dynamic> lineOpacity,
+  String lineColor,
+  double lineOpacity,
   List<dynamic> lineWidth,
 }) coverageLinePaintExpressions(
   CoverageColorPreset preset,
@@ -90,10 +93,12 @@ const String coverageLayerId = 'coverage_layer';
 ) {
   final colors = preset.forBrightness(brightness);
 
-  // Solid single color — no is_full/fraction case (gradient removed).
-  final lineColor = <dynamic>['literal', colors.fullHex];
+  // Solid single color — a plain hex string (no is_full/fraction case; the
+  // gradient was removed). Passed as a bare value, NOT ['literal', …].
+  final lineColor = colors.fullHex;
 
-  final lineOpacity = <dynamic>['literal', _kFullOpacity];
+  // Solid full opacity — a plain double, likewise unwrapped.
+  const lineOpacity = _kFullOpacity;
 
   // Zoom-interpolated width stops from RESEARCH §"Zoom-Scaled Line Width".
   // At z8 country scale the 2.5 px width keeps the driven-road network

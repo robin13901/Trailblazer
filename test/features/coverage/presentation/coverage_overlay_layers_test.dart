@@ -27,15 +27,14 @@ void main() {
   // -------------------------------------------------------------------------
 
   group('coverageLinePaintExpressions — lineColor', () {
-    test('amber light: solid fullHex #FF8C00', () {
+    test('amber light: solid fullHex #FF8C00 (plain string, not literal)', () {
       final exprs = coverageLinePaintExpressions(
         CoverageColorPreset.amber,
         Brightness.light,
       );
-      final lineColor = exprs.lineColor;
-      // Structure: ['literal', fullHex] — no case/gradient.
-      expect(lineColor[0], equals('literal'));
-      expect(lineColor[1], equals('#FF8C00'));
+      // Plain hex string — NOT wrapped in ['literal', …] (that would be an
+      // invalid MapLibre expression and crash the native layer at add time).
+      expect(exprs.lineColor, equals('#FF8C00'));
     });
 
     test('amber dark: solid fullHex #FFA726', () {
@@ -43,7 +42,7 @@ void main() {
         CoverageColorPreset.amber,
         Brightness.dark,
       );
-      expect(exprs.lineColor[1], equals('#FFA726'));
+      expect(exprs.lineColor, equals('#FFA726'));
     });
 
     test('green light: solid fullHex #2ECC71', () {
@@ -51,23 +50,21 @@ void main() {
         CoverageColorPreset.green,
         Brightness.light,
       );
-      expect(exprs.lineColor[1], equals('#2ECC71'));
+      expect(exprs.lineColor, equals('#2ECC71'));
     });
   });
 
   // -------------------------------------------------------------------------
-  // lineOpacity expression — constant full opacity
+  // lineOpacity — constant full opacity
   // -------------------------------------------------------------------------
 
   group('coverageLinePaintExpressions — lineOpacity', () {
-    test('opacity is a constant 0.92 literal', () {
+    test('opacity is a plain constant 0.92 (not a literal expression)', () {
       final exprs = coverageLinePaintExpressions(
         CoverageColorPreset.amber,
         Brightness.light,
       );
-      final op = exprs.lineOpacity;
-      expect(op[0], equals('literal'));
-      expect(op[1], closeTo(0.92, 1e-10));
+      expect(exprs.lineOpacity, closeTo(0.92, 1e-10));
     });
   });
 
