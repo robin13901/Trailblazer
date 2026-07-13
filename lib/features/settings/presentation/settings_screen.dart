@@ -1,53 +1,106 @@
+import 'dart:async';
+
+import 'package:auto_explore/core/prefs/app_prefs.dart';
 import 'package:auto_explore/features/settings/presentation/widgets/about_section.dart';
 import 'package:auto_explore/features/settings/presentation/widgets/coverage_color_section.dart';
+import 'package:auto_explore/features/settings/presentation/widgets/data_backup_section.dart';
 import 'package:auto_explore/features/settings/presentation/widgets/data_management_section.dart';
+import 'package:auto_explore/features/settings/presentation/widgets/permissions_section.dart';
+import 'package:auto_explore/features/settings/presentation/widgets/raw_gps_retention_section.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-/// Placeholder for the Settings screen — wired fully in Phase 10.
+/// Grouped Settings screen assembling all Phase 9 sections.
+///
+/// Section order (CONTEXT-locked):
+///   1. Data & Backup  — DataBackupSection + DataManagementSection + RawGpsRetentionSection
+///   2. Coverage       — CoverageColorSection
+///   3. Permissions    — PermissionsSection
+///   4. Diagnostics    — HUD toggle + optional "Tracking diagnostics" tile
+///   5. About          — AboutSection
+///   6. Developer      — debug-only StressCoverageTile
 ///
 /// This is a top-level route (`/settings`), NOT inside the shell.
 /// Reachable from the top-left settings glass button on the map screen.
 ///
-/// Currently hosts the "About" section (map data credits / attribution).
 /// The native MapLibre attribution button is pushed off-screen; MapTiler +
 /// OSM license terms are satisfied by exposing attribution here in a
 /// user-reachable "common area".
-class SettingsScreen extends StatelessWidget {
+class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
+
+  @override
+  ConsumerState<SettingsScreen> createState() => _SettingsScreenState();
+}
+
+class _SettingsScreenState extends ConsumerState<SettingsScreen> {
+  bool _showHud = false;
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(_loadHudPref());
+  }
+
+  Future<void> _loadHudPref() async {
+    final val = await ref.read(appPrefsProvider).getShowDiagnosticsHud();
+    if (!mounted) return;
+    setState(() => _showHud = val);
+  }
+
+  Future<void> _setHudPref({required bool show}) async {
+    setState(() => _showHud = show);
+    await ref.read(appPrefsProvider).setShowDiagnosticsHud(show: show);
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Settings')),
       body: ListView(
-        children: const [
-          _SectionHeader('About'),
-          AboutSection(),
-          Divider(height: 1),
-          _SectionHeader('Data'),
-          DataManagementSection(),
-          Divider(height: 1),
-          _SectionHeader('Coverage'),
-          CoverageColorSection(),
-          Divider(height: 1),
-          _SectionHeader('Coming later'),
-          ListTile(
-            title: Text('Full settings arrive in Phase 10'),
-            subtitle: Text(
-              'Backup / restore, permissions inspector, OSM extract updates, '
-              'raw-GPS retention, diagnostics.',
-            ),
+        children: [
+          // ── Data & Backup ───────────────────────────────────────────────
+          const _SectionHeader('Data & Backup'),
+          const DataBackupSection(),
+          const Divider(height: 1),
+          const DataManagementSection(),
+          const Divider(height: 1),
+          const RawGpsRetentionSection(),
+
+          // ── Coverage ────────────────────────────────────────────────────
+          const Divider(height: 1),
+          const _SectionHeader('Coverage'),
+          const CoverageColorSection(),
+
+          // ── Permissions ─────────────────────────────────────────────────
+          const Divider(height: 1),
+          const _SectionHeader('Permissions'),
+          const PermissionsSection(),
+
+          // ── Diagnostics ──────────────────────────────────────────────────
+          const Divider(height: 1),
+          const _SectionHeader('Diagnostics'),
+          SwitchListTile(
+            title: const Text('Show diagnostics HUD'),
+            subtitle: const Text('Live FGB state overlay on the map'),
+            value: _showHud,
+            onChanged: (v) => _setHudPref(show: v),
           ),
-          // Dev-only entry point (Plan 03-1-01). Compiled out of release
-          // builds — `kDebugMode` is a const, so tree-shaking removes both
-          // the tile and the route target.
+          if (_showHud)
+            const _DiagnosticsTile(),
+
+          // ── About ────────────────────────────────────────────────────────
+          const Divider(height: 1),
+          const _SectionHeader('About'),
+          const AboutSection(),
+
+          // ── Developer (debug-only) ────────────────────────────────────────
           if (kDebugMode) ...[
-            Divider(height: 1),
-            _SectionHeader('Developer'),
-            _DiagnosticsTile(),
-            _StressCoverageTile(),
+            const Divider(height: 1),
+            const _SectionHeader('Developer'),
+            const _StressCoverageTile(),
           ],
         ],
       ),
