@@ -5,16 +5,16 @@
 See: .planning/PROJECT.md (updated 2026-07-02)
 
 **Core value:** When I open the map, I immediately see the roads I've already driven, painted onto the world — and that view keeps pulling me back to explore more.
-**Current focus:** Phase 8 (Regions + Focus-Area) COMPLETE. **2026-07-13: Vehicles + Bluetooth phase REMOVED at user request** — dormant scaffolding cut (VEH-01..06 dropped, `vehicles`/`bt_fingerprints` tables + `trips.vehicle_id`/`bluetooth_hint` removed via schema v4). Roadmap renumbered: Phase 9 = Settings + Backup, Phase 10 = Hardening. Phase 9 (Settings + Backup) next.
+**Current focus:** Phase 9 (Settings + Backup) — in progress. Phase 8 complete. 2026-07-13: Vehicles + Bluetooth phase REMOVED, roadmap renumbered to 10 phases.
 
 ## Current Position
 
-Phase: 8 of 10 (Regions + Focus-Area — COMPLETE; roadmap is now 10 phases after Vehicles removal 2026-07-13)
-Plan: 08-06 complete (6 of 6 plans in phase — done: 08-01, 08-02, 08-03, 08-04, 08-05, 08-06)
-Status: Phase 8 complete 2026-07-11 — verifier PASS 17/17 must-haves (08-VERIFICATION.md). **2026-07-13: Vehicles + Bluetooth removed** — App DB schema v4 (drops vehicles/bt_fingerprints tables + trips.vehicle_id/bluetooth_hint via TableMigration, all trip/coverage data preserved); `_DormantVehicleChip` + vehicleId pass-through stripped; VEH-01..06 withdrawn (v1 reqs 112→106); ROADMAP/REQUIREMENTS/PROJECT updated; former Phases 10/11 renumbered to 9/10. flutter analyze clean.
-Last activity: 2026-07-13 — Vehicles + Bluetooth feature removal (schema v4 + doc renumber). Prior: 2026-07-11 — 08-06 complete: pill tap → showRegionDetailSheet.
+Phase: 9 of 10 (Settings + Backup — in progress)
+Plan: 09-04 complete (4 of N plans in phase — done: 09-01, 09-02, 09-03, 09-04)
+Status: 09-04 complete 2026-07-13 — PermissionsSection widget (read-only, resume-aware) + widget test 4/4 green. flutter analyze clean.
+Last activity: 2026-07-13 — 09-04 complete: PermissionsSection read-only permissions inspector. Prior: 2026-07-13 — Vehicles + Bluetooth feature removal (schema v4 + doc renumber).
 
-Progress: [██████████] ~93% (73/78 est. plans overall — Phase 1: 7/7; Phase 2: 7/7; Phase 3: 7/7; Phase 3.1: 5/5; Phase 4: 8/8 + 04-18 + 04-19 DRIVE-VERIFIED; Phase 5: 8/8 CODE-COMPLETE; Phase 6: 6/6 code-complete — 06-01..06-06 done + 06-07/06-08 gap-fixes; Phase 7: 7/7 code-complete — 07-01..07-07; Phase 8: 6/6 COMPLETE — 08-01..08-06)
+Progress: [██████████] ~94% (74/78 est. plans overall — Phase 1: 7/7; Phase 2: 7/7; Phase 3: 7/7; Phase 3.1: 5/5; Phase 4: 8/8 + 04-18 + 04-19 DRIVE-VERIFIED; Phase 5: 8/8 CODE-COMPLETE; Phase 6: 6/6 code-complete — 06-01..06-06 done + 06-07/06-08 gap-fixes; Phase 7: 7/7 code-complete — 07-01..07-07; Phase 8: 6/6 COMPLETE — 08-01..08-06; Phase 9: 09-01..09-04 done)
 
 ## Performance Metrics
 
