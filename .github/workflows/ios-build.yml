@@ -1,42 +1,104 @@
 name: iOS Build
 
-# Manual trigger only — iOS unsigned .ipa builds are expensive (macOS runner
-# minutes) and only occasionally needed. Trigger from the GitHub Actions tab
-# via the "Run workflow" button when you want a fresh unsigned build.
+# Manual trigger only — iOS builds are expensive (macOS runner minutes) and
+# only occasionally needed. Trigger from the GitHub Actions tab via the
+# "Run workflow" button when you want a fresh unsigned .ipa.
+#
+# Produces a REAL unsigned .ipa (not just a .xcarchive) by packaging the built
+# Runner.app into Payload/ and zipping — the same approach as the XFin project.
+# `flutter build ipa --no-codesign` refuses to emit a .ipa ("Codesigning
+# disabled with --no-codesign, skipping IPA"), so we build the .app and wrap it
+# ourselves. The result installs via Sideloadly / AltStore (they re-sign it).
+#
+# Build type is PROFILE, not release: flutter_background_geolocation trip
+# recording only works on debug/profile builds. A --release build without a
+# paid FGB license runs in degraded "eval mode" with broken tracking, which
+# defeats the purpose of an on-device test drive.
 #
 # Android debug builds run locally on the dev machine (`flutter build apk --debug`).
 on:
   workflow_dispatch:
+    inputs:
+      configuration:
+        description: 'Build configuration (profile keeps FGB tracking working; release runs FGB in degraded eval mode)'
+        required: false
+        type: choice
+        default: 'profile'
+        options:
+          - profile
+          - release
 
 jobs:
   ios-build:
     name: iOS (unsigned .ipa)
     runs-on: macos-latest
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
+
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
           flutter-version: 3.44.4
           cache: true
+
       - run: flutter pub get
+
       - name: Codegen (build_runner)
         run: dart run build_runner build --delete-conflicting-outputs
+
       - name: Generate Drift migration helpers
         run: |
           mkdir -p test/generated_migrations
           dart run drift_dev schema generate drift_schemas/ test/generated_migrations/
-      - name: Build iOS (unsigned .ipa)
-        # MAPTILER_KEY is injected from the GitHub Actions secret. Local
-        # workflow_dispatch triggers from forks (rare) will have an empty
-        # key; the app boots with blank tiles instead of crashing.
-        run: flutter build ipa --no-codesign --dart-define=MAPTILER_KEY=${{ secrets.MAPTILER_KEY }}
-      - name: Upload iOS build artifact
+
+      - name: Build iOS .app (unsigned)
+        # MAPTILER_KEY is injected from the GitHub Actions secret so map tiles
+        # render on the installed build. --no-codesign produces an unsigned
+        # Runner.app under build/ios/iphoneos/ — Sideloadly re-signs on install.
+        env:
+          CONFIGURATION: ${{ inputs.configuration }}
+        run: |
+          set -euo pipefail
+          flutter build ios --"$CONFIGURATION" --no-codesign \
+            --dart-define=MAPTILER_KEY=${{ secrets.MAPTILER_KEY }}
+
+      - name: Package unsigned .ipa
+        # `flutter build ipa --no-codesign` skips IPA creation, so we package
+        # the .app by hand: an .ipa is just a zip of Payload/<App>.app.
+        run: |
+          set -euo pipefail
+          APP_PATH=$(find build/ios/iphoneos -maxdepth 1 -name "*.app" -type d | head -1)
+          if [ -z "$APP_PATH" ]; then
+            echo "::error::No .app found under build/ios/iphoneos"
+            ls -laR build/ios/iphoneos || true
+            exit 1
+          fi
+          echo "Found app: $APP_PATH"
+          SHA_SHORT="${GITHUB_SHA::7}"
+          mkdir -p dist Payload
+          cp -R "$APP_PATH" Payload/
+          zip -rq "dist/Trailblazer-${SHA_SHORT}.ipa" Payload
+          rm -rf Payload
+          echo "Created dist/Trailblazer-${SHA_SHORT}.ipa"
+          ls -lh dist/
+
+      - name: Upload iOS .ipa artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ios-unsigned-build
-          # `flutter build ipa --no-codesign` produces an unsigned .app under
-          # build/ios/archive/*.xcarchive, not a .ipa (which requires codesign).
-          # Upload the archive so you can inspect or resign locally.
-          path: build/ios/archive/*.xcarchive
+          name: ios-unsigned-ipa
+          path: dist/*.ipa
+          retention-days: 7
           if-no-files-found: error
+
+      - name: Build summary
+        if: always()
+        run: |
+          echo "## iOS Build Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Configuration:** ${{ inputs.configuration }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Signing:** Unsigned — re-sign locally with Sideloadly/AltStore" >> $GITHUB_STEP_SUMMARY
+          if ls dist/*.ipa >/dev/null 2>&1; then
+            IPA_PATH=$(find dist -name "*.ipa" -type f | head -1)
+            echo "- **IPA:** \`$(basename "$IPA_PATH")\` ($(ls -lh "$IPA_PATH" | awk '{print $5}'))" >> $GITHUB_STEP_SUMMARY
+          fi
