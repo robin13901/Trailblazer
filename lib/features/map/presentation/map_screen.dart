@@ -5,6 +5,7 @@ import 'package:auto_explore/features/map/presentation/providers/location_permis
 import 'package:auto_explore/features/map/presentation/widgets/align_north_button.dart';
 import 'package:auto_explore/features/map/presentation/widgets/bottom_nav_shell.dart';
 import 'package:auto_explore/features/map/presentation/widgets/focus_area_pill.dart';
+import 'package:auto_explore/features/map/presentation/widgets/live_trail_bridge.dart';
 import 'package:auto_explore/features/map/presentation/widgets/map_widget.dart';
 import 'package:auto_explore/features/map/presentation/widgets/permission_denial_banner.dart';
 import 'package:auto_explore/features/map/presentation/widgets/recenter_button.dart';
@@ -112,6 +113,19 @@ class MapScreen extends ConsumerWidget {
             width: 0,
             height: 0,
             child: CoverageOverlayBridge(),
+          ),
+
+          // Headless live dashed-trail bridge: paints the raw driven GPS path
+          // as a dashed line while recording (provisional feedback), removed on
+          // stop so the solid post-trip matched coverage takes over. Zero-size
+          // Positioned OUTSIDE the isMapTab block so it keeps accumulating the
+          // trail even if the user browses another tab mid-drive.
+          const Positioned(
+            top: 0,
+            left: 0,
+            width: 0,
+            height: 0,
+            child: LiveTrailBridge(),
           ),
 
           // Non-map tabs render their Scaffold (opaque background) over the

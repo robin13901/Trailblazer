@@ -6,6 +6,7 @@ import 'package:auto_explore/features/matching/data/trip_road_fetch_coordinator.
 import 'package:auto_explore/features/trips/data/background_geolocation_facade.dart';
 import 'package:auto_explore/features/trips/data/trips_repository.dart';
 import 'package:auto_explore/features/trips/domain/haversine.dart';
+import 'package:auto_explore/features/trips/domain/live_fix_sample.dart';
 import 'package:auto_explore/features/trips/domain/tracking_diagnostics.dart';
 import 'package:auto_explore/features/trips/domain/tracking_state.dart';
 import 'package:auto_explore/features/trips/domain/trip_fix_batcher.dart';
@@ -86,6 +87,11 @@ class TrackingService {
   final _stateController = StreamController<TrackingState>.broadcast();
   TrackingState _currentState = const TrackingIdle();
 
+  // Live per-fix broadcast (live-nav). Carries the raw accepted coordinate +
+  // heading of each fix for the dashed trail layer and the road-snap heading
+  // service, without bloating the equality-compared TrackingState.
+  final _liveFixController = StreamController<LiveFixSample>.broadcast();
+
   // Active trip state
   int? _currentTripId;
   DateTime? _tripStartedAt;
@@ -150,6 +156,11 @@ class TrackingService {
   /// Broadcast stream of [TrackingState] changes. Seeded with current state
   /// on first listen; subsequent events emitted on every state transition.
   Stream<TrackingState> get stateStream => _stateController.stream;
+
+  /// Broadcast stream of accepted fixes (coordinate + heading), one event per
+  /// [FixAccepted] outcome during recording. Goes quiet on [TrackingIdle].
+  /// Consumed by the live dashed trail layer and the road-snap heading service.
+  Stream<LiveFixSample> get liveFixStream => _liveFixController.stream;
 
   /// Current state snapshot (synchronous read).
   TrackingState get currentState => _currentState;
@@ -327,6 +338,7 @@ class TrackingService {
     await _motionSub?.cancel();
     await _activitySub?.cancel();
     await _stateController.close();
+    await _liveFixController.close();
   }
 
   // ---------------------------------------------------------------------------
@@ -387,6 +399,14 @@ class TrackingService {
           accuracyMeters: outcome.accuracyMeters,
           speedKmh: outcome.speedKmh,
         );
+        // Live per-fix broadcast for the dashed trail + road-snap heading.
+        // Fire-and-forget on a broadcast controller — no-op when unlistened.
+        _liveFixController.add(LiveFixSample(
+          ts: outcome.ts,
+          lat: outcome.lat,
+          lon: outcome.lon,
+          headingDegrees: _currentHeading,
+        ));
         // Batcher.add is async but we don't await here — the method returns
         // Future<void> which means the batcher auto-flush may happen later.
         // We use unawaited intentionally; errors are swallowed by the sink.

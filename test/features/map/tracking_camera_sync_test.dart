@@ -1,11 +1,15 @@
 import 'package:auto_explore/features/map/domain/follow_mode.dart';
 import 'package:auto_explore/features/map/presentation/providers/camera_state_provider.dart';
 import 'package:auto_explore/features/map/presentation/widgets/tracking_camera_sync.dart';
+import 'package:auto_explore/features/matching/data/matching_providers.dart';
+import 'package:auto_explore/features/trips/domain/live_fix_sample.dart';
 import 'package:auto_explore/features/trips/domain/tracking_state.dart';
 import 'package:auto_explore/features/trips/presentation/providers/tracking_state_provider.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+import '../../helpers/fixture_way_candidate_source.dart';
 
 /// Fake [TrackingNotifier] that broadcasts a mutable [TrackingState] to
 /// tests. `emit()` updates state synchronously, mimicking the real
@@ -48,6 +52,13 @@ Future<void> _pumpSync(
   final scope = ProviderScope(
     overrides: [
       trackingStateProvider.overrideWith(() => fake),
+      // Isolate from the real TrackingService: the camera sync listens to
+      // liveFixProvider (raw-heading fallback) and roadSnapHeadingServiceProvider
+      // (which reads wayCandidateSourceProvider). Feed both with empty test
+      // doubles so no DB/facade/network is touched.
+      liveFixProvider.overrideWith((ref) => const Stream<LiveFixSample>.empty()),
+      wayCandidateSourceProvider
+          .overrideWithValue(FixtureWayCandidateSource(ways: const [])),
     ],
     child: const Directionality(
       textDirection: TextDirection.ltr,

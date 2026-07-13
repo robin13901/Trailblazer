@@ -215,11 +215,19 @@ class _MapWidgetState extends ConsumerState<MapWidget>
         // :136 + :492 + :571).
         compassEnabled: false,
         trackCameraPosition: true,
-        // Location dot + heading cone + accuracy ring.
+        myLocationEnabled: isGranted,
+        // Puck render mode. In heading-up recording the map itself rotates to
+        // the (road-snapped) travel direction, so a compass cone driven by the
+        // device magnetometer would point where the *phone* faces — fighting
+        // the map rotation and reading wrong in a car (metal + mount magnets
+        // deflect the compass 20-90°). Use the plain dot + accuracy ring while
+        // heading-locked; keep the compass cone only in north-up modes where
+        // it still conveys useful orientation.
+        //
         // myLocationRenderMode must be normal when myLocationEnabled is false
         // (MapLibreMap asserts: compass requires myLocationEnabled=true).
-        myLocationEnabled: isGranted,
-        myLocationRenderMode: isGranted
+        myLocationRenderMode: (isGranted &&
+                cameraState.followMode != FollowMode.locationAndHeading)
             ? MyLocationRenderMode.compass
             : MyLocationRenderMode.normal,
         // Follow mode: driven by FollowMode → MyLocationTrackingMode

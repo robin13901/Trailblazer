@@ -3,8 +3,11 @@ import 'dart:async';
 import 'package:auto_explore/features/map/domain/follow_mode.dart';
 import 'package:auto_explore/features/map/presentation/providers/camera_state_provider.dart';
 import 'package:auto_explore/features/map/presentation/providers/map_controller_provider.dart';
+import 'package:auto_explore/features/map/presentation/providers/road_snap_heading_provider.dart';
+import 'package:auto_explore/features/trips/domain/live_fix_sample.dart';
 import 'package:auto_explore/features/trips/domain/tracking_state.dart';
 import 'package:auto_explore/features/trips/presentation/providers/tracking_state_provider.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:maplibre_gl/maplibre_gl.dart';
@@ -13,33 +16,27 @@ import 'package:maplibre_gl/maplibre_gl.dart';
 /// drives [cameraStateProvider] on trip start/stop transitions, AND rotates
 /// the map camera to the live driving direction while recording.
 ///
-/// Closes H2 from 03-1-RESEARCH — before this widget landed, nothing in
-/// `lib/` linked tracking state to camera follow mode, so the reserved
-/// `FollowMode.locationAndHeading` slot (STATE Plan 02-03) was never
-/// activated during recording.
+/// **Live-nav rewrite.** Earlier (Plan 06-07) this fired a discrete
+/// `animateCamera(bearingTo)` per fix, gated behind a 5° delta throttle — a
+/// stepped, laggy rotation. It now runs a [Ticker] that every frame eases a
+/// `_displayBearing` toward a `_targetBearing` along the shortest arc and
+/// applies it via `moveCamera(bearingTo)` (a cheap bearing-only update). The
+/// target is the ROAD-SNAPPED heading from [roadSnapHeadingServiceProvider]
+/// (which stabilizes to the current OSM road's tangent), falling back to the
+/// raw GPS heading from [liveFixProvider] when no snap is available. The result
+/// is a continuous Google-Maps-style glide instead of 5° steps.
 ///
-/// **Plan 06-07 — motion-vector camera rotation.** `MyLocationTrackingMode`
-/// (set by `MapWidget` from the follow mode) only rotates the map if
-/// MapLibre's INTERNAL location engine emits a bearing. Trailblazer's fixes
-/// come from `flutter_background_geolocation`, which MapLibre's engine never
-/// sees — so the map never rotated. This widget now watches the live
-/// [TrackingRecording.headingDegrees] (computed by `TrackingService` from
-/// consecutive GPS fixes) and explicitly animates the camera bearing via
-/// [MapLibreMapController.animateCamera] + [CameraUpdate.bearingTo]. This is
-/// layered ON TOP of the location-follow (centering) mode — we only add the
-/// rotation.
-///
-/// Follow/idle transitions fire ONLY on state TRANSITIONS (`previous` !=
-/// `next`) between [TrackingIdle] and [TrackingRecording]. A user pan
+/// Follow/idle transitions fire ONLY on state TRANSITIONS between
+/// [TrackingIdle] and [TrackingRecording]. A user pan
 /// (`onCameraTrackingDismissed` in the map widget) mid-trip pushes
-/// `FollowMode.none`; when follow is off we stop animating the bearing so we
-/// don't fight the user's manual orientation.
+/// [FollowMode.none]; the per-frame tick is a no-op whenever follow is not
+/// [FollowMode.locationAndHeading], so we never fight the user's manual
+/// orientation.
 ///
 /// Registration is via `ref.listen` inside `build()`, not `initState()` —
-/// Riverpod dedups the listener across rebuilds of the same widget
-/// instance, so hot reload cannot double-register (03-1-RESEARCH §9
-/// Risk 3). It also avoids the `dispose()` `ref` hazard documented in
-/// STATE Plan 02-03.
+/// Riverpod dedups the listener across rebuilds of the same widget instance,
+/// so hot reload cannot double-register. The [Ticker] lifecycle is owned by
+/// this State (created on init, disposed on teardown).
 class TrackingCameraSync extends ConsumerStatefulWidget {
   const TrackingCameraSync({super.key});
 
@@ -47,69 +44,113 @@ class TrackingCameraSync extends ConsumerStatefulWidget {
   ConsumerState<TrackingCameraSync> createState() => _TrackingCameraSyncState();
 }
 
-class _TrackingCameraSyncState extends ConsumerState<TrackingCameraSync> {
-  /// Last camera bearing we animated to. Used to throttle: we only animate
-  /// when the heading moved more than [_minHeadingDeltaDegrees], so we're not
-  /// firing an `animateCamera` on every 1 Hz fix (which would jank).
-  double? _lastAnimatedHeading;
+class _TrackingCameraSyncState extends ConsumerState<TrackingCameraSync>
+    with SingleTickerProviderStateMixin {
+  /// Per-frame easing factor: fraction of the remaining angular gap closed
+  /// each tick. ~0.15 at 60 fps reaches the target in ~150 ms — smooth but
+  /// responsive, and self-damping (no overshoot).
+  static const double _easeFactor = 0.15;
 
-  /// Minimum heading change (degrees) before we re-animate the camera.
-  static const double _minHeadingDeltaDegrees = 5;
+  /// Below this gap (degrees) we snap exactly and skip the camera call, so an
+  /// idle ticker doesn't spam `moveCamera` with sub-degree no-ops.
+  static const double _epsilonDegrees = 0.1;
+
+  late final Ticker _ticker;
+
+  /// The bearing the camera currently shows (what we last pushed).
+  double? _displayBearing;
+
+  /// Last raw GPS heading seen (fallback when the road-snap service has no
+  /// bearing yet, e.g. before the first way index loads).
+  double? _rawHeading;
+
+  @override
+  void initState() {
+    super.initState();
+    _ticker = createTicker(_onTick);
+  }
+
+  @override
+  void dispose() {
+    _ticker.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    ref.listen<TrackingState>(trackingStateProvider, (previous, next) {
-      // TrackingIdle → TrackingRecording: activate heading-lock.
-      if (previous is TrackingIdle && next is TrackingRecording) {
-        _lastAnimatedHeading = null;
-        ref
-            .read(cameraStateProvider.notifier)
-            .setFollowMode(FollowMode.locationAndHeading);
-        return;
-      }
-      // TrackingRecording → TrackingIdle: release follow mode.
-      if (previous is TrackingRecording && next is TrackingIdle) {
-        _lastAnimatedHeading = null;
-        ref.read(cameraStateProvider.notifier).setFollowMode(FollowMode.none);
-        return;
-      }
-      // TrackingRecording → TrackingRecording (per-fix re-emit): rotate the
-      // camera to the fresh motion-vector heading. NO follow-mode change here
-      // — that preserves user pan-dismiss precedence (once the user pans, the
-      // follow mode is FollowMode.none and the guard below stops rotation).
-      if (next is TrackingRecording) {
-        _maybeAnimateHeading(next.headingDegrees);
-      }
-    });
+    ref
+      ..listen<TrackingState>(trackingStateProvider, (previous, next) {
+        // TrackingIdle → TrackingRecording: activate heading-lock + ticker.
+        if (previous is TrackingIdle && next is TrackingRecording) {
+          _displayBearing = null;
+          _rawHeading = null;
+          ref
+              .read(cameraStateProvider.notifier)
+              .setFollowMode(FollowMode.locationAndHeading);
+          if (!_ticker.isActive) unawaited(_ticker.start());
+          return;
+        }
+        // TrackingRecording → TrackingIdle: release follow mode + stop ticker.
+        if (previous is TrackingRecording && next is TrackingIdle) {
+          if (_ticker.isActive) _ticker.stop();
+          _displayBearing = null;
+          _rawHeading = null;
+          ref.read(cameraStateProvider.notifier).setFollowMode(FollowMode.none);
+        }
+      })
+      // Keep a raw-heading fallback fresh from the live fix stream. The
+      // road-snap service also consumes this stream (via its own provider) and
+      // exposes the stabilized bearing we prefer in the tick.
+      ..listen<AsyncValue<LiveFixSample>>(liveFixProvider, (_, next) {
+        if (next case AsyncData(:final value)) {
+          final h = value.headingDegrees;
+          if (h != null) _rawHeading = h;
+        }
+      });
     return const SizedBox.shrink();
   }
 
-  /// Animate the map camera bearing to [heading] when it is fresh, the map is
-  /// still following (heading-lock not dismissed by a user pan), and the
-  /// change exceeds [_minHeadingDeltaDegrees].
-  void _maybeAnimateHeading(double? heading) {
-    if (heading == null) return;
-
-    // Respect pan-dismiss: if the user panned (follow mode dropped to none),
-    // do not fight their manual orientation.
-    final followMode = ref.read(cameraStateProvider).followMode;
-    if (followMode != FollowMode.locationAndHeading) return;
-
-    final last = _lastAnimatedHeading;
-    if (last != null && _headingDelta(last, heading) < _minHeadingDeltaDegrees) {
+  /// Per-frame: refresh the target from the road-snap service (fallback raw),
+  /// ease the display bearing toward it along the shortest arc, and push it.
+  void _onTick(Duration _) {
+    // Respect pan-dismiss: only rotate while heading-locked.
+    if (ref.read(cameraStateProvider).followMode !=
+        FollowMode.locationAndHeading) {
       return;
     }
 
-    final controller = ref.read(mapControllerProvider);
-    if (controller == null) return;
+    final target =
+        ref.read(roadSnapHeadingServiceProvider).targetBearing ?? _rawHeading;
+    if (target == null) return;
 
-    _lastAnimatedHeading = heading;
-    unawaited(controller.animateCamera(CameraUpdate.bearingTo(heading)));
+    final display = _displayBearing;
+    if (display == null) {
+      // First frame with a known target — jump straight to it, no ease-in.
+      _displayBearing = target;
+      _pushBearing(target);
+      return;
+    }
+
+    final delta = _shortestSignedDelta(display, target);
+    if (delta.abs() < _epsilonDegrees) return;
+
+    final next = (display + delta * _easeFactor + 360.0) % 360.0;
+    _displayBearing = next;
+    _pushBearing(next);
   }
 
-  /// Smallest absolute angular difference between two bearings (0..180).
-  static double _headingDelta(double a, double b) {
-    final diff = (a - b).abs() % 360.0;
-    return diff > 180.0 ? 360.0 - diff : diff;
+  void _pushBearing(double bearing) {
+    final controller = ref.read(mapControllerProvider);
+    if (controller == null) return;
+    unawaited(controller.moveCamera(CameraUpdate.bearingTo(bearing)));
+  }
+
+  /// Signed shortest angular delta from [from] to [to], in (-180, 180].
+  /// Positive = clockwise. Used so easing always takes the short way round.
+  static double _shortestSignedDelta(double from, double to) {
+    var diff = (to - from) % 360.0;
+    if (diff < -180.0) diff += 360.0;
+    if (diff > 180.0) diff -= 360.0;
+    return diff;
   }
 }

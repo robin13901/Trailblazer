@@ -4,12 +4,15 @@ import 'package:auto_explore/features/coverage/domain/coverage_color_preset.dart
 import 'package:auto_explore/features/coverage/presentation/coverage_preset_provider.dart';
 import 'package:auto_explore/features/map/data/tile_provider_config.dart';
 import 'package:auto_explore/features/map/presentation/map_screen.dart';
+import 'package:auto_explore/features/map/presentation/providers/live_trail_applier.dart';
 import 'package:auto_explore/features/map/presentation/providers/location_permission_provider.dart';
 import 'package:auto_explore/features/map/presentation/providers/map_style_provider.dart';
 import 'package:auto_explore/features/map/presentation/widgets/bottom_nav_shell.dart';
 import 'package:auto_explore/features/map/presentation/widgets/focus_area_pill.dart';
 import 'package:auto_explore/features/map/presentation/widgets/settings_glass_button.dart';
 import 'package:auto_explore/features/map/presentation/widgets/trip_fab.dart';
+import 'package:auto_explore/features/matching/data/matching_providers.dart';
+import 'package:auto_explore/features/trips/domain/live_fix_sample.dart';
 import 'package:auto_explore/features/trips/domain/tracking_state.dart';
 import 'package:auto_explore/features/trips/presentation/providers/tracking_state_provider.dart';
 import 'package:flutter/material.dart';
@@ -19,6 +22,7 @@ import 'package:maplibre_gl/maplibre_gl.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 import '../../helpers/fake_maplibre_platform.dart';
+import '../../helpers/fixture_way_candidate_source.dart';
 
 /// Pumps [MapScreen] with all required provider overrides to avoid platform
 /// channel calls (MapLibre native plugin + permission_handler).
@@ -55,6 +59,13 @@ Future<void> pumpMapScreen(WidgetTester tester) async {
         coveragePresetProvider.overrideWith(_FakeCoveragePresetNotifier.new),
         coveragePresetValueProvider
             .overrideWithValue(CoverageColorPreset.amber),
+        // Live-nav (LiveTrailBridge + TrackingCameraSync road-snap) is mounted
+        // in MapScreen. Override the live-fix stream, trail applier, and way
+        // source so this test needs no real TrackingService / DB / network.
+        liveFixProvider.overrideWith((ref) => const Stream<LiveFixSample>.empty()),
+        liveTrailApplierProvider.overrideWithValue(const _NoopLiveTrailApplier()),
+        wayCandidateSourceProvider
+            .overrideWithValue(FixtureWayCandidateSource(ways: const [])),
       ],
       child: const MaterialApp(
         home: MapScreen(),
@@ -82,6 +93,21 @@ class _FixedMapStyleUrlNotifier extends MapStyleUrlNotifier {
 
   @override
   String build() => _url;
+}
+
+/// No-op [LiveTrailApplier] — the LiveTrailBridge mounted in MapScreen calls
+/// it, but these layout tests don't assert on the trail; swallow all calls.
+class _NoopLiveTrailApplier implements LiveTrailApplier {
+  const _NoopLiveTrailApplier();
+
+  @override
+  Future<void> addOrUpdate(
+    MapLibreMapController? controller,
+    List<LatLng> trail,
+  ) async {}
+
+  @override
+  Future<void> remove(MapLibreMapController? controller) async {}
 }
 
 /// Fake TrackingNotifier that stays Idle and records call counts.

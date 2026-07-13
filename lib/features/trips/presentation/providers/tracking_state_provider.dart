@@ -1,4 +1,5 @@
 import 'package:auto_explore/features/trips/data/tracking_service_providers.dart';
+import 'package:auto_explore/features/trips/domain/live_fix_sample.dart';
 import 'package:auto_explore/features/trips/domain/tracking_service.dart';
 import 'package:auto_explore/features/trips/domain/tracking_state.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -38,3 +39,14 @@ class TrackingNotifier extends Notifier<TrackingState> {
 /// Wave 3 (Plan 03-06) reads this to wire the FAB and the live-tracking panel.
 final trackingStateProvider =
     NotifierProvider<TrackingNotifier, TrackingState>(TrackingNotifier.new);
+
+/// Live per-fix stream (coordinate + heading), one event per accepted fix
+/// during recording. Passthrough of [TrackingService.liveFixStream].
+///
+/// Consumed by the live dashed trail layer and the road-snap heading service.
+/// Emits nothing while idle (the service only adds on an accepted fix).
+/// Plain StreamProvider — no @Riverpod codegen (STATE.md 01-01 decision).
+final liveFixProvider = StreamProvider<LiveFixSample>((ref) {
+  final svc = ref.watch(trackingServiceProvider);
+  return svc.liveFixStream;
+});
