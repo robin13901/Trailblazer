@@ -14,6 +14,27 @@ class AppPrefs {
   static const String kAdminBundleVersion = 'admin_bundle_version';
   static const String kCoveragePreset = 'coverage_preset';
 
+  // ── SET-05: raw-GPS retention ─────────────────────────────────────────────
+  //
+  // Sentinel encoding:
+  //   key absent  → "never set" → returns default 30 days
+  //   key = -1    → "forever" (explicit user choice, no sweep)
+  //   key = 0     → "delete after matching" (sweep with Duration.zero)
+  //   key = 30    → 30-day window (default, but explicitly saved)
+  //   key = 365   → 1-year window
+  //
+  // The sentinel (-1 for forever) is preferred over key removal because
+  // removing the key loses the distinction between "unset → 30-day default"
+  // and "explicit forever → null" (see 09-RESEARCH Open Question #2 discussion).
+  static const String kRawGpsRetentionDays = 'raw_gps_retention_days';
+
+  // ── SET-06: diagnostics HUD toggle (consumed by Plans 09-06 / 09-07) ─────
+  //
+  // This key is added here (09-03) to keep app_prefs.dart single-owner for all
+  // of Phase 9. Plans 09-06 / 09-07 read / write via these getters without
+  // ever touching this file again.
+  static const String kShowDiagnosticsHud = 'show_diagnostics_hud';
+
   /// Version stamp of the last matcher-algorithm migration that has been
   /// applied to already-stored trips. Bumped whenever the matcher changes in
   /// a way that requires re-processing existing intervals; the startup
@@ -94,6 +115,44 @@ class AppPrefs {
   /// Persists [p] as the user-chosen coverage color preset.
   Future<void> setCoveragePreset(CoverageColorPreset p) =>
       _prefs.setString(kCoveragePreset, p.name);
+
+  // ── SET-05: raw-GPS retention ─────────────────────────────────────────────
+
+  /// Retention window in days.
+  ///
+  /// - Returns `null` when the user has chosen "forever" (no sweep).
+  /// - Returns `0` when the user has chosen "delete after matching".
+  /// - Returns `30` (the default) when the key has never been written.
+  /// - Returns `365` for the 1-year window.
+  ///
+  /// Sentinel: stored value `-1` → `null` (forever). This lets the
+  /// getter distinguish "unset → default 30" from "explicit forever → null".
+  Future<int?> getRawGpsRetentionDays() async {
+    final v = await _prefs.getInt(kRawGpsRetentionDays);
+    if (v == null) return 30; // never set → default 30 days
+    if (v < 0) return null; // -1 sentinel → forever
+    return v;
+  }
+
+  /// Persists the raw-GPS retention window.
+  ///
+  /// [days] == `null` stores the forever sentinel (`-1`).
+  /// [days] == `0` deletes raw points immediately after matching.
+  /// [days] == `30` or `365` stores verbatim.
+  Future<void> setRawGpsRetentionDays(int? days) =>
+      _prefs.setInt(kRawGpsRetentionDays, days ?? -1);
+
+  // ── SET-06: diagnostics HUD toggle ───────────────────────────────────────
+
+  /// Whether the live diagnostics HUD overlay is enabled.
+  ///
+  /// Defaults to `false` when the key has never been written.
+  Future<bool> getShowDiagnosticsHud() async =>
+      (await _prefs.getBool(kShowDiagnosticsHud)) ?? false;
+
+  /// Persists the diagnostics-HUD toggle state.
+  Future<void> setShowDiagnosticsHud({required bool show}) =>
+      _prefs.setBool(kShowDiagnosticsHud, show);
 }
 
 /// Provider for the singleton [AppPrefs].
