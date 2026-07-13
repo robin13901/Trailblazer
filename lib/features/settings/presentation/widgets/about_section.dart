@@ -2,6 +2,9 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+/// App version string — keep in sync with `version:` in pubspec.yaml.
+const kAppVersion = '0.1.0';
+
 /// About section for the Settings screen.
 ///
 /// Extracted from the inline `_AboutTile` in `settings_screen.dart` so 04-11
@@ -36,7 +39,27 @@ class AboutSection extends StatelessWidget {
             'Trailblazer paints the roads you have driven onto an offline '
             'map of the world.',
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 8),
+          // ── App version ──────────────────────────────────────────────────
+          Text(
+            'Version $kAppVersion',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: 8),
+          // ── OSS licenses ─────────────────────────────────────────────────
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            title: const Text('Open-source licenses'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => showLicensePage(
+              context: context,
+              applicationName: 'Trailblazer',
+              applicationVersion: kAppVersion,
+            ),
+          ),
+          const SizedBox(height: 8),
           Text('Map data credits', style: theme.textTheme.titleSmall),
           const SizedBox(height: 6),
           // MapTiler free-tier attribution — required by TOS.
