@@ -62,6 +62,20 @@ class OverpassWayCacheDao extends DatabaseAccessor<AppDatabase>
         .go();
   }
 
+  /// Delete every cached tile with `way_count == 0`. Returns count deleted.
+  ///
+  /// Used by the one-shot stuck-fetch recovery migration (2026-07-14) to purge
+  /// tiles poisoned before the Overpass HTTP-200-error client fix: an HTML
+  /// error page served under 200 was parsed to zero ways and cached as a
+  /// 0-way tile that would otherwise persist for the 30-day TTL, permanently
+  /// starving a trip's match of road data. Legitimately-empty tiles (water /
+  /// forest) are also removed, but they are cheap to refetch and re-cache as
+  /// 0 — we cannot distinguish poisoned from genuinely-empty without a
+  /// refetch, so purging all 0-way tiles is the safe, self-healing choice.
+  Future<int> deleteZeroWayTiles() {
+    return (delete(overpassWayCache)..where((t) => t.wayCount.equals(0))).go();
+  }
+
   /// Sum of all `payload_bytes` across the cache. Zero on empty.
   Future<int> totalBytes() async {
     final row = await customSelect(

@@ -21,6 +21,15 @@ class CoverageCache extends Table {
   // When the real total was last computed (null until first computed).
   DateTimeColumn get realTotalUpdatedAt => dateTime().nullable()();
 
+  // v6 (2026-07-14): resumable-compute accumulator for the tiled real-total
+  // pass. JSON shape: {"v":1,"tiles":<cellDegrees>,"cells":{"<lat>,<lon>":m,…}}
+  // where each key is a completed bbox cell and its value the summed road
+  // meters. Non-null while a region's total is mid-compute; cleared back to
+  // null once `real_total_length_m` is written. Lets RegionTotalLengthService
+  // resume across app launches / kills instead of restarting a ~1600-cell
+  // Bundesland pass from scratch. See RegionTotalLengthService.
+  TextColumn get realTotalProgressJson => text().nullable()();
+
   @override
   Set<Column> get primaryKey => {regionId};
 }

@@ -78,4 +78,21 @@ class PendingRoadFetchesDao extends DatabaseAccessor<AppDatabase>
           ..where((t) => t.tripId.equals(tripId)))
         .go();
   }
+
+  /// Reset the backoff gate on EVERY queued row: `attempts = 0` and
+  /// `lastAttemptAt = null`. Returns rows updated.
+  ///
+  /// Used by the one-shot stuck-fetch recovery migration (2026-07-14): after
+  /// the Overpass HTTP-200-error client fix, trips that were parked under the
+  /// 5min→24h backoff (or abandoned at 5 attempts) become immediately
+  /// drainable again on the next `drainQueue` instead of waiting out a stale
+  /// backoff window.
+  Future<int> resetAllBackoff() {
+    return update(pendingRoadFetches).write(
+      const PendingRoadFetchesCompanion(
+        attempts: Value(0),
+        lastAttemptAt: Value(null),
+      ),
+    );
+  }
 }

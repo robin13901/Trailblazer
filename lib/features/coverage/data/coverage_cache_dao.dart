@@ -54,6 +54,8 @@ class CoverageCacheDao extends DatabaseAccessor<AppDatabase> {
   /// Write the REAL total road length (meters) computed by
   /// `RegionTotalLengthService` for [regionId], stamping the compute time.
   /// Upserts so a region row is created if the recompute pass hasn't run yet.
+  /// Also clears `realTotalProgressJson` — the region is fully computed, so the
+  /// resumable-compute accumulator is no longer needed.
   Future<void> writeRealTotalLength({
     required String regionId,
     required double realTotalLengthM,
@@ -64,6 +66,28 @@ class CoverageCacheDao extends DatabaseAccessor<AppDatabase> {
         regionId: regionId,
         realTotalLengthM: Value(realTotalLengthM),
         realTotalUpdatedAt: Value(computedAt),
+        realTotalProgressJson: const Value(null),
+      ),
+    );
+  }
+
+  /// Reads the resumable-compute progress blob for [regionId] (null when no
+  /// pass is in flight). See `RegionTotalLengthService` for the JSON shape.
+  Future<String?> readRealTotalProgress(String regionId) async {
+    final row = await getByRegionId(regionId);
+    return row?.realTotalProgressJson;
+  }
+
+  /// Persists the resumable-compute progress blob for [regionId]. Upserts so a
+  /// region row is created if the recompute pass hasn't run yet.
+  Future<void> writeRealTotalProgress({
+    required String regionId,
+    required String progressJson,
+  }) {
+    return into(_table).insertOnConflictUpdate(
+      CoverageCacheCompanion.insert(
+        regionId: regionId,
+        realTotalProgressJson: Value(progressJson),
       ),
     );
   }

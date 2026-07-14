@@ -19,6 +19,8 @@
 // never throws — a failed region is simply left un-computed (its spinner stays)
 // and retried on the next launch.
 
+import 'dart:convert';
+
 import 'package:auto_explore/core/errors/domain_error.dart';
 import 'package:auto_explore/features/admin/data/admin_region.dart';
 import 'package:auto_explore/features/admin/data/admin_region_lookup.dart';
@@ -37,6 +39,20 @@ const double kRegionTileDegrees = 0.1;
 /// Hard floor on cell size when subdividing after an OOM remark — below this
 /// we give up on the cell rather than recurse forever.
 const double kMinRegionTileDegrees = 0.0125;
+
+/// How many region cells to fetch concurrently. Kept small (matches the
+/// way-tile fetch concurrency) to stay gentle on the shared public Overpass
+/// endpoint while still cutting a ~1600-cell Bundesland pass to a fraction of
+/// the fully-sequential wall-clock.
+const int kRegionCellConcurrency = 2;
+
+/// Schema version of the persisted progress accumulator blob. Bumped if the
+/// cell-key scheme or tiling constant changes so stale blobs are discarded.
+const int kRegionProgressBlobVersion = 1;
+
+/// After this many freshly-resolved cells, flush the progress blob to the DB.
+/// Bounds the work lost on an app-kill without incurring ~1600 tiny writes.
+const int kRegionProgressFlushEvery = 25;
 
 /// Computes and caches the real total road length of admin regions.
 class RegionTotalLengthService {
@@ -77,7 +93,7 @@ class RegionTotalLengthService {
       final region = _regionLookup.regionByOsmId(osmId);
       if (region == null) continue;
       try {
-        final total = await computeForRegion(region);
+        final total = await computeForRegion(region, regionId: row.regionId);
         if (total != null) {
           await _cacheDao.writeRealTotalLength(
             regionId: row.regionId,
@@ -105,10 +121,21 @@ class RegionTotalLengthService {
   /// Computes the real total road length (meters) for a single [region] by
   /// tiling its bbox and summing area-clipped `sum(length())` per cell.
   ///
-  /// Returns `null` if every cell failed (total network outage) so the caller
-  /// leaves the region un-cached and retries later; returns a number (possibly
-  /// 0) when at least some cells resolved.
-  Future<double?> computeForRegion(AdminRegion region) async {
+  /// Resumable + monotonic: per-cell sums are persisted to
+  /// `coverage_cache.real_total_progress_json` under [regionId] as they land,
+  /// so a run interrupted by an app-kill or a flaky-server failure resumes
+  /// where it left off instead of restarting the whole (up to ~1600-cell)
+  /// pass. Cells are fetched with bounded concurrency
+  /// ([kRegionCellConcurrency]).
+  ///
+  /// Returns the summed total ONLY when every cell resolved (so the caller can
+  /// write the final real total, which clears the accumulator); returns `null`
+  /// when any cell is still outstanding — the partial progress is persisted and
+  /// the region stays pending for a later resume.
+  Future<double?> computeForRegion(
+    AdminRegion region, {
+    required String regionId,
+  }) async {
     final areaId = kOverpassAreaIdBase + region.osmId;
     final cells = _tileBbox(
       region.bboxMinLat,
@@ -116,26 +143,110 @@ class RegionTotalLengthService {
       region.bboxMaxLat,
       region.bboxMaxLon,
     );
+
+    // Load any prior progress so a resumed run skips already-summed cells.
+    final done = await _loadProgress(regionId);
+    final missing = [
+      for (final c in cells)
+        if (!done.containsKey(_cellKey(c))) c,
+    ];
     _log.fine(
-      'computeForRegion ${region.name}: ${cells.length} cells '
-      '(area $areaId)',
+      'computeForRegion ${region.name}: ${cells.length} cells, '
+      '${done.length} already done, ${missing.length} to fetch (area $areaId)',
     );
 
-    var total = 0.0;
-    var anyOk = false;
-    for (final cell in cells) {
-      final cellMeters = await _sumCell(areaId, cell);
-      if (cellMeters != null) {
-        total += cellMeters;
-        anyOk = true;
+    if (missing.isEmpty) {
+      // Everything was already summed on a prior run.
+      return done.values.fold<double>(0, (a, b) => a + b);
+    }
+
+    var sinceFlush = 0;
+    var anyFailed = false;
+
+    // Bounded-concurrency workers pull from a shared iterator (single isolate,
+    // cooperative async — no lock needed around the shared maps).
+    final iter = missing.iterator;
+    Future<void> worker() async {
+      while (true) {
+        if (!iter.moveNext()) return;
+        final cell = iter.current;
+        final meters = await _sumCell(areaId, cell);
+        if (meters == null) {
+          anyFailed = true;
+          continue;
+        }
+        done[_cellKey(cell)] = meters;
+        if (++sinceFlush >= kRegionProgressFlushEvery) {
+          sinceFlush = 0;
+          await _saveProgress(regionId, done);
+        }
       }
     }
-    return anyOk ? total : null;
+
+    await Future.wait([
+      for (var i = 0; i < kRegionCellConcurrency.clamp(1, missing.length); i++)
+        worker(),
+    ]);
+
+    if (anyFailed) {
+      // Persist partial progress and leave the region pending to resume later.
+      await _saveProgress(regionId, done);
+      return null;
+    }
+    // All cells resolved — return the full sum. The caller writes the real
+    // total, which clears the accumulator.
+    return done.values.fold<double>(0, (a, b) => a + b);
   }
+
+  /// Loads the persisted per-cell accumulator for [regionId]. Returns an empty
+  /// map when no blob exists, or when the blob's version / tiling constant no
+  /// longer matches (a schema change invalidates old cell keys).
+  Future<Map<String, double>> _loadProgress(String regionId) async {
+    final raw = await _cacheDao.readRealTotalProgress(regionId);
+    if (raw == null || raw.isEmpty) return {};
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is! Map<String, dynamic>) return {};
+      if (decoded['v'] != kRegionProgressBlobVersion) return {};
+      if ((decoded['tiles'] as num?)?.toDouble() != kRegionTileDegrees) {
+        return {};
+      }
+      final cells = decoded['cells'];
+      if (cells is! Map<String, dynamic>) return {};
+      return {
+        for (final e in cells.entries)
+          if (e.value is num) e.key: (e.value as num).toDouble(),
+      };
+      // Corrupt blob: start fresh rather than crash the pass.
+      // ignore: avoid_catches_without_on_clauses
+    } catch (_) {
+      return {};
+    }
+  }
+
+  /// Persists the per-cell accumulator for [regionId] with a version + tiling
+  /// header so a future constant change can invalidate it on load.
+  Future<void> _saveProgress(String regionId, Map<String, double> done) {
+    final blob = jsonEncode({
+      'v': kRegionProgressBlobVersion,
+      'tiles': kRegionTileDegrees,
+      'cells': done,
+    });
+    return _cacheDao.writeRealTotalProgress(
+      regionId: regionId,
+      progressJson: blob,
+    );
+  }
+
+  /// Stable per-cell key (4 dp ≈ 11 m — finer than any cell edge) so a resumed
+  /// run recognises the same cells for a fixed [kRegionTileDegrees].
+  String _cellKey(_Cell c) =>
+      '${c.minLat.toStringAsFixed(4)},${c.minLon.toStringAsFixed(4)}';
 
   /// Sums one cell's road length, subdividing on an OOM remark down to
   /// [kMinRegionTileDegrees]. Returns null when the cell (and its subdivisions)
-  /// all failed with a network error.
+  /// all failed — for ANY reason (network error, malformed body, unexpected
+  /// throwable) — so a single bad cell can never abort the whole region.
   Future<double?> _sumCell(int areaId, _Cell cell) async {
     try {
       return await _overpass.fetchRegionLengthInBbox(
@@ -146,8 +257,8 @@ class RegionTotalLengthService {
         maxLon: cell.maxLon,
       );
     } on NetworkError catch (e) {
-      // Server-side OOM ("runtime error … out of memory") → subdivide if we
-      // still can, otherwise give up on this cell.
+      // Server-side OOM ("out of memory") → subdivide if we still can,
+      // otherwise give up on this cell.
       final message = e.toString().toLowerCase();
       final isOom = message.contains('memory') || message.contains('remark');
       final canSplit =
@@ -167,6 +278,12 @@ class RegionTotalLengthService {
       }
       return null;
     } on DomainError {
+      return null;
+    } on Object catch (e, st) {
+      // Any other throwable (e.g. a FormatException from a malformed body that
+      // slipped the client's classify gate) must NOT bubble up and abandon the
+      // whole region — swallow it and treat the cell as failed-for-now.
+      _log.warning('region cell sum failed (treated as pending): $e', e, st);
       return null;
     }
   }

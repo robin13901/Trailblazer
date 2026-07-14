@@ -153,5 +153,21 @@ void main() {
     test('totalBytes returns 0 on empty table', () async {
       expect(await dao.totalBytes(), 0);
     });
+
+    test('deleteZeroWayTiles removes only way_count==0 rows', () async {
+      final payload = Uint8List.fromList([1, 2, 3]);
+      // Two poisoned (0-way) tiles + one real tile.
+      await dao.put(z: 12, x: 1, y: 1, payloadGzip: payload, wayCount: 0);
+      await dao.put(z: 12, x: 2, y: 2, payloadGzip: payload, wayCount: 0);
+      await dao.put(z: 12, x: 3, y: 3, payloadGzip: payload, wayCount: 17);
+
+      final deleted = await dao.deleteZeroWayTiles();
+
+      expect(deleted, 2, reason: 'both 0-way tiles purged');
+      expect(await dao.getByTile(12, 1, 1), isNull);
+      expect(await dao.getByTile(12, 2, 2), isNull);
+      expect(await dao.getByTile(12, 3, 3), isNotNull,
+          reason: 'the real (17-way) tile survives');
+    });
   });
 }

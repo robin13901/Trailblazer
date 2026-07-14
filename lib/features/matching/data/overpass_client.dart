@@ -151,16 +151,15 @@ class OverpassClient {
 
   /// Parses the `total_m` tag out of a `make stat total_m=sum(length())`
   /// Overpass response. Returns 0 when the element/tag is absent (e.g. the
-  /// cell contained no roads). Throws [NetworkError] if the server returned a
-  /// `remark` error (e.g. an out-of-memory runtime error) so the caller can
-  /// retry with a smaller cell.
+  /// cell contained no roads).
+  ///
+  /// Error detection (HTML/XML bodies and error `remark`s served under HTTP
+  /// 200) now lives in [_postQuery]'s shared classify gate, so by the time a
+  /// body reaches here it is guaranteed to be a clean JSON envelope — no
+  /// per-caller `remark` inspection needed.
   double _parseTotalMeters(String rawJson) {
     final decoded = jsonDecode(rawJson);
     if (decoded is! Map<String, dynamic>) return 0;
-    final remark = decoded['remark'];
-    if (remark is String && remark.toLowerCase().contains('error')) {
-      throw NetworkError('Overpass length query error: $remark');
-    }
     final elements = decoded['elements'];
     if (elements is! List || elements.isEmpty) return 0;
     for (final el in elements) {
@@ -195,7 +194,33 @@ class OverpassClient {
             .timeout(_timeout);
 
         if (response.statusCode == 200) {
-          return response.body;
+          // Overpass frequently serves errors ("server too busy", query
+          // timeout, out-of-memory) as HTTP 200 with an HTML/XML body or a
+          // JSON `remark` — the status line alone is NOT a success signal.
+          // Classify the body before trusting it.
+          switch (_classify200Body(response.body)) {
+            case _OverpassBodyKind.ok:
+              return response.body;
+            case _OverpassBodyKind.memoryError:
+              // Deterministic server-side OOM: retrying the same cell / body
+              // is pointless. Fail loud with a 'memory'-bearing message so the
+              // region-length caller (_sumCell) subdivides the cell instead.
+              throw const NetworkError(
+                'Overpass query exceeded the server memory ceiling '
+                '(out of memory)',
+              );
+            case _OverpassBodyKind.transientError:
+              // Server busy / query timeout under 200 — treat exactly like a
+              // retryable status: backoff+retry on primary, then fallback.
+              if (attempt < 2) {
+                await Future<void>.delayed(_backoff(attempt));
+                continue;
+              }
+              throw const NetworkError(
+                'Overpass returned a transient error under HTTP 200 '
+                '(server busy / timeout) after all attempts',
+              );
+          }
         }
         if (_isRetryableStatus(response.statusCode)) {
           if (attempt < 2) {
@@ -244,6 +269,42 @@ class OverpassClient {
   static bool _isRetryableStatus(int code) =>
       code == 429 || (code >= 500 && code < 600);
 
+  /// Transient (server-busy / query-timeout) keywords that Overpass emits in
+  /// an HTTP-200 error body. Retrying (and falling back) can succeed.
+  static const List<String> _transientKeywords = [
+    'runtime error',
+    'timed out',
+    'timeout',
+    'too busy',
+    'busy',
+    'please reduce',
+    'gateway',
+  ];
+
+  /// Classifies an HTTP-200 [body] into ok / transient-error / memory-error.
+  ///
+  /// Overpass serves errors under 200 either as an HTML/XML page or as a JSON
+  /// envelope carrying a top-level `remark`. A normal successful response is
+  /// JSON with neither shape, so the fast path returns `ok` without a keyword
+  /// scan. Only markup or a `remark`-bearing body is inspected further —
+  /// keying on error keywords keeps benign informational remarks (which
+  /// Overpass also emits) from being misread as failures.
+  static _OverpassBodyKind _classify200Body(String body) {
+    final lower = body.trimLeft().toLowerCase();
+    final looksMarkup = lower.startsWith('<');
+    final hasRemark = lower.contains('"remark"');
+    if (!looksMarkup && !hasRemark) return _OverpassBodyKind.ok;
+    if (lower.contains('out of memory') || lower.contains('memory')) {
+      return _OverpassBodyKind.memoryError;
+    }
+    if (looksMarkup) return _OverpassBodyKind.transientError;
+    for (final kw in _transientKeywords) {
+      if (lower.contains(kw)) return _OverpassBodyKind.transientError;
+    }
+    // A JSON `remark` with no error/timeout/busy/memory keyword — benign.
+    return _OverpassBodyKind.ok;
+  }
+
   static Duration _defaultBackoff(int attempt) {
     switch (attempt) {
       case 0:
@@ -255,3 +316,8 @@ class OverpassClient {
     }
   }
 }
+
+/// How an HTTP-200 Overpass body classifies: a real success, a transient
+/// server-side error (retry/fallback may help), or a deterministic
+/// out-of-memory error (the caller must shrink the query).
+enum _OverpassBodyKind { ok, transientError, memoryError }

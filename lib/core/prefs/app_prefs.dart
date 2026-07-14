@@ -71,6 +71,22 @@ class AppPrefs {
   /// showed nothing despite driven intervals existing.
   static const int kCurrentCoverageRecomputeVersion = 1;
 
+  /// Version stamp of the last stuck-fetch recovery migration applied to this
+  /// device. Bumped when a one-shot recovery of trips parked by an Overpass
+  /// outage is needed (reset the pending-fetch backoff + purge poisoned 0-way
+  /// tiles). The startup migration compares this against
+  /// [kCurrentStuckFetchRecoveryVersion] and runs the recovery once when they
+  /// differ.
+  static const String kStuckFetchRecoveryVersion =
+      'stuck_fetch_recovery_version';
+
+  /// Current stuck-fetch recovery version. Bump to force a one-shot recovery
+  /// on the next launch. `1` = 2026-07-14: the Overpass HTTP-200-error client
+  /// fix — trips parked under the 5min→24h backoff (or abandoned) and tiles
+  /// poisoned as 0-way HTML need a one-time reset + purge to recover without a
+  /// fresh drive.
+  static const int kCurrentStuckFetchRecoveryVersion = 1;
+
   final SharedPreferencesAsync _prefs;
 
   /// The matcher-rematch version already applied on this device, or null when
@@ -96,6 +112,17 @@ class AppPrefs {
   /// so a failed run retries on the next launch.
   Future<void> setCoverageRecomputeVersion(int version) =>
       _prefs.setInt(kCoverageRecomputeVersion, version);
+
+  /// The stuck-fetch recovery version already applied on this device, or null
+  /// when it has never run.
+  Future<int?> getStuckFetchRecoveryVersion() =>
+      _prefs.getInt(kStuckFetchRecoveryVersion);
+
+  /// Records [version] as the stuck-fetch recovery migration applied on this
+  /// device. Written only after the recovery completes so a failed run retries
+  /// on the next launch.
+  Future<void> setStuckFetchRecoveryVersion(int version) =>
+      _prefs.setInt(kStuckFetchRecoveryVersion, version);
 
   /// Returns the last-known admin-bundle version stamp, or null when the
   /// user has never triggered a runtime refresh (in which case the

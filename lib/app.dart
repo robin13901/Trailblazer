@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:auto_explore/core/db/app_database_providers.dart';
 import 'package:auto_explore/core/errors/result.dart';
 import 'package:auto_explore/core/prefs/app_prefs.dart';
 import 'package:auto_explore/core/routing/app_router.dart';
@@ -40,6 +41,10 @@ class _AppState extends ConsumerState<App> with WidgetsBindingObserver {
   Future<void> _runStartupMigrations() async {
     await _runMatcherRematchMigrationIfNeeded();
     await _runCoverageRecomputeMigrationIfNeeded();
+    // One-time recovery of trips parked by an Overpass outage + purge of
+    // poisoned 0-way tiles. Runs BEFORE region totals — a stuck trip is
+    // user-visible, region totals are background.
+    await _runStuckFetchRecoveryMigrationIfNeeded();
     // After the driven-coverage cache is populated, compute the REAL
     // region-wide total road length for any region missing it (background,
     // once per region, tiled area-clipped Overpass sums). Runs last because it
@@ -116,6 +121,46 @@ class _AppState extends ConsumerState<App> with WidgetsBindingObserver {
         e,
         st,
       );
+    }
+  }
+
+  /// One-time recovery of trips left parked by an Overpass outage, plus a
+  /// purge of tiles poisoned as 0-way before the HTTP-200-error client fix.
+  /// Version-stamped via [AppPrefs] so it runs exactly once per bump.
+  ///
+  /// Steps: reset the pending-fetch backoff so parked/abandoned trips are
+  /// immediately drainable; delete 0-way cached tiles so a re-fetch gets real
+  /// road data; then kick `drainQueue` + `processPending` to recover now
+  /// rather than waiting for the next resume. Best-effort: logs and swallows
+  /// all errors, and stamps the version only on success so a failed run
+  /// retries next launch.
+  Future<void> _runStuckFetchRecoveryMigrationIfNeeded() async {
+    final prefs = ref.read(appPrefsProvider);
+    try {
+      final applied = await prefs.getStuckFetchRecoveryVersion() ?? 0;
+      if (applied >= AppPrefs.kCurrentStuckFetchRecoveryVersion) return;
+      _log.info(
+        'stuck-fetch recovery: applied=$applied '
+        'current=${AppPrefs.kCurrentStuckFetchRecoveryVersion} — recovering',
+      );
+      final db = ref.read(appDatabaseProvider);
+      final resetRows = await db.pendingRoadFetchesDao.resetAllBackoff();
+      final purgedTiles = await db.overpassWayCacheDao.deleteZeroWayTiles();
+      _log.info(
+        'stuck-fetch recovery: reset $resetRows queued fetch(es), '
+        'purged $purgedTiles zero-way tile(s)',
+      );
+      // Kick recovery immediately instead of waiting for the next resume.
+      unawaited(ref.read(tripRoadFetchCoordinatorProvider).drainQueue());
+      unawaited(ref.read(tripMatchCoordinatorProvider).processPending());
+      await prefs.setStuckFetchRecoveryVersion(
+        AppPrefs.kCurrentStuckFetchRecoveryVersion,
+      );
+      _log.info('stuck-fetch recovery: done');
+      // Catch every throwable: a recovery hiccup must never crash startup.
+      // ignore: avoid_catches_without_on_clauses
+    } catch (e, st) {
+      _log.warning('stuck-fetch recovery failed (will retry): $e', e, st);
     }
   }
 

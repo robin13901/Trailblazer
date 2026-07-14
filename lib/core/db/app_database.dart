@@ -33,7 +33,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase([QueryExecutor? executor]) : super(executor ?? _openConnection());
 
   @override
-  int get schemaVersion => 5;
+  int get schemaVersion => 6;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -90,6 +90,12 @@ class AppDatabase extends _$AppDatabase {
         // = not yet computed → the region browser shows a spinner.
         await m.addColumn(coverageCache, coverageCache.realTotalLengthM);
         await m.addColumn(coverageCache, coverageCache.realTotalUpdatedAt);
+      }
+      if (from < 6 && to >= 6) {
+        // v6: resumable-compute accumulator for the tiled real-total pass —
+        // stores per-cell sums so a killed / flaky Bundesland pass resumes
+        // instead of restarting ~1600 cells. Nullable, cleared on completion.
+        await m.addColumn(coverageCache, coverageCache.realTotalProgressJson);
       }
     },
     beforeOpen: (details) async {

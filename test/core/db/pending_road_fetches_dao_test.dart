@@ -156,5 +156,33 @@ void main() {
       expect(await dao.getByTrip(tripId), isNull);
       expect(await dao.listPending(), isEmpty);
     });
+
+    test('resetAllBackoff zeroes attempts and nulls lastAttemptAt', () async {
+      final t1 = await seedTrip();
+      final t2 = await seedTrip();
+      final id1 = await dao.enqueue(
+        tripId: t1,
+        minLat: 1,
+        minLon: 1,
+        maxLat: 2,
+        maxLon: 2,
+      );
+      await dao.enqueue(tripId: t2, minLat: 3, minLon: 3, maxLat: 4, maxLon: 4);
+      // Age both rows: bump one past the abandon threshold.
+      await dao.incrementAttempts(id1);
+      await dao.incrementAttempts(id1);
+      final beforeRow = await dao.getByTrip(t1);
+      expect(beforeRow!.attempts, 2);
+      expect(beforeRow.lastAttemptAt, isNotNull);
+
+      final updated = await dao.resetAllBackoff();
+      expect(updated, 2, reason: 'both queued rows reset');
+
+      for (final tripId in [t1, t2]) {
+        final row = await dao.getByTrip(tripId);
+        expect(row!.attempts, 0);
+        expect(row.lastAttemptAt, isNull);
+      }
+    });
   });
 }
