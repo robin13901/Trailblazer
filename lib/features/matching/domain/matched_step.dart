@@ -30,6 +30,8 @@ class MatchedStep {
     required this.direction,
     required this.highwayClass,
     required this.oneway,
+    required this.snappedLat,
+    required this.snappedLon,
   });
 
   /// OSM way id of the matched segment.
@@ -63,9 +65,17 @@ class MatchedStep {
   /// Normalized `oneway=` tag of the matched way.
   final OnewayDirection oneway;
 
+  /// The GPS fix's snapped position ON the matched road segment: the point on
+  /// segment [segIdx] at [projectionFraction] between its two nodes. This is
+  /// what the road-snapped coverage line draws for an on-road fix (2026-07-14
+  /// coverage rework) — the line hugs the road rather than the noisy raw GPS.
+  final double snappedLat;
+  final double snappedLon;
+
   @override
   String toString() =>
       'MatchedStep(way=$wayId, seg=$segIdx, '
       'frac=${projectionFraction.toStringAsFixed(3)}, '
-      'perp=${perpDistMeters.toStringAsFixed(1)}m, dir=$direction)';
+      'perp=${perpDistMeters.toStringAsFixed(1)}m, dir=$direction, '
+      'snap=($snappedLat,$snappedLon))';
 }

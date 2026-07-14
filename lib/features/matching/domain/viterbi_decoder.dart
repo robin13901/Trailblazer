@@ -344,6 +344,12 @@ class ViterbiDecoder {
       for (var k = chain.length - 1; k >= 0; k--) {
         final (step, stateIdx) = chain[k];
         final state = trellis[step][stateIdx];
+        // Snap the fix onto its matched segment: lerp between the segment's two
+        // nodes by the projection fraction. Cheap linear lat/lon interpolation
+        // over one short segment matches the equirectangular approximation used
+        // throughout segment_geometry.dart. Feeds the road-snapped coverage
+        // line (2026-07-14 rework).
+        final f = state.projectionFraction;
         result[step] = MatchedStep(
           wayId: state.segment.wayId,
           segIdx: state.segment.segIdx,
@@ -353,6 +359,10 @@ class ViterbiDecoder {
           direction: _directionFrom(state, step, result),
           highwayClass: state.segment.highwayClass,
           oneway: state.segment.oneway,
+          snappedLat:
+              state.segment.aLat + (state.segment.bLat - state.segment.aLat) * f,
+          snappedLon:
+              state.segment.aLon + (state.segment.bLon - state.segment.aLon) * f,
         );
       }
     }

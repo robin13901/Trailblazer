@@ -203,11 +203,12 @@ class TripMatchCoordinator {
     await _intervalsDao.insertBatch(companions);
   }
 
-  /// Compute and persist the trimmed on-road coverage polyline for [tripId]
-  /// (2026-07-13 coverage-from-trail rework). Keeps the raw GPS coordinates of
-  /// fixes the matcher accepted as on-road (dropping parking-lot / off-road
-  /// wander), split into contiguous runs. Stored on the trip row so it becomes
-  /// the persistent visible coverage line and survives raw-GPS retention.
+  /// Compute and persist the road-snapped coverage polyline for [tripId]
+  /// (2026-07-14 road-snapped rework). On-road fixes are drawn at their snapped
+  /// position on the matched road (so the line hugs roads and short-connector
+  /// junction gaps close), while raw GPS bridges only the stretches the matcher
+  /// found off-road. Stored on the trip row so it becomes the persistent
+  /// visible coverage line and survives raw-GPS retention.
   Future<void> _writeCoveragePath(
     int tripId,
     List<GpsFix> fixes,

@@ -53,7 +53,10 @@ class AppPrefs {
   /// `_rematchOne` backfills the new `trips.coverage_path_json` (the trimmed
   /// on-road GPS trail that is now the visible coverage line) for trips
   /// recorded before schema v5.
-  static const int kCurrentMatcherRematchVersion = 3;
+  /// `4` = 2026-07-14 road-snapped coverage line: `coverage_path_json` now holds
+  /// the road-snapped polyline (on-road fixes drawn at their snapped position,
+  /// raw GPS bridging only off-road gaps). Re-match rebuilds it for all trips.
+  static const int kCurrentMatcherRematchVersion = 4;
 
   /// Version stamp of the last coverage-cache recompute migration applied to
   /// this device. Bumped whenever `coverage_cache` needs a one-shot
