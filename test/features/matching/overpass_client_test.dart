@@ -301,5 +301,44 @@ void main() {
         throwsA(isA<NetworkError>()),
       );
     });
+
+    test('fetchRegionLengthInBbox tries the FALLBACK first (degraded primary)',
+        () async {
+      final calls = <Uri>[];
+      final client = buildClient((req) async {
+        calls.add(req.url);
+        return okResponse(
+          '{"version":0.6,"elements":[{"type":"count",'
+          '"tags":{"total_m":"62638.061"}}]}',
+        );
+      });
+      final meters = await client.fetchRegionLengthInBbox(
+        regionAreaId: 3600393501,
+        minLat: 49.7,
+        minLon: 9.1,
+        maxLat: 49.8,
+        maxLon: 9.2,
+      );
+      expect(meters, closeTo(62638.061, 0.001));
+      expect(calls, hasLength(1));
+      expect(calls.first, fallback,
+          reason: 'region-length must hit the working mirror on attempt 0');
+    });
+
+    test('fetchWaysInBbox still tries the PRIMARY first (unaffected)', () async {
+      final calls = <Uri>[];
+      final client = buildClient((req) async {
+        calls.add(req.url);
+        return okResponse(kreuzbergFixture());
+      });
+      await client.fetchWaysInBbox(
+        minLat: 52.49,
+        minLon: 13.37,
+        maxLat: 52.51,
+        maxLon: 13.41,
+      );
+      expect(calls.first, primary,
+          reason: 'trip-matching path keeps primary-first order');
+    });
   });
 }

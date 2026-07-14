@@ -26,15 +26,15 @@ import 'package:auto_explore/features/admin/data/admin_region.dart';
 import 'package:auto_explore/features/admin/data/admin_region_lookup.dart';
 import 'package:auto_explore/features/coverage/data/coverage_cache_dao.dart';
 import 'package:auto_explore/features/matching/data/overpass_client.dart';
+import 'package:auto_explore/features/regions/domain/region_tiling.dart';
 import 'package:logging/logging.dart';
 
 /// Overpass area ids are `3600000000 + osmRelationId`.
 const int kOverpassAreaIdBase = 3600000000;
 
-/// Target cell size (degrees) for tiling a region's bbox. ~0.1° ≈ 11 km N–S;
-/// small enough that a single cell's `sum(length())` stays well under the
-/// Overpass per-query memory ceiling for typical road densities.
-const double kRegionTileDegrees = 0.1;
+// kRegionTileDegrees + kRegionProgressBlobVersion are defined in
+// region_tiling.dart (shared with the region browser provider) and imported
+// above — a single source of truth for the tiling grid.
 
 /// Hard floor on cell size when subdividing after an OOM remark — below this
 /// we give up on the cell rather than recurse forever.
@@ -46,9 +46,9 @@ const double kMinRegionTileDegrees = 0.0125;
 /// the fully-sequential wall-clock.
 const int kRegionCellConcurrency = 2;
 
-/// Schema version of the persisted progress accumulator blob. Bumped if the
-/// cell-key scheme or tiling constant changes so stale blobs are discarded.
-const int kRegionProgressBlobVersion = 1;
+/// Schema version of the persisted progress accumulator blob. Defined in
+/// region_tiling.dart and imported — kept as the single source of truth so the
+/// browser provider parses with the same guard the service writes with.
 
 /// After this many freshly-resolved cells, flush the progress blob to the DB.
 /// Bounds the work lost on an app-kill without incurring ~1600 tiny writes.
@@ -85,18 +85,43 @@ class RegionTotalLengthService {
     final pending = await _cacheDao.getRegionsNeedingRealTotal();
     if (pending.isEmpty) return 0;
     await _regionLookup.ensureLoaded();
-    _log.info('computeMissingTotals: ${pending.length} regions pending');
-    var done = 0;
+
+    // Resolve each pending row to its AdminRegion, then compute SMALLEST-FIRST
+    // (fewest tiled cells) so tiny regions (a village = 1 cell) finish in
+    // seconds instead of waiting behind a Bundesland's ~1600-cell pass. The
+    // bbox lives on AdminRegion, not coverage_cache, so we sort in Dart.
+    final resolved = <(String, AdminRegion)>[];
     for (final row in pending) {
       final osmId = int.tryParse(row.regionId);
       if (osmId == null) continue;
       final region = _regionLookup.regionByOsmId(osmId);
       if (region == null) continue;
+      resolved.add((row.regionId, region));
+    }
+    resolved.sort((a, b) {
+      final ca = plannedCellCount(
+        a.$2.bboxMinLat,
+        a.$2.bboxMinLon,
+        a.$2.bboxMaxLat,
+        a.$2.bboxMaxLon,
+      );
+      final cb = plannedCellCount(
+        b.$2.bboxMinLat,
+        b.$2.bboxMinLon,
+        b.$2.bboxMaxLat,
+        b.$2.bboxMaxLon,
+      );
+      return ca.compareTo(cb);
+    });
+
+    _log.info('computeMissingTotals: ${resolved.length} regions pending');
+    var done = 0;
+    for (final (regionId, region) in resolved) {
       try {
-        final total = await computeForRegion(region, regionId: row.regionId);
+        final total = await computeForRegion(region, regionId: regionId);
         if (total != null) {
           await _cacheDao.writeRealTotalLength(
-            regionId: row.regionId,
+            regionId: regionId,
             realTotalLengthM: total,
             computedAt: DateTime.now(),
           );
@@ -114,7 +139,7 @@ class RegionTotalLengthService {
         );
       }
     }
-    _log.info('computeMissingTotals: $done/${pending.length} computed');
+    _log.info('computeMissingTotals: $done/${resolved.length} computed');
     return done;
   }
 

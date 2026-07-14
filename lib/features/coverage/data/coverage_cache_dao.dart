@@ -128,6 +128,18 @@ class CoverageCacheDao extends DatabaseAccessor<AppDatabase> {
         .get();
   }
 
+  /// Reactive version of [getAllWithCoverage]. Re-emits on ANY write to
+  /// `coverage_cache` — driven-length recompute, per-cell progress flushes, and
+  /// the final real-total write all go through `insertOnConflictUpdate` on this
+  /// table, so the region browser refreshes on its own (no tab-switch) as
+  /// totals land and progress climbs. Drift table-write invalidation is the
+  /// mechanism (same as TripsDao's watch* streams), not value-diffing.
+  Stream<List<CoverageCacheData>> watchAllWithCoverage() {
+    return (select(_table)
+          ..where((r) => r.drivenLengthM.isBiggerThanValue(0)))
+        .watch();
+  }
+
   /// Bump `invalidation_gen` by 1 without touching lengths — Phase-8
   /// path where the cache is marked stale but the row survives until
   /// recompute overwrites it. P6 does not use this method itself.

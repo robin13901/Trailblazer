@@ -145,7 +145,14 @@ class OverpassClient {
       maxLon: maxLon,
       timeoutSeconds: timeoutSeconds,
     );
-    final raw = await _postQuery(query);
+    // Region-length uses fallbackFirst: the heavy area-clipped sum(length())
+    // is exactly the query the canonical primary throttles as "server too
+    // busy" (validated 2026-07-14 — primary failed it 3/3 while the mirror
+    // answered instantly). Trying the working mirror FIRST removes the
+    // ~7s-per-cell dead-primary tax; the primary is still tried last so a
+    // recovered primary is reachable. The trip-matching path (lighter bbox
+    // queries the primary handles fine) keeps the default primary-first order.
+    final raw = await _postQuery(query, fallbackFirst: true);
     return _parseTotalMeters(raw);
   }
 
@@ -176,11 +183,18 @@ class OverpassClient {
   }
 
   /// Shared POST loop with retry + endpoint fallback for an arbitrary QL body.
-  Future<String> _postQuery(String query) async {
+  ///
+  /// [fallbackFirst] flips the endpoint order: when true, attempts 0–1 use the
+  /// fallback mirror and attempt 2 uses the primary (used by the region-length
+  /// path, which the primary throttles). Default false = primary-first (the
+  /// trip-matching path).
+  Future<String> _postQuery(String query, {bool fallbackFirst = false}) async {
     final body = 'data=${Uri.encodeQueryComponent(query)}';
 
     for (var attempt = 0; attempt < 3; attempt++) {
-      final endpoint = attempt < 2 ? _primary : _fallback;
+      final endpoint = fallbackFirst
+          ? (attempt < 2 ? _fallback : _primary)
+          : (attempt < 2 ? _primary : _fallback);
       try {
         final response = await _client
             .post(

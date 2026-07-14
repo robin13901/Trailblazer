@@ -82,14 +82,34 @@ class RegionCard extends StatelessWidget {
             ),
             const SizedBox(width: 12),
             if (region.totalPending)
-              // Real region-wide total still computing in the background.
-              SizedBox(
-                width: 18,
-                height: 18,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  color: colorScheme.primary.withValues(alpha: 0.7),
-                ),
+              // Real region-wide total still computing in the background. Show
+              // a spinner plus a live "done / planned Kacheln" (tiles) count so
+              // the user can see it is alive and progressing (Bayern ≈1600).
+              Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: colorScheme.primary.withValues(alpha: 0.7),
+                    ),
+                  ),
+                  if (region.progressCellsDone != null) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      region.progressCellsPlanned != null
+                          ? '${region.progressCellsDone} / '
+                              '${region.progressCellsPlanned} Kacheln'
+                          : '${region.progressCellsDone} Kacheln',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: colorScheme.onSurface.withValues(alpha: 0.6),
+                      ),
+                    ),
+                  ],
+                ],
               )
             else
               Text(

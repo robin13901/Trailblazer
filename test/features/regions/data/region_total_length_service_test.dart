@@ -19,17 +19,19 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 
-/// Fake lookup that resolves a single region by its osm id.
+/// Fake lookup that resolves regions by osm id.
 class _FakeLookup implements AdminRegionLookup {
-  _FakeLookup(this.region);
-  final AdminRegion region;
+  _FakeLookup(AdminRegion region) : _byId = {region.osmId: region};
+  _FakeLookup.multi(List<AdminRegion> regions)
+      : _byId = {for (final r in regions) r.osmId: r};
+
+  final Map<int, AdminRegion> _byId;
 
   @override
   Future<void> ensureLoaded() async {}
 
   @override
-  AdminRegion? regionByOsmId(int osmId) =>
-      osmId == region.osmId ? region : null;
+  AdminRegion? regionByOsmId(int osmId) => _byId[osmId];
 
   @override
   Future<AdminRegion?> regionAt(double lat, double lon, int adminLevel) async =>
@@ -39,7 +41,7 @@ class _FakeLookup implements AdminRegionLookup {
   void invalidate() {}
 
   @override
-  int get regionCount => 1;
+  int get regionCount => _byId.length;
 
   @override
   int get bundleLoadCount => 0;
@@ -204,5 +206,60 @@ void main() {
     expect(done, 0);
     final row = await cacheDao.getByRegionId('42');
     expect(row!.realTotalLengthM, isNull);
+  });
+
+  test('computes SMALLEST region first (fewest cells)', () async {
+    // Big region (osmId 100, ~1° box → many cells) + tiny region (osmId 7,
+    // one cell). Both pending. The tiny one must be queried first.
+    final big = _region(
+      osmId: 100,
+      minLat: 48,
+      minLon: 8,
+      maxLat: 49,
+      maxLon: 9,
+    );
+    final tiny = _region(
+      osmId: 7,
+      minLat: 49.70,
+      minLon: 9.10,
+      maxLat: 49.72,
+      maxLon: 9.12,
+    );
+    await cacheDao.upsert(
+      regionId: '100',
+      drivenLengthM: 100,
+      totalLengthM: 200,
+      updatedAt: DateTime(2026, 7, 14),
+    );
+    await cacheDao.upsert(
+      regionId: '7',
+      drivenLengthM: 100,
+      totalLengthM: 200,
+      updatedAt: DateTime(2026, 7, 14),
+    );
+
+    // Record the area id (3600000000 + osmId) of the FIRST cell query.
+    final areaOrder = <int>[];
+    final overpass = OverpassClient(
+      client: MockClient((req) async {
+        final body = req.body;
+        // area:3600000007 (tiny) vs area:3600000100 (big).
+        final isTiny = body.contains('3600000007');
+        final id = isTiny ? 7 : 100;
+        if (areaOrder.isEmpty || areaOrder.last != id) areaOrder.add(id);
+        return _lengthOk(500);
+      }),
+      backoffBuilder: (_) => Duration.zero,
+    );
+    final service = RegionTotalLengthService(
+      regionLookup: _FakeLookup.multi([big, tiny]),
+      overpassClient: overpass,
+      cacheDao: cacheDao,
+    );
+
+    await service.computeMissingTotals();
+
+    expect(areaOrder.first, 7,
+        reason: 'the 1-cell region must be computed before the big one');
   });
 }

@@ -14,6 +14,8 @@ import 'package:auto_explore/core/db/app_database_providers.dart';
 import 'package:auto_explore/features/admin/data/admin_region.dart';
 import 'package:auto_explore/features/admin/data/admin_region_lookup.dart';
 import 'package:auto_explore/features/admin/data/admin_region_providers.dart';
+import 'package:auto_explore/features/coverage/data/coverage_cache_dao.dart';
+import 'package:auto_explore/features/regions/domain/region_coverage.dart';
 import 'package:auto_explore/features/regions/presentation/providers/region_browser_provider.dart';
 import 'package:drift/drift.dart' hide isNotNull, isNull;
 import 'package:drift/native.dart';
@@ -99,6 +101,24 @@ Future<void> _upsertRow(
 // Tests
 // ---------------------------------------------------------------------------
 
+/// Reads the browser provider's value, polling the event loop until the Drift
+/// watch stream delivers its first (or an updated) emit. The provider is a
+/// StreamProvider (reactive), so we keep a subscription alive and poll `.value`
+/// — mirroring how the widget layer consumes it via `.when`/`.value`.
+Future<List<RegionCoverage>> _readList(
+  ProviderContainer container, {
+  bool Function(List<RegionCoverage>)? until,
+}) async {
+  for (var i = 0; i < 100; i++) {
+    final v = container.read(regionBrowserProvider).value;
+    if (v != null && (until == null || until(v))) return v;
+    await Future<void>.delayed(const Duration(milliseconds: 10));
+  }
+  final v = container.read(regionBrowserProvider).value;
+  if (v == null) fail('regionBrowserProvider never emitted a value');
+  return v;
+}
+
 void main() {
   late AppDatabase db;
 
@@ -134,8 +154,11 @@ void main() {
           ],
         );
         addTearDown(container.dispose);
+        // Keep the stream subscribed so it emits.
+        final sub = container.listen(regionBrowserProvider, (_, _) {});
+        addTearDown(sub.close);
 
-        final result = await container.read(regionBrowserProvider.future);
+        final result = await _readList(container, until: (r) => r.length == 3);
 
         // Level 2 must be absent.
         expect(result.any((r) => r.adminLevel == 2), isFalse);
@@ -145,6 +168,47 @@ void main() {
         expect(result[0].osmId, 1001); // 60%
         expect(result[1].osmId, 1002); // 20%
         expect(result[2].osmId, 1003); // 5%
+      },
+    );
+
+    test(
+      're-emits when a real total lands → spinner clears without a tab switch',
+      () async {
+        // Seed one pending region (no real_total yet → totalPending).
+        await _upsertRow(
+          db,
+          regionId: '3001',
+          drivenLengthM: 500,
+          totalLengthM: 1000,
+        );
+        final fakeLookup = _FakeLookup({3001: _region(3001, 8, 'Kleinheubach')});
+
+        final container = ProviderContainer(
+          overrides: [
+            appDatabaseProvider.overrideWithValue(db),
+            adminRegionLookupProvider.overrideWithValue(fakeLookup),
+          ],
+        );
+        addTearDown(container.dispose);
+        final sub = container.listen(regionBrowserProvider, (_, _) {});
+        addTearDown(sub.close);
+
+        // First emit: pending (spinner state).
+        final first = await _readList(container);
+        expect(first.single.totalPending, isTrue);
+
+        // Write the real total — the Drift watch must re-emit on its own.
+        await CoverageCacheDao(db).writeRealTotalLength(
+          regionId: '3001',
+          realTotalLengthM: 62638,
+          computedAt: DateTime(2026, 7, 14),
+        );
+
+        final settled =
+            await _readList(container, until: (r) => !r.single.totalPending);
+        expect(settled.single.totalPending, isFalse,
+            reason: 'spinner cleared reactively after the total was written');
+        expect(settled.single.totalLengthM, 62638);
       },
     );
   });
@@ -171,9 +235,11 @@ void main() {
           ],
         );
         addTearDown(container.dispose);
+        final sub = container.listen(regionBrowserProvider, (_, _) {});
+        addTearDown(sub.close);
 
         // Wait for the browser list to load.
-        await container.read(regionBrowserProvider.future);
+        await _readList(container, until: (r) => r.length == 3);
 
         // Empty query → full list (3 items, %-desc).
         final full = container.read(regionBrowserFilteredProvider);

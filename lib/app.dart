@@ -34,23 +34,25 @@ class _AppState extends ConsumerState<App> with WidgetsBindingObserver {
     });
   }
 
-  /// Runs one-shot startup migrations in order, best-effort. The coverage
-  /// recompute runs AFTER the matcher rematch so it reads settled
-  /// `driven_way_intervals` (the rematch can rewrite intervals, which the
-  /// recompute then aggregates into `coverage_cache`).
+  /// Runs one-shot startup migrations, ordered by user-visible priority and
+  /// network cost so a flaky link never starves the important work:
+  ///   1. Stuck-fetch recovery FIRST (awaited) — depends on nothing and
+  ///      recovers a trip parked by an Overpass outage; must not sit behind the
+  ///      network-heavy re-match.
+  ///   2. Coverage recompute (awaited, one bounded cache-first fetch) so
+  ///      `coverage_cache` rows exist, then kick region totals CONCURRENTLY —
+  ///      the real per-region total is polygon-based and independent of the
+  ///      re-match, so it starts computing immediately.
+  ///   3. Matcher re-match LAST and in the BACKGROUND (unawaited) — it is
+  ///      unbounded network (N trips × M tiles) and only refines the visible
+  ///      coverage line + intervals; letting it run behind (1)/(2) means driven
+  ///      km is eventually-consistent (refreshed on a later recompute), which
+  ///      is an acceptable trade for never blocking the user-visible work.
   Future<void> _runStartupMigrations() async {
-    await _runMatcherRematchMigrationIfNeeded();
-    await _runCoverageRecomputeMigrationIfNeeded();
-    // One-time recovery of trips parked by an Overpass outage + purge of
-    // poisoned 0-way tiles. Runs BEFORE region totals — a stuck trip is
-    // user-visible, region totals are background.
     await _runStuckFetchRecoveryMigrationIfNeeded();
-    // After the driven-coverage cache is populated, compute the REAL
-    // region-wide total road length for any region missing it (background,
-    // once per region, tiled area-clipped Overpass sums). Runs last because it
-    // depends on coverage_cache rows existing and is the heaviest / most
-    // network-bound step. Best-effort; failures retry next launch.
-    await _computeMissingRegionTotals();
+    await _runCoverageRecomputeMigrationIfNeeded();
+    unawaited(_computeMissingRegionTotals());
+    unawaited(_runMatcherRematchMigrationIfNeeded());
   }
 
   /// Runs the one-shot re-match migration when the stored matcher-rematch

@@ -56,7 +56,7 @@ Widget _buildApp({required List<RegionCoverage> regions}) {
   return ProviderScope(
     overrides: [
       regionBrowserProvider.overrideWith(
-        (_) => Future.value(List<RegionCoverage>.from(regions)),
+        (_) => Stream.value(List<RegionCoverage>.from(regions)),
       ),
     ],
     child: const MaterialApp(home: RegionsScreen()),

@@ -6,9 +6,12 @@
 // (STATE Plan 02-03).
 // Package imports only (very_good_analysis always_use_package_imports).
 
+import 'package:auto_explore/core/db/app_database.dart';
+import 'package:auto_explore/features/admin/data/admin_region_lookup.dart';
 import 'package:auto_explore/features/admin/data/admin_region_providers.dart';
 import 'package:auto_explore/features/coverage/data/coverage_providers.dart';
 import 'package:auto_explore/features/regions/domain/region_coverage.dart';
+import 'package:auto_explore/features/regions/domain/region_tiling.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 // ---------------------------------------------------------------------------
@@ -38,22 +41,39 @@ final regionSearchQueryProvider =
 // Browser list providers
 // ---------------------------------------------------------------------------
 
-/// FutureProvider that loads ALL regions with coverage > 0%, sorted by
-/// coverage % descending. Level 2 (Germany country) is excluded — it would
-/// accumulate the entire DE road network and is never a useful card.
+/// Raw reactive stream of `coverage_cache` rows with driven coverage. Wrapping
+/// the Drift `.watch()` in its own StreamProvider (rather than `yield*`-ing it
+/// from an `async*` body) mirrors the proven `coveragePathsProvider` pattern
+/// and keeps the join provider below simple + synchronous per emit.
+final _coverageRowsProvider =
+    StreamProvider<List<CoverageCacheData>>((ref) {
+  return ref.watch(coverageCacheDaoProvider).watchAllWithCoverage();
+});
+
+/// StreamProvider that loads ALL regions with coverage > 0%, sorted by
+/// coverage % descending, and RE-EMITS whenever `coverage_cache` is written —
+/// so a region's spinner clears on its own the moment its real total lands and
+/// its progress count climbs live, with no tab-switch. Level 2 (Germany
+/// country) is excluded — it would accumulate the entire DE road network and is
+/// never a useful card.
 ///
-/// Join: coverage_cache row (driven_length_m > 0) → AdminRegionLookup.regionByOsmId
-/// → RegionCoverage value type.
-///
-/// Total km: prefers the REAL region-wide total (`real_total_length_m`,
-/// computed once by RegionTotalLengthService). While that is still null the
-/// card is marked `totalPending` (spinner) and falls back to the legacy
-/// trip-bbox total so a number is available for sorting.
-final regionBrowserProvider = FutureProvider<List<RegionCoverage>>((ref) async {
+/// The one-time `ensureLoaded()` is awaited before the first emit;
+/// `regionByOsmId` is synchronous, so each emit maps synchronously.
+final regionBrowserProvider =
+    StreamProvider<List<RegionCoverage>>((ref) async* {
   final lookup = ref.watch(adminRegionLookupProvider);
   await lookup.ensureLoaded(); // main isolate — RESEARCH Pitfall 1
-  final dao = ref.watch(coverageCacheDaoProvider);
-  final rows = await dao.getAllWithCoverage();
+  final rows = ref.watch(_coverageRowsProvider).value;
+  yield rows == null ? const <RegionCoverage>[] : _buildRegionList(rows, lookup);
+});
+
+/// Joins raw `coverage_cache` rows with admin geometry into the sorted
+/// browser list. Pure + synchronous (regionByOsmId is sync) so it can run on
+/// every stream emit. Pending regions carry live compute progress.
+List<RegionCoverage> _buildRegionList(
+  List<CoverageCacheData> rows,
+  AdminRegionLookup lookup,
+) {
   final out = <RegionCoverage>[];
   for (final row in rows) {
     final osmId = int.tryParse(row.regionId);
@@ -62,6 +82,7 @@ final regionBrowserProvider = FutureProvider<List<RegionCoverage>>((ref) async {
     if (region == null) continue; // stale row without a polygon
     if (region.adminLevel == 2) continue; // exclude Deutschland (RESEARCH 273)
     final realTotal = row.realTotalLengthM;
+    final pending = realTotal == null;
     out.add(
       RegionCoverage(
         osmId: osmId,
@@ -71,7 +92,19 @@ final regionBrowserProvider = FutureProvider<List<RegionCoverage>>((ref) async {
         // Prefer the real region-wide total; fall back to the legacy bbox
         // total until it lands.
         totalLengthM: realTotal ?? row.totalLengthM,
-        totalPending: realTotal == null,
+        totalPending: pending,
+        // Live compute progress (only meaningful while pending): cells summed
+        // so far (from the accumulator blob) and cells planned (from the bbox).
+        progressCellsDone:
+            pending ? completedCellCount(row.realTotalProgressJson) : null,
+        progressCellsPlanned: pending
+            ? plannedCellCount(
+                region.bboxMinLat,
+                region.bboxMinLon,
+                region.bboxMaxLat,
+                region.bboxMaxLon,
+              )
+            : null,
       ),
     );
   }
@@ -79,7 +112,7 @@ final regionBrowserProvider = FutureProvider<List<RegionCoverage>>((ref) async {
   // fallback %, which is fine — they reorder once the real total lands.
   out.sort((a, b) => b.percent.compareTo(a.percent));
   return out;
-});
+}
 
 /// Derived provider that applies the fuzzy search on top of the loaded list.
 /// Pure-Dart ranking (RESEARCH lines 89-92):

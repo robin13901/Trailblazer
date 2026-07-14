@@ -39,6 +39,8 @@ class RegionCoverage {
     required this.drivenLengthM,
     required this.totalLengthM,
     this.totalPending = false,
+    this.progressCellsDone,
+    this.progressCellsPlanned,
   });
 
   final int osmId;
@@ -51,6 +53,12 @@ class RegionCoverage {
   /// yet (the background `RegionTotalLengthService` is still working). The UI
   /// shows a spinner instead of a percentage while this is true.
   final bool totalPending;
+
+  /// Compute progress shown while [totalPending]: cells summed so far and the
+  /// total cells planned for this region's bbox. Both null when no progress
+  /// blob exists yet (compute hasn't flushed) or the region isn't pending.
+  final int? progressCellsDone;
+  final int? progressCellsPlanned;
 
   double get percent => coveragePercent(drivenLengthM, totalLengthM);
   String get percentLabel => formatPercent(percent);
@@ -65,9 +73,17 @@ class RegionCoverage {
       other.osmId == osmId &&
       other.drivenLengthM == drivenLengthM &&
       other.totalLengthM == totalLengthM &&
-      other.totalPending == totalPending;
+      other.totalPending == totalPending &&
+      other.progressCellsDone == progressCellsDone &&
+      other.progressCellsPlanned == progressCellsPlanned;
 
   @override
-  int get hashCode =>
-      Object.hash(osmId, drivenLengthM, totalLengthM, totalPending);
+  int get hashCode => Object.hash(
+        osmId,
+        drivenLengthM,
+        totalLengthM,
+        totalPending,
+        progressCellsDone,
+        progressCellsPlanned,
+      );
 }

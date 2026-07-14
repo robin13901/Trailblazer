@@ -118,7 +118,7 @@ Future<void> pumpAppAtMapShell(WidgetTester tester) async {
         // instantly to the empty state instead of hanging pumpAndSettle on the
         // asset-bundle load (12 MB, not available in headless tests).
         regionBrowserProvider.overrideWith(
-          (ref) async => const <RegionCoverage>[],
+          (ref) => Stream.value(const <RegionCoverage>[]),
         ),
         // SettingsScreen (09-07) reads appDatabaseProvider (via
         // tripsRepositoryProvider in RawGpsRetentionSection) — override with
