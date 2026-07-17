@@ -5,14 +5,14 @@
 See: .planning/PROJECT.md (updated 2026-07-02)
 
 **Core value:** When I open the map, I immediately see the roads I've already driven, painted onto the world — and that view keeps pulling me back to explore more.
-**Current focus:** Phase 10 (Coverage Recompute & Region Totals) — in progress. Plan 10-01 COMPLETE 2026-07-17 (badge fix, L9 invalidation, QUA de-scope). 2026-07-13: Vehicles + Bluetooth phase REMOVED, roadmap renumbered to 10 phases.
+**Current focus:** Phase 10 (Coverage Recompute & Region Totals) — in progress. Plans 10-01 through 10-04 COMPLETE 2026-07-17. 2026-07-13: Vehicles + Bluetooth phase REMOVED, roadmap renumbered to 10 phases.
 
 ## Current Position
 
 Phase: 10 of 10 (Coverage Recompute & Region Totals — in progress)
-Plan: 10-01 COMPLETE 2026-07-17 (1 of N plans in phase)
-Status: Phase 10 in progress — 10-01 complete (badge labels, L9 invalidation, QUA de-scope); flutter analyze clean; 27 targeted tests pass.
-Last activity: 2026-07-17 — 10-01 complete: corrected German OSM badge hierarchy, aligned kCoverageAdminLevels to include L9, de-scoped QUA-01/04/07.
+Plan: 10-04 COMPLETE 2026-07-17 (4 of N plans in phase)
+Status: Phase 10 in progress — 10-01..10-04 complete; flutter analyze clean; 881 tests pass.
+Last activity: 2026-07-17 — 10-04 complete: RegionTotalsLookup wired, recompute() writes real_total_length_m from bundled table, RegionTotalLengthService + region_tiling + spinner UI deleted (Decision 8).
 
 Progress: [██████████] ~97% (78/78 est. plans overall — Phase 1: 7/7; Phase 2: 7/7; Phase 3: 7/7; Phase 3.1: 5/5; Phase 4: 8/8 + 04-18 + 04-19 DRIVE-VERIFIED; Phase 5: 8/8 CODE-COMPLETE; Phase 6: 6/6 code-complete — 06-01..06-06 done + 06-07/06-08 gap-fixes; Phase 7: 7/7 code-complete — 07-01..07-07; Phase 8: 6/6 COMPLETE — 08-01..08-06; Phase 9: 09-01..09-07 ALL DONE)
 
@@ -507,6 +507,9 @@ Key locked-in decisions affecting current work:
 - **Plan 10-01 (2026-07-17) — kCoverageAdminLevels extended to [4,6,8,9,10].** Now matches `CoverageComputeService.kComputeAdminLevels`. L9 Ortsteil rows were previously left stale after trip confirm/discard (F2 fix).
 - **Plan 10-01 (2026-07-17) — QUA-01/04/07 de-scoped per decision 9.** Widget-test coverage (QUA-01), patrol E2E (QUA-04), real-device QA gauntlet (QUA-07) formally marked de-scoped in REQUIREMENTS.md checklist + mapping table. Tied to dropped Hardening phase. Requirement text retained for traceability.
 - **Plan 10-01 (2026-07-17) — very_good_analysis document_ignores: inline trailing comment required.** `// ignore: rule_name` must be an inline trailing comment on the line with the violation (e.g. `void foo() => ...; // ignore: use_setters_to_change_properties`), NOT a leading comment on the preceding line. Leading comment triggers `unnecessary_ignore` + `document_ignores` simultaneously.
+- **Plan 10-04 (2026-07-17) — Decision 8 executed: runtime Overpass totals tiler replaced by bundled lookup.** `RegionTotalLengthService` + `region_tiling.dart` DELETED. `RegionTotalsLookup` created (mirrors `AdminRegionLookup` load posture). `recompute()` writes `real_total_length_m` from bundled `region_totals.json.gz`. No spinner/pending state in UI. `kCurrentSchemaVersion = 6` unchanged (no schema bump).
+- **Plan 10-04 (2026-07-17) — Deferred data dependency: region_totals.json.gz.** Asset absent pending PBF run (10-03 checkpoint). `RegionTotalsLookup` handles absence gracefully (null for all queries → real_total_length_m written as null → haversine fallback in browser). No code change needed when asset arrives; loader picks it up at runtime.
+- **Plan 10-04 (2026-07-17) — pubspec assets/admin/ already declared as directory.** No pubspec change needed. An explicit missing-file entry would fail flutter pub get/build — directory-level declaration bundles whatever is present at build time.
 
 ### Blockers/Concerns
 
@@ -522,7 +525,7 @@ Key locked-in decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-07-17 (Plan 10-01 — Badge fix, L9 invalidation, QUA de-scope — COMPLETE)
-Stopped at: Plan 10-01 complete. Task commits: ac2ab97 (fix: badge labels + L9 + live_puck_bridge bug), c10158e (docs: QUA de-scope). SUMMARY at .planning/phases/10-coverage-recompute-region-totals/10-01-SUMMARY.md. flutter analyze clean; 27 targeted tests pass.
+Last session: 2026-07-17 (Plan 10-04 — RegionTotalsLookup + delete runtime Overpass totals path — COMPLETE)
+Stopped at: Plan 10-04 complete. Task commits: 8b2bb8f (feat: RegionTotalsLookup + bundled totals), 5c6d4d3 (refactor: delete tiler + spinner UI). SUMMARY at .planning/phases/10-coverage-recompute-region-totals/10-04-SUMMARY.md. flutter analyze clean; 881 tests pass.
 Resume file: None
-Next: Plan 10-02 (live-puck bridge + navigation heading) or 10-03 (offline bundle + totals pipeline) — both can proceed.
+Next: Plan 10-05 (focus pill coverage from bundled totals) or remaining Phase 10 plans.
