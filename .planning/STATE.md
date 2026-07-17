@@ -5,14 +5,14 @@
 See: .planning/PROJECT.md (updated 2026-07-02)
 
 **Core value:** When I open the map, I immediately see the roads I've already driven, painted onto the world — and that view keeps pulling me back to explore more.
-**Current focus:** Phase 9 (Settings + Backup) — ✓ COMPLETE (verifier PASS 7/7 plans, 854 tests green). Phase 10 (Hardening) is next and final. 2026-07-13: Vehicles + Bluetooth phase REMOVED, roadmap renumbered to 10 phases.
+**Current focus:** Phase 9 (Settings + Backup) — ✓ COMPLETE (verifier PASS 7/7 plans, 854 tests green). Phase 10 (Hardening) is next and final. 2026-07-13: Vehicles + Bluetooth phase REMOVED, roadmap renumbered to 10 phases. Phase 10 plans 10-01..10-03 in progress as of 2026-07-17.
 
 ## Current Position
 
-Phase: 9 of 10 (Settings + Backup — ✓ COMPLETE 2026-07-13)
-Plan: 09-07 complete (7 of 7 plans in phase — done: 09-01..09-07)
-Status: Phase 9 COMPLETE 2026-07-13 — verifier PASS 7/7 plans (09-VERIFICATION.md status: passed). Backup/restore engine (VACUUM INTO + wipe-and-swap), FilePlatform seam, raw-GPS retention (0/30/365/forever), read-only permissions inspector, diagnostics HUD release-toggle + cache/queue metrics, grouped Settings screen + About (version + OSS licenses). SET-01/02 de-scoped; SET-07 "encrypted"→plain `.trailblazer` archive per 09-CONTEXT. Full suite 854 tests green, flutter analyze clean. 3 pre-existing tests fixed (appDatabaseProvider overrides for the new provider-reading Settings/HUD screens). 7 on-device confirms deferred (share sheet, OS picker, round-trip, iOS doc picker, release HUD gate, permissions resume re-read, OSS license page).
-Last activity: 2026-07-13 — Phase 9 close-out: verifier PASS, ROADMAP/REQUIREMENTS/STATE updated (SET-03..09 Complete, SET-01/02 de-scoped).
+Phase: 10 of 10 (Coverage Recompute & Region Totals — in progress)
+Plan: 10-03 code-complete 2026-07-17 (asset regeneration halted pending germany-latest.osm.pbf download)
+Status: Phase 10 in progress — 10-03 code-complete (Stage H + parity test + assertion CLI), assets pending PBF. See 10-03-SUMMARY.md CHECKPOINT section for regeneration instructions.
+Last activity: 2026-07-17 — 10-03 code-complete: Stage H, parity test, key-set assertion CLI landed; dart analyze clean, 257 tests pass; asset regeneration HALTED (PBF absent).
 
 Progress: [██████████] ~97% (78/78 est. plans overall — Phase 1: 7/7; Phase 2: 7/7; Phase 3: 7/7; Phase 3.1: 5/5; Phase 4: 8/8 + 04-18 + 04-19 DRIVE-VERIFIED; Phase 5: 8/8 CODE-COMPLETE; Phase 6: 6/6 code-complete — 06-01..06-06 done + 06-07/06-08 gap-fixes; Phase 7: 7/7 code-complete — 07-01..07-07; Phase 8: 6/6 COMPLETE — 08-01..08-06; Phase 9: 09-01..09-07 ALL DONE)
 
@@ -518,7 +518,7 @@ Key locked-in decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-07-13 (Plan 09-07 — Settings Screen Assembly — COMPLETE; ~11 min execution)
-Stopped at: Plan 09-07 COMPLETE. Task commits: 9bcf2e5 (AboutSection), e2b9f8a (SettingsScreen), a1d278b (router un-gate), 97a51d4 (screen test 12/12). SUMMARY.md at .planning/phases/09-settings-backup/09-07-SUMMARY.md. flutter analyze clean; 12/12 integration tests green.
+Last session: 2026-07-17 (Plan 10-03 — Offline Bundle + Totals Pipeline — code-complete; asset regeneration HALTED)
+Stopped at: Plan 10-03 code-complete. Task commits: d9d481b (Stage H + parity test), 187626a (key-set assertion CLI). SUMMARY.md at .planning/phases/10-coverage-recompute-region-totals/10-03-SUMMARY.md. dart analyze clean; 257/257 pipeline tests pass. CHECKPOINT: download germany-latest.osm.pbf and re-run with --emit-admin-bundle + --emit-totals (see 10-03-SUMMARY.md).
 Resume file: None
-Next: Phase 9 CODE COMPLETE. On-device deferred checklist pending. Phase 10 next.
+Next: Phase 10 plans 10-04+ (runtime region totals lookup, recompute triggers, display) — can proceed in parallel while PBF is downloading.
