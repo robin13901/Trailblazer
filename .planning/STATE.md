@@ -5,14 +5,23 @@
 See: .planning/PROJECT.md (updated 2026-07-02)
 
 **Core value:** When I open the map, I immediately see the roads I've already driven, painted onto the world — and that view keeps pulling me back to explore more.
-**Current focus:** Phase 10 (Coverage Recompute & Region Totals) — COMPLETE. Plans 10-01 through 10-05 ALL COMPLETE 2026-07-17. Phase 10 is code-complete (on-device confirms deferred per convention).
+**Current focus:** Phase 10 (Coverage Recompute & Region Totals) — CODE-COMPLETE 2026-07-17 (verifier 6/6 CODE-COMPLETE, status human_needed). Final phase of v1. Plans 10-01..10-05 ALL COMPLETE. TWO deferred human-action checkpoints (see below).
 
 ## Current Position
 
 Phase: 10 of 10 (Coverage Recompute & Region Totals — CODE COMPLETE)
 Plan: 10-05 COMPLETE 2026-07-17 (5 of 5 plans in phase — PHASE COMPLETE)
-Status: Phase 10 code-complete — 10-01..10-05 done; flutter analyze clean; 891 tests pass.
-Last activity: 2026-07-17 — 10-05 complete: RecalculateCoverageAction + RecalculateButton at Regions-tab top; auto recomputeForTrip() seam in TripMatchCoordinator; incremental OQ1-PERF win landed.
+Status: Phase 10 code-complete — 10-01..10-05 done; verifier 6/6 must-haves CODE-COMPLETE (10-VERIFICATION.md status: human_needed); flutter analyze clean; 891 tests pass. Shipped: F3 badge labels (L6 Landkreis, L8 Gemeinde/Stadt — Kleinheubach fix); F2 CoverageInvalidator [4,6,8,9,10]; QUA-01/04/07 de-scoped (10-01); F5 live-puck bridge/applier from liveFixProvider + native-dot suppression while recording; Stage H offline pipeline CODE (region_totals.json.gz + L9 admin bundle) + Kfz-allowlist parity test + build-time key-set assertion CLI; RegionTotalsLookup wired into recompute() (real_total_length_m from bundled table) + runtime Overpass tiler/tiling/spinner UI DELETED (no schema bump — kCurrentSchemaVersion=6 unchanged); "Regionen neu berechnen" confirmation-gated button (full rematch+recompute, no trip deletion) + auto recompute-only seam in TripMatchCoordinator + incremental recomputeForTrip() OQ1-PERF win.
+Last activity: 2026-07-17 — Phase 10 close-out: verifier human_needed (6/6 code-complete), ROADMAP/STATE updated. REQUIREMENTS unchanged (REG-01/02, COV-04/07/08 already Complete under P8; QUA-01/04/07 de-scoped in 10-01).
+
+## Deferred human-action checkpoints (Phase 10 — NOT gaps)
+
+1. **PBF-gated asset regeneration** (SC3/SC4/SC5 data side) — Stage H code + parity test + key-set assertion CLI all SHIPPED, but the two bundled assets (`assets/admin/region_totals.json.gz`, regenerated `germany_admin.geojson.gz` WITH L9) were NOT regenerated: the ~4 GB `germany-latest.osm.pbf` is absent on the dev machine (only `berlin-latest.osm.pbf` exists). DESIGNED halt in 10-03's autonomous-safety gate. To close: download germany-latest.osm.pbf from Geofabrik, then from `tool/osm_pipeline/`:
+   `dart run bin/osm_pipeline.dart --pbf=out/germany-latest.osm.pbf --no-pmtiles --allow-unverified-measurement --emit-admin-bundle=../../assets/admin/germany_admin.geojson.gz --emit-totals=../../assets/admin/region_totals.json.gz`
+   then `dart run bin/verify_bundle_totals_keys.dart` (must exit 0). Verify: L9 count > 0; Landkreis Miltenberg (62404) 0<total<6.6e6; Kleinheubach (393501) total>0; combined bundle ≤ 15 MB gzipped. Commit both assets. RegionTotalsLookup picks them up at runtime with ZERO code change.
+2. **On-device confirms** — tap "Regionen neu berechnen" on device with the 4 real trips → Bayern/Landkreis Miltenberg/Miltenberg-town/Kleinheubach appear with correct driven km; live puck rides the trail tip (no lag-then-jump), native dot suppressed while recording. Batch to next drive per defer-in-car-verification convention.
+
+## Prior Position (Phase 9)
 
 Progress: [██████████] ~100% (est. all plans complete — Phase 1: 7/7; Phase 2: 7/7; Phase 3: 7/7; Phase 3.1: 5/5; Phase 4: 8/8 + 04-18 + 04-19 DRIVE-VERIFIED; Phase 5: 8/8 CODE-COMPLETE; Phase 6: 6/6 code-complete — 06-01..06-06 done + 06-07/06-08 gap-fixes; Phase 7: 7/7 code-complete — 07-01..07-07; Phase 8: 6/6 COMPLETE — 08-01..08-06; Phase 9: 09-01..09-07 ALL DONE; Phase 10: 10-01..10-05 ALL DONE)
 
