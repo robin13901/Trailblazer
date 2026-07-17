@@ -401,6 +401,138 @@ void main() {
   });
 
   // -------------------------------------------------------------------------
+  // Test 8: onIntervalsLanded is fired after intervals land (auto seam)
+  // -------------------------------------------------------------------------
+  test(
+    '8. onIntervalsLanded callback fires after intervals are written',
+    () async {
+      final tripId = await _insertTripWithBbox(db);
+      await _insertTripPoint(db, tripId, 1);
+      await _insertTripPoint(db, tripId, 2);
+
+      const canned = MatchResult(
+        steps: [],
+        intervals: [
+          DrivenWayIntervalDraft(
+            wayId: 42,
+            startMeters: 0,
+            endMeters: 50,
+            direction: 'forward',
+          ),
+        ],
+        matchedFixCount: 2,
+        droppedFixCount: 0,
+      );
+
+      var callbackFiredForTrip = -1;
+      final coord = TripMatchCoordinator(
+        source: _FakeWayCandidateSource(ways: [_berlinWay()]),
+        matcherIsolate: _FakeMatcherIsolate(cannedResult: canned),
+        tripsDao: tripsDao,
+        tripsRepository: repository,
+        intervalsDao: intervalsDao,
+        onIntervalsLanded: (t) => callbackFiredForTrip = t,
+      );
+
+      await coord.onTripReadyForMatching(tripId);
+      // Let the fire-and-forget Future run.
+      await Future<void>.delayed(Duration.zero);
+      await Future<void>.delayed(Duration.zero);
+
+      expect(callbackFiredForTrip, tripId,
+          reason: 'onIntervalsLanded must be called with the tripId that just landed intervals');
+    },
+  );
+
+  // -------------------------------------------------------------------------
+  // Test 9: onIntervalsLanded is NOT fired when intervals list is empty
+  // (degenerate trip: no ways, no intervals)
+  // -------------------------------------------------------------------------
+  test(
+    '9. onIntervalsLanded is NOT called when no intervals are written (empty way set)',
+    () async {
+      final tripId = await _insertTripWithBbox(db);
+      await _insertTripPoint(db, tripId, 1);
+
+      var callbackFired = false;
+      final coord = TripMatchCoordinator(
+        source: _FakeWayCandidateSource(ways: []),
+        matcherIsolate: _FakeMatcherIsolate(
+          cannedResult: const MatchResult(
+            steps: [],
+            intervals: [],
+            matchedFixCount: 0,
+            droppedFixCount: 0,
+          ),
+        ),
+        tripsDao: tripsDao,
+        tripsRepository: repository,
+        intervalsDao: intervalsDao,
+        onIntervalsLanded: (_) => callbackFired = true,
+      );
+
+      await coord.onTripReadyForMatching(tripId);
+      await Future<void>.delayed(Duration.zero);
+
+      expect(callbackFired, isFalse,
+          reason: 'no intervals written → callback must not fire');
+    },
+  );
+
+  // -------------------------------------------------------------------------
+  // Test 10: re-entrancy guard — rapid interval writes do not cause two
+  // concurrent recompute invocations
+  // -------------------------------------------------------------------------
+  test(
+    '10. re-entrancy guard: second intervals-landed event skipped when first recompute in flight',
+    () async {
+      final t1 = await _insertTripWithBbox(db);
+      final t2 = await _insertTripWithBbox(db);
+      for (final t in [t1, t2]) {
+        await _insertTripPoint(db, t, 1);
+        await _insertTripPoint(db, t, 2);
+      }
+
+      const canned = MatchResult(
+        steps: [],
+        intervals: [
+          DrivenWayIntervalDraft(
+            wayId: 42,
+            startMeters: 0,
+            endMeters: 10,
+            direction: 'forward',
+          ),
+        ],
+        matchedFixCount: 2,
+        droppedFixCount: 0,
+      );
+
+      var callCount = 0;
+      final coord = TripMatchCoordinator(
+        source: _FakeWayCandidateSource(ways: [_berlinWay()]),
+        matcherIsolate: _FakeMatcherIsolate(cannedResult: canned),
+        tripsDao: tripsDao,
+        tripsRepository: repository,
+        intervalsDao: intervalsDao,
+        onIntervalsLanded: (_) => callCount++,
+      );
+
+      // Match two trips back-to-back without awaiting the fire-and-forget
+      // callbacks — the second event should be debounced.
+      await coord.onTripReadyForMatching(t1);
+      await coord.onTripReadyForMatching(t2);
+
+      // Flush microtasks so both fire-and-forget Futures execute.
+      await Future<void>.delayed(Duration.zero);
+      await Future<void>.delayed(Duration.zero);
+
+      // The first callback fires, the second is debounced → exactly 1 call.
+      expect(callCount, 1,
+          reason: 're-entrancy guard must debounce rapid interval writes');
+    },
+  );
+
+  // -------------------------------------------------------------------------
   // Test 7: rematchAllStoredTrips replaces stored intervals, preserves status
   // -------------------------------------------------------------------------
   test(

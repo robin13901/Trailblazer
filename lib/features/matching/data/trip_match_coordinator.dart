@@ -2,6 +2,12 @@
 // pending-trip → matched-trip pipeline. Fetches ways via
 // WayCandidateSource, submits to MatcherIsolate, writes intervals via
 // DrivenWayIntervalsDao, transitions state via TripsRepository.
+// Phase 10 (Plan 10-05): onIntervalsLanded callback seam — fires after
+// intervals are written for a trip so callers can trigger an incremental
+// recompute without coupling the coordinator to Riverpod or
+// CoverageComputeService directly.
+
+import 'dart:async';
 
 import 'package:auto_explore/core/db/app_database.dart';
 import 'package:auto_explore/core/db/daos/driven_way_intervals_dao.dart';
@@ -30,6 +36,15 @@ typedef MatchProgressSink = void Function(int tripId, double fraction);
 /// in `matching_providers.dart`.
 typedef MatchProgressClearSink = void Function(int tripId);
 
+/// Callback fired after intervals are written for a trip (both the normal
+/// match path and the re-match path). Wired at provider-construction time to
+/// a recompute-only trigger (Phase 10 plan 10-05 Decision 6 auto seam).
+///
+/// The callback receives the [tripId] that just had its intervals written.
+/// It is invoked fire-and-forget (unawaited) — failures must be caught
+/// internally and must NEVER propagate to the coordinator's call site.
+typedef OnIntervalsLandedCallback = void Function(int tripId);
+
 /// Phase 5 coordinator: picks up trips in `pending` status, fetches road
 /// ways via [WayCandidateSource] (cache-first), submits a match job to the
 /// [MatcherIsolate], writes the resulting DrivenWayIntervalDraft list to
@@ -49,13 +64,15 @@ class TripMatchCoordinator {
     required DrivenWayIntervalsDao intervalsDao,
     MatchProgressSink? progressSink,
     MatchProgressClearSink? progressClearSink,
+    OnIntervalsLandedCallback? onIntervalsLanded,
   })  : _source = source,
         _isolate = matcherIsolate,
         _tripsDao = tripsDao,
         _tripsRepository = tripsRepository,
         _intervalsDao = intervalsDao,
         _progressSink = progressSink,
-        _progressClearSink = progressClearSink;
+        _progressClearSink = progressClearSink,
+        _onIntervalsLanded = onIntervalsLanded;
 
   final WayCandidateSource _source;
   final MatcherIsolate _isolate;
@@ -64,7 +81,13 @@ class TripMatchCoordinator {
   final DrivenWayIntervalsDao _intervalsDao;
   final MatchProgressSink? _progressSink;
   final MatchProgressClearSink? _progressClearSink;
+  final OnIntervalsLandedCallback? _onIntervalsLanded;
   final _log = Logger('trip_match_coordinator');
+
+  /// Re-entrancy guard for the auto-recompute trigger.
+  /// True while a recompute is already in flight — a subsequent intervals-
+  /// landed event is debounced (skipped) rather than queuing a second pass.
+  bool _recomputeInFlight = false;
 
   /// Invoked by 04-15's TripRoadFetchCoordinator immediately after a trip
   /// transitions from `pendingRoadData` to `pending`.
@@ -201,6 +224,39 @@ class TripMatchCoordinator {
         )
         .toList(growable: false);
     await _intervalsDao.insertBatch(companions);
+
+    // Auto recompute-only seam (Phase 10 Decision 6): fire-and-forget after
+    // intervals land. Guarded against re-entrancy so a rapid sequence of
+    // interval writes does not queue multiple concurrent recompute passes.
+    _triggerAutoRecompute(tripId);
+  }
+
+  /// Fire-and-forget auto recompute trigger.
+  ///
+  /// Re-entrancy: if a recompute is already in flight, the call is skipped.
+  /// The in-flight pass will use the freshest intervals when it runs (they
+  /// are already committed to the DB at this point), so no data is lost.
+  void _triggerAutoRecompute(int tripId) {
+    final callback = _onIntervalsLanded;
+    if (callback == null) return;
+    if (_recomputeInFlight) {
+      _log.fine(
+        'auto-recompute: recompute already in flight for trip $tripId — skipping',
+      );
+      return;
+    }
+    _recomputeInFlight = true;
+    unawaited(
+      Future(() {
+        try {
+          callback(tripId);
+        } on Object catch (e, st) {
+          _log.warning('auto-recompute: onIntervalsLanded threw: $e', e, st);
+        } finally {
+          _recomputeInFlight = false;
+        }
+      }),
+    );
   }
 
   /// Compute and persist the road-snapped coverage polyline for [tripId]

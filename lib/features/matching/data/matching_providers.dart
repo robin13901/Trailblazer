@@ -22,10 +22,12 @@ import 'package:auto_explore/features/matching/data/tile_bbox_math.dart';
 import 'package:auto_explore/features/matching/data/trip_match_coordinator.dart';
 import 'package:auto_explore/features/matching/data/trip_road_fetch_coordinator.dart';
 import 'package:auto_explore/features/matching/data/way_candidate_source.dart';
+import 'package:auto_explore/features/regions/data/coverage_compute_providers.dart';
 import 'package:auto_explore/features/trips/data/trips_dao.dart';
 import 'package:auto_explore/features/trips/data/trips_repository_providers.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
+import 'package:logging/logging.dart';
 
 /// Primary Overpass endpoint. Tests override with a `MockClient`-hosted URL
 /// or an in-memory fixture endpoint.
@@ -106,7 +108,16 @@ final tripRoadFetchCoordinatorProvider =
 
 /// Phase 5 (Plan 05-07): coordinator wiring pending trips into the
 /// matcher isolate and DAO writes.
+///
+/// Phase 10 (Plan 10-05): onIntervalsLanded wired to a recompute-only trigger
+/// (Decision 6 auto seam). Fires CoverageComputeService.recompute() after
+/// intervals land — recompute-only (rebuilds region rows from existing
+/// intervals), NOT a full re-match. Fire-and-forget; failures are logged and
+/// never break matching.
 final tripMatchCoordinatorProvider = Provider<TripMatchCoordinator>((ref) {
+  final computeService = ref.watch(coverageComputeServiceProvider);
+  final log = Logger('matching_providers');
+
   return TripMatchCoordinator(
     source: ref.watch(wayCandidateSourceProvider),
     matcherIsolate: ref.watch(matcherIsolateProvider),
@@ -117,6 +128,23 @@ final tripMatchCoordinatorProvider = Provider<TripMatchCoordinator>((ref) {
         ref.read(matchProgressProvider.notifier).update(tripId, frac),
     progressClearSink: (tripId) =>
         ref.read(matchProgressProvider.notifier).clear(tripId),
+    onIntervalsLanded: (tripId) {
+      // Auto recompute-only (Decision 6): rebuild coverage_cache region rows
+      // from the freshly-written intervals. Not a full re-match. Wrapped so
+      // failures are logged and never propagate to the coordinator.
+      unawaited(
+        computeService.recompute().then((result) {
+          result.when(
+            ok: (rows) => log.fine(
+              'auto-recompute after trip $tripId: $rows rows written',
+            ),
+            err: (e) => log.warning(
+              'auto-recompute after trip $tripId failed: $e',
+            ),
+          );
+        }),
+      );
+    },
   );
 });
 
