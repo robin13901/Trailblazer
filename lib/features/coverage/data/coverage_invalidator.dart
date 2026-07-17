@@ -12,10 +12,9 @@
 // The invalidator is agnostic of the caller — 06-02 wires it into the
 // TripsInboxRepository (both confirm and discard paths). It resolves the
 // affected admin regions by sampling the trip bbox's four corners and
-// centroid at each admin level in [4, 6, 8, 10] (STATE Plan 04-16 —
-// L2/L4/L6/L8/L9/L10 are covered by the bundled admin polygons; L9 is
-// intentionally skipped to match COV-06's coarse-to-fine sampling —
-// L4/L6/L8/L10 is the plan-specified sample set).
+// centroid at each admin level in [4, 6, 8, 9, 10] (Phase 10 plan 10-01:
+// L9 Ortsteil added to match CoverageComputeService.kComputeAdminLevels —
+// previously missing, leaving Ortsteil rows stale after a trip change).
 
 import 'package:auto_explore/core/db/app_database.dart';
 import 'package:auto_explore/core/errors/domain_error.dart';
@@ -28,7 +27,10 @@ import 'package:auto_explore/features/trips/data/trips_dao.dart';
 ///
 /// L2 (country) is intentionally excluded — the full-DE region row would
 /// invalidate on every trip, defeating the point of the cache.
-const List<int> kCoverageAdminLevels = [4, 6, 8, 10];
+/// L9 (Ortsteil) is included (Phase 10 plan 10-01 F2 fix) so Ortsteil
+/// coverage rows are invalidated alongside the coarser levels when a trip
+/// is confirmed or discarded. Matches `CoverageComputeService.kComputeAdminLevels`.
+const List<int> kCoverageAdminLevels = [4, 6, 8, 9, 10];
 
 /// Orchestrator for coverage-cache invalidation triggers.
 ///

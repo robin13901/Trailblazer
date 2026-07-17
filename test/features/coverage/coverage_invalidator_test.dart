@@ -116,12 +116,14 @@ void main() {
         4: _region(2145268, 4, 'Bayern'),
         6: _region(62422, 6, 'Landkreis Miltenberg'),
         8: _region(151999, 8, 'Kleinheubach'),
+        9: _region(444444, 9, 'Kleinheubach Kernort'),
         10: _region(555555, 10, 'Kleinheubach Ortsteil'),
       });
       await seedCoverageRows(const [
         '2145268',
         '62422',
         '151999',
+        '444444',
         '555555',
         // unrelated region — must survive
         'unrelated-region',
@@ -141,17 +143,18 @@ void main() {
 
       final result = await invalidator.invalidateForTrip(tripId);
       final deleted = result.when(ok: (v) => v, err: (_) => -1);
-      expect(deleted, 4);
+      expect(deleted, 5);
 
       expect(await cacheDao.getByRegionId('2145268'), isNull);
       expect(await cacheDao.getByRegionId('62422'), isNull);
       expect(await cacheDao.getByRegionId('151999'), isNull);
+      expect(await cacheDao.getByRegionId('444444'), isNull);
       expect(await cacheDao.getByRegionId('555555'), isNull);
       expect(await cacheDao.getByRegionId('unrelated-region'), isNotNull);
 
-      // 5 samples × 4 admin levels = 20 lookup calls (idempotent per
+      // 5 samples × 5 admin levels = 25 lookup calls (idempotent per
       // level — dedup happens in the invalidator).
-      expect(lookup.calls, 20);
+      expect(lookup.calls, 25);
     });
 
     test('null bbox returns Ok(0), no lookup issued', () async {
@@ -221,9 +224,10 @@ void main() {
         () async {
       final lookup = _FakeAdminRegionLookup({
         4: _region(1, 4, 'DE'),
-        // 6 + 8 + 10 return null (Bundesländer only, ocean lookup, etc.)
+        // 6 + 8 + 9 + 10 return null (Bundesländer only, ocean lookup, etc.)
         6: null,
         8: null,
+        9: null,
         10: null,
       });
       await seedCoverageRows(const ['1', '2', '3']);

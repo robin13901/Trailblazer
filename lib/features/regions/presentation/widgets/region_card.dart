@@ -8,13 +8,19 @@ import 'package:flutter/material.dart';
 
 /// Maps OSM admin_level to a human-readable German label.
 /// Shared by RegionCard and RegionDetailSheet.
+///
+/// Correct German OSM hierarchy (Bavaria / most Länder):
+///   4 = Bundesland, 6 = Landkreis, 8 = Gemeinde / Stadt,
+///   9 = Ortsteil, 10 = Ortsteil / Stadtteil.
+/// L5 (Regierungsbezirk) is real in Bavaria but not in scope for v1 — no
+/// admin-level 5 regions are bundled. L3 (unused in DE) also absent.
 String levelLabel(int level) {
   return switch (level) {
     4 => 'Bundesland',
-    6 => 'Regierungsbezirk',
-    8 => 'Landkreis',
-    9 => 'Gemeindeverband',
-    10 => 'Gemeinde/Ortsteil',
+    6 => 'Landkreis',
+    8 => 'Gemeinde / Stadt',
+    9 => 'Ortsteil',
+    10 => 'Ortsteil / Stadtteil',
     _ => 'Region',
   };
 }
