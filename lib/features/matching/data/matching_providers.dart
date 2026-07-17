@@ -129,14 +129,15 @@ final tripMatchCoordinatorProvider = Provider<TripMatchCoordinator>((ref) {
     progressClearSink: (tripId) =>
         ref.read(matchProgressProvider.notifier).clear(tripId),
     onIntervalsLanded: (tripId) {
-      // Auto recompute-only (Decision 6): rebuild coverage_cache region rows
-      // from the freshly-written intervals. Not a full re-match. Wrapped so
-      // failures are logged and never propagate to the coordinator.
+      // Auto recompute-only (Decision 6 / OQ1-PERF incremental path):
+      // recomputeForTrip() upserts only the regions the new trip's bbox
+      // touches — much cheaper than full deleteAll+recompute for a single
+      // short drive. Does NOT wipe other regions (no deleteAll). Fire-and-forget.
       unawaited(
-        computeService.recompute().then((result) {
+        computeService.recomputeForTrip(tripId).then((result) {
           result.when(
             ok: (rows) => log.fine(
-              'auto-recompute after trip $tripId: $rows rows written',
+              'auto-recompute after trip $tripId: $rows regions upserted',
             ),
             err: (e) => log.warning(
               'auto-recompute after trip $tripId failed: $e',

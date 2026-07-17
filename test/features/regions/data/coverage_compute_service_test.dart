@@ -509,5 +509,72 @@ void main() {
         expect(row.totalLengthM, greaterThan(0));
       },
     );
+
+    // -----------------------------------------------------------------------
+    // Test 10: recomputeForTrip (incremental path) — single-trip scenario
+    //          produces same driven/total lengths as full recompute()
+    // -----------------------------------------------------------------------
+    test(
+      'recomputeForTrip (incremental) produces same driven/total as full recompute for a single trip',
+      () async {
+        final tripId = await _seedMatchedTrip(db);
+        await _seedInterval(db, tripId: tripId, wayId: 100001);
+
+        final service = buildService(
+          byLevel: {4: null, 6: null, 8: _regionLevel8(), 9: null, 10: null},
+          ways: [_fixtureWay()],
+        );
+
+        // Baseline: full recompute.
+        await service.recompute();
+        final regionId = _regionLevel8().osmId.toString();
+        final fullRow = await cacheDao.getByRegionId(regionId);
+        expect(fullRow, isNotNull);
+        final fullDriven = fullRow!.drivenLengthM;
+        final fullTotal = fullRow.totalLengthM;
+
+        // Reset cache so incremental path starts fresh.
+        await cacheDao.deleteAll();
+        expect(await cacheDao.getByRegionId(regionId), isNull);
+
+        // Incremental recomputeForTrip — should produce the same numbers.
+        final result = await service.recomputeForTrip(tripId);
+        expect(result.isOk, isTrue);
+        expect(result.when(ok: (v) => v, err: (_) => -1), greaterThan(0));
+
+        final incrRow = await cacheDao.getByRegionId(regionId);
+        expect(incrRow, isNotNull,
+            reason: 'recomputeForTrip must upsert the region row');
+        expect(incrRow!.drivenLengthM, closeTo(fullDriven, 0.01),
+            reason: 'incremental driven length must equal full recompute');
+        expect(incrRow.totalLengthM, closeTo(fullTotal, 0.01),
+            reason: 'incremental total length must equal full recompute');
+      },
+    );
+
+    // -----------------------------------------------------------------------
+    // Test 11: recomputeForTrip with no bbox → Ok(0), no rows written
+    // -----------------------------------------------------------------------
+    test(
+      'recomputeForTrip with null bbox → Ok(0), no rows written',
+      () async {
+        // Trip with no bbox.
+        final tripId = await db.into(db.trips).insert(
+              TripsCompanion.insert(
+                startedAt: DateTime(2026, 7, 17, 8),
+                manuallyStarted: const Value(true),
+              ),
+            );
+
+        final service = buildService(
+          byLevel: {4: null, 6: null, 8: _regionLevel8(), 9: null, 10: null},
+          ways: [_fixtureWay()],
+        );
+
+        final result = await service.recomputeForTrip(tripId);
+        expect(result.when(ok: (v) => v, err: (_) => -1), 0);
+        expect(await cacheDao.getAllWithCoverage(), isEmpty);
+      },
+    );
   });
 }

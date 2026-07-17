@@ -14,6 +14,11 @@
 //      level 2 EXCLUDED (Pitfall 2).
 //   6. deleteAll then upsert every region that has any total length.
 //
+// Phase 10 (Plan 10-05): recomputeForTrip() — incremental auto path.
+//   Targeted upsert for only the regions a single new trip's bbox touches.
+//   No deleteAll (other regions preserved). Used by the auto-recompute seam
+//   wired in matching_providers.dart after intervals land.
+//
 // Never throws — wraps at DomainError boundary and returns Err.
 
 import 'package:auto_explore/core/db/daos/driven_way_intervals_dao.dart';
@@ -180,6 +185,146 @@ class CoverageComputeService {
       // ignore: avoid_catches_without_on_clauses
     } catch (e, st) {
       _log.warning('recompute: unexpected error', e, st);
+      return Err(DomainError.wrap(e, st));
+    }
+  }
+
+  /// Incremental recompute for the AUTO path (Phase 10 Decision 6 / OQ1-PERF).
+  ///
+  /// Instead of deleting all cache rows and rebuilding from the full union bbox,
+  /// this targeted variant:
+  ///   1. Loads the trip's bbox (5-point probe — same as CoverageInvalidator).
+  ///   2. Finds the admin regions that bbox touches.
+  ///   3. Fetches ways ONLY in that bbox (much cheaper than union bbox for a
+  ///      single short drive).
+  ///   4. Upserts ONLY the affected region rows — no deleteAll, so other
+  ///      regions are untouched.
+  ///
+  /// Correctness guarantee: all existing intervals (not just the new trip's)
+  /// are used when computing drivenLengthM for the affected regions, so the
+  /// numbers are always the cumulative total. The only correctness hole vs. a
+  /// full recompute is that stale rows from deleted trips are not cleaned up
+  /// — that is acceptable because explicit deletion goes through the button's
+  /// full recompute path (deleteAll + upsert-all).
+  ///
+  /// Returns the number of region rows upserted. Returns Ok(0) when the trip
+  /// has no bbox or touches no regions.
+  Future<Result<int>> recomputeForTrip(int tripId) async {
+    try {
+      await _regionLookup.ensureLoaded();
+      await _totalsLookup.ensureLoaded();
+
+      // Load trip bbox.
+      final db = _tripsDao.attachedDatabase;
+      final tripRow = await (db.select(db.trips)
+            ..where((t) => t.id.equals(tripId)))
+          .getSingleOrNull();
+      if (tripRow == null) {
+        _log.fine('recomputeForTrip $tripId: trip not found — skipping');
+        return const Ok(0);
+      }
+      final minLat = tripRow.bboxMinLat;
+      final minLon = tripRow.bboxMinLon;
+      final maxLat = tripRow.bboxMaxLat;
+      final maxLon = tripRow.bboxMaxLon;
+      if (minLat == null || minLon == null || maxLat == null || maxLon == null) {
+        _log.fine('recomputeForTrip $tripId: no bbox — skipping');
+        return const Ok(0);
+      }
+
+      // 5-point probe → set of affected region IDs (same as CoverageInvalidator).
+      final centreLat = (minLat + maxLat) / 2;
+      final centreLon = (minLon + maxLon) / 2;
+      final probePoints = [
+        [minLat, minLon],
+        [minLat, maxLon],
+        [maxLat, minLon],
+        [maxLat, maxLon],
+        [centreLat, centreLon],
+      ];
+      final affectedIds = <String>{};
+      for (final p in probePoints) {
+        for (final level in kComputeAdminLevels) {
+          final region = await _regionLookup.regionAt(p[0], p[1], level);
+          if (region != null) affectedIds.add(region.osmId.toString());
+        }
+      }
+      if (affectedIds.isEmpty) {
+        _log.fine('recomputeForTrip $tripId: no regions probed — skipping');
+        return const Ok(0);
+      }
+
+      // Read ALL intervals (cumulative totals across all trips).
+      final allIntervals = await _intervalsDao.getAllIntervals();
+      final byWayId = <int, List<Interval>>{};
+      for (final row in allIntervals) {
+        byWayId
+            .putIfAbsent(row.wayId, () => [])
+            .add(Interval(row.startMeters, row.endMeters));
+      }
+
+      // Fetch ways only in the trip bbox (much cheaper than full union bbox).
+      final ways = await _waySource.fetchWaysInBbox(
+        minLat: minLat,
+        minLon: minLon,
+        maxLat: maxLat,
+        maxLon: maxLon,
+        throwOnError: false,
+      );
+
+      // Accumulate totals for affected regions only.
+      final total = <String, double>{};
+      final driven = <String, double>{};
+      var processed = 0;
+
+      for (final way in ways) {
+        final c = _centroid(way.geometry);
+        if (c == null) continue;
+        final wayLen = _polylineLengthMeters(way.geometry);
+        final unionLen = byWayId.containsKey(way.wayId)
+            ? drivenLengthMeters(byWayId[way.wayId]!)
+            : 0.0;
+
+        for (final level in kComputeAdminLevels) {
+          final region = await _regionLookup.regionAt(
+            c.latitude,
+            c.longitude,
+            level,
+          );
+          if (region == null) continue;
+          final id = region.osmId.toString();
+          if (!affectedIds.contains(id)) continue; // only upsert affected rows
+          total[id] = (total[id] ?? 0) + wayLen;
+          if (unionLen > 0) driven[id] = (driven[id] ?? 0) + unionLen;
+        }
+
+        processed++;
+        if (processed % 250 == 0) await Future<void>.delayed(Duration.zero);
+      }
+
+      // Upsert only the affected regions — no deleteAll.
+      final now = DateTime.now();
+      var written = 0;
+      for (final id in total.keys) {
+        await _cacheDao.upsert(
+          regionId: id,
+          drivenLengthM: driven[id] ?? 0,
+          totalLengthM: total[id]!,
+          updatedAt: now,
+          realTotalLengthM: _totalsLookup.totalFor(id),
+        );
+        written++;
+      }
+
+      _log.info(
+        'recomputeForTrip $tripId: ${ways.length} ways, $written regions upserted',
+      );
+      return Ok(written);
+
+      // Catches all throwables (Error + Exception) for DomainError.wrap.
+      // ignore: avoid_catches_without_on_clauses
+    } catch (e, st) {
+      _log.warning('recomputeForTrip $tripId: unexpected error', e, st);
       return Err(DomainError.wrap(e, st));
     }
   }
