@@ -69,9 +69,9 @@ class _FakeTrackingNotifier extends Notifier<TrackingState>
   @override
   TrackingState build() => _initial;
 
+  // ignore: use_setters_to_change_properties
   // A setter would collide with Riverpod's own `state` setter on Notifier;
   // keep this as an explicit method rather than a getter/setter pair.
-  // ignore: use_setters_to_change_properties
   void emit(TrackingState next) => state = next;
 
   @override
