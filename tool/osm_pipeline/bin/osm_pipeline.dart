@@ -77,6 +77,28 @@ Future<int> run(List<String> argv) async {
             'workers=1 runs the serial fast-path.',
       )
       ..addOption(
+        'emit-admin-bundle',
+        help: 'Stage H: write regenerated germany_admin.geojson.gz to <path>. '
+            'Requires a completed pipeline run (post-Stage-E osm.sqlite). '
+            'When combined with --emit-totals both files share the same '
+            'osm_id key-space (invariant 5). Example: '
+            '--emit-admin-bundle=../../assets/admin/germany_admin.geojson.gz',
+      )
+      ..addOption(
+        'emit-totals',
+        help: 'Stage H: write per-region Kfz totals to <path> as '
+            'region_totals.json.gz (Map<String,double> keyed by osm_id). '
+            'Use together with --emit-admin-bundle so both assets share the '
+            'same key-space. Example: '
+            '--emit-totals=../../assets/admin/region_totals.json.gz',
+      )
+      ..addOption(
+        'stage-h-tolerance',
+        help: 'Stage H: DP simplification tolerance override in metres for '
+            'admin_level 8/9/10 (default 100 m). Pass a stricter value '
+            '(e.g. 150) if the admin bundle exceeds the 15 MB gzip budget.',
+      )
+      ..addOption(
         'log-file',
         help: 'Duplicate every Logger info/warn/error line into <path>. '
             'Survives regardless of what the invoking shell does — use for '
@@ -122,6 +144,21 @@ Future<int> run(List<String> argv) async {
       Logger.warn('--allow-unverified-measurement: SC4 risk unrecorded.');
     }
 
+    final emitAdminBundle = flags['emit-admin-bundle'] as String?;
+    final emitTotals = flags['emit-totals'] as String?;
+    final stageHToleranceRaw = flags['stage-h-tolerance'] as String?;
+    final stageHTolerance = stageHToleranceRaw != null
+        ? double.tryParse(stageHToleranceRaw)
+        : null;
+
+    if (emitAdminBundle != null || emitTotals != null) {
+      Logger.info('  emit-admin-bundle: ${emitAdminBundle ?? "(skipped)"}');
+      Logger.info('  emit-totals: ${emitTotals ?? "(skipped)"}');
+      if (stageHTolerance != null) {
+        Logger.info('  stage-h-tolerance: $stageHTolerance m');
+      }
+    }
+
     final result = await runPipeline(
       pbf: File(args.pbfPath),
       outDir: Directory(outDirPath),
@@ -131,6 +168,9 @@ Future<int> run(List<String> argv) async {
       measurementFile: measurementFile,
       granularityOverride: args.rtreeGranularity,
       workers: args.workers,
+      emitAdminBundle: emitAdminBundle,
+      emitTotals: emitTotals,
+      stageHTolerance: stageHTolerance,
     );
 
     Logger.info('Pipeline OK.');
@@ -139,6 +179,19 @@ Future<int> run(List<String> argv) async {
     if (result.pmtilesResult != null) {
       Logger.info('  pmtiles: ${result.pmtilesResult!.pmtilesFile.path}');
       Logger.info('  pmtiles bytes: ${result.pmtilesResult!.pmtilesBytes}');
+    }
+    if (result.stageHResult != null) {
+      Logger.info(
+        '  admin bundle: ${result.stageHResult!.adminBundlePath} '
+        '(${result.stageHResult!.adminGzippedBytes} bytes, '
+        '${result.stageHResult!.featureCount} features, '
+        '${result.stageHResult!.l9Count} L9)',
+      );
+      Logger.info(
+        '  totals: ${result.stageHResult!.totalsPath} '
+        '(${result.stageHResult!.totalsGzippedBytes} bytes, '
+        '${result.stageHResult!.regionCount} regions)',
+      );
     }
     return 0;
   } on PipelineError catch (e) {

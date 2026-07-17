@@ -24,6 +24,7 @@ import 'package:osm_pipeline/filter/way_pipeline.dart';
 import 'package:osm_pipeline/intersect/way_admin_join.dart';
 import 'package:osm_pipeline/output/osm_sqlite_writer.dart';
 import 'package:osm_pipeline/output/rtree_builder.dart';
+import 'package:osm_pipeline/output/stage_h_bundle_and_totals.dart';
 import 'package:osm_pipeline/output/version_stamp.dart';
 import 'package:osm_pipeline/pbf/pbf_reader.dart';
 import 'package:osm_pipeline/pmtiles/pmtiles_pipeline.dart';
@@ -44,6 +45,7 @@ class PipelineRunResult {
     required this.joinStats,
     required this.writeResult,
     this.pmtilesResult,
+    this.stageHResult,
   });
 
   /// Absolute path to the produced osm.sqlite artifact.
@@ -67,6 +69,11 @@ class PipelineRunResult {
   /// Stage F (pmtiles) summary. `null` when the pmtiles stage was skipped
   /// (e.g. `runPmtiles=false` in tests where tippecanoe is unavailable).
   final PmtilesStageResult? pmtilesResult;
+
+  /// Stage H (admin bundle + totals) summary. `null` when Stage H was skipped
+  /// (i.e. neither `emitAdminBundle` nor `emitTotals` were provided to
+  /// `runPipeline`).
+  final StageHResult? stageHResult;
 }
 
 /// Runs the full pipeline against [pbf] and writes artifacts under [outDir].
@@ -83,6 +90,16 @@ class PipelineRunResult {
 /// [runPmtiles] toggles Stage F (GeoJSONSeq + tippecanoe → pmtiles). Defaults
 /// to `true`. Set to `false` on hosts where tippecanoe is unavailable — the
 /// osm.sqlite artifact is still produced.
+///
+/// [emitAdminBundle] — when non-null, Stage H writes the regenerated admin
+/// GeoJSON bundle to this path after Stage E completes.
+///
+/// [emitTotals] — when non-null, Stage H writes the per-region totals table
+/// (`region_totals.json.gz`) to this path after Stage E completes.
+///
+/// [stageHTolerance] — optional DP simplification tolerance override for
+/// L8/L9/L10 in Stage H (metres). Pass a stricter value (e.g. 150) when the
+/// first run exceeds the 15 MB admin bundle budget.
 Future<PipelineRunResult> runPipeline({
   required File pbf,
   required Directory outDir,
@@ -94,6 +111,9 @@ Future<PipelineRunResult> runPipeline({
   int? workers,
   GitShaResolver gitShaResolver = defaultGitShaResolver,
   DateTime? nowUtc,
+  String? emitAdminBundle,
+  String? emitTotals,
+  double? stageHTolerance,
 }) async {
   outDir.createSync(recursive: true);
 
@@ -212,12 +232,64 @@ Future<PipelineRunResult> runPipeline({
       Logger.info('Stage F: GeoJSONSeq + tippecanoe... (skipped)');
     }
     Logger.info('Stage G: pmtiles metadata + style rewrite... (04-08 wired)');
+
+    // Stage H: admin GeoJSON bundle + per-region totals (10-03).
+    StageHResult? stageHResult;
+    if (emitAdminBundle != null || emitTotals != null) {
+      final bundleDest = emitAdminBundle ?? '';
+      final totalsDest = emitTotals ?? '';
+      // Stage H requires both paths when both flags are given. If only one is
+      // supplied, we still run but write only the requested artifact. For
+      // simplicity we require the osm.sqlite to read from — already produced.
+      if (emitAdminBundle != null && emitTotals != null) {
+        Logger.info('Stage H: admin bundle + totals...');
+        stageHResult = runStageH(
+          osmSqlitePath: osmSqlite.path,
+          adminBundlePath: bundleDest,
+          totalsPath: totalsDest,
+          toleranceOverride: stageHTolerance,
+        );
+      } else if (emitAdminBundle != null) {
+        Logger.info('Stage H: admin bundle only...');
+        stageHResult = runStageH(
+          osmSqlitePath: osmSqlite.path,
+          adminBundlePath: bundleDest,
+          totalsPath: p.join(outDir.path, 'region_totals.json.gz'),
+          toleranceOverride: stageHTolerance,
+        );
+      } else {
+        Logger.info('Stage H: totals only...');
+        stageHResult = runStageH(
+          osmSqlitePath: osmSqlite.path,
+          adminBundlePath: p.join(outDir.path, 'germany_admin.geojson.gz'),
+          totalsPath: totalsDest,
+          toleranceOverride: stageHTolerance,
+        );
+      }
+    } else {
+      Logger.info('Stage H: admin bundle + totals... (skipped — pass '
+          '--emit-admin-bundle and/or --emit-totals to enable)');
+    }
+
     Logger.info('Done. Artifacts:');
     Logger.info('  ${osmSqlite.path}  ($finalBytes bytes)');
     if (pmtilesResult != null) {
       Logger.info(
         '  ${pmtilesResult.pmtilesFile.path}  '
         '(${pmtilesResult.pmtilesBytes} bytes)',
+      );
+    }
+    if (stageHResult != null) {
+      Logger.info(
+        '  ${stageHResult.adminBundlePath}  '
+        '(${stageHResult.adminGzippedBytes} bytes gzipped, '
+        '${stageHResult.featureCount} features, '
+        '${stageHResult.l9Count} L9)',
+      );
+      Logger.info(
+        '  ${stageHResult.totalsPath}  '
+        '(${stageHResult.totalsGzippedBytes} bytes gzipped, '
+        '${stageHResult.regionCount} regions)',
       );
     }
 
@@ -229,6 +301,7 @@ Future<PipelineRunResult> runPipeline({
       joinStats: joinStats,
       writeResult: writeResult,
       pmtilesResult: pmtilesResult,
+      stageHResult: stageHResult,
     );
   } finally {
     adminWriter.dispose();
