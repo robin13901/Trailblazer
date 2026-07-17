@@ -4,9 +4,10 @@
 // override file, bumps AppPrefs.adminBundleVersion, invalidates the
 // in-memory AdminRegionLookup cache.
 //
-// Shared code with the dev CLI (`tool/osm_pipeline/bin/fetch_admin_polygons.dart`)
-// lives in `packages/admin_geometry/` — single source of truth for the
-// Overpass fetch + Douglas-Peucker simplification.
+// Shared code (Overpass fetch + Douglas-Peucker simplification) lives in
+// `packages/admin_geometry/` — single source of truth. The bundled asset it
+// refreshes is now produced by `tool/region_stats/build_region_data.py`
+// (the old Dart osm_pipeline was deleted 2026-07-17).
 
 import 'dart:async';
 import 'dart:convert';

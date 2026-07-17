@@ -11,7 +11,7 @@
 //   3. Cache the result; a single in-flight future collapses concurrent callers
 //      into one parse.
 //
-// JSON shape (produced by Stage H, tool/osm_pipeline):
+// JSON shape (produced by tool/region_stats/build_region_data.py):
 //   { "3600012345": 12345.6, "3600067890": 5678.9, … }
 // Keys are OSM relation IDs as STRINGS — identical to coverage_cache.region_id
 // which uses osmId.toString() (RESEARCH.md line 491, globally unique).

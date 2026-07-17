@@ -1,8 +1,8 @@
 // Phase 4 rescope Wave 2: WayCandidate domain model.
 //
-// Shape mirrors the ways-row schema written by
-// `tool/osm_pipeline/lib/output/osm_sqlite_writer.dart:488-505` (Phase 4
-// bundled-osm.sqlite architecture, now retained as Phase-5 fixture generator).
+// Shape mirrors the OSM way attributes returned by the Overpass client. (The
+// original Phase-4 bundled-osm.sqlite architecture was deleted 2026-07-17; the
+// runtime road source is Overpass.)
 // The Overpass client (04-13) and the future WayCandidateSource (04-15) both
 // return `List<WayCandidate>`; the matcher (Phase 5) consumes it. Keeping the
 // same field shape across both data-sources lets Phase-5 golden corpora feed
