@@ -2,6 +2,8 @@ import 'package:auto_explore/features/map/data/tile_provider_config.dart';
 import 'package:auto_explore/features/map/presentation/providers/location_permission_provider.dart';
 import 'package:auto_explore/features/map/presentation/providers/map_style_provider.dart';
 import 'package:auto_explore/features/map/presentation/widgets/map_widget.dart';
+import 'package:auto_explore/features/trips/domain/tracking_state.dart';
+import 'package:auto_explore/features/trips/presentation/providers/tracking_state_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -42,6 +44,10 @@ Future<void> pumpMapWidget(
             apiKey: 'test-key',
           ),
         ),
+        // Suppress the real TrackingService (which spawns background timers)
+        // by returning TrackingIdle synchronously. MapWidget reads this to
+        // gate native-dot suppression (Plan 10-02).
+        trackingStateProvider.overrideWith(_IdleTrackingNotifier.new),
         if (styleOverride != null)
           mapStyleUrlProvider.overrideWith(
             () => _FixedMapStyleUrlNotifier(styleOverride),
@@ -70,6 +76,23 @@ class _FakeLocationPermissionNotifier extends AsyncNotifier<PermissionStatus>
 
   @override
   Future<void> refresh() async {}
+}
+
+/// Stub [TrackingNotifier] that returns [TrackingIdle] synchronously.
+///
+/// Overriding [trackingStateProvider] prevents [MapWidget] from firing the
+/// real [TrackingService.init()] (which spawns background timers) and keeps
+/// the test environment clean.
+class _IdleTrackingNotifier extends Notifier<TrackingState>
+    implements TrackingNotifier {
+  @override
+  TrackingState build() => const TrackingIdle();
+
+  @override
+  Future<void> startManual() async {}
+
+  @override
+  Future<void> stopActive() async {}
 }
 
 /// Stub notifier that returns a fixed MapTiler style URL.

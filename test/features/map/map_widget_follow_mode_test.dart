@@ -5,6 +5,8 @@ import 'package:auto_explore/features/map/presentation/providers/camera_state_pr
 import 'package:auto_explore/features/map/presentation/providers/location_permission_provider.dart';
 import 'package:auto_explore/features/map/presentation/providers/map_style_provider.dart';
 import 'package:auto_explore/features/map/presentation/widgets/map_widget.dart';
+import 'package:auto_explore/features/trips/domain/tracking_state.dart';
+import 'package:auto_explore/features/trips/presentation/providers/tracking_state_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -49,6 +51,23 @@ class _FixedMapStyleUrlNotifier extends MapStyleUrlNotifier {
   String build() => _url;
 }
 
+/// Stub [TrackingNotifier] returning [TrackingIdle] synchronously.
+///
+/// Prevents the real [TrackingService.init()] (which spawns background timers)
+/// from running in widget tests. MapWidget reads this to gate native-dot
+/// suppression (Plan 10-02).
+class _IdleTrackingNotifier extends Notifier<TrackingState>
+    implements TrackingNotifier {
+  @override
+  TrackingState build() => const TrackingIdle();
+
+  @override
+  Future<void> startManual() async {}
+
+  @override
+  Future<void> stopActive() async {}
+}
+
 Future<MapLibreMap> _pumpAndReadMap(
   WidgetTester tester,
   FollowMode followMode,
@@ -81,6 +100,10 @@ Future<MapLibreMap> _pumpAndReadMap(
         cameraStateProvider.overrideWith(
           () => _FixedCameraStateNotifier(camera),
         ),
+        // Suppress the real TrackingService (which spawns background timers)
+        // by returning TrackingIdle synchronously. MapWidget reads this to
+        // gate native-dot suppression (Plan 10-02).
+        trackingStateProvider.overrideWith(_IdleTrackingNotifier.new),
       ],
       child: const MaterialApp(home: Scaffold(body: MapWidget())),
     ),
