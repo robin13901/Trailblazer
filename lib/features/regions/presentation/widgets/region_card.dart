@@ -1,7 +1,10 @@
-// Trailblazer Phase 8, Plan 08-05 (Wave 2):
+// Trailblazer Phase 8, Plan 08-05 (Wave 2) / updated Phase 10, Plan 10-04:
 // RegionCard — one card in the flat coverage-gated region browser list.
 // Shows: level tag + region name + coverage % + km stats. NO progress bar
 // (CONTEXT.md line 37).
+//
+// Plan 10-04: removed spinner + "N/M Kacheln" progress UI. Totals now come
+// from the bundled table; no pending state, no spinner.
 
 import 'package:auto_explore/features/regions/domain/region_coverage.dart';
 import 'package:flutter/material.dart';
@@ -31,7 +34,7 @@ String levelLabel(int level) {
 ///   Level-tag + RegionName   26.4%
 ///              3.2 / 12.1 km
 ///
-/// No progress bar. Tap invokes [onTap].
+/// No progress bar, no spinner. Tap invokes [onTap].
 class RegionCard extends StatelessWidget {
   const RegionCard({
     required this.region,
@@ -87,44 +90,14 @@ class RegionCard extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 12),
-            if (region.totalPending)
-              // Real region-wide total still computing in the background. Show
-              // a spinner plus a live "done / planned Kacheln" (tiles) count so
-              // the user can see it is alive and progressing (Bayern ≈1600).
-              Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: colorScheme.primary.withValues(alpha: 0.7),
-                    ),
-                  ),
-                  if (region.progressCellsDone != null) ...[
-                    const SizedBox(height: 4),
-                    Text(
-                      region.progressCellsPlanned != null
-                          ? '${region.progressCellsDone} / '
-                              '${region.progressCellsPlanned} Kacheln'
-                          : '${region.progressCellsDone} Kacheln',
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: colorScheme.onSurface.withValues(alpha: 0.6),
-                      ),
-                    ),
-                  ],
-                ],
-              )
-            else
-              Text(
-                region.percentLabel,
-                style: theme.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w600,
-                  color: colorScheme.primary,
-                ),
+            // Coverage percentage — always shown; no spinner state (Plan 10-04).
+            Text(
+              region.percentLabel,
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w600,
+                color: colorScheme.primary,
               ),
+            ),
           ],
         ),
       ),

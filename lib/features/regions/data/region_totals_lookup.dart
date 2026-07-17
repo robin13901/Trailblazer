@@ -123,7 +123,7 @@ Map<String, double> _parseTotalsBundle(Uint8List bytes) {
 }
 
 /// Singleton `RegionTotalsLookup` — plain `Provider<T>` per STATE 01-01 (no
-/// @Riverpod codegen). The lookup loads lazily on the first [ensureLoaded]
+/// @Riverpod codegen). The lookup loads lazily on the first `ensureLoaded()`
 /// call from `CoverageComputeService.recompute()`.
 final regionTotalsLookupProvider = Provider<RegionTotalsLookup>((ref) {
   return RegionTotalsLookup();

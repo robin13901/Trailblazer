@@ -1,17 +1,25 @@
-// Trailblazer Phase 8, Plan 08-05 (Wave 2):
+// Trailblazer Phase 8, Plan 08-05 (Wave 2) / updated Phase 10, Plan 10-04:
 // Region browser Riverpod providers — coverage-gated flat list + fuzzy search.
 // Plain Provider/FutureProvider/NotifierProvider — NO @Riverpod codegen.
 // StateProvider was removed in flutter_riverpod 3.x; using NotifierProvider
 // with a simple Notifier<String> following the MapControllerNotifier pattern
 // (STATE Plan 02-03).
 // Package imports only (very_good_analysis always_use_package_imports).
+//
+// Plan 10-04: region_tiling import removed; pending/progress logic removed.
+// Totals now come from real_total_length_m in coverage_cache (bundled table).
+// A region with a non-null real total shows its %; one with a null real total
+// falls back to the haversine total_length_m. No spinner, no pending state.
+// PRESERVED: reactive StreamProvider on .watch(coverage_cache) — list updates
+// live after recompute writes (MEMORY: frozen-spinner bug was a one-shot
+// FutureProvider; async*+yield* on a raw stream HANGS in tests → keep the
+// wrap-raw-stream-in-its-own-provider pattern).
 
 import 'package:auto_explore/core/db/app_database.dart';
 import 'package:auto_explore/features/admin/data/admin_region_lookup.dart';
 import 'package:auto_explore/features/admin/data/admin_region_providers.dart';
 import 'package:auto_explore/features/coverage/data/coverage_providers.dart';
 import 'package:auto_explore/features/regions/domain/region_coverage.dart';
-import 'package:auto_explore/features/regions/domain/region_tiling.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 // ---------------------------------------------------------------------------
@@ -52,10 +60,14 @@ final _coverageRowsProvider =
 
 /// StreamProvider that loads ALL regions with coverage > 0%, sorted by
 /// coverage % descending, and RE-EMITS whenever `coverage_cache` is written —
-/// so a region's spinner clears on its own the moment its real total lands and
-/// its progress count climbs live, with no tab-switch. Level 2 (Germany
-/// country) is excluded — it would accumulate the entire DE road network and is
-/// never a useful card.
+/// so the list updates live after recompute without a tab-switch. Level 2
+/// (Germany country) is excluded — it would accumulate the entire DE road
+/// network and is never a useful card.
+///
+/// Totals come from `real_total_length_m` (bundled per-region Kfz total,
+/// Plan 10-04). When that column is null (asset not yet generated from the PBF),
+/// `total_length_m` (haversine sum of fetched ways) is used as a fallback.
+/// No spinner, no pending state — a region either has a total or it doesn't.
 ///
 /// The one-time `ensureLoaded()` is awaited before the first emit;
 /// `regionByOsmId` is synchronous, so each emit maps synchronously.
@@ -69,7 +81,7 @@ final regionBrowserProvider =
 
 /// Joins raw `coverage_cache` rows with admin geometry into the sorted
 /// browser list. Pure + synchronous (regionByOsmId is sync) so it can run on
-/// every stream emit. Pending regions carry live compute progress.
+/// every stream emit.
 List<RegionCoverage> _buildRegionList(
   List<CoverageCacheData> rows,
   AdminRegionLookup lookup,
@@ -81,35 +93,23 @@ List<RegionCoverage> _buildRegionList(
     final region = lookup.regionByOsmId(osmId);
     if (region == null) continue; // stale row without a polygon
     if (region.adminLevel == 2) continue; // exclude Deutschland (RESEARCH 273)
-    final realTotal = row.realTotalLengthM;
-    final pending = realTotal == null;
+    // Prefer the bundled real total; fall back to the haversine bbox total.
+    // If the real total is null (PBF checkpoint not yet run), the haversine
+    // total is used — it is a correct lower bound but understates the true
+    // denominator for large regions like Bundesländer. The bundled total
+    // will override it once the PBF run completes and the asset is built.
+    final totalLengthM = row.realTotalLengthM ?? row.totalLengthM;
     out.add(
       RegionCoverage(
         osmId: osmId,
         adminLevel: region.adminLevel,
         name: region.nameDe ?? region.name,
         drivenLengthM: row.drivenLengthM,
-        // Prefer the real region-wide total; fall back to the legacy bbox
-        // total until it lands.
-        totalLengthM: realTotal ?? row.totalLengthM,
-        totalPending: pending,
-        // Live compute progress (only meaningful while pending): cells summed
-        // so far (from the accumulator blob) and cells planned (from the bbox).
-        progressCellsDone:
-            pending ? completedCellCount(row.realTotalProgressJson) : null,
-        progressCellsPlanned: pending
-            ? plannedCellCount(
-                region.bboxMinLat,
-                region.bboxMinLon,
-                region.bboxMaxLat,
-                region.bboxMaxLon,
-              )
-            : null,
+        totalLengthM: totalLengthM,
       ),
     );
   }
-  // %-descending sort (CONTEXT.md line 35). Pending rows sort by their
-  // fallback %, which is fine — they reorder once the real total lands.
+  // %-descending sort (CONTEXT.md line 35).
   out.sort((a, b) => b.percent.compareTo(a.percent));
   return out;
 }

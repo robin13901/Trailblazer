@@ -1,9 +1,12 @@
-// Trailblazer Phase 8, Plan 08-05 (Wave 2):
+// Trailblazer Phase 8, Plan 08-05 (Wave 2) / updated Phase 10, Plan 10-04:
 // RegionDetailSheet — draggable bottom sheet for region stats + Jump-to-map.
 //
 // Stats-only (CONTEXT.md line 44-45, Plan 08-05 SC):
 //   name + level tag + coverage % + km stats + Jump-to-on-map
 //   NO breadcrumb, NO driven-ways list, NO top-trips list (permanently dropped).
+//
+// Plan 10-04: removed spinner + "wird berechnet …" pending UI. Totals come
+// from the bundled table; a region always shows its % and km stats.
 //
 // Jump-to-on-map (2026-07-11 rewrite — the animateCamera-after-goBranch
 // approach never moved the camera):
@@ -304,51 +307,22 @@ class _GlassDetailPanel extends StatelessWidget {
                   ],
                 ),
                 const SizedBox(height: 20),
-                // Coverage % — one decimal (CONTEXT.md line 49). While the
-                // real region total is still computing, show a spinner + hint
-                // instead of a misleading percentage.
-                if (region.totalPending)
-                  _StatRow(
-                    label: 'Befahren',
-                    valueWidget: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: colorScheme.primary.withValues(alpha: 0.7),
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        Text(
-                          'wird berechnet …',
-                          style: theme.textTheme.bodyMedium?.copyWith(
-                            color:
-                                colorScheme.onSurface.withValues(alpha: 0.6),
-                          ),
-                        ),
-                      ],
-                    ),
-                  )
-                else
-                  _StatRow(
-                    label: 'Befahren',
-                    value: region.percentLabel,
-                    valueStyle: theme.textTheme.headlineMedium?.copyWith(
-                      fontWeight: FontWeight.w700,
-                      color: colorScheme.primary,
-                    ),
+                // Coverage % — one decimal (CONTEXT.md line 49).
+                // Plan 10-04: spinner removed; total always comes from the
+                // bundled table so the % is always displayable.
+                _StatRow(
+                  label: 'Befahren',
+                  value: region.percentLabel,
+                  valueStyle: theme.textTheme.headlineMedium?.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: colorScheme.primary,
                   ),
+                ),
                 const SizedBox(height: 12),
-                // km stats (CONTEXT.md line 50: driven km + total km). Total is
-                // hidden while pending (we don't have the real total yet).
+                // km stats (CONTEXT.md line 50: driven km + total km).
                 _StatRow(
                   label: 'Strecke',
-                  value: region.totalPending
-                      ? '${oneDecimalDe(region.drivenKm)} km gefahren'
-                      : formatKmStats(region.drivenKm, region.totalKm),
+                  value: formatKmStats(region.drivenKm, region.totalKm),
                   valueStyle: theme.textTheme.bodyLarge,
                 ),
                 const SizedBox(height: 32),

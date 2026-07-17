@@ -1,7 +1,12 @@
-// Trailblazer Phase 8, Plan 08-01:
+// Trailblazer Phase 8, Plan 08-01 / updated Phase 10, Plan 10-04:
 // Immutable per-region coverage value type + coverage-percent math (REG-01).
 // Isolate-safe — no dart:io, no Riverpod, no generated code.
 // Consumed by the focus pill, region browser cards, and detail sheet.
+//
+// Plan 10-04: Removed totalPending, progressCellsDone, progressCellsPlanned.
+// Totals now come from the bundled region_totals.json.gz table (Decision 8).
+// A region's total is either present (from the bundle) or absent ("—"); there
+// is no loading/pending state.
 
 import 'package:meta/meta.dart';
 
@@ -30,6 +35,10 @@ String formatKmStats(double drivenKm, double totalKm) =>
 /// Immutable per-region coverage snapshot. `osmId` is the OSM relation id
 /// (coverage_cache.region_id == osmId.toString(); RESEARCH.md line 218,
 /// globally unique across admin levels so NO level prefix — line 491).
+///
+/// Totals come from the bundled region_totals.json.gz table (Plan 10-04,
+/// Decision 8). A region's [totalLengthM] is either the bundled real total
+/// or the haversine fallback; there is no pending/spinner state.
 @immutable
 class RegionCoverage {
   const RegionCoverage({
@@ -38,9 +47,6 @@ class RegionCoverage {
     required this.name,
     required this.drivenLengthM,
     required this.totalLengthM,
-    this.totalPending = false,
-    this.progressCellsDone,
-    this.progressCellsPlanned,
   });
 
   final int osmId;
@@ -48,17 +54,6 @@ class RegionCoverage {
   final String name;
   final double drivenLengthM;
   final double totalLengthM;
-
-  /// True when the REAL region-wide total road length has not been computed
-  /// yet (the background `RegionTotalLengthService` is still working). The UI
-  /// shows a spinner instead of a percentage while this is true.
-  final bool totalPending;
-
-  /// Compute progress shown while [totalPending]: cells summed so far and the
-  /// total cells planned for this region's bbox. Both null when no progress
-  /// blob exists yet (compute hasn't flushed) or the region isn't pending.
-  final int? progressCellsDone;
-  final int? progressCellsPlanned;
 
   double get percent => coveragePercent(drivenLengthM, totalLengthM);
   String get percentLabel => formatPercent(percent);
@@ -72,18 +67,8 @@ class RegionCoverage {
       other is RegionCoverage &&
       other.osmId == osmId &&
       other.drivenLengthM == drivenLengthM &&
-      other.totalLengthM == totalLengthM &&
-      other.totalPending == totalPending &&
-      other.progressCellsDone == progressCellsDone &&
-      other.progressCellsPlanned == progressCellsPlanned;
+      other.totalLengthM == totalLengthM;
 
   @override
-  int get hashCode => Object.hash(
-        osmId,
-        drivenLengthM,
-        totalLengthM,
-        totalPending,
-        progressCellsDone,
-        progressCellsPlanned,
-      );
+  int get hashCode => Object.hash(osmId, drivenLengthM, totalLengthM);
 }

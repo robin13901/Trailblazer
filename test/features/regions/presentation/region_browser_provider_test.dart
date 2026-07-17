@@ -172,9 +172,9 @@ void main() {
     );
 
     test(
-      're-emits when a real total lands → spinner clears without a tab switch',
+      're-emits when a real total lands → total-km updates without a tab switch',
       () async {
-        // Seed one pending region (no real_total yet → totalPending).
+        // Seed a region with no real_total yet — uses haversine totalLengthM.
         await _upsertRow(
           db,
           regionId: '3001',
@@ -193,11 +193,12 @@ void main() {
         final sub = container.listen(regionBrowserProvider, (_, _) {});
         addTearDown(sub.close);
 
-        // First emit: pending (spinner state).
+        // First emit: no real total yet — falls back to haversine totalLengthM.
         final first = await _readList(container);
-        expect(first.single.totalPending, isTrue);
+        expect(first.single.totalLengthM, 1000,
+            reason: 'haversine total used when bundled total absent');
 
-        // Write the real total — the Drift watch must re-emit on its own.
+        // Write the real (bundled) total — the Drift watch must re-emit on its own.
         await CoverageCacheDao(db).writeRealTotalLength(
           regionId: '3001',
           realTotalLengthM: 62638,
@@ -205,10 +206,9 @@ void main() {
         );
 
         final settled =
-            await _readList(container, until: (r) => !r.single.totalPending);
-        expect(settled.single.totalPending, isFalse,
-            reason: 'spinner cleared reactively after the total was written');
-        expect(settled.single.totalLengthM, 62638);
+            await _readList(container, until: (r) => r.single.totalLengthM != 1000);
+        expect(settled.single.totalLengthM, 62638,
+            reason: 'bundled real total surfaced reactively after write');
       },
     );
   });
