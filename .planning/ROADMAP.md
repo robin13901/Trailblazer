@@ -22,7 +22,7 @@ Depth: **comprehensive** — 10 phases, driven by the 106 v1 requirements (FND, 
 - [x] **Phase 7: Coverage Rendering** — driven Kfz-ways painted on the map via GeoJSON + data-driven paint expressions (Gate G2 resolved = FAIL: feature-state unavailable on mobile); orange/amber default + 5-preset picker; 50k fps stress harness code-complete (verifier PASS 5/5 code must-haves 2026-07-10; 5 on-device visual confirms deferred to user — `07-MANUAL-TESTS-DEFERRED.md`)
 - [x] **Phase 8: Regions + Focus-Area** — admin region browser, zoom-aware focus pill, coverage aggregation (code-complete + verifier PASS 17/17 must-haves 2026-07-11; SC1/2/3/5 honored per 08-CONTEXT amendments — live pill, stats-only sheet, flat mixed-level card list, global coverage; 10 on-device visual confirms deferred to next drive — `08-DEVICE-VERIFICATION-DEFERRED.md`)
 - [x] **Phase 9: Settings + Backup** — encrypted App DB backup/restore, OSM extract updates, diagnostics *(code-complete 2026-07-13; verifier PASS 7/7 plans; SET-01/02 de-scoped, SET-07 "encrypted"→plain archive per 09-CONTEXT; 854 tests green; 7 on-device confirms deferred — `09-VERIFICATION.md`)*
-- [ ] **Phase 10: Hardening** — patrol E2E, real-device gauntlet, iOS BG behavior, battery regression gate
+- [ ] **Phase 10: Coverage Recompute & Region Totals** — user-triggered full re-match + recompute (Regions tab, confirmation-gated), correct region-type badges, offline-precomputed bundled per-region total road length (zero runtime API calls), Ortsteil-level (L9) granularity; pill-nameable regions ⊆ bundled totals table. *(Replaced the former "Hardening" phase 2026-07-17 at user request — see 10-CONTEXT.md + PROJECT.md Key Decisions. Orphaned QUA-01/04/07 pending OQ5.)*
 
 > **Vehicles + Bluetooth removed 2026-07-13.** The original Phase 9 (full vehicle CRUD + BT-fingerprint hints + per-vehicle color) was cut entirely at user request — the app is single-user, single-vehicle in practice and the whole aspect was dormant scaffolding (VEH-01..06 dropped; `Vehicles`/`BtFingerprints` tables + `trips.vehicle_id`/`trips.bluetooth_hint` removed via schema v4). Former Phases 10/11 renumbered down to 9/10. See PROJECT.md Key Decisions.
 
@@ -260,17 +260,27 @@ Plans:
 
 > **Scope note (per 09-CONTEXT.md — source of truth over the SC wording above):** SET-01 (vehicles) is DEAD; SET-02 / SC3 (OSM extract updates) are DROPPED — no extract exists under the rescoped MapTiler+Overpass architecture. SC1 "encrypted" is superseded to a plain `.trailblazer` archive; there is no separate OSM DB to exclude/untouch. In-scope: SET-03/04/05/06/07/08/09.
 
-### Phase 10: Hardening
-**Goal:** The app survives real-world stress on real devices; all quality gates green; release-candidate ready.
-**Depends on:** All prior phases
-**Requirements:** QUA-01, QUA-04, QUA-07
+### Phase 10: Coverage Recompute & Region Totals
+**Goal:** The Regions tab is trustworthy and self-serviceable: driven km per region are correct and re-derivable on demand from already-recorded trips, region-type badges are right, per-region total road length is precomputed offline (zero runtime API calls), and every region the focus pill can name has a matching total-km entry (incl. Ortsteil-level villages).
+**Depends on:** Phases 6, 7, 8 (coverage cache, matcher, region browser + pill)
+**Replaces:** the former Phase 10 "Hardening" — dropped at user request 2026-07-17 (see PROJECT.md Key Decisions). QUA-01/04/07 handling is an open question (see 10-CONTEXT OQ5): fold a minimal test gate in, defer, or formally de-scope — NOT silently lost.
+**Requirements:** REG-01, REG-02, COV-04, COV-07, COV-08 (re-derivation + correctness), plus new coverage-correctness scope; QUA-01/04/07 = TBD per OQ5.
+**Trigger:** On-device observation 2026-07-17 (production iPhone, 4 trips): Regions tab shows only Kleinheubach with a frozen 6.8 km and a "Landkreis" badge, while the map pill shows a correct live 24.1%. Full root-cause analysis in `10-CONTEXT.md` (F1–F4).
 **Success Criteria** (what must be TRUE):
-  1. Every feature module (Map, Tracking, Trips/Inbox, Regions, Focus-Area Pill, Settings) has widget tests covering its key screens; all green in CI.
-  2. `patrol` E2E suite covers onboarding → first trip recording → inbox confirmation → matching → coverage update → region browser; runs green on both platforms in CI.
-  3. Real-device gauntlet passes on iPhone (current + one older), Samsung, and Xiaomi: auto-trips survive OEM battery killers, foreground service remains alive through screen-off drives, and coverage updates after the drive.
-  4. iOS `BGTaskScheduler` empirical wake behavior is documented; extract-swap failure recovery and coverage-cache invalidation edge cases have regression tests.
-  5. 60-minute battery-drain gate: no regression vs the P3 baseline on the same reference device.
-**Plans:** TBD (4–6)
+  1. A "Regionen neu berechnen" action in the Regions tab (top), behind a confirmation dialog, runs a full re-match + recompute over ALL stored trips (no trip deletion) and repopulates `coverage_cache` — after tapping it, every region the trips pass through appears (Bayern, Landkreis Miltenberg, Miltenberg-town, Kleinheubach, …) with correct driven km.
+  2. Region-type badges are correct German labels: L4 Bundesland, L6 Landkreis, L8 Gemeinde/Stadt, L9 Ortsteil, L10 Ortsteil/Stadtteil (Kleinheubach reads "Gemeinde", Landkreis Miltenberg reads "Landkreis").
+  3. Per-region total road length is served from a dev-machine-precomputed, bundled table keyed by `osm_id` — zero runtime Overpass calls for totals, instant, correct at all levels incl. Bundesländer, no per-region spinner. Kfz highway-class allowlist matches the matcher's exactly.
+  4. The bundled admin-polygon asset contains `admin_level=9` Ortsteil boundaries (Linsengericht's villages resolve on the pill and in the browser); bundle stays within the ~15 MB gzipped budget.
+  5. Pill/totals consistency invariant holds: `{regions the pill can name} ⊆ {osm_ids in the bundled totals table}`, both generated from the same extract in the same run — verified by a build-time key-set assertion.
+  6. During an active recording the live location puck stays at the tip of the live coverage line (driven from the same `liveFixSample` feed; native puck suppressed while recording) — no visible lag-then-jump.
+**Plans:** 5 plans in 3 waves (planned 2026-07-17; Wave 1 = 3 parallel plans incl. the dev-machine offline pipeline running alongside runtime fixes, mirroring Phase 4)
+
+Plans:
+- [ ] 10-01-PLAN.md — Wave 1: badge-label fix (F3) + CoverageInvalidator L9 alignment (F2) + de-scope QUA-01/04/07 in REQUIREMENTS.md (decision 9)
+- [ ] 10-02-PLAN.md — Wave 1: live puck sync (F5) — own puck layer from the liveFix feed + suppress native dot while recording
+- [ ] 10-03-PLAN.md — Wave 1: offline pipeline — Stage H emits regenerated admin bundle WITH L9 + osm_id->total_length_m totals table from one PBF run + build-time key-set assertion (Dart-native Stage-H adopted; decision-7 pyosmium reconciled)
+- [ ] 10-04-PLAN.md — Wave 2: wire bundled totals into coverage_cache population + delete RegionTotalLengthService/tiling/spinner (decision 8)
+- [ ] 10-05-PLAN.md — Wave 3: "Regionen neu berechnen" button (confirmation-gated, full rematch+recompute) + auto recompute-only seam (decision 6) + OQ1-PERF investigation
 
 ## Progress
 
@@ -289,7 +299,8 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 | 7. Coverage Rendering | 7/7 | ✓ Complete (verifier PASS 5/5 code must-haves; Gate G2 resolved = FAIL → GeoJSON + data-driven expressions; 5 on-device visual confirms deferred) | 2026-07-10 |
 | 8. Regions + Focus-Area | 6/6 | ✓ Complete (verifier PASS 17/17 must-haves; SC1/2/3/5 honored per 08-CONTEXT amendments; FOC-06/REG-03 de-scoped v1; 10 on-device confirms deferred) | 2026-07-11 |
 | 9. Settings + Backup | 7/7 | ✓ Complete (verifier PASS 7/7 plans; SET-01/02 de-scoped, SET-07 encrypted→plain per 09-CONTEXT; 854 tests green; 7 on-device confirms deferred) | 2026-07-13 |
-| 10. Hardening | 0/TBD | Not started | - |
+| 10. Coverage Recompute & Region Totals | 0/5 | Planned (5 plans, 3 waves) 2026-07-17 | - |
+| ~~10. Hardening~~ | — | ✗ Dropped 2026-07-17 (user request; replaced by Coverage Recompute & Region Totals; QUA-01/04/07 pending OQ5) | - |
 | ~~Vehicles + Bluetooth~~ | — | ✗ Removed 2026-07-13 (user request; dormant scaffolding cut, VEH-01..06 dropped, schema v4) | - |
 
 ## Coverage
@@ -310,7 +321,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 →
 | REN | 6 | P7 |
 | REG | 7 | P8 |
 | SET | 9 | P9 |
-| QUA | 7 | P1 (QUA-03, QUA-05), P3 (QUA-06), P5 (QUA-02), P10 (QUA-01, QUA-04, QUA-07) |
+| QUA | 7 | P1 (QUA-03, QUA-05), P3 (QUA-06), P5 (QUA-02), ⚠️ QUA-01/04/07 orphaned by the 2026-07-17 Hardening drop — pending 10-CONTEXT OQ5 (fold-in / defer / de-scope) |
 
 ---
 *Roadmap created: 2026-07-02*
