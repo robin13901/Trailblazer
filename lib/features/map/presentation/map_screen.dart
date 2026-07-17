@@ -5,7 +5,6 @@ import 'package:auto_explore/features/map/presentation/providers/location_permis
 import 'package:auto_explore/features/map/presentation/widgets/align_north_button.dart';
 import 'package:auto_explore/features/map/presentation/widgets/bottom_nav_shell.dart';
 import 'package:auto_explore/features/map/presentation/widgets/focus_area_pill.dart';
-import 'package:auto_explore/features/map/presentation/widgets/live_puck_bridge.dart';
 import 'package:auto_explore/features/map/presentation/widgets/live_trail_bridge.dart';
 import 'package:auto_explore/features/map/presentation/widgets/map_widget.dart';
 import 'package:auto_explore/features/map/presentation/widgets/permission_denial_banner.dart';
@@ -132,20 +131,6 @@ class MapScreen extends ConsumerWidget {
             width: 0,
             height: 0,
             child: LiveTrailBridge(),
-          ),
-
-          // Headless live-puck bridge: draws our own location puck from the
-          // same liveFixProvider tick as the live trail so the dot always sits
-          // at the tip of the line (F5 fix — Plan 10-02). Zero-size Positioned
-          // OUTSIDE the isMapTab block — mirrors LiveTrailBridge placement.
-          // The native MapLibre dot is suppressed by MapWidget while recording
-          // (myLocationEnabled=false) and restored when idle.
-          const Positioned(
-            top: 0,
-            left: 0,
-            width: 0,
-            height: 0,
-            child: LivePuckBridge(),
           ),
 
           // Non-map tabs render their Scaffold (opaque background) over the

@@ -63,6 +63,38 @@ void main() {
     });
   });
 
+  group('formatKm (dynamic precision, 2026-07-17)', () {
+    test('< 1000: one decimal, comma separator', () {
+      expect(formatKm(3.2), '3,2');
+      expect(formatKm(32.9), '32,9');
+      expect(formatKm(950.3), '950,3');
+    });
+
+    test('boundary 999.x stays one-decimal', () {
+      expect(formatKm(999.9), '999,9');
+    });
+
+    test('>= 1000: no decimals, dot thousands separators', () {
+      expect(formatKm(1000), '1.000');
+      expect(formatKm(1234.6), '1.235'); // rounds to whole
+      expect(formatKm(148884), '148.884');
+    });
+
+    test('exactly 1000 crosses into thousands-separator branch', () {
+      expect(formatKm(1000), '1.000');
+    });
+  });
+
+  group('formatKmStats', () {
+    test('both < 1000 → comma decimals', () {
+      expect(formatKmStats(3.2, 32.9), '3,2 / 32,9 km');
+    });
+
+    test('total >= 1000 → dot thousands separators', () {
+      expect(formatKmStats(1234.6, 148884), '1.235 / 148.884 km');
+    });
+  });
+
   group('RegionCoverage', () {
     const rc = RegionCoverage(
       osmId: 12345,

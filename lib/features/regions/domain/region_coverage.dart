@@ -28,9 +28,27 @@ String formatPercent(double percent) => '${oneDecimalDe(percent)} %';
 /// percent label and the km stats so the whole region UI reads German-locale.
 String oneDecimalDe(double value) => value.toStringAsFixed(1).replaceAll('.', ',');
 
-/// Formatted "driven / total km" string in German format, e.g. "3,2 / 12,1 km".
+/// Formats a kilometre value in German locale with a dynamic precision rule
+/// (user request 2026-07-17):
+///   - `< 1000`: one decimal, comma decimal separator, e.g. 950.3 -> "950,3".
+///   - `>= 1000`: no decimals, dot thousands separators, e.g. 148884 -> "148.884".
+/// The threshold is evaluated on the raw value; the two branches never mix a
+/// decimal with a thousands separator.
+String formatKm(double km) {
+  if (km < 1000) return oneDecimalDe(km);
+  // Round to a whole number, then group thousands with dots. Regex inserts a
+  // dot before every run of 3 digits that is followed by another group of 3.
+  final whole = km.round().toString();
+  return whole.replaceAllMapped(
+    RegExp(r'\B(?=(\d{3})+(?!\d))'),
+    (_) => '.',
+  );
+}
+
+/// Formatted "driven / total km" string in German format. Each value uses the
+/// dynamic [formatKm] precision rule, e.g. "3,2 / 32,9 km" or "1.234 / 148.884 km".
 String formatKmStats(double drivenKm, double totalKm) =>
-    '${oneDecimalDe(drivenKm)} / ${oneDecimalDe(totalKm)} km';
+    '${formatKm(drivenKm)} / ${formatKm(totalKm)} km';
 
 /// Immutable per-region coverage snapshot. `osmId` is the OSM relation id
 /// (coverage_cache.region_id == osmId.toString(); RESEARCH.md line 218,

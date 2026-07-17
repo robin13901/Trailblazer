@@ -13,7 +13,6 @@
 
 import 'package:auto_explore/features/regions/domain/region_coverage.dart';
 import 'package:auto_explore/features/regions/presentation/providers/region_browser_provider.dart';
-import 'package:auto_explore/features/regions/presentation/widgets/recalculate_button.dart';
 import 'package:auto_explore/features/regions/presentation/widgets/region_card.dart';
 import 'package:auto_explore/features/regions/presentation/widgets/region_detail_sheet.dart';
 import 'package:flutter/material.dart';
@@ -33,7 +32,6 @@ class RegionsScreen extends ConsumerWidget {
       body: SafeArea(
         child: Column(
           children: [
-            const RecalculateButton(),
             _SearchField(),
             const Divider(height: 1),
             const Expanded(child: _BrowserBody()),

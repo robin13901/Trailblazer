@@ -137,13 +137,19 @@ class FocusPillNotifier extends Notifier<FocusPillState> {
     final cacheDao = ref.read(coverageCacheDaoProvider);
     final row = await cacheDao.getByRegionId(region.osmId.toString());
 
+    // Denominator MUST match the regions tab (region_browser_provider): prefer
+    // the bundled real per-region Kfz total, fall back to the haversine bbox
+    // total. Using totalLengthM alone (the fetched-ways haversine sum) inflates
+    // the % badly — e.g. Kleinheubach showed 29,1 % on the pill vs the correct
+    // 9,8 % on the card (bug 2026-07-17).
+    final total = row?.realTotalLengthM ?? row?.totalLengthM ?? 0;
     String? percentLabel;
-    if (row != null && row.totalLengthM > 0) {
+    if (row != null && total > 0) {
       percentLabel = formatPercent(
-        coveragePercent(row.drivenLengthM, row.totalLengthM),
+        coveragePercent(row.drivenLengthM, total),
       );
     }
-    // row == null or totalLengthM <= 0 → percentLabel stays null →
+    // row == null or total <= 0 → percentLabel stays null →
     // widget renders "—%" placeholder
 
     // Out-of-order guard: only commit if this is still the latest request.

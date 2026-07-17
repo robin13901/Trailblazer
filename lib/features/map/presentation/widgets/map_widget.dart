@@ -10,8 +10,6 @@ import 'package:auto_explore/features/map/presentation/providers/map_controller_
 import 'package:auto_explore/features/map/presentation/providers/map_style_loaded_provider.dart';
 import 'package:auto_explore/features/map/presentation/providers/map_style_provider.dart';
 import 'package:auto_explore/features/map/presentation/widgets/map_style_fade.dart';
-import 'package:auto_explore/features/trips/domain/tracking_state.dart';
-import 'package:auto_explore/features/trips/presentation/providers/tracking_state_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart' show SchedulerPhase;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -173,20 +171,18 @@ class _MapWidgetState extends ConsumerState<MapWidget>
     final permissionAsync = ref.watch(locationPermissionProvider);
     final cameraState = ref.watch(cameraStateProvider);
     final styleUrl = ref.watch(mapStyleUrlProvider);
-    final trackingState = ref.watch(trackingStateProvider);
 
     final isGranted = permissionAsync.maybeWhen(
       data: (s) => s.isGranted || s.isLimited,
       orElse: () => false,
     );
-    // While recording, we draw our own puck via LivePuckBridge (driven by the
-    // same liveFixProvider tick as the live trail).  Suppress the native
-    // MapLibre location dot so both dots are never visible simultaneously
-    // (F5 fix — Plan 10-02).  When idle, restore the native puck for normal
-    // use.  The MapLibreMap assert requires myLocationRenderMode to be
-    // non-compass when myLocationEnabled is false, so use .normal here.
-    final isRecording = trackingState is TrackingRecording;
-    final locationEnabled = isGranted && !isRecording;
+    // The native MapLibre location puck is the single source of truth for the
+    // "you are here" dot, in every state including recording. It follows the
+    // live coverage-line tip closely enough on its own; the earlier manual
+    // LivePuckBridge (Plan 10-02) was reverted because it drew a *second* dot
+    // and suppressing the native one (myLocationEnabled=false) also disabled
+    // trackingGps follow, which broke heading-up rotation while driving.
+    final locationEnabled = isGranted;
     // Exhaustive FollowMode -> MyLocationTrackingMode mapping.
     //
     // Plan 04-19 (2026-07-09 drive fix): locationAndHeading maps to
@@ -245,9 +241,8 @@ class _MapWidgetState extends ConsumerState<MapWidget>
         // heading-locked; keep the compass cone only in north-up modes where
         // it still conveys useful orientation.
         //
-        // While recording, myLocationEnabled=false (native dot suppressed) so
-        // render mode MUST be normal — MapLibreMap asserts compass requires
-        // myLocationEnabled=true (Plan 10-02 F5 fix).
+        // myLocationRenderMode must be normal when myLocationEnabled is false
+        // (MapLibreMap asserts: compass requires myLocationEnabled=true).
         myLocationRenderMode: (locationEnabled &&
                 cameraState.followMode != FollowMode.locationAndHeading)
             ? MyLocationRenderMode.compass
