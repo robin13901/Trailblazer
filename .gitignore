@@ -1,6 +1,5 @@
-# PMTiles assets — regenerated per developer via tool/fetch_pmtiles.sh
-# See assets/tiles/README.md and .planning/STATE.md
-assets/tiles/*.pmtiles
+# PMTiles assets — removed 2026-07-17 (dead since Phase 4 MapTiler rescope;
+# assets/tiles/ and the old tool/osm_pipeline/ Dart pipeline were deleted).
 
 # Battery baseline — temporary start-of-drive snapshot (committed artifacts are
 # docs/battery-baseline.md and docs/battery-baseline.json)
@@ -22,13 +21,8 @@ docs/.battery-baseline.tmp.json
 /build/
 .dart_tool/
 
-# Phase 4 pipeline scratch + outputs
-tool/osm_pipeline/.dart_tool/
-tool/osm_pipeline/build/
-tool/osm_pipeline/out/
-tool/osm_pipeline/**/*.osm.pbf
-# ...except the hand-crafted tiny fixture used by pbf_reader_test.dart
-!tool/osm_pipeline/test/fixtures/tiny.osm.pbf
+# Region-stats tool (Phase 10) — dev-machine outputs + run logs
+tool/region_stats/out/
 
 # Personal API key file for --dart-define-from-file (MapTiler etc.)
 # See env/dev.json.example for the shape. Real env/dev.json is gitignored.
