@@ -56,12 +56,51 @@ The pipeline is pure-Dart end-to-end except for Stage D, which shells out to
 `tippecanoe` for the pmtiles authoring pass.
 
 ```
-Stage A: PBF stream parse + filter          (pure Dart, plan 04-02/04-03/04-04)
-Stage B: segmented intersection + way_admin (pure Dart, plan 04-05)
-Stage C: osm.sqlite write + R-Tree build    (pure Dart, plan 04-06)
-Stage D: GeoJSONSeq emit + tippecanoe       (subprocess, plan 04-07)
-Stage E: pmtiles metadata + style rewrite   (pure Dart, plan 04-08)
+Stage A: PBF stream parse + filter              (pure Dart, plan 04-02/04-03/04-04)
+Stage B: segmented intersection + way_admin     (pure Dart, plan 04-05)
+Stage C: osm.sqlite write + R-Tree build        (pure Dart, plan 04-06)
+Stage D: GeoJSONSeq emit + tippecanoe           (subprocess, plan 04-07)
+Stage E: pmtiles metadata + style rewrite       (pure Dart, plan 04-08)
+Stage H: admin bundle + per-region totals       (pure Dart, plan 10-03)
 ```
+
+## Stage H — Admin bundle + region totals (Plan 10-03)
+
+Stage H reads the final `osm.sqlite` (produced by Stage E) and emits two
+bundled assets that are keyed by the **same `osm_relation_id`** set:
+
+- `germany_admin.geojson.gz` — admin boundary polygon bundle including
+  admin_level=9 Ortsteil regions (L2 excluded; L9 included).
+- `region_totals.json.gz` — `Map<String,double>` of `osm_id → total Kfz road
+  length in meters` for every region at levels 4/6/8/9/10.
+
+Enable Stage H by passing both flags to the pipeline CLI:
+
+```bash
+cd tool/osm_pipeline
+dart run bin/osm_pipeline.dart \
+  --pbf=/path/to/germany-latest.osm.pbf \
+  --no-pmtiles \
+  --emit-admin-bundle=../../assets/admin/germany_admin.geojson.gz \
+  --emit-totals=../../assets/admin/region_totals.json.gz
+```
+
+If the admin bundle exceeds the 15 MB gzipped budget, add
+`--stage-h-tolerance=150` to tighten L8/L9/L10 simplification.
+
+### Verifying the key-set invariant (invariant 5)
+
+After any regeneration, run the build-time assertion to confirm both assets
+share the same `osm_id` key-set:
+
+```bash
+cd tool/osm_pipeline
+dart run bin/verify_bundle_totals_keys.dart
+# exits 0 on match; exits 1 with a diff on mismatch; exits 2 on I/O error
+```
+
+This CLI reads the shipped assets from `assets/admin/` by default. Pass
+`--assets-dir=<path>` to point at a different directory.
 
 ## Testing
 
