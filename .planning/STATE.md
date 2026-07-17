@@ -5,16 +5,16 @@
 See: .planning/PROJECT.md (updated 2026-07-02)
 
 **Core value:** When I open the map, I immediately see the roads I've already driven, painted onto the world — and that view keeps pulling me back to explore more.
-**Current focus:** Phase 10 (Coverage Recompute & Region Totals) — in progress. Plans 10-01 through 10-04 COMPLETE 2026-07-17. 2026-07-13: Vehicles + Bluetooth phase REMOVED, roadmap renumbered to 10 phases.
+**Current focus:** Phase 10 (Coverage Recompute & Region Totals) — COMPLETE. Plans 10-01 through 10-05 ALL COMPLETE 2026-07-17. Phase 10 is code-complete (on-device confirms deferred per convention).
 
 ## Current Position
 
-Phase: 10 of 10 (Coverage Recompute & Region Totals — in progress)
-Plan: 10-04 COMPLETE 2026-07-17 (4 of N plans in phase)
-Status: Phase 10 in progress — 10-01..10-04 complete; flutter analyze clean; 881 tests pass.
-Last activity: 2026-07-17 — 10-04 complete: RegionTotalsLookup wired, recompute() writes real_total_length_m from bundled table, RegionTotalLengthService + region_tiling + spinner UI deleted (Decision 8).
+Phase: 10 of 10 (Coverage Recompute & Region Totals — CODE COMPLETE)
+Plan: 10-05 COMPLETE 2026-07-17 (5 of 5 plans in phase — PHASE COMPLETE)
+Status: Phase 10 code-complete — 10-01..10-05 done; flutter analyze clean; 891 tests pass.
+Last activity: 2026-07-17 — 10-05 complete: RecalculateCoverageAction + RecalculateButton at Regions-tab top; auto recomputeForTrip() seam in TripMatchCoordinator; incremental OQ1-PERF win landed.
 
-Progress: [██████████] ~97% (78/78 est. plans overall — Phase 1: 7/7; Phase 2: 7/7; Phase 3: 7/7; Phase 3.1: 5/5; Phase 4: 8/8 + 04-18 + 04-19 DRIVE-VERIFIED; Phase 5: 8/8 CODE-COMPLETE; Phase 6: 6/6 code-complete — 06-01..06-06 done + 06-07/06-08 gap-fixes; Phase 7: 7/7 code-complete — 07-01..07-07; Phase 8: 6/6 COMPLETE — 08-01..08-06; Phase 9: 09-01..09-07 ALL DONE)
+Progress: [██████████] ~100% (est. all plans complete — Phase 1: 7/7; Phase 2: 7/7; Phase 3: 7/7; Phase 3.1: 5/5; Phase 4: 8/8 + 04-18 + 04-19 DRIVE-VERIFIED; Phase 5: 8/8 CODE-COMPLETE; Phase 6: 6/6 code-complete — 06-01..06-06 done + 06-07/06-08 gap-fixes; Phase 7: 7/7 code-complete — 07-01..07-07; Phase 8: 6/6 COMPLETE — 08-01..08-06; Phase 9: 09-01..09-07 ALL DONE; Phase 10: 10-01..10-05 ALL DONE)
 
 ## Performance Metrics
 
@@ -510,6 +510,9 @@ Key locked-in decisions affecting current work:
 - **Plan 10-04 (2026-07-17) — Decision 8 executed: runtime Overpass totals tiler replaced by bundled lookup.** `RegionTotalLengthService` + `region_tiling.dart` DELETED. `RegionTotalsLookup` created (mirrors `AdminRegionLookup` load posture). `recompute()` writes `real_total_length_m` from bundled `region_totals.json.gz`. No spinner/pending state in UI. `kCurrentSchemaVersion = 6` unchanged (no schema bump).
 - **Plan 10-04 (2026-07-17) — Deferred data dependency: region_totals.json.gz.** Asset absent pending PBF run (10-03 checkpoint). `RegionTotalsLookup` handles absence gracefully (null for all queries → real_total_length_m written as null → haversine fallback in browser). No code change needed when asset arrives; loader picks it up at runtime.
 - **Plan 10-04 (2026-07-17) — pubspec assets/admin/ already declared as directory.** No pubspec change needed. An explicit missing-file entry would fail flutter pub get/build — directory-level declaration bundles whatever is present at build time.
+- **Plan 10-05 (2026-07-17) — RecalculateCoverageAction + RecalculateButton shipped.** Button at Regions-tab top, confirmation-gated. Runs rematchAllStoredTrips() → recompute() without deleting trips. Progress ValueNotifier (idle/rematching/recomputing/done/error). German copy throughout.
+- **Plan 10-05 (2026-07-17) — Auto recompute-only seam: OnIntervalsLandedCallback.** TripMatchCoordinator stays Riverpod-free; callback wired at provider construction in matching_providers.dart. Re-entrancy: _recomputeInFlight bool debounces rapid writes. Auto path uses recomputeForTrip() (incremental); button path uses full recompute().
+- **Plan 10-05 (2026-07-17) — OQ1-PERF: recomputeForTrip() incremental path landed.** 5-point bbox probe → affected region IDs → upsert only those rows (no deleteAll). Cross-trip R-Tree warm reuse DEFERRED (needs new isolate API; low priority at current trip counts).
 
 ### Blockers/Concerns
 
@@ -522,10 +525,12 @@ Key locked-in decisions affecting current work:
 - **HMM accuracy (P5):** Requires ≥ 20-trip golden corpus recorded in real driving before matcher can pass CI regression.
 - **Lint gap (P1):** `custom_lint` + `riverpod_lint` temporarily out (see decisions). Regular analyzer + `very_good_analysis` still enforce style + correctness; Riverpod-specific misuse detection is on hold.
 - **Wave-2 hygiene (2026-07-03, re-observed 2026-07-06):** During Wave-2 parallel execution, sibling agents inadvertently capture files owned by other in-flight plans. First occurrence: Plan 04 commit `3341081` captured Plan 02's Task 2.3 test files. Second occurrence (2026-07-06): Plan 03-1-04's `docs(3.1-04)` commit `28b6d1d` captured Plan 03-1-02's Task 3 diff. Files are correctly tracked and tests pass, but attribution is off. Future waves: subagents must stage individual files only, no `git add -A` / `git commit -a`; consider adding a Wave-Guard preflight in the orchestrator that runs `git diff --name-only HEAD` before each commit and refuses if the list includes files outside the current plan's declared `key-files.modified/created`.
+- **Phase 10 on-device confirms DEFERRED.** All 10-01..10-05 code is complete. Device confirms (button → correct region km, live puck, coverage rendering) deferred to next drive per project convention (`defer-in-car-verification.md`).
+- **region_totals.json.gz data dependency.** Asset absent pending PBF run (10-03 checkpoint). When present, real_total_length_m is correct for all regions incl. Bayern. Zero code change needed; loader in place.
 
 ## Session Continuity
 
-Last session: 2026-07-17 (Plan 10-04 — RegionTotalsLookup + delete runtime Overpass totals path — COMPLETE)
-Stopped at: Plan 10-04 complete. Task commits: 8b2bb8f (feat: RegionTotalsLookup + bundled totals), 5c6d4d3 (refactor: delete tiler + spinner UI). SUMMARY at .planning/phases/10-coverage-recompute-region-totals/10-04-SUMMARY.md. flutter analyze clean; 881 tests pass.
+Last session: 2026-07-17 (Plan 10-05 — Recalculate button + auto seam + OQ1-PERF — COMPLETE)
+Stopped at: Phase 10 code-complete. All plans 10-01..10-05 done. Task commits: c9d1f62 (feat: button), 129eb77 (feat: auto seam), 68ff793 (perf: incremental recompute). flutter analyze clean; 891 tests pass.
 Resume file: None
-Next: Plan 10-05 (focus pill coverage from bundled totals) or remaining Phase 10 plans.
+Next: On-device confirm batch (defer to next drive). Generate region_totals.json.gz when germany-latest.osm.pbf is available (10-03 PBF checkpoint). PROJECT COMPLETE pending on-device confirms.
