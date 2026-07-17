@@ -24,15 +24,22 @@ class CoverageCacheDao extends DatabaseAccessor<AppDatabase> {
 
   $CoverageCacheTable get _table => attachedDatabase.coverageCache;
 
-  /// Insert or replace the row for [regionId]. Used by the Phase-8
-  /// recompute pass — ships now for symmetry so Phase 8 does not need to
-  /// reopen this DAO.
+  /// Insert or replace the row for [regionId]. Used by the Phase-8/-10
+  /// recompute pass.
+  ///
+  /// [realTotalLengthM] is the bundled per-region total from
+  /// `RegionTotalsLookup` (Plan 10-04). When provided, it is written
+  /// alongside the haversine [totalLengthM] so the region browser can display
+  /// a correct denominator immediately — no spinner, no Overpass call needed.
+  /// When null, `real_total_length_m` is left unset (treated as absent in the
+  /// DB; the UI renders "—").
   Future<void> upsert({
     required String regionId,
     required double drivenLengthM,
     required double totalLengthM,
     required DateTime updatedAt,
     String? extractVersion,
+    double? realTotalLengthM,
   }) {
     return into(_table).insertOnConflictUpdate(
       CoverageCacheCompanion.insert(
@@ -41,6 +48,7 @@ class CoverageCacheDao extends DatabaseAccessor<AppDatabase> {
         totalLengthM: Value(totalLengthM),
         updatedAt: Value(updatedAt),
         extractVersion: Value(extractVersion),
+        realTotalLengthM: Value(realTotalLengthM),
       ),
     );
   }

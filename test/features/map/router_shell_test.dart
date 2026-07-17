@@ -11,8 +11,6 @@ import 'package:auto_explore/features/map/presentation/widgets/bottom_nav_shell.
 import 'package:auto_explore/features/map/presentation/widgets/focus_area_pill.dart';
 import 'package:auto_explore/features/onboarding/data/onboarding_flag_repository.dart';
 import 'package:auto_explore/features/onboarding/data/permission_service_provider.dart';
-import 'package:auto_explore/features/regions/data/coverage_compute_providers.dart';
-import 'package:auto_explore/features/regions/data/region_total_length_service.dart';
 import 'package:auto_explore/features/regions/domain/region_coverage.dart';
 import 'package:auto_explore/features/regions/presentation/providers/region_browser_provider.dart';
 import 'package:auto_explore/features/settings/data/backup_service_provider.dart';
@@ -56,18 +54,6 @@ class _FakeAdminBundleRefresher implements AdminBundleRefresher {
 
   @override
   Future<void> refreshFromOverpass() async {}
-}
-
-/// No-op [RegionTotalLengthService] — the App startup migration chain calls
-/// `computeMissingTotals()`, which would otherwise construct the real
-/// OverpassClient (leaving a pending HttpClient timer that outlives the test
-/// widget tree). This fake returns 0 without touching the network.
-class _FakeRegionTotalLengthService implements RegionTotalLengthService {
-  @override
-  dynamic noSuchMethod(Invocation invocation) async => null;
-
-  @override
-  Future<int> computeMissingTotals() async => 0;
 }
 
 /// Pumps the full [App] with onboarding already complete and all platform
@@ -147,11 +133,6 @@ Future<void> pumpAppAtMapShell(WidgetTester tester) async {
         // the real Overpass HTTP client + path_provider channels.
         adminBundleRefresherProvider
             .overrideWithValue(_FakeAdminBundleRefresher()),
-        // App startup calls RegionTotalLengthService.computeMissingTotals();
-        // stub it so no real OverpassClient/HttpClient is constructed (which
-        // would leave a pending timer failing the test).
-        regionTotalLengthServiceProvider
-            .overrideWithValue(_FakeRegionTotalLengthService()),
       ],
       child: const App(),
     ),

@@ -40,9 +40,8 @@ class _AppState extends ConsumerState<App> with WidgetsBindingObserver {
   ///      recovers a trip parked by an Overpass outage; must not sit behind the
   ///      network-heavy re-match.
   ///   2. Coverage recompute (awaited, one bounded cache-first fetch) so
-  ///      `coverage_cache` rows exist, then kick region totals CONCURRENTLY —
-  ///      the real per-region total is polygon-based and independent of the
-  ///      re-match, so it starts computing immediately.
+  ///      `coverage_cache` rows exist, including real_total_length_m from the
+  ///      bundled totals table (Plan 10-04 — no more runtime Overpass totals).
   ///   3. Matcher re-match LAST and in the BACKGROUND (unawaited) — it is
   ///      unbounded network (N trips × M tiles) and only refines the visible
   ///      coverage line + intervals; letting it run behind (1)/(2) means driven
@@ -51,7 +50,6 @@ class _AppState extends ConsumerState<App> with WidgetsBindingObserver {
   Future<void> _runStartupMigrations() async {
     await _runStuckFetchRecoveryMigrationIfNeeded();
     await _runCoverageRecomputeMigrationIfNeeded();
-    unawaited(_computeMissingRegionTotals());
     unawaited(_runMatcherRematchMigrationIfNeeded());
   }
 
@@ -163,24 +161,6 @@ class _AppState extends ConsumerState<App> with WidgetsBindingObserver {
       // ignore: avoid_catches_without_on_clauses
     } catch (e, st) {
       _log.warning('stuck-fetch recovery failed (will retry): $e', e, st);
-    }
-  }
-
-  /// Computes the REAL per-region total road length for any region that has
-  /// driven coverage but no real total cached yet. Fire-and-forget from the
-  /// startup migration chain; the service is best-effort and never throws, so
-  /// a partial run (or a total network outage) simply leaves regions pending
-  /// (their cards show a spinner) and retries on the next launch.
-  Future<void> _computeMissingRegionTotals() async {
-    try {
-      final n = await ref
-          .read(regionTotalLengthServiceProvider)
-          .computeMissingTotals();
-      if (n > 0) _log.info('region-total compute: $n regions computed');
-      // Catch every throwable: a background total compute must never crash.
-      // ignore: avoid_catches_without_on_clauses
-    } catch (e, st) {
-      _log.warning('region-total compute failed (will retry): $e', e, st);
     }
   }
 

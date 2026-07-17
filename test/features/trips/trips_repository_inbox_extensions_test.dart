@@ -19,6 +19,7 @@ import 'package:auto_explore/features/coverage/data/coverage_invalidator.dart';
 import 'package:auto_explore/features/matching/data/way_candidate_source.dart';
 import 'package:auto_explore/features/matching/domain/way_candidate.dart';
 import 'package:auto_explore/features/regions/data/coverage_compute_service.dart';
+import 'package:auto_explore/features/regions/data/region_totals_lookup.dart';
 import 'package:auto_explore/features/trips/data/trips_dao.dart';
 import 'package:auto_explore/features/trips/data/trips_dao_inbox_queries.dart';
 import 'package:auto_explore/features/trips/data/trips_repository_inbox_extensions.dart';
@@ -144,6 +145,7 @@ class _NoopComputeService extends CoverageComputeService {
           regionLookup: _NullAdminRegionLookup(),
           cacheDao: CoverageCacheDao(db),
           tripsDao: TripsDao(db),
+          totalsLookup: RegionTotalsLookup(),
         );
 
   @override

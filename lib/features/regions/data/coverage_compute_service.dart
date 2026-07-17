@@ -23,6 +23,7 @@ import 'package:auto_explore/features/admin/data/admin_region_lookup.dart';
 import 'package:auto_explore/features/coverage/data/coverage_cache_dao.dart';
 import 'package:auto_explore/features/coverage/domain/interval_union.dart';
 import 'package:auto_explore/features/matching/data/way_candidate_source.dart';
+import 'package:auto_explore/features/regions/data/region_totals_lookup.dart';
 import 'package:auto_explore/features/trips/data/trips_dao.dart';
 import 'package:auto_explore/features/trips/domain/haversine.dart';
 import 'package:logging/logging.dart';
@@ -52,12 +53,14 @@ class CoverageComputeService {
     required AdminRegionLookup regionLookup,
     required CoverageCacheDao cacheDao,
     required TripsDao tripsDao,
+    required RegionTotalsLookup totalsLookup,
     Logger? logger,
   })  : _intervalsDao = intervalsDao,
         _waySource = waySource,
         _regionLookup = regionLookup,
         _cacheDao = cacheDao,
         _tripsDao = tripsDao,
+        _totalsLookup = totalsLookup,
         _log = logger ?? Logger('CoverageComputeService');
 
   final DrivenWayIntervalsDao _intervalsDao;
@@ -65,6 +68,7 @@ class CoverageComputeService {
   final AdminRegionLookup _regionLookup;
   final CoverageCacheDao _cacheDao;
   final TripsDao _tripsDao;
+  final RegionTotalsLookup _totalsLookup;
   final Logger _log;
 
   /// Recompute and upsert coverage statistics for every admin region that
@@ -77,6 +81,13 @@ class CoverageComputeService {
       // Step 1: Ensure admin bundle is loaded on the MAIN isolate.
       // Asset bundle is not reachable off-isolate (Pitfall 1).
       await _regionLookup.ensureLoaded();
+
+      // Step 1b: Ensure the bundled totals table is loaded. Also runs on the
+      // main isolate (same asset-bundle constraint). If the asset is absent
+      // (deferred PBF checkpoint not yet run), ensureLoaded() is a no-op and
+      // totalFor() will return null for every region — real_total_length_m is
+      // then written as null, which the UI renders as "—". No error is raised.
+      await _totalsLookup.ensureLoaded();
 
       // Step 2: One-shot union bbox — null means no trips → empty cache is
       // the correct state (no trips driven = no coverage to display).
@@ -142,11 +153,19 @@ class CoverageComputeService {
       final now = DateTime.now();
       var written = 0;
       for (final id in total.keys) {
+        // real_total_length_m is the BUNDLED per-region Kfz total from
+        // region_totals.json.gz (Plan 10-04 Decision 8). This is the
+        // authoritative denominator for the region browser % and km stats —
+        // it fixes the Bayern==Miltenberg denominator because it covers the
+        // full road network of the region, not just the ways near the user's
+        // trips. If the bundled asset is absent (PBF checkpoint not yet run),
+        // totalFor() returns null and the UI renders "—" rather than a spinner.
         await _cacheDao.upsert(
           regionId: id,
           drivenLengthM: driven[id] ?? 0,
           totalLengthM: total[id]!,
           updatedAt: now,
+          realTotalLengthM: _totalsLookup.totalFor(id),
           // extractVersion: null — Phase 10 wires this; null is the default
         );
         written++;

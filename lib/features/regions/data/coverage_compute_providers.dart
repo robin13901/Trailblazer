@@ -1,15 +1,18 @@
-// Trailblazer Phase 8, Plan 08-02 (Wave 1):
-// Riverpod provider for CoverageComputeService.
+// Trailblazer Phase 8, Plan 08-02 (Wave 1) / updated Phase 10, Plan 10-04:
+// Riverpod providers for CoverageComputeService.
 //
 // Plain Provider<T> — no @Riverpod codegen (STATE Plan 01-01).
-// Wires all five collaborators from their existing singleton providers.
+// Wires all collaborators from their existing singleton providers.
+//
+// Plan 10-04 change: RegionTotalsLookup injected; regionTotalLengthServiceProvider
+// REMOVED (runtime Overpass totals path deleted — Decision 8).
 
 import 'package:auto_explore/features/admin/data/admin_region_providers.dart';
 import 'package:auto_explore/features/coverage/data/coverage_overlay_providers.dart';
 import 'package:auto_explore/features/coverage/data/coverage_providers.dart';
 import 'package:auto_explore/features/matching/data/matching_providers.dart';
 import 'package:auto_explore/features/regions/data/coverage_compute_service.dart';
-import 'package:auto_explore/features/regions/data/region_total_length_service.dart';
+import 'package:auto_explore/features/regions/data/region_totals_lookup.dart';
 import 'package:auto_explore/features/trips/data/trips_repository_providers.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -24,16 +27,6 @@ final coverageComputeServiceProvider = Provider<CoverageComputeService>((ref) {
     regionLookup: ref.watch(adminRegionLookupProvider),
     cacheDao: ref.watch(coverageCacheDaoProvider),
     tripsDao: ref.watch(tripsDaoProvider),
-  );
-});
-
-/// Singleton [RegionTotalLengthService] — computes the REAL per-region total
-/// road length (tiled area-clipped Overpass sums), cached once per region.
-final regionTotalLengthServiceProvider =
-    Provider<RegionTotalLengthService>((ref) {
-  return RegionTotalLengthService(
-    regionLookup: ref.watch(adminRegionLookupProvider),
-    overpassClient: ref.watch(overpassClientProvider),
-    cacheDao: ref.watch(coverageCacheDaoProvider),
+    totalsLookup: ref.watch(regionTotalsLookupProvider),
   );
 });

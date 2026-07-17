@@ -1,4 +1,4 @@
-// Trailblazer Phase 8, Plan 08-02 (Wave 1):
+// Trailblazer Phase 8, Plan 08-02 (Wave 1) / updated Phase 10, Plan 10-04:
 // CoverageComputeService unit tests — integration-style against an in-memory
 // Drift database + fake collaborators.
 //
@@ -14,6 +14,10 @@
 //     again → row reappears.
 //  7. Level 2 is never written (explicit assertion when the fake injects
 //     a level-2 region alongside level 8).
+//  8. Bundled real total: when RegionTotalsLookup provides a total for the
+//     region, recompute() writes real_total_length_m from the bundled table.
+//  9. Missing bundled total: when RegionTotalsLookup returns null for a
+//     region, real_total_length_m is written as null (no error, no crash).
 
 import 'package:auto_explore/core/db/app_database.dart';
 import 'package:auto_explore/core/db/daos/driven_way_intervals_dao.dart';
@@ -23,6 +27,7 @@ import 'package:auto_explore/features/coverage/data/coverage_cache_dao.dart';
 import 'package:auto_explore/features/matching/data/way_candidate_source.dart';
 import 'package:auto_explore/features/matching/domain/way_candidate.dart';
 import 'package:auto_explore/features/regions/data/coverage_compute_service.dart';
+import 'package:auto_explore/features/regions/data/region_totals_lookup.dart';
 import 'package:auto_explore/features/trips/data/trips_dao.dart';
 import 'package:auto_explore/features/trips/domain/trip_status.dart';
 import 'package:drift/drift.dart' hide isNotNull, isNull;
@@ -94,6 +99,20 @@ class _FixedWayCandidateSource implements WayCandidateSource {
     bool throwOnError = true,
   }) async =>
       const [];
+}
+
+/// Fake RegionTotalsLookup backed by a fixed map (osm_id string → meters).
+/// Null map means "asset absent": all [totalFor] calls return null.
+class _FakeRegionTotalsLookup extends RegionTotalsLookup {
+  _FakeRegionTotalsLookup([this._totals]);
+
+  final Map<String, double>? _totals;
+
+  @override
+  Future<void> ensureLoaded() async {}
+
+  @override
+  double? totalFor(String osmId) => _totals?[osmId];
 }
 
 // ---------------------------------------------------------------------------
@@ -224,6 +243,7 @@ void main() {
   CoverageComputeService buildService({
     required Map<int, AdminRegion?> byLevel,
     List<WayCandidate> ways = const [],
+    _FakeRegionTotalsLookup? totalsLookup,
   }) {
     return CoverageComputeService(
       intervalsDao: intervalsDao,
@@ -231,6 +251,7 @@ void main() {
       regionLookup: _FakeAdminRegionLookup(byLevel),
       cacheDao: cacheDao,
       tripsDao: tripsDao,
+      totalsLookup: totalsLookup ?? _FakeRegionTotalsLookup(),
     );
   }
 
@@ -428,6 +449,64 @@ void main() {
           await cacheDao.getByRegionId(l8Region.osmId.toString()),
           isNotNull,
         );
+      },
+    );
+
+    // -----------------------------------------------------------------------
+    // Test 8: Bundled real total → real_total_length_m written from lookup
+    // -----------------------------------------------------------------------
+    test(
+      'bundled total available → real_total_length_m written from RegionTotalsLookup',
+      () async {
+        final tripId = await _seedMatchedTrip(db);
+        await _seedInterval(db, tripId: tripId, wayId: 100001);
+
+        final regionId = _regionLevel8().osmId.toString(); // '151999'
+        const bundledTotal = 62638.0; // realistic Kleinheubach km total
+
+        final service = buildService(
+          byLevel: {4: null, 6: null, 8: _regionLevel8(), 9: null, 10: null},
+          ways: [_fixtureWay()],
+          totalsLookup: _FakeRegionTotalsLookup({regionId: bundledTotal}),
+        );
+
+        await service.recompute();
+
+        final row = await cacheDao.getByRegionId(regionId);
+        expect(row, isNotNull);
+        // real_total_length_m must come from the bundled table, not haversine.
+        expect(row!.realTotalLengthM, bundledTotal,
+            reason: 'real_total_length_m must be the bundled value');
+        // haversine total is written separately (backward compat).
+        expect(row.totalLengthM, greaterThan(0),
+            reason: 'haversine total_length_m still written for backward compat');
+      },
+    );
+
+    // -----------------------------------------------------------------------
+    // Test 9: Missing bundled total → real_total_length_m written as null
+    // -----------------------------------------------------------------------
+    test(
+      'bundled total absent (asset not yet generated) → real_total_length_m null',
+      () async {
+        final tripId = await _seedMatchedTrip(db);
+        await _seedInterval(db, tripId: tripId, wayId: 100001);
+
+        final service = buildService(
+          byLevel: {4: null, 6: null, 8: _regionLevel8(), 9: null, 10: null},
+          ways: [_fixtureWay()],
+          // Default _FakeRegionTotalsLookup(null) — returns null for all ids.
+        );
+
+        await service.recompute();
+
+        final regionId = _regionLevel8().osmId.toString();
+        final row = await cacheDao.getByRegionId(regionId);
+        expect(row, isNotNull);
+        expect(row!.realTotalLengthM, isNull,
+            reason: 'null from lookup → real_total_length_m written as null');
+        // haversine total still present (backward compat).
+        expect(row.totalLengthM, greaterThan(0));
       },
     );
   });
