@@ -164,13 +164,13 @@ is computed over all trips unconditionally. See PROJECT.md Key Decisions.
 
 ### Quality Gates (QUA)
 
-- [ ] **QUA-01**: All feature modules have widget tests for their key screens (Map, Trip Inbox, Vehicle List, Region List, Focus-Area Pill)
+- [ ] **QUA-01**: All feature modules have widget tests for their key screens (Map, Trip Inbox, Vehicle List, Region List, Focus-Area Pill) [DE-SCOPED 2026-07-17 — tied to the dropped Hardening phase; see ROADMAP + 10-CONTEXT decision 9]
 - [x] **QUA-02**: Core map-matcher has ≥ 90% line coverage; golden-trip regression suite in CI
 - [x] **QUA-03**: Drift migration tests use `SchemaVerifier` to validate every migration step
-- [ ] **QUA-04**: `patrol` integration tests cover: onboarding flow, first trip recording, inbox confirmation, matching → coverage update, region browser
+- [ ] **QUA-04**: `patrol` integration tests cover: onboarding flow, first trip recording, inbox confirmation, matching → coverage update, region browser [DE-SCOPED 2026-07-17 — tied to the dropped Hardening phase; see ROADMAP + 10-CONTEXT decision 9]
 - [x] **QUA-05**: iOS + Android debug builds succeed in CI
 - [x] **QUA-06**: 60-minute driving battery-drain baseline (measured on real device) committed to repo; regression on major changes flagged  <!-- Complete (user-attested — 96 km/1h40 drive 2026-07-09, no battery anomalies observed) -->
-- [ ] **QUA-07**: Real-device QA gauntlet before release: iPhone (current + one older), Samsung, Xiaomi (worst-case battery-killer)
+- [ ] **QUA-07**: Real-device QA gauntlet before release: iPhone (current + one older), Samsung, Xiaomi (worst-case battery-killer) [DE-SCOPED 2026-07-17 — tied to the dropped Hardening phase; see ROADMAP + 10-CONTEXT decision 9]
 
 ## v2 Requirements
 
@@ -346,16 +346,16 @@ Every requirement maps to exactly one phase. Phase Gates in ROADMAP.md: G1 = UI-
 | SET-07 | Phase 9: Settings + Backup | Complete |
 | SET-08 | Phase 9: Settings + Backup | Complete |
 | SET-09 | Phase 9: Settings + Backup | Complete |
-| QUA-01 | Phase 10: Hardening | Pending |
+| QUA-01 | Phase 10: Hardening | De-scoped (Hardening dropped 2026-07-17) |
 | QUA-02 | Phase 5: Overpass-Backed Matcher + Golden Corpus | Complete |
 | QUA-03 | Phase 1: Scaffolding | Complete |
-| QUA-04 | Phase 10: Hardening | Pending |
+| QUA-04 | Phase 10: Hardening | De-scoped (Hardening dropped 2026-07-17) |
 | QUA-05 | Phase 1: Scaffolding | Complete |
 | QUA-06 | Phase 3: Tracking MVP | Complete (user-attested — 96 km/1h40 drive 2026-07-09, no battery anomalies observed) |
-| QUA-07 | Phase 10: Hardening | Pending |
+| QUA-07 | Phase 10: Hardening | De-scoped (Hardening dropped 2026-07-17) |
 
 *(VEH-01..06 removed from this table 2026-07-13 — Vehicles + Bluetooth phase cut.)*
 
 ---
 *Requirements defined: 2026-07-02*
-*Last updated: 2026-07-13 (Vehicles + Bluetooth feature removed at user request — VEH-01..06 withdrawn, schema v4 drops Vehicles/BtFingerprints tables + trips.vehicle_id/bluetooth_hint; TRK-02/COV-08 vehicle clauses struck; Phases 10/11 renumbered to 9/10)*
+*Last updated: 2026-07-17 (QUA-01/04/07 de-scoped — tied to the dropped Hardening phase, see ROADMAP + 10-CONTEXT decision 9; 2026-07-13: Vehicles + Bluetooth feature removed at user request — VEH-01..06 withdrawn, schema v4 drops Vehicles/BtFingerprints tables + trips.vehicle_id/bluetooth_hint; TRK-02/COV-08 vehicle clauses struck; Phases 10/11 renumbered to 9/10)*
