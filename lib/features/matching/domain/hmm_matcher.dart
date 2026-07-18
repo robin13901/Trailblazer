@@ -203,18 +203,31 @@ class HmmMatcher {
       // Ways only touched at the trip start/end, or bounded by a confidence
       // gap, keep the conservative measured span (we can't prove traversal).
       //
-      // Over-draw guard (2026-07-10, revised): the raw pass-through test marked
-      // spurious ways as fully driven — an exit ramp or a side-street stub that
-      // a couple of GPS fixes drifted onto near a junction, or a parallel road.
-      // The renderer paints the WHOLE way geometry for any covered way, so the
-      // entire ramp/stub lit up ("triangle at every exit", side-street snippet).
-      // A short connector is extended ONLY when the topology confirms a real
-      // pass-through: entered from one endpoint and exited at the OTHER endpoint
-      // (a genuine A→B→C drive-through). A spur/ramp/parallel excursion enters
-      // and leaves at the SAME endpoint (A→B→A) and is NOT extended → its tiny
-      // measured span falls under the coverage floor and is dropped. Longer ways
-      // never use the topology path; they extend only when the measured span
-      // already covers a majority of the way (a real end-to-end drive).
+      // Full-length extension (2026-07-18, tightened): extend a partially-
+      // measured run to the FULL way length ONLY when the route genuinely
+      // traversed the way END-TO-END — it entered from another matched way
+      // attached to ONE endpoint node and exited to another matched way
+      // attached to the OTHER endpoint node (exact OSM node-id topology via
+      // `_isPassThroughConnector`, now applied to ways of ANY length, not just
+      // short connectors). This is the gap-closer for junction connectors and
+      // for a road split into consecutive OSM way-segments each driven fully.
+      //
+      // The prior rule extended on `coversMajority` ALONE (measured span ≥ 50%
+      // of the way) with no topology check for longer ways. That over-drew a
+      // road the vehicle merely ran PARALLEL to or CLIPPED near a junction: a
+      // parallel excursion snaps a majority-spanning run onto the neighbour and
+      // got auto-completed to 100% (the real "Dientzenhoferstraße" over-draw,
+      // painted 256/256 m with its midpoint 49 m off the actual GPS trace).
+      // Requiring end-to-end topology refuses that: a parallel/clip enters and
+      // exits at the SAME end (or tees mid-way, attaching to neither endpoint),
+      // so the topology check fails and only the conservatively-measured span
+      // is kept — the coverage floor then drops a tiny clip entirely.
+      //
+      // `coversMajority` is retained as CORROBORATION for longer ways: a
+      // genuine end-to-end drive already spans most of the way, so a topology
+      // "pass-through" whose measured span is implausibly tiny (a mid-length
+      // way matched to 1-2 fixes) is not blindly completed. Short connectors
+      // legitimately catch only 1-2 fixes, so they extend on topology alone.
       if (enteredFromOtherWay && exitedToOtherWay) {
         final way = waysById[runWayId];
         if (way != null) {
@@ -223,13 +236,13 @@ class HmmMatcher {
             final measuredSpan = end - start;
             final coversMajority =
                 measuredSpan >= len * kMinTraversedFractionForExtend;
-            final isConnector = len <= kMaxPassThroughConnectorMeters &&
-                _isPassThroughConnector(
-                  connector: way,
-                  entryWay: waysById[entryWayId],
-                  exitWay: waysById[exitWayId],
-                );
-            if (isConnector || coversMajority) {
+            final isShortConnector = len <= kMaxPassThroughConnectorMeters;
+            final passesThroughEndToEnd = _isPassThroughConnector(
+              connector: way,
+              entryWay: waysById[entryWayId],
+              exitWay: waysById[exitWayId],
+            );
+            if (passesThroughEndToEnd && (isShortConnector || coversMajority)) {
               start = 0;
               end = len;
             }

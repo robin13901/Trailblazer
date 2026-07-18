@@ -619,5 +619,72 @@ void main() {
                 'keep its tiny span, not be extended to 20 m — got $span');
       }
     });
+
+    // -------------------------------------------------------------------------
+    // Test 14: a MAJORITY-covered way whose run enters/exits via other ways but
+    // NOT end-to-end (entry attaches to a MIDDLE node, not an endpoint) must
+    // NOT be extended to full length (2026-07-18 "Dientzenhoferstraße" over-
+    // draw: painted 100 % though its first stretch was never driven). Pre-
+    // tightening, `coversMajority` alone extended it; the fix requires genuine
+    // end-to-end node topology.
+    // -------------------------------------------------------------------------
+    test(
+        '14. majority-covered way entered mid-span (not end-to-end) is NOT '
+        'extended (Dientzenhoferstraße over-draw guard)', () {
+      // P: 200 m east at y=0, nodes at meters 0 / 100 / 200.
+      final wayP = WayCandidate(
+        wayId: 200,
+        highwayClass: 'residential',
+        nodeIds: const [2000, 2001, 2002],
+        geometry: [_ll(0, 0), _ll(0, 100), _ll(0, 200)],
+      );
+      // Feeder F comes from the south and joins P at its MIDDLE node 2001
+      // (meter 100) — NOT an endpoint. Sharing node id 2001 makes the join
+      // exact, and _attachedEndById(F) → none (2001 is neither P's start 2000
+      // nor end 2002).
+      final wayF = WayCandidate(
+        wayId: 300,
+        highwayClass: 'residential',
+        nodeIds: const [3000, 2001],
+        geometry: [_ll(-50, 100), _ll(0, 100)],
+      );
+      // Exit E leaves P at its END node 2002 (meter 200) heading south.
+      final wayE = WayCandidate(
+        wayId: 400,
+        highwayClass: 'residential',
+        nodeIds: const [2002, 4000],
+        geometry: [_ll(0, 200), _ll(-50, 200)],
+      );
+
+      // Drive north up F to the junction, EAST along P from meter 100→200
+      // (measured span 100 m = exactly a majority of the 200 m way), then south
+      // down E. The vehicle NEVER touches P's first 100 m.
+      final fixes = [
+        _fix(-40, 100),
+        _fix(-10, 100, dtSecs: 2),
+        _fix(0, 120, dtSecs: 4),
+        _fix(0, 150, dtSecs: 6),
+        _fix(0, 180, dtSecs: 8),
+        _fix(0, 200, dtSecs: 10),
+        _fix(-20, 200, dtSecs: 12),
+        _fix(-45, 200, dtSecs: 14),
+      ];
+
+      final result = _matcher.match(fixes: fixes, ways: [wayP, wayF, wayE]);
+
+      final pIntervals =
+          result.intervals.where((iv) => iv.wayId == 200).toList();
+      expect(pIntervals, isNotEmpty, reason: 'P should be matched over 100→200');
+      for (final iv in pIntervals) {
+        final span = (iv.endMeters - iv.startMeters).abs();
+        // Entry attaches to P's MIDDLE node (not an endpoint) → not a genuine
+        // end-to-end pass-through → the measured ~100 m span must survive, NOT
+        // be auto-completed to the full 200 m (which would over-draw meters
+        // 0..100 the vehicle never drove).
+        expect(span, lessThan(150),
+            reason: 'P entered at its middle node must keep its measured '
+                '~100 m span, not be extended to 200 m — got $span');
+      }
+    });
   });
 }
