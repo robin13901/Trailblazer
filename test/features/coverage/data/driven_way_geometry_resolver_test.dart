@@ -18,7 +18,6 @@
 // hide isNull / isNotNull from drift to avoid ambiguous_import with flutter_test.
 import 'dart:convert';
 import 'dart:io' show gzip;
-import 'dart:typed_data';
 
 import 'package:auto_explore/core/db/app_database.dart';
 import 'package:auto_explore/core/db/daos/driven_way_intervals_dao.dart';
