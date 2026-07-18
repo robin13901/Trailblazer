@@ -67,6 +67,7 @@ class WayCandidate {
     required this.wayId,
     required this.geometry,
     required this.highwayClass,
+    this.nodeIds = const [],
     this.name,
     this.ref,
     this.oneway = OnewayDirection.no,
@@ -78,6 +79,18 @@ class WayCandidate {
 
   /// Ordered polyline of geographic points; two entries minimum.
   final List<LatLng> geometry;
+
+  /// OSM node ids parallel to [geometry] (`elements[].nodes` in the Overpass
+  /// `out geom` response): `nodeIds[i]` is the node id of `geometry[i]`.
+  ///
+  /// Two ways share a junction node iff they list the same node id — an exact
+  /// topology signal that removes the need to infer adjacency from coordinate
+  /// proximity. Empty (`const []`) when the source did not supply node ids
+  /// (hand-authored fixtures, or a length mismatch the parser rejected); the
+  /// matcher then falls back to a coordinate hash. When non-empty it is
+  /// guaranteed `nodeIds.length == geometry.length` (enforced at the parser
+  /// boundary in `OverpassResponseParser`).
+  final List<int> nodeIds;
 
   /// Value of the `highway=` tag. Guaranteed to be a member of
   /// [kfzHighwayClasses] when produced by `OverpassResponseParser`.

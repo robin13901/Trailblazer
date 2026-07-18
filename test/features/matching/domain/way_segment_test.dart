@@ -72,6 +72,61 @@ void main() {
   });
 
   // ---------------------------------------------------------------------------
+  // Node ids (exact topology + coordinate-hash fallback)
+  // ---------------------------------------------------------------------------
+  group('WaySegment.fromWay — node ids', () {
+    test('uses OSM node ids when nodeIds length matches geometry', () {
+      const way = WayCandidate(
+        wayId: 42,
+        geometry: [
+          LatLng(49.700, 9.100),
+          LatLng(49.701, 9.101),
+          LatLng(49.702, 9.102),
+        ],
+        nodeIds: [500, 501, 502],
+        highwayClass: 'residential',
+      );
+      final segs = WaySegment.fromWay(way);
+      expect(segs[0].aNodeId, 500);
+      expect(segs[0].bNodeId, 501);
+      expect(segs[1].aNodeId, 501); // shared junction node with seg[0].b
+      expect(segs[1].bNodeId, 502);
+    });
+
+    test('two ways sharing a coordinate share a node key when ids absent', () {
+      // Junction point (49.701, 9.101) is the END of wayA and the START of wayB.
+      const wayA = WayCandidate(
+        wayId: 1,
+        geometry: [LatLng(49.700, 9.100), LatLng(49.701, 9.101)],
+        highwayClass: 'residential',
+      );
+      const wayB = WayCandidate(
+        wayId: 2,
+        geometry: [LatLng(49.701, 9.101), LatLng(49.702, 9.102)],
+        highwayClass: 'residential',
+      );
+      final a = WaySegment.fromWay(wayA).single;
+      final b = WaySegment.fromWay(wayB).single;
+      // No OSM ids → coordinate-hash surrogate; the shared vertex hashes equal.
+      expect(a.bNodeId, b.aNodeId);
+      // Surrogate keys are negative (never collide with real OSM node ids).
+      expect(a.aNodeId, isNegative);
+    });
+
+    test('nodeIds length mismatch → falls back to coordinate hash', () {
+      const way = WayCandidate(
+        wayId: 3,
+        geometry: [LatLng(49.700, 9.100), LatLng(49.701, 9.101)],
+        nodeIds: [500], // wrong length → ignored
+        highwayClass: 'residential',
+      );
+      final seg = WaySegment.fromWay(way).single;
+      expect(seg.aNodeId, isNegative);
+      expect(seg.bNodeId, isNegative);
+    });
+  });
+
+  // ---------------------------------------------------------------------------
   // Bounding-box helpers
   // ---------------------------------------------------------------------------
   group('WaySegment bbox helpers', () {

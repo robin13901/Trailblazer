@@ -170,6 +170,51 @@ void main() {
     });
   });
 
+  group('OverpassResponseParser — node ids', () {
+    test('captures nodes array parallel to geometry', () {
+      const body = '''
+{"elements":[
+  {"type":"way","id":10,
+   "nodes":[100,101,102],
+   "geometry":[{"lat":0,"lon":0},{"lat":1,"lon":1},{"lat":2,"lon":2}],
+   "tags":{"highway":"residential"}}
+]}''';
+      final ways = OverpassResponseParser().parseWays(body);
+      expect(ways.single.nodeIds, [100, 101, 102]);
+      expect(ways.single.nodeIds.length, ways.single.geometry.length);
+    });
+
+    test('drops nodes when length mismatches geometry (misalignment guard)', () {
+      const body = '''
+{"elements":[
+  {"type":"way","id":11,
+   "nodes":[100,101],
+   "geometry":[{"lat":0,"lon":0},{"lat":1,"lon":1},{"lat":2,"lon":2}],
+   "tags":{"highway":"residential"}}
+]}''';
+      final ways = OverpassResponseParser().parseWays(body);
+      expect(ways.single.nodeIds, isEmpty);
+      expect(ways.single.geometry, hasLength(3));
+    });
+
+    test('absent nodes array → empty nodeIds (fixture back-compat)', () {
+      final ways = _parseOne(highway: 'primary');
+      expect(ways.single.nodeIds, isEmpty);
+    });
+
+    test('non-int node entry → dropped (defensive)', () {
+      const body = '''
+{"elements":[
+  {"type":"way","id":12,
+   "nodes":[100,"x"],
+   "geometry":[{"lat":0,"lon":0},{"lat":1,"lon":1}],
+   "tags":{"highway":"residential"}}
+]}''';
+      final ways = OverpassResponseParser().parseWays(body);
+      expect(ways.single.nodeIds, isEmpty);
+    });
+  });
+
   group('OverpassResponseParser — defensive parsing', () {
     test('non-JSON body → empty list, no throw', () {
       final ways = OverpassResponseParser().parseWays('not json <html>');

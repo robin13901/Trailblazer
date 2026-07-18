@@ -24,6 +24,8 @@ class WaySegment {
     required this.bLon,
     required this.highwayClass,
     required this.oneway,
+    this.aNodeId = 0,
+    this.bNodeId = 0,
   });
 
   /// OSM way id.
@@ -51,6 +53,15 @@ class WaySegment {
   /// Normalized `oneway=` direction for this way.
   final OnewayDirection oneway;
 
+  /// OSM node id of the start node (`geometry[segIdx]`), or a coordinate-hash
+  /// surrogate when the source supplied no node ids (see [nodeKeyFor]). Two
+  /// segments meet at a junction iff they share a node id — this is what the
+  /// route-distance graph keys on, replacing coordinate-proximity matching.
+  final int aNodeId;
+
+  /// OSM node id of the end node (`geometry[segIdx + 1]`); see [aNodeId].
+  final int bNodeId;
+
   // ---------------------------------------------------------------------------
   // Axis-aligned bounding box helpers (used by the R-Tree and by tests).
   // ---------------------------------------------------------------------------
@@ -73,9 +84,16 @@ class WaySegment {
 
   /// Explode a [WayCandidate] into its ordered segments. Ways with fewer
   /// than 2 geometry points yield an empty list (no throw).
+  ///
+  /// Node ids come from [WayCandidate.nodeIds] when present (exact topology);
+  /// otherwise each vertex gets a deterministic coordinate-hash surrogate via
+  /// [nodeKeyFor], so segments that share a vertex still share a node key even
+  /// without OSM ids (hand-authored fixtures).
   static List<WaySegment> fromWay(WayCandidate way) {
     final geom = way.geometry;
     if (geom.length < 2) return const [];
+    final ids = way.nodeIds;
+    final hasIds = ids.length == geom.length;
     final out = <WaySegment>[];
     for (var i = 0; i + 1 < geom.length; i++) {
       final a = geom[i];
@@ -90,10 +108,22 @@ class WaySegment {
           bLon: b.longitude,
           highwayClass: way.highwayClass,
           oneway: way.oneway,
+          aNodeId: hasIds ? ids[i] : nodeKeyFor(a.latitude, a.longitude),
+          bNodeId: hasIds ? ids[i + 1] : nodeKeyFor(b.latitude, b.longitude),
         ),
       );
     }
     return out;
+  }
+
+  /// Deterministic surrogate node key from a coordinate, used when the source
+  /// supplied no OSM node ids. Quantizes lat/lon to ~1e-6° (~0.1 m) so two
+  /// vertices at the same location hash equal, then packs into a single int.
+  /// Negative to avoid colliding with real (positive) OSM node ids.
+  static int nodeKeyFor(double lat, double lon) {
+    final qLat = (lat * 1e6).round();
+    final qLon = (lon * 1e6).round();
+    return -(qLat * 1000000007 + qLon).abs() - 1;
   }
 
   // ---------------------------------------------------------------------------

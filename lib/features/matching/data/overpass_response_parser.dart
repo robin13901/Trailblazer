@@ -74,6 +74,29 @@ class OverpassResponseParser {
       }
       if (geometry.length < 2) continue;
 
+      // OSM node ids (`elements[].nodes`) run parallel to `geometry` in an
+      // `out geom` response. Capture them for exact junction topology — two
+      // ways share a node iff they list the same id. Only trust the array when
+      // it is all-int AND exactly as long as the parsed geometry; any mismatch
+      // (a skipped malformed geometry point above, or a truncated response)
+      // would misalign node↔coordinate, so we drop to `const []` and let the
+      // matcher fall back to a coordinate hash rather than store bad topology.
+      final nodesRaw = raw['nodes'];
+      var nodeIds = const <int>[];
+      if (nodesRaw is List && nodesRaw.length == geometry.length) {
+        final parsed = <int>[];
+        var ok = true;
+        for (final n in nodesRaw) {
+          if (n is int) {
+            parsed.add(n);
+          } else {
+            ok = false;
+            break;
+          }
+        }
+        if (ok) nodeIds = parsed;
+      }
+
       final tags = raw['tags'];
       if (tags is! Map<String, dynamic>) continue;
       final highwayClass = tags['highway'];
@@ -84,6 +107,7 @@ class OverpassResponseParser {
         WayCandidate(
           wayId: id,
           geometry: geometry,
+          nodeIds: nodeIds,
           highwayClass: highwayClass,
           name: _stringOrNull(tags['name']),
           ref: _stringOrNull(tags['ref']),
