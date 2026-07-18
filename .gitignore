@@ -27,3 +27,6 @@ tool/region_stats/out/
 # Personal API key file for --dart-define-from-file (MapTiler etc.)
 # See env/dev.json.example for the shape. Real env/dev.json is gitignored.
 env/dev.json
+
+# Build artifacts (unsigned .ipa etc.) — never version binaries
+dist/
