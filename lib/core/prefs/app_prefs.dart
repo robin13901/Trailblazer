@@ -56,7 +56,14 @@ class AppPrefs {
   /// `4` = 2026-07-14 road-snapped coverage line: `coverage_path_json` now holds
   /// the road-snapped polyline (on-road fixes drawn at their snapped position,
   /// raw GPS bridging only off-road gaps). Re-match rebuilds it for all trips.
-  static const int kCurrentMatcherRematchVersion = 4;
+  /// `5` = 2026-07-18 route-aware matcher + clipped-way coverage: the Viterbi
+  /// transition now uses a real bounded on-road route distance (node graph),
+  /// eliminating the junction triangle/fan/zigzag mis-snaps; the visible line
+  /// is rendered from `driven_way_intervals` clipped to driven sub-intervals
+  /// and deduped per way (no longer `coverage_path_json`). Re-match rewrites
+  /// every stored trip's intervals under the new matcher so existing trips
+  /// repaint correctly without a fresh drive.
+  static const int kCurrentMatcherRematchVersion = 5;
 
   /// Version stamp of the last coverage-cache recompute migration applied to
   /// this device. Bumped whenever `coverage_cache` needs a one-shot
