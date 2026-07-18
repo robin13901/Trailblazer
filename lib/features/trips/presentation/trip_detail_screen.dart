@@ -24,6 +24,8 @@ import 'dart:math' as math;
 import 'package:auto_explore/core/db/app_database_providers.dart';
 import 'package:auto_explore/core/db/daos/driven_way_intervals_dao.dart';
 import 'package:auto_explore/core/errors/domain_error.dart';
+import 'package:auto_explore/features/coverage/domain/coverage_color_preset.dart';
+import 'package:auto_explore/features/coverage/presentation/coverage_preset_provider.dart';
 import 'package:auto_explore/features/matching/data/matching_providers.dart';
 import 'package:auto_explore/features/matching/data/way_candidate_source.dart';
 import 'package:auto_explore/features/matching/domain/way_candidate.dart';
@@ -311,7 +313,13 @@ class _TripDetailScreenState extends ConsumerState<TripDetailScreen> {
   }
 
   Widget _buildBody(TripDetailData data) {
-    final scheme = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    // Match the map's coverage line color (user's chosen preset) so the trip's
+    // matched roads read as "the same line" they see on the map (2026-07-18).
+    final preset = ref.watch(coveragePresetValueProvider);
+    final matchedColor =
+        _hexToColor(preset.forBrightness(theme.brightness).fullHex);
     return Column(
       children: [
         if (data.item.isFailMatched) const _FailMatchedBanner(),
@@ -323,12 +331,18 @@ class _TripDetailScreenState extends ConsumerState<TripDetailScreen> {
           child: TripRouteView(
             data: data,
             rawColor: scheme.outline,
-            matchedColor: scheme.primary,
+            matchedColor: matchedColor,
           ),
         ),
         _StatStrip(data: data),
       ],
     );
+  }
+
+  /// Parse a '#RRGGBB' coverage-preset hex into an opaque [Color].
+  static Color _hexToColor(String hex) {
+    final clean = hex.replaceFirst('#', '');
+    return Color(int.parse('FF$clean', radix: 16));
   }
 }
 
@@ -401,7 +415,7 @@ class _Banner extends StatelessWidget {
   }
 }
 
-/// Compact stat strip below the map: duration · distance · matched summary.
+/// Compact stat strip below the map: duration · distance.
 class _StatStrip extends StatelessWidget {
   const _StatStrip({required this.data});
 
@@ -412,22 +426,11 @@ class _StatStrip extends StatelessWidget {
     final theme = Theme.of(context);
     final item = data.item;
 
-    final String matchedLabel;
-    if (data.offline) {
-      matchedLabel = '— (offline)';
-    } else if (data.matchedFraction != null) {
-      final pct = (data.matchedFraction! * 100).round();
-      matchedLabel = '${data.matchedWayCount} Straßen ($pct %)';
-    } else {
-      matchedLabel = '${data.matchedWayCount} Straßen';
-    }
-
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       child: Text(
         'Dauer: ${formatDuration(item.duration)} · '
-        'Distanz: ${formatDistance(item.distanceMeters)} · '
-        'Abgeglichen: $matchedLabel',
+        'Distanz: ${formatDistance(item.distanceMeters)}',
         style: theme.textTheme.bodyMedium,
         textAlign: TextAlign.center,
       ),

@@ -8,6 +8,8 @@
 // shows a confirmation modal; on confirm it runs the repository's ordered
 // delete and clears the thumbnail cache.
 
+import 'package:auto_explore/features/regions/domain/region_coverage.dart'
+    show formatKm;
 import 'package:auto_explore/features/trips/data/thumbnail_providers.dart';
 import 'package:auto_explore/features/trips/data/trip_place_lookup_providers.dart';
 import 'package:auto_explore/features/trips/data/trips_repository_inbox_extensions.dart';
@@ -22,38 +24,15 @@ import 'package:maplibre_gl/maplibre_gl.dart';
 // Shared trip-formatting helpers (reused by HistoryRow + TripDetailScreen).
 // ---------------------------------------------------------------------------
 
-const List<String> _kWeekdayNames = [
-  'Mon',
-  'Tue',
-  'Wed',
-  'Thu',
-  'Fri',
-  'Sat',
-  'Sun',
-];
-
-const List<String> _kMonthNames = [
-  'Jan',
-  'Feb',
-  'Mar',
-  'Apr',
-  'May',
-  'Jun',
-  'Jul',
-  'Aug',
-  'Sep',
-  'Oct',
-  'Nov',
-  'Dec',
-];
-
-/// e.g. "Wed 8 Jul, 14:32". Locale-agnostic (no intl dependency).
+/// e.g. "17.07.2026, 19:04" — German numeric date DD.MM.YYYY + 24h time.
+/// (2026-07-18 user request: numeric date with year, no weekday/month name.)
 String formatTripDateTime(DateTime dt) {
-  final weekday = _kWeekdayNames[dt.weekday - 1];
-  final month = _kMonthNames[dt.month - 1];
+  final dd = dt.day.toString().padLeft(2, '0');
+  final mo = dt.month.toString().padLeft(2, '0');
+  final yyyy = dt.year.toString();
   final hh = dt.hour.toString().padLeft(2, '0');
   final mm = dt.minute.toString().padLeft(2, '0');
-  return '$weekday ${dt.day} $month, $hh:$mm';
+  return '$dd.$mo.$yyyy, $hh:$mm';
 }
 
 /// e.g. "42 min" or "1 h 12 min". Null-safe → "—" when duration is unknown.
@@ -66,12 +45,13 @@ String formatDuration(Duration? d) {
   return '$hours h $minutes min';
 }
 
-/// e.g. "28.4 km" or "820 m". Null-safe → "—".
+/// e.g. "2,5 km" or "820 m". Null-safe → "—". The km branch reuses the region
+/// browser's German [formatKm] rule (comma decimals; dot thousands ≥1000) so
+/// trip distances read identically to the regions tab (2026-07-18 request).
 String formatDistance(double? meters) {
   if (meters == null) return '—';
   if (meters < 1000) return '${meters.round()} m';
-  final km = meters / 1000;
-  return '${km.toStringAsFixed(1)} km';
+  return '${formatKm(meters / 1000)} km';
 }
 
 /// Human-readable start→end place label from resolved place names. Loops

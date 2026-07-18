@@ -57,16 +57,15 @@ class RecenterButton extends ConsumerWidget {
             final userLocation = await controller.requestMyLocationLatLng();
 
             if (userLocation != null) {
-              // Plan 04-18 (2026-07-08 drive feedback): recenter tap now
-              // ALWAYS zooms back to CameraState.initial.zoom, so the tap
-              // is a "reset view" — recenter + zoom-to-default in one
-              // animation. Previously the button had a local
-              // _recenterZoom constant; unified with the cold-start
-              // default so they can never diverge again.
+              // Plan 04-18 (2026-07-08 drive feedback) + 2026-07-18: recenter
+              // tap ALWAYS animates to CameraState.recenterZoom — a fixed
+              // street-level zoom one level deeper than the cold-start default,
+              // regardless of the current zoom. So the tap is a "reset view":
+              // recenter + zoom-to-fixed-level in one animation.
               await controller.animateCamera(
                 CameraUpdate.newLatLngZoom(
                   userLocation,
-                  CameraState.initial.zoom,
+                  CameraState.recenterZoom,
                 ),
                 duration: const Duration(milliseconds: 500),
               );

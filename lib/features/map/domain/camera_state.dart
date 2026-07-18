@@ -32,6 +32,12 @@ class CameraState {
     followMode: FollowMode.location,
   );
 
+  /// Zoom the recenter button animates to. One level deeper than the cold-start
+  /// [initial] zoom (user request 2026-07-18): tapping recenter always returns
+  /// to this fixed street-level zoom regardless of how far out the map was
+  /// panned/zoomed, so it reads as a consistent "reset to my location".
+  static const double recenterZoom = 17;
+
   CameraState copyWith({
     double? latitude,
     double? longitude,

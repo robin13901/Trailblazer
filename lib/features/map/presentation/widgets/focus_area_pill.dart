@@ -13,6 +13,7 @@ import 'package:auto_explore/features/admin/data/admin_region_providers.dart';
 import 'package:auto_explore/features/coverage/data/coverage_providers.dart';
 import 'package:auto_explore/features/map/presentation/providers/live_camera_provider.dart';
 import 'package:auto_explore/features/map/presentation/widgets/glass_pill.dart';
+import 'package:auto_explore/features/regions/data/region_totals_lookup.dart';
 import 'package:auto_explore/features/regions/domain/region_coverage.dart';
 import 'package:auto_explore/features/regions/domain/zoom_level_mapper.dart';
 import 'package:auto_explore/features/regions/presentation/providers/focus_pill_provider.dart';
@@ -107,12 +108,25 @@ class FocusAreaPill extends ConsumerWidget {
     // Guard: context may have unmounted during the async cache read.
     if (!context.mounted) return;
 
+    // Denominator MUST match the regions tab (region_browser_provider):
+    //   real per-region Kfz total (bundled)  →  haversine bbox total.
+    // The cache row's realTotalLengthM is the recompute-written bundled total.
+    // For an UNDRIVEN region there is no cache row at all, so fall back to the
+    // bundled RegionTotalsLookup directly — this makes an undriven region show
+    // its real total km ("0,0 / 32,9 km") instead of the old "0 / 0 km" bug.
+    final totalsLookup = ref.read(regionTotalsLookupProvider);
+    await totalsLookup.ensureLoaded();
+    if (!context.mounted) return;
+    final bundledTotal = totalsLookup.totalFor(region.osmId.toString());
+    final totalLengthM =
+        row?.realTotalLengthM ?? bundledTotal ?? row?.totalLengthM ?? 0;
+
     final rc = RegionCoverage(
       osmId: region.osmId,
       adminLevel: region.adminLevel,
       name: region.nameDe ?? region.name,
       drivenLengthM: row?.drivenLengthM ?? 0,
-      totalLengthM: row?.totalLengthM ?? 0,
+      totalLengthM: totalLengthM,
     );
 
     await showRegionDetailSheet(context, ref, rc);

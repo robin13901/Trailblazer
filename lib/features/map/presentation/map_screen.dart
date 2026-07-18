@@ -25,7 +25,10 @@ import 'package:permission_handler/permission_handler.dart';
 /// (screen-edge ↔ FAB, FAB ↔ pill, FAB ↔ recenter vertical) is 12 dp.
 const double _fabSize = 64;
 const double _chromeGap = 12;
-const double _navRowBottomInset = 12;
+// Lowered from 12 → 4 (on-device feedback 2026-07-18): sits the nav pill + FAB
+// row a little closer to the bottom safe-area edge. SafeArea still clears the
+// home indicator, so 4 dp keeps a small breathing gap without floating high.
+const double _navRowBottomInset = 4;
 
 /// Top-chrome vertical inset from the safe-area top.
 ///

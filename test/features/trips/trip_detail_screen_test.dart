@@ -461,7 +461,7 @@ void main() {
       },
     );
 
-    testWidgets('stat strip renders duration/distance/matched%',
+    testWidgets('stat strip renders duration/distance',
         (tester) async {
       await pumpScreen(
         tester,
@@ -472,8 +472,9 @@ void main() {
       await tester.pump();
 
       expect(find.textContaining('Dauer: 42 min'), findsOneWidget);
-      expect(find.textContaining('Distanz: 28.4 km'), findsOneWidget);
-      expect(find.textContaining('Abgeglichen:'), findsOneWidget);
+      expect(find.textContaining('Distanz: 28,4 km'), findsOneWidget);
+      // "Abgeglichen: …" was removed from the stat strip (2026-07-18 request).
+      expect(find.textContaining('Abgeglichen:'), findsNothing);
     });
 
     testWidgets('delete → dialog → discardTrip(tripId) + pop', (tester) async {

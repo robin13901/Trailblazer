@@ -12,8 +12,6 @@
 // RawGpsRetentionSection, DataManagementSection, CoverageColorSection,
 // and the HUD toggle). Platform-channel services are overridden with fakes.
 
-import 'package:auto_explore/features/admin/data/admin_bundle_refresher.dart';
-import 'package:auto_explore/features/admin/data/admin_region_providers.dart';
 import 'package:auto_explore/features/onboarding/data/permission_service_provider.dart';
 import 'package:auto_explore/features/settings/data/backup_service_provider.dart';
 import 'package:auto_explore/features/settings/data/file_platform_provider.dart';
@@ -27,15 +25,6 @@ import 'package:shared_preferences_platform_interface/shared_preferences_async_p
 import '../../onboarding/fakes/fake_permission_service.dart';
 import '../fakes/fake_backup_service.dart';
 import '../fakes/fake_file_platform.dart';
-
-/// Minimal [AdminBundleRefresher] fake — never hits Overpass.
-class _FakeAdminBundleRefresher implements AdminBundleRefresher {
-  @override
-  dynamic noSuchMethod(Invocation invocation) async => null;
-
-  @override
-  Future<void> refreshFromOverpass() async {}
-}
 
 void main() {
   setUp(() {
@@ -54,8 +43,6 @@ void main() {
           backupServiceProvider.overrideWithValue(FakeBackupService()),
           filePlatformProvider.overrideWithValue(FakeFilePlatform()),
           permissionServiceProvider.overrideWithValue(FakePermissionService()),
-          adminBundleRefresherProvider
-              .overrideWithValue(_FakeAdminBundleRefresher()),
         ],
         child: const MaterialApp(
           home: SettingsScreen(),

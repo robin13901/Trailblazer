@@ -24,6 +24,7 @@ import 'package:auto_explore/features/coverage/data/coverage_cache_dao.dart';
 import 'package:auto_explore/features/coverage/data/coverage_providers.dart';
 import 'package:auto_explore/features/map/presentation/providers/live_camera_provider.dart';
 import 'package:auto_explore/features/map/presentation/widgets/focus_area_pill.dart';
+import 'package:auto_explore/features/regions/data/region_totals_lookup.dart';
 import 'package:auto_explore/features/regions/presentation/providers/focus_pill_provider.dart';
 import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
@@ -67,6 +68,23 @@ class _FixedLiveCameraNotifier extends LiveCameraNotifier {
 
   @override
   LiveCamera? build() => _camera;
+}
+
+/// Fake RegionTotalsLookup — never touches rootBundle (which stalls in the
+/// pure widget-test binding). Returns null for every id, so the pill falls
+/// back to the cache row's totals.
+class _FakeTotalsLookup implements RegionTotalsLookup {
+  @override
+  Future<void> ensureLoaded() async {}
+
+  @override
+  double? totalFor(String osmId) => null;
+
+  @override
+  void invalidate() {}
+
+  @override
+  int get entryCount => 0;
 }
 
 // ---------------------------------------------------------------------------
@@ -117,6 +135,7 @@ Future<void> _pumpPillWithFakes(
         ),
         adminRegionLookupProvider.overrideWithValue(_FakeLookup(_kTestRegion)),
         coverageCacheDaoProvider.overrideWithValue(dao),
+        regionTotalsLookupProvider.overrideWithValue(_FakeTotalsLookup()),
       ],
       child: const MaterialApp(
         home: Scaffold(

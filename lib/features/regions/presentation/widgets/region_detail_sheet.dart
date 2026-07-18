@@ -30,6 +30,7 @@ import 'package:auto_explore/features/coverage/data/coverage_overlay_providers.d
 import 'package:auto_explore/features/map/domain/camera_state.dart';
 import 'package:auto_explore/features/map/domain/follow_mode.dart';
 import 'package:auto_explore/features/map/presentation/providers/camera_state_provider.dart';
+import 'package:auto_explore/features/map/presentation/providers/live_camera_provider.dart';
 import 'package:auto_explore/features/map/presentation/providers/map_controller_provider.dart';
 import 'package:auto_explore/features/regions/domain/region_coverage.dart';
 import 'package:auto_explore/features/regions/presentation/providers/region_sheet_open_provider.dart';
@@ -109,6 +110,18 @@ class _RegionDetailContent extends ConsumerWidget {
       final drivenCenter = _drivenCentroidInRegion(ref, adm);
       final target = _cameraForBbox(adm, override: drivenCenter);
       ref.read(cameraStateProvider.notifier).jumpTo(target);
+
+      // Update the focus pill immediately. The pill watches liveCameraProvider
+      // (fed by the map's onCameraMove), NOT cameraStateProvider — so without
+      // this the pill only refreshed once the user manually nudged the map
+      // (on-device feedback 2026-07-18). Seed the live camera with the jump
+      // target so the pill resolves the just-tapped region on the next frame.
+      ref.read(liveCameraProvider.notifier).update(
+            CameraPosition(
+              target: LatLng(target.latitude, target.longitude),
+              zoom: target.zoom,
+            ),
+          );
 
       // If the map is still alive (rare: e.g. shell kept it mounted), also
       // animate for an immediate smooth move. Deferred a frame so the branch

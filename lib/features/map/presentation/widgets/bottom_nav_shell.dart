@@ -127,7 +127,11 @@ class _NavTabItem extends StatelessWidget {
                 label,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
+                // One step smaller than labelSmall so the longest label
+                // ("Regionen") fits on narrow iPhones without ellipsizing to
+                // "Regio…" (on-device feedback 2026-07-18).
                 style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  fontSize: 10,
                   color: color,
                   fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
                 ),
