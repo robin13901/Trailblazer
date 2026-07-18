@@ -18,6 +18,7 @@ import 'dart:math' as math;
 
 import 'package:auto_explore/features/matching/domain/gps_fix.dart';
 import 'package:auto_explore/features/matching/domain/hmm_probability.dart';
+import 'package:auto_explore/features/matching/domain/node_graph.dart';
 import 'package:auto_explore/features/matching/domain/viterbi_decoder.dart';
 import 'package:auto_explore/features/matching/domain/way_candidate.dart';
 import 'package:auto_explore/features/matching/domain/way_segment_index.dart';
@@ -631,6 +632,76 @@ void main() {
   });
 
   // ---------------------------------------------------------------------------
+  // Route-aware transition (2026-07-18): with a NodeGraph, a fix near a
+  // T-junction that is MARGINALLY closer to the side road must NOT snap to it,
+  // because reaching the side road and coming back is a large on-road detour
+  // (|route − gc| ≫ 0) while staying on the through-road costs ~0. This is the
+  // scenario that produced the "triangle at the T" artifact under the old
+  // constant-detour transition (which gave every candidate the same penalty,
+  // so the marginally-closer side road won on emission alone).
+  // ---------------------------------------------------------------------------
+  test('route-aware: near-junction fix stays on through-road, no side spur', () {
+    // Through-road (E-W) along lat 49, nodes 10-11-12-13-14 (dense).
+    const mainNodes = [10, 11, 12, 13, 14];
+    final mainGeom = <LatLng>[
+      for (var i = 0; i < 5; i++) LatLng(49, 9 + i * 0.0005),
+    ];
+    final mainWay = WayCandidate(
+      wayId: 1,
+      geometry: mainGeom,
+      nodeIds: mainNodes,
+      highwayClass: 'residential',
+    );
+    // Side road (N-S) meeting the main road at node 12 (the middle junction,
+    // at lon 9.0010). It heads NORTH away from the driven line.
+    const sideNodes = [12, 20, 21];
+    const sideWay = WayCandidate(
+      wayId: 2,
+      geometry: [
+        LatLng(49, 9.0010), // shared junction node 12
+        LatLng(49.0004, 9.0010),
+        LatLng(49.0008, 9.0010),
+      ],
+      nodeIds: sideNodes,
+      highwayClass: 'residential',
+    );
+
+    final ways = [mainWay, sideWay];
+    final index = WaySegmentIndex.buildFromWays(ways);
+    final nodeGraph = NodeGraph.fromWays(ways);
+
+    // A straight eastbound trace along the main road, 1 fix/s. The middle fix
+    // (near the junction) is nudged 3 m NORTH — toward the side road — to
+    // simulate GPS noise that would tip a nearest-road decoder onto the spur.
+    const latNudge = 3 / 111320; // ~3 m north
+    final fixes = <GpsFix>[
+      for (var i = 0; i < 5; i++)
+        GpsFix(
+          lat: 49 + (i == 2 ? latNudge : 0.0),
+          lon: 9 + i * 0.0005,
+          accuracyMeters: 5,
+          speedKmh: 30,
+          ts: DateTime(2026, 7, 18, 12, 0, i),
+        ),
+    ];
+
+    final steps =
+        const ViterbiDecoder().decode(fixes, index, nodeGraph: nodeGraph);
+
+    // Every matched fix must be on the through-road (way 1), never the spur.
+    for (var i = 0; i < steps.length; i++) {
+      final s = steps[i];
+      expect(s, isNotNull, reason: 'fix $i should match');
+      expect(
+        s!.wayId,
+        1,
+        reason: 'fix $i snapped to way ${s.wayId}; the near-junction fix must '
+            'stay on the through-road, not spur onto the side road',
+      );
+    }
+  });
+
+  // ---------------------------------------------------------------------------
   // Constants group
   // ---------------------------------------------------------------------------
   group('exported constants', () {
@@ -639,8 +710,10 @@ void main() {
         () => expect(kGapThresholdSeconds, equals(60)));
     test('kSpeedGuardKmh = 15.0',
         () => expect(kSpeedGuardKmh, equals(15.0)));
-    test('kRouteDetourFactor = 1.4',
-        () => expect(kRouteDetourFactor, closeTo(1.4, 1e-9)));
+    test('kRouteSearchCapFloorMeters = 2000',
+        () => expect(kRouteSearchCapFloorMeters, closeTo(2000, 1e-9)));
+    test('kRouteSearchCapFactor = 8',
+        () => expect(kRouteSearchCapFactor, closeTo(8, 1e-9)));
     test('kMotorwayPenaltyLog = -ln(1e6)', () {
       expect(kMotorwayPenaltyLog, closeTo(-math.log(1e6), 1e-6));
     });

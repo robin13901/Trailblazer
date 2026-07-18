@@ -19,6 +19,7 @@ import 'package:auto_explore/features/matching/domain/gps_fix.dart';
 import 'package:auto_explore/features/matching/domain/hmm_probability.dart';
 import 'package:auto_explore/features/matching/domain/match_result.dart';
 import 'package:auto_explore/features/matching/domain/matched_step.dart';
+import 'package:auto_explore/features/matching/domain/node_graph.dart';
 import 'package:auto_explore/features/matching/domain/segment_geometry.dart';
 import 'package:auto_explore/features/matching/domain/viterbi_decoder.dart';
 import 'package:auto_explore/features/matching/domain/way_candidate.dart';
@@ -109,11 +110,22 @@ class HmmMatcher {
       for (final w in ways) w.wayId: w,
     };
 
+    // Routing graph over the same candidate ways, keyed by OSM node id (or a
+    // coordinate-hash surrogate). Gives the decoder a REAL bounded on-road
+    // route distance between consecutive candidates, replacing the old
+    // constant detour factor — this is what stops junction mis-snaps.
+    final nodeGraph = NodeGraph.fromWays(ways);
+
     final decoder = ViterbiDecoder(
       betaMeters: betaMeters,
       beamWidth: beamWidth,
     );
-    final steps = decoder.decode(fixes, index, onProgress: onProgress);
+    final steps = decoder.decode(
+      fixes,
+      index,
+      nodeGraph: nodeGraph,
+      onProgress: onProgress,
+    );
 
     final intervals = _collapseToIntervals(steps, waysById);
 
@@ -288,20 +300,18 @@ class HmmMatcher {
   /// entryWay == exitWay, an A→B→A return), so the vehicle only dipped onto the
   /// near end and turned around — the far end was never reached.
   ///
-  /// Each neighbour is assigned to its NEAREST endpoint of the connector (not
-  /// "within tolerance of an endpoint"): a short connector is barely longer
-  /// than the endpoint tolerance, so a neighbour's vertices routinely fall
-  /// within tolerance of BOTH ends — a plain touch test then trivially passes
-  /// and defeats the check on exactly the short ways it must judge (the
-  /// 2026-07-10 residual over-draw). Nearest-endpoint assignment disambiguates:
-  /// a road that genuinely terminates at one end is nearest that end even if it
-  /// grazes the other.
+  /// **Exact when OSM node ids are present (2026-07-18):** two ways share a
+  /// junction iff they list the same node id, so "attaches to endpoint X" is a
+  /// set-membership test on the connector's first/last node id — no distance
+  /// tolerance, no nearest-endpoint disambiguation, and immune to the residual
+  /// over-draw that plagued the old fuzzy 12 m test on short connectors. When
+  /// node ids are absent (hand-authored fixtures — `nodeIds` empty), it falls
+  /// back to the nearest-endpoint coordinate test.
   ///
-  /// Returns true (extend to full) only when [entryWay] is nearest one endpoint
-  /// and [exitWay] is nearest the OTHER, and both are actually attached (within
-  /// tolerance). Returns false — the conservative default — when the entry and
-  /// exit are the same way (A→B→A), when either is unattached, or when both are
-  /// nearest the same endpoint, so an unknown or spur case is never over-drawn.
+  /// Returns true (extend to full) only when [entryWay] attaches to one
+  /// endpoint and [exitWay] to the OTHER. Returns false — the conservative
+  /// default — when entry and exit are the same way (A→B→A), when either is
+  /// unattached, or when both attach to the same endpoint.
   bool _isPassThroughConnector({
     required WayCandidate connector,
     required WayCandidate? entryWay,
@@ -314,23 +324,53 @@ class HmmMatcher {
     // pass-through — the vehicle left road A onto B and came straight back.
     if (entryWay.wayId == exitWay.wayId) return false;
 
+    // Exact path: connector endpoints are its first/last node ids; a neighbour
+    // attaches to an end iff it lists that node id.
+    final ids = connector.nodeIds;
+    if (ids.length == geom.length && ids.length >= 2) {
+      final startId = ids.first;
+      final endId = ids.last;
+      final entryEnd = _attachedEndById(entryWay, startId, endId);
+      final exitEnd = _attachedEndById(exitWay, startId, endId);
+      if (entryEnd == _ConnectorEnd.none || exitEnd == _ConnectorEnd.none) {
+        return false;
+      }
+      return entryEnd != exitEnd;
+    }
+
+    // Fallback (no node ids): nearest-endpoint coordinate test.
     final startNode = geom.first;
     final endNode = geom.last;
-
     final entryEnd = _attachedEnd(entryWay, startNode, endNode);
     final exitEnd = _attachedEnd(exitWay, startNode, endNode);
-    // Both must attach to the connector, at OPPOSITE endpoints.
     if (entryEnd == _ConnectorEnd.none || exitEnd == _ConnectorEnd.none) {
       return false;
     }
     return entryEnd != exitEnd;
   }
 
+  /// Exact endpoint attachment by OSM node id: returns which connector endpoint
+  /// ([startId] / [endId]) the [way] shares a node with, or
+  /// [_ConnectorEnd.none] when it shares neither. When a way somehow lists
+  /// both, the start wins (deterministic; a real connector's two ends are
+  /// distinct nodes so this is a degenerate self-loop case).
+  _ConnectorEnd _attachedEndById(WayCandidate way, int startId, int endId) {
+    var touchesStart = false;
+    var touchesEnd = false;
+    for (final id in way.nodeIds) {
+      if (id == startId) touchesStart = true;
+      if (id == endId) touchesEnd = true;
+    }
+    if (touchesStart) return _ConnectorEnd.start;
+    if (touchesEnd) return _ConnectorEnd.end;
+    return _ConnectorEnd.none;
+  }
+
   /// Which endpoint of a connector [way] attaches to — whichever of
   /// [startNode] / [endNode] its nearest vertex is closer to — or
   /// [_ConnectorEnd.none] when even that nearest vertex is beyond
   /// [kConnectorEndpointToleranceMeters] (the way does not touch the connector
-  /// at all).
+  /// at all). Coordinate fallback used only when node ids are unavailable.
   _ConnectorEnd _attachedEnd(WayCandidate way, LatLng startNode, LatLng endNode) {
     var dStart = double.infinity;
     var dEnd = double.infinity;

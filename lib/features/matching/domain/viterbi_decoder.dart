@@ -3,7 +3,8 @@
 // Newson & Krumm (2009) HMM map-matching, tuned per this codebase:
 //   * Emission sigma: adaptive — max(kEmissionSigmaMeters, hDop/2).
 //   * Transition beta: kTransitionBetaMeters (1.0 m default).
-//   * Route distance ≈ great_circle * kRouteDetourFactor (1.4).
+//   * Route distance: bounded on-road shortest path over a NodeGraph (real
+//     Newson-Krumm route distance, not a constant detour factor).
 //   * Top-K beam: kBeamWidth (5 per MMT-04).
 //   * Adaptive radius: adaptiveRadiusMeters(hDop) per fix (25..150 m).
 //   * Gap detection: Δt > kGapThresholdSeconds resets the state.
@@ -19,6 +20,7 @@ import 'dart:math' as math;
 import 'package:auto_explore/features/matching/domain/gps_fix.dart';
 import 'package:auto_explore/features/matching/domain/hmm_probability.dart';
 import 'package:auto_explore/features/matching/domain/matched_step.dart';
+import 'package:auto_explore/features/matching/domain/node_graph.dart';
 import 'package:auto_explore/features/matching/domain/segment_geometry.dart';
 import 'package:auto_explore/features/matching/domain/way_candidate.dart';
 import 'package:auto_explore/features/matching/domain/way_segment.dart';
@@ -38,9 +40,17 @@ const int kGapThresholdSeconds = 60;
 /// Speed below which the MMT-07 motorway/trunk penalty applies (km/h).
 const double kSpeedGuardKmh = 15;
 
-/// Route-distance detour factor: route_dist ≈ great_circle × this.
-/// Standard Germany detour factor per research §2.
-const double kRouteDetourFactor = 1.4;
+/// Route-search cap floor (meters). The bounded route-distance search between
+/// two consecutive fixes' candidates is capped at `max(this, gc × factor)`.
+/// Consecutive fixes are ~1 s apart, so the true on-road move is short; this
+/// floor keeps the search cheap while still finding a genuine detour.
+const double kRouteSearchCapFloorMeters = 2000;
+
+/// Route-search cap multiplier on the great-circle distance (see
+/// [kRouteSearchCapFloorMeters]). A legal move rarely exceeds a few times the
+/// straight-line distance; beyond this the pair is treated as unreachable
+/// (Newson-Krumm "broken path").
+const double kRouteSearchCapFactor = 8;
 
 /// Log-probability threshold: a fix whose best candidate emission is below
 /// this value is treated as unmatched (null output). Value = ln(0.001).
@@ -113,6 +123,7 @@ class ViterbiDecoder {
   List<MatchedStep?> decode(
     List<GpsFix> fixes,
     WaySegmentIndex index, {
+    NodeGraph? nodeGraph,
     void Function(int processed, int total)? onProgress,
   }) {
     if (fixes.isEmpty) return const [];
@@ -221,7 +232,11 @@ class ViterbiDecoder {
         fix.lat,
         fix.lon,
       );
-      final routeDist = gc * kRouteDetourFactor;
+      // Route-search cap: a legal move between two consecutive fixes is short.
+      final routeCap = math.max(
+        kRouteSearchCapFloorMeters,
+        gc * kRouteSearchCapFactor,
+      );
 
       final prior = trellis[step - 1];
       for (final s in states) {
@@ -229,6 +244,37 @@ class ViterbiDecoder {
         int? bestIdx;
         for (var pIdx = 0; pIdx < prior.length; pIdx++) {
           final pState = prior[pIdx];
+
+          // REAL route distance: the bounded on-road shortest path between the
+          // predecessor's projection point and this candidate's projection
+          // point (Newson-Krumm). This is the discrimination the old
+          // `gc * 1.4` constant lacked — an impossible jump onto a side road at
+          // a junction now costs a large |route − gc|, so the through-road is
+          // preferred and the triangle/fan/zigzag artifacts do not form.
+          final routeDist = nodeGraph == null
+              ? gc // no graph (unit tests) → neutral: route == gc, zero penalty
+              : nodeGraph.routeDistanceMeters(
+                  fromWayId: pState.segment.wayId,
+                  fromSegIdx: pState.segment.segIdx,
+                  fromFraction: pState.projectionFraction,
+                  fromANode: pState.segment.aNodeId,
+                  fromBNode: pState.segment.bNodeId,
+                  toWayId: s.segment.wayId,
+                  toSegIdx: s.segment.segIdx,
+                  toFraction: s.projectionFraction,
+                  toANode: s.segment.aNodeId,
+                  toBNode: s.segment.bNodeId,
+                  maxMeters: routeCap,
+                );
+
+          // Breakage (Newson-Krumm broken path): no bounded on-road route
+          // between the two candidates → this transition is impossible. Skip
+          // the predecessor entirely so it can never be chosen; if EVERY
+          // predecessor is unreachable, bestIdx stays null and the traceback
+          // treats this candidate as a sub-track start (a fresh run), exactly
+          // like a gap reset.
+          if (routeDist == null) continue;
+
           var trans = transitionLogProb(
             routeDistMeters: routeDist,
             greatCircleMeters: gc,
@@ -256,9 +302,21 @@ class ViterbiDecoder {
             bestIdx = pIdx;
           }
         }
-        s
-          ..totalLogP = bestTotal
-          ..backptr = bestIdx;
+        if (bestIdx == null) {
+          // No reachable predecessor for this candidate (every prior was a
+          // broken path). Treat it as a fresh sub-track start: seed totalLogP
+          // with the emission only and leave backptr null — identical to the
+          // gap-reset / first-step semantics the traceback keys on. Without
+          // this reset the state would keep totalLogP = -inf and, if it became
+          // the step's sole survivor, poison the whole downstream chain.
+          s
+            ..totalLogP = s.emissionLogP
+            ..backptr = null;
+        } else {
+          s
+            ..totalLogP = bestTotal
+            ..backptr = bestIdx;
+        }
       }
       trellis.add(states);
     }
