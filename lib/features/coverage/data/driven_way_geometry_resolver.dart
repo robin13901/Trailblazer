@@ -1,41 +1,46 @@
-// Trailblazer Phase 7, Plan 07-03:
-// DrivenWayGeometryResolver — closes RESEARCH open-question #1.
+// Trailblazer Phase 7 (07-03), reworked 2026-07-18 (clipped-geometry rework):
+// DrivenWayGeometryResolver — builds the app-wide coverage overlay by rendering
+// each driven OSM way CLIPPED to the sub-interval(s) actually driven, deduped
+// per wayId across ALL trips.
 //
-// The driven_way_intervals table stores no geometry and no tile mapping.
-// This resolver bridges that gap:
-//   1. Reads all driven intervals from the DAO (way-centric, trip-agnostic).
-//   2. Resolves OSM way geometry for the union bbox via the cache-first
-//      WayCandidateSource (OverpassWayCandidateSource at runtime).
-//   3. Computes per-way CoverageDatum via drivenLengthMeters + classifyCoverage.
-//   4. Returns CoverageOverlayData (list of CoverageWay) — zero throws.
+// This replaces two earlier approaches:
+//   * The original whole-way render (drew a way's ENTIRE geometry the moment it
+//     counted as "driven") — caused junction under-draw gaps AND exit-triangle
+//     over-draw, patched with a fragile topology heuristic.
+//   * The per-trip snapped-GPS-chord line (coverage_path_json) — drew straight
+//     chords between snapped fixes (triangles/fans/zigzags at junctions) and one
+//     polyline PER TRIP (N drives of a road = N overlapping lines).
 //
-// Error posture (06-05 lesson — rendering must never crash the map):
-//   * fetchWaysInBbox(throwOnError:false) returns cached tiles on network error.
-//   * Missing geometry for a wayId → skip + log.fine (normal offline gap).
-//   * Any unexpected error → return CoverageOverlayData.empty + log.warning.
+// The clipped model fixes all of that: the drawn line IS the road's true OSM
+// shape (no chord artifacts), clipped to `[start..end]` driven metres (no
+// over-draw), unioned per wayId across every trip (drawn ONCE — natural dedup).
+//
+// Memory (06-05 / trips-tab-oom lesson): the parse + clip runs on a compute()
+// isolate over the RAW cached tiles, filtered to just the driven wayId set —
+// never the full-bbox way-set on the UI isolate.
+
+import 'dart:convert';
+import 'dart:io' show gzip;
 
 import 'package:auto_explore/core/db/daos/driven_way_intervals_dao.dart';
 import 'package:auto_explore/core/errors/domain_error.dart';
 import 'package:auto_explore/features/coverage/data/coverage_overlay_data.dart';
-import 'package:auto_explore/features/coverage/domain/coverage_threshold.dart';
+import 'package:auto_explore/features/coverage/domain/coverage_datum.dart';
 import 'package:auto_explore/features/coverage/domain/interval_union.dart';
+import 'package:auto_explore/features/coverage/domain/way_subsegment.dart';
+import 'package:auto_explore/features/matching/data/overpass_response_parser.dart';
 import 'package:auto_explore/features/matching/data/way_candidate_source.dart';
-import 'package:auto_explore/features/matching/domain/way_candidate.dart';
-import 'package:auto_explore/features/trips/domain/haversine.dart';
+import 'package:flutter/foundation.dart' show compute;
 import 'package:logging/logging.dart';
 import 'package:maplibre_gl/maplibre_gl.dart' show LatLng, LatLngBounds;
 
-/// Resolves driven way geometries from the Overpass cache and classifies
-/// per-way coverage from the driven_way_intervals DAO.
+/// Resolves the app-wide coverage overlay from `driven_way_intervals` + cached
+/// OSM way geometry, rendering each way clipped to its driven union interval(s)
+/// and deduped per wayId across all trips.
 ///
-/// Injected with a [DrivenWayIntervalsDao] and a [WayCandidateSource].
-/// At runtime the source is the cache-first `OverpassWayCandidateSource`;
-/// tests inject a fake `WayCandidateSource` implementation.
-///
-/// This class is STATELESS — `resolve` reads fresh from the DAO and source
-/// on every call. The reactive invalidation is handled by
-/// `coverageOverlayDataProvider` in coverage_overlay_providers.dart, which
-/// re-calls resolve() whenever the Drift watchUnionBbox() stream emits.
+/// STATELESS — `resolve` reads fresh on every call. Reactive invalidation is
+/// handled by the coverage overlay provider, which re-calls resolve() whenever
+/// the Drift `watchUnionBbox()` stream emits (fires on interval writes).
 class DrivenWayGeometryResolver {
   DrivenWayGeometryResolver({
     required DrivenWayIntervalsDao intervalsDao,
@@ -48,92 +53,63 @@ class DrivenWayGeometryResolver {
 
   static final _log = Logger('DrivenWayGeometryResolver');
 
-  /// Resolves all driven ways within [unionBounds] and returns their
-  /// geometry + coverage classification.
+  /// Resolves all driven ways within [unionBounds] and returns their geometry
+  /// CLIPPED to the driven union interval(s), one [CoverageWay] per contiguous
+  /// driven sub-segment.
   ///
-  /// The [unionBounds] is the bounding box that spans all matched/confirmed
-  /// trips — computed by `TripsDao.watchUnionBbox` and passed in from the
-  /// reactive provider. The resolver does not query trips itself; it is
-  /// focused solely on geometry + coverage arithmetic.
-  ///
-  /// **Algorithm:**
-  ///   1. Read all driven intervals (`getAllIntervals`) — way-centric.
-  ///      If empty → return [CoverageOverlayData.empty].
-  ///   2. Fetch all ways in the union bbox (`fetchWaysInBbox(throwOnError:false)`)
-  ///      so an offline gap yields whatever tiles are cached.
-  ///   3. For each driven wayId:
-  ///      - Skip if geometry unavailable (logged at fine level).
-  ///      - Compute union length via `drivenLengthMeters`.
-  ///      - Compute Haversine way length via `_polylineLengthMeters`.
-  ///      - Classify via `classifyCoverage`.
-  ///      - Skip if datum is undriven (fraction == 0 && !isFull) — below floor.
-  ///   4. Return [CoverageOverlayData] wrapping the resolved list.
-  ///
-  /// Never throws — degrades to [CoverageOverlayData.empty] on unexpected error.
+  /// Never throws — degrades to [CoverageOverlayData.empty] on any error.
   Future<CoverageOverlayData> resolve(LatLngBounds unionBounds) async {
     try {
-      // Step 1: Read all driven intervals.
+      // 1. Read all driven intervals (way-centric, across all trips) and group
+      //    by wayId, merging overlapping passes into disjoint union intervals.
+      //    Unioning across ALL trips is what dedupes a road driven N times into
+      //    one drawn line.
       final allIntervals = await _intervalsDao.getAllIntervals();
       if (allIntervals.isEmpty) {
         _log.fine('resolve: no driven intervals — returning empty');
         return CoverageOverlayData.empty;
       }
 
-      // Group intervals by wayId in Dart (avoids fragile SQL GROUP_CONCAT).
-      final byWayId = <int, List<Interval>>{};
-      for (final row in allIntervals) {
-        byWayId
-            .putIfAbsent(row.wayId, () => [])
-            .add(Interval(row.startMeters, row.endMeters));
+      final unionByWayId = <int, List<(double, double)>>{};
+      {
+        final rawByWayId = <int, List<Interval>>{};
+        for (final row in allIntervals) {
+          rawByWayId
+              .putIfAbsent(row.wayId, () => [])
+              .add(Interval(row.startMeters, row.endMeters));
+        }
+        for (final entry in rawByWayId.entries) {
+          unionByWayId[entry.key] = [
+            for (final iv in unionIntervals(entry.value))
+              (iv.startMeters, iv.endMeters),
+          ];
+        }
       }
 
-      // Step 2: Cache-first geometry resolution for the union bbox.
-      // throwOnError:false means a network failure returns whatever is cached.
-      final ways = await _waySource.fetchWaysInBbox(
+      // 2. Fetch RAW gzipped tiles for the union bbox (no parse on this
+      //    isolate). throwOnError:false → offline gap yields cached tiles.
+      final rawTiles = await _waySource.fetchRawTilesInBbox(
         minLat: unionBounds.southwest.latitude,
         minLon: unionBounds.southwest.longitude,
         maxLat: unionBounds.northeast.latitude,
         maxLon: unionBounds.northeast.longitude,
         throwOnError: false,
       );
-      final byId = <int, WayCandidate>{
-        for (final w in ways) w.wayId: w,
-      };
-
-      // Step 3: Classify coverage for each driven wayId.
-      final result = <CoverageWay>[];
-      var skippedMissing = 0;
-      var skippedBelowFloor = 0;
-
-      for (final entry in byWayId.entries) {
-        final wayId = entry.key;
-        final intervals = entry.value;
-
-        final way = byId[wayId];
-        if (way == null) {
-          _log.fine('resolve: geometry miss for wayId $wayId — skipping');
-          skippedMissing++;
-          continue;
-        }
-
-        final unionLen = drivenLengthMeters(intervals);
-        final wayLen = _polylineLengthMeters(way.geometry);
-        final datum = classifyCoverage(unionLen, wayLen);
-
-        // CoverageDatum.undriven() has fraction==0 and isFull==false.
-        if (datum.fraction <= 0 && !datum.isFull) {
-          skippedBelowFloor++;
-          continue;
-        }
-
-        result.add(CoverageWay(wayId: wayId, geometry: way.geometry, datum: datum));
+      if (rawTiles.isEmpty) {
+        _log.fine('resolve: no cached tiles for bbox — returning empty');
+        return CoverageOverlayData.empty;
       }
 
-      _log.info(
-        'resolve: ${result.length} ways resolved, '
-        '$skippedMissing geometry-miss, $skippedBelowFloor below-floor',
+      // 3. Parse + filter-to-driven-set + clip on a compute() isolate. Peak
+      //    memory is bounded to the driven wayId set, never the full bbox.
+      final payload = _ClipPayload(
+        gzippedTiles: [for (final t in rawTiles) t.payloadGzip],
+        unionByWayId: unionByWayId,
       );
-      return CoverageOverlayData(result);
+      final clipped = await compute(_clipCoverageIsolate, payload);
+
+      _log.info('resolve: ${clipped.length} clipped driven segments');
+      return CoverageOverlayData(clipped);
     } on DomainError catch (e, st) {
       _log.warning('resolve: DomainError — degrading to empty', e, st);
       return CoverageOverlayData.empty;
@@ -148,20 +124,60 @@ class DrivenWayGeometryResolver {
   }
 }
 
-/// Haversine sum of consecutive point distances along [geometry].
-///
-/// Extracted from TripDetailScreen._polylineLengthMeters and duplicated here
-/// to avoid importing a presentation-layer private function. The logic is
-/// identical; only the scope differs.
-double _polylineLengthMeters(List<LatLng> geometry) {
-  var total = 0.0;
-  for (var i = 0; i < geometry.length - 1; i++) {
-    total += haversineMeters(
-      geometry[i].latitude,
-      geometry[i].longitude,
-      geometry[i + 1].latitude,
-      geometry[i + 1].longitude,
-    );
+/// Serializable argument bundle for [_clipCoverageIsolate].
+class _ClipPayload {
+  const _ClipPayload({
+    required this.gzippedTiles,
+    required this.unionByWayId,
+  });
+
+  /// Raw `gzip(utf8(overpassJson))` tile payloads (cross the isolate untouched).
+  final List<List<int>> gzippedTiles;
+
+  /// wayId → its disjoint driven union intervals as `(startMeters, endMeters)`.
+  final Map<int, List<(double, double)>> unionByWayId;
+}
+
+/// Runs on a compute() isolate: gunzip + parse the tiles, keep ONLY the driven
+/// wayIds, and clip each way's geometry to its union interval(s). Returns one
+/// [CoverageWay] per contiguous driven sub-segment (solid — every drawn metre
+/// was driven, so `isFull:true` / `fraction:1`).
+List<CoverageWay> _clipCoverageIsolate(_ClipPayload p) {
+  final wanted = p.unionByWayId.keys.toSet();
+
+  // Parse tiles, keeping only geometry for driven ways (dedupe across tiles).
+  final geomByWayId = <int, List<LatLng>>{};
+  final seen = <int>{};
+  const parser = OverpassResponseParser();
+  for (final gz in p.gzippedTiles) {
+    final rawJson = utf8.decode(gzip.decode(gz));
+    for (final w in parser.parseWays(rawJson)) {
+      if (!wanted.contains(w.wayId)) continue;
+      if (!seen.add(w.wayId)) continue;
+      geomByWayId[w.wayId] = w.geometry;
+    }
   }
-  return total;
+
+  final out = <CoverageWay>[];
+  for (final entry in p.unionByWayId.entries) {
+    final geom = geomByWayId[entry.key];
+    if (geom == null) continue; // geometry not cached (offline gap) — skip
+    for (final (start, end) in entry.value) {
+      final seg = reconstructWaySubsegment(
+        geom,
+        start,
+        end,
+        snapMeters: kWaySubsegmentSnapMeters,
+      );
+      if (seg.length < 2) continue; // degenerate / empty overlap
+      out.add(
+        CoverageWay(
+          wayId: entry.key,
+          geometry: seg,
+          datum: const CoverageDatum(fraction: 1, isFull: true),
+        ),
+      );
+    }
+  }
+  return out;
 }

@@ -118,13 +118,6 @@ Future<void> pumpAppAtMapShell(WidgetTester tester) async {
         tripsUnionBoundsProvider.overrideWith(
           (ref) => const Stream.empty(),
         ),
-        // coveragePathsProvider wraps TripsDao.watchCoveragePaths() (a Drift
-        // watch). Like tripsUnionBoundsProvider above, override it with an
-        // empty stream so no Drift stream subscription (and its cleanup timer)
-        // is created — a pending timer would fail the test on teardown.
-        coveragePathsProvider.overrideWith(
-          (ref) => const Stream<List<String>>.empty(),
-        ),
         // SettingsScreen sections that hit platform channels:
         backupServiceProvider.overrideWithValue(FakeBackupService()),
         filePlatformProvider.overrideWithValue(FakeFilePlatform()),

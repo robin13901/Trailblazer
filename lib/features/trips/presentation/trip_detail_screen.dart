@@ -25,6 +25,7 @@ import 'package:auto_explore/core/db/app_database_providers.dart';
 import 'package:auto_explore/core/db/daos/driven_way_intervals_dao.dart';
 import 'package:auto_explore/core/errors/domain_error.dart';
 import 'package:auto_explore/features/coverage/domain/coverage_color_preset.dart';
+import 'package:auto_explore/features/coverage/domain/way_subsegment.dart';
 import 'package:auto_explore/features/coverage/presentation/coverage_preset_provider.dart';
 import 'package:auto_explore/features/matching/data/matching_providers.dart';
 import 'package:auto_explore/features/matching/data/way_candidate_source.dart';
@@ -157,6 +158,7 @@ Future<TripDetailData> loadTripDetailData({
       way.geometry,
       interval.startMeters,
       interval.endMeters,
+      snapMeters: kWaySubsegmentSnapMeters,
     );
     if (seg.length >= 2) segments.add(seg);
   }
@@ -179,50 +181,9 @@ Future<TripDetailData> loadTripDetailData({
   );
 }
 
-/// Extract the sub-polyline of [geometry] between [startMeters] and
-/// [endMeters] (distances measured along the way from its first node). Handles
-/// reversed intervals (start > end) by normalizing the range.
-List<LatLng> reconstructWaySubsegment(
-  List<LatLng> geometry,
-  double startMeters,
-  double endMeters,
-) {
-  if (geometry.length < 2) return const [];
-  final lo = math.min(startMeters, endMeters);
-  final hi = math.max(startMeters, endMeters);
-  final result = <LatLng>[];
-  var cumulative = 0.0;
-  for (var i = 0; i < geometry.length - 1; i++) {
-    final a = geometry[i];
-    final b = geometry[i + 1];
-    final segLen = haversineMeters(
-      a.latitude,
-      a.longitude,
-      b.latitude,
-      b.longitude,
-    );
-    final segStart = cumulative;
-    final segEnd = cumulative + segLen;
-    if (segLen > 0 && segEnd >= lo && segStart <= hi) {
-      final tStart = ((lo - segStart) / segLen).clamp(0.0, 1.0);
-      final tEnd = ((hi - segStart) / segLen).clamp(0.0, 1.0);
-      final pStart = _lerpLatLng(a, b, tStart);
-      final pEnd = _lerpLatLng(a, b, tEnd);
-      if (result.isEmpty) {
-        result.add(pStart);
-      }
-      result.add(pEnd);
-    }
-    cumulative = segEnd;
-  }
-  return result;
-}
-
-LatLng _lerpLatLng(LatLng a, LatLng b, double t) => LatLng(
-      a.latitude + (b.latitude - a.latitude) * t,
-      a.longitude + (b.longitude - a.longitude) * t,
-    );
-
+// `reconstructWaySubsegment` (interval → clipped sub-polyline) now lives in
+// `lib/features/coverage/domain/way_subsegment.dart`, shared with the app-wide
+// coverage overlay. Call sites import it directly.
 double _polylineLengthMeters(List<LatLng> geometry) {
   var total = 0.0;
   for (var i = 0; i < geometry.length - 1; i++) {

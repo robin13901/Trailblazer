@@ -1,26 +1,30 @@
-// Trailblazer Phase 7, Plan 07-03:
+// Trailblazer Phase 7 (07-03), reworked 2026-07-18 (clipped-geometry):
 // Unit tests for DrivenWayGeometryResolver + watchUnionBbox reactivity.
+//
+// The resolver now renders each driven way CLIPPED to its driven union
+// interval(s), deduped per wayId across trips, always solid (every drawn metre
+// was driven). It fetches RAW gzipped tiles (fetchRawTilesInBbox) and does the
+// parse + clip on a compute() isolate. There is no partial-floor / isFull
+// gradient anymore — that lived in the old whole-way render.
 //
 // Test inventory:
 //   1. resolve returns .empty when no intervals exist.
-//   2. resolve returns CoverageWay with isFull=true for fully-covered way.
-//   3. resolve returns CoverageWay with isFull=false for partial-above-floor.
-//   4. resolve skips a way below the partial floor (undriven datum).
-//   5. resolve skips a way whose geometry is absent in the fake source.
-//   6. resolve handles mixed: one covered, one below-floor, one geo-miss.
-//   7. watchUnionBbox emits null when no matched/confirmed trips exist.
-//   8. watchUnionBbox emits LatLngBounds when a matched trip has bbox.
-//   9. watchUnionBbox re-emits when a new matched trip is inserted.
-//  10. watchUnionBbox re-emits on confirmTrip (matched→confirmed flip) —
-//      crux of the 07-06 live-refresh BLOCKER fix.
-//  11. watchUnionBbox re-emits when a drivenWayIntervals row is inserted
-//      (readsFrom includes drivenWayIntervals table).
+//   2. fully-driven way → clipped geometry, solid.
+//   3. partially-driven way → clipped to the driven sub-segment only.
+//   4. way driven by TWO trips (overlapping passes) → deduped to ONE feature.
+//   5. geometry cache-miss → skipped.
+//   6. watchUnionBbox reactivity (unchanged from 07-06).
 
 // hide isNull / isNotNull from drift to avoid ambiguous_import with flutter_test.
+import 'dart:convert';
+import 'dart:io' show gzip;
+import 'dart:typed_data';
+
 import 'package:auto_explore/core/db/app_database.dart';
 import 'package:auto_explore/core/db/daos/driven_way_intervals_dao.dart';
 import 'package:auto_explore/features/coverage/data/coverage_overlay_data.dart';
 import 'package:auto_explore/features/coverage/data/driven_way_geometry_resolver.dart';
+import 'package:auto_explore/features/matching/data/tile_bbox_math.dart';
 import 'package:auto_explore/features/matching/data/way_candidate_source.dart';
 import 'package:auto_explore/features/matching/domain/way_candidate.dart';
 import 'package:auto_explore/features/trips/data/trips_dao.dart';
@@ -32,15 +36,31 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:maplibre_gl/maplibre_gl.dart' show LatLng, LatLngBounds;
 
 // ---------------------------------------------------------------------------
-// Fake WayCandidateSource
+// Fake WayCandidateSource — serves the given ways as ONE raw gzipped Overpass
+// tile (the resolver decodes + clips on a compute isolate). Coordinate order
+// in the emitted JSON is Overpass's {lat, lon} per geometry point.
 // ---------------------------------------------------------------------------
 
-/// Returns a canned list of [WayCandidate]s regardless of the bbox.
-/// Simulates a fully-populated Overpass cache (or cache-miss when empty).
 class _FakeWayCandidateSource implements WayCandidateSource {
   _FakeWayCandidateSource(this.ways);
 
   final List<WayCandidate> ways;
+
+  Uint8List _gzippedEnvelope() {
+    final elements = [
+      for (final w in ways)
+        {
+          'type': 'way',
+          'id': w.wayId,
+          'geometry': [
+            for (final p in w.geometry) {'lat': p.latitude, 'lon': p.longitude},
+          ],
+          'tags': {'highway': w.highwayClass},
+        },
+    ];
+    final body = jsonEncode({'version': 0.6, 'elements': elements});
+    return Uint8List.fromList(gzip.encode(utf8.encode(body)));
+  }
 
   @override
   Future<List<WayCandidate>> fetchWaysInBbox({
@@ -59,8 +79,20 @@ class _FakeWayCandidateSource implements WayCandidateSource {
     required double maxLat,
     required double maxLon,
     bool throwOnError = true,
-  }) async =>
-      const [];
+  }) async {
+    if (ways.isEmpty) return const [];
+    return [
+      RawTilePayload(
+        payloadGzip: _gzippedEnvelope(),
+        bbox: const LatLonBbox(
+          minLat: 49,
+          minLon: 9,
+          maxLat: 50,
+          maxLon: 10,
+        ),
+      ),
+    ];
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -185,37 +217,35 @@ void main() {
       expect(result.ways, isEmpty);
     });
 
-    test(
-      'returns CoverageWay with isFull=true for a fully-covered way',
-      () async {
-        final trip = await _seedMatchedTrip(tripsDao);
-        // Drive 220 m: above the full-coverage threshold (~192 m = 222 - 2×15).
-        await _seedInterval(
-          intervalsDao,
-          tripId: trip,
-          wayId: 42,
-          startMeters: 0,
-          endMeters: 220,
-        );
+    test('fully-driven way → one solid clipped feature', () async {
+      final trip = await _seedMatchedTrip(tripsDao);
+      // Drive the whole ~222 m way.
+      await _seedInterval(
+        intervalsDao,
+        tripId: trip,
+        wayId: 42,
+        startMeters: 0,
+        endMeters: 222,
+      );
 
-        final resolver = DrivenWayGeometryResolver(
-          intervalsDao: intervalsDao,
-          waySource: _FakeWayCandidateSource([_straightWay(42)]),
-        );
+      final resolver = DrivenWayGeometryResolver(
+        intervalsDao: intervalsDao,
+        waySource: _FakeWayCandidateSource([_straightWay(42)]),
+      );
 
-        final result = await resolver.resolve(_dummyBounds);
-        expect(result.ways, hasLength(1));
-        expect(result.ways.first.wayId, 42);
-        expect(result.ways.first.datum.isFull, isTrue);
-        expect(result.ways.first.geometry, hasLength(3));
-      },
-    );
+      final result = await resolver.resolve(_dummyBounds);
+      expect(result.ways, hasLength(1));
+      expect(result.ways.first.wayId, 42);
+      // Clipped model is always solid — every drawn metre was driven.
+      expect(result.ways.first.datum.isFull, isTrue);
+      expect(result.ways.first.geometry.length, greaterThanOrEqualTo(2));
+    });
 
     test(
-      'returns CoverageWay with isFull=false for partial-above-floor coverage',
+      'partially-driven way → clipped to the driven sub-segment only',
       () async {
         final trip = await _seedMatchedTrip(tripsDao);
-        // Drive 100 m: above 50 m floor, below ~192 m full-coverage threshold.
+        // Drive only the first ~100 m of a ~222 m N-S way (lat 49 → 49.002).
         await _seedInterval(
           intervalsDao,
           tripId: trip,
@@ -231,103 +261,72 @@ void main() {
 
         final result = await resolver.resolve(_dummyBounds);
         expect(result.ways, hasLength(1));
-        expect(result.ways.first.wayId, 7);
-        expect(result.ways.first.datum.isFull, isFalse);
-        expect(result.ways.first.datum.fraction, greaterThan(0.0));
+        final way = result.ways.first;
+        expect(way.wayId, 7);
+        // The clipped sub-segment must be SHORTER than the full way: its
+        // northern end should stop well below the way's last vertex (lat
+        // 49.002). ~100 m ≈ lat 49.0009.
+        final maxLat = way.geometry
+            .map((p) => p.latitude)
+            .reduce((a, b) => a > b ? a : b);
+        expect(maxLat, lessThan(49.0015),
+            reason: 'partial drive must not paint the whole way');
       },
     );
 
     test(
-      'skips a way whose driven length is below the partial floor',
+      'same way driven by TWO trips (overlapping) → deduped to ONE feature',
       () async {
-        final trip = await _seedMatchedTrip(tripsDao);
-        // Drive only 20 m — below kPartialFloorMeters (50 m).
+        final tripA = await _seedMatchedTrip(tripsDao);
+        final tripB = await _seedMatchedTrip(tripsDao);
+        // Both trips drove way 5; overlapping passes.
         await _seedInterval(
           intervalsDao,
-          tripId: trip,
-          wayId: 99,
+          tripId: tripA,
+          wayId: 5,
           startMeters: 0,
-          endMeters: 20,
+          endMeters: 150,
+        );
+        await _seedInterval(
+          intervalsDao,
+          tripId: tripB,
+          wayId: 5,
+          startMeters: 100,
+          endMeters: 222,
         );
 
         final resolver = DrivenWayGeometryResolver(
           intervalsDao: intervalsDao,
-          waySource: _FakeWayCandidateSource([_straightWay(99)]),
+          waySource: _FakeWayCandidateSource([_straightWay(5)]),
         );
 
         final result = await resolver.resolve(_dummyBounds);
-        expect(result.ways, isEmpty);
-      },
-    );
-
-    test(
-      'skips a way whose geometry is absent in the source (cache-miss)',
-      () async {
-        final trip = await _seedMatchedTrip(tripsDao);
-        await _seedInterval(
-          intervalsDao,
-          tripId: trip,
-          wayId: 55,
-          startMeters: 0,
-          endMeters: 200,
-        );
-
-        // Empty source — simulates offline + cache-miss for wayId 55.
-        final resolver = DrivenWayGeometryResolver(
-          intervalsDao: intervalsDao,
-          waySource: _FakeWayCandidateSource([]),
-        );
-
-        final result = await resolver.resolve(_dummyBounds);
-        expect(result.ways, isEmpty);
-      },
-    );
-
-    test(
-      'handles mixed: one covered, one below-floor, one geometry-miss',
-      () async {
-        final trip = await _seedMatchedTrip(tripsDao);
-        // Way 1: fully covered (220 m on ~222 m way).
-        await _seedInterval(
-          intervalsDao,
-          tripId: trip,
-          wayId: 1,
-          startMeters: 0,
-          endMeters: 220,
-        );
-        // Way 2: below-floor (20 m on ~222 m way).
-        await _seedInterval(
-          intervalsDao,
-          tripId: trip,
-          wayId: 2,
-          startMeters: 0,
-          endMeters: 20,
-        );
-        // Way 3: geometry absent from source.
-        await _seedInterval(
-          intervalsDao,
-          tripId: trip,
-          wayId: 3,
-          startMeters: 0,
-          endMeters: 200,
-        );
-
-        // Source returns ways 1 and 2; way 3 is a cache-miss.
-        final resolver = DrivenWayGeometryResolver(
-          intervalsDao: intervalsDao,
-          waySource: _FakeWayCandidateSource([
-            _straightWay(1),
-            _straightWay(2),
-          ]),
-        );
-
-        final result = await resolver.resolve(_dummyBounds);
-        // Only way 1 survives: covered. Way 2 → below-floor. Way 3 → no geo.
+        // Two overlapping passes union into ONE [0..222] interval → ONE
+        // feature, not two overlapping lines.
         expect(result.ways, hasLength(1));
-        expect(result.ways.first.wayId, 1);
-        expect(result.ways.first.datum.isFull, isTrue);
+        expect(result.ways.first.wayId, 5);
       },
     );
+
+    test('geometry cache-miss → skipped (no throw)', () async {
+      final trip = await _seedMatchedTrip(tripsDao);
+      await _seedInterval(
+        intervalsDao,
+        tripId: trip,
+        wayId: 55,
+        startMeters: 0,
+        endMeters: 200,
+      );
+
+      // Empty source — simulates offline + cache-miss for wayId 55.
+      final resolver = DrivenWayGeometryResolver(
+        intervalsDao: intervalsDao,
+        waySource: _FakeWayCandidateSource([]),
+      );
+
+      final result = await resolver.resolve(_dummyBounds);
+      expect(result.ways, isEmpty);
+    });
   });
 
   // -------------------------------------------------------------------------

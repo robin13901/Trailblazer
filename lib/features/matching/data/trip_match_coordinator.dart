@@ -11,14 +11,11 @@ import 'dart:async';
 
 import 'package:auto_explore/core/db/app_database.dart';
 import 'package:auto_explore/core/db/daos/driven_way_intervals_dao.dart';
-import 'package:auto_explore/features/coverage/data/coverage_path_codec.dart';
 import 'package:auto_explore/features/matching/data/match_job.dart';
 import 'package:auto_explore/features/matching/data/matcher_isolate.dart';
 import 'package:auto_explore/features/matching/data/way_candidate_source.dart';
-import 'package:auto_explore/features/matching/domain/coverage_path_builder.dart';
 import 'package:auto_explore/features/matching/domain/driven_way_interval_draft.dart';
 import 'package:auto_explore/features/matching/domain/gps_fix.dart';
-import 'package:auto_explore/features/matching/domain/match_result.dart';
 import 'package:auto_explore/features/trips/data/trips_dao.dart';
 import 'package:auto_explore/features/trips/data/trips_repository.dart';
 import 'package:drift/drift.dart' show Value;
@@ -181,7 +178,6 @@ class TripMatchCoordinator {
         },
       );
       await _writeIntervals(tripId, result.intervals);
-      await _writeCoveragePath(tripId, fixes, result);
       await _tripsRepository.transitionToMatched(tripId);
       _progressSink?.call(tripId, 1);
       _clearProgress(tripId);
@@ -257,26 +253,6 @@ class TripMatchCoordinator {
         }
       }),
     );
-  }
-
-  /// Compute and persist the road-snapped coverage polyline for [tripId]
-  /// (2026-07-14 road-snapped rework). On-road fixes are drawn at their snapped
-  /// position on the matched road (so the line hugs roads and short-connector
-  /// junction gaps close), while raw GPS bridges only the stretches the matcher
-  /// found off-road. Stored on the trip row so it becomes the persistent
-  /// visible coverage line and survives raw-GPS retention.
-  Future<void> _writeCoveragePath(
-    int tripId,
-    List<GpsFix> fixes,
-    MatchResult result,
-  ) async {
-    final fixesLatLon = [
-      for (final f in fixes) [f.lat, f.lon],
-    ];
-    final segments = coveragePathFromMatch(fixesLatLon, result.steps);
-    // Persist even when empty ('[]') so a re-match that now finds nothing
-    // clears a previously-stored path rather than leaving stale geometry.
-    await _tripsDao.writeCoveragePath(tripId, encodeCoveragePath(segments));
   }
 
   /// Invoked when the user deletes an in-flight trip. Cancels the isolate
@@ -398,7 +374,6 @@ class TripMatchCoordinator {
     // one-shot cosmetic reprocess.
     await _intervalsDao.deleteByTrip(tripId);
     await _writeIntervals(tripId, result.intervals);
-    await _writeCoveragePath(tripId, fixes, result);
     _log.info(
       'rematchOne: trip $tripId → ${result.intervals.length} intervals '
       '(was reprocessed)',
