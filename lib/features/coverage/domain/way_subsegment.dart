@@ -76,6 +76,12 @@ List<LatLng> reconstructWaySubsegment(
   return result;
 }
 
+/// Total Haversine length (m) of a polyline. Public wrapper over
+/// [_polylineLengthMeters] for callers (the coverage resolver) that need a
+/// way's full length for connector caps and node-stitch math.
+double polylineLengthMeters(List<LatLng> geometry) =>
+    _polylineLengthMeters(geometry);
+
 /// Total Haversine length (m) of a polyline.
 double _polylineLengthMeters(List<LatLng> geometry) {
   var total = 0.0;

@@ -139,14 +139,16 @@ class _ClipPayload {
 }
 
 /// Runs on a compute() isolate: gunzip + parse the tiles, keep ONLY the driven
-/// wayIds, and clip each way's geometry to its union interval(s). Returns one
-/// [CoverageWay] per contiguous driven sub-segment (solid — every drawn metre
-/// was driven, so `isFull:true` / `fraction:1`).
+/// wayIds (geometry + OSM node ids), then delegate to [clipDrivenWays] which
+/// clips each way to its driven sub-interval(s) with topology-aware thorn-drop,
+/// connector-close, and node-id gap-stitch. Returns one [CoverageWay] per drawn
+/// segment (solid — every drawn metre was driven).
 List<CoverageWay> _clipCoverageIsolate(_ClipPayload p) {
   final wanted = p.unionByWayId.keys.toSet();
 
-  // Parse tiles, keeping only geometry for driven ways (dedupe across tiles).
+  // Parse tiles, keeping geometry + node ids for driven ways (dedupe).
   final geomByWayId = <int, List<LatLng>>{};
+  final nodesByWayId = <int, List<int>>{};
   final seen = <int>{};
   const parser = OverpassResponseParser();
   for (final gz in p.gzippedTiles) {
@@ -155,24 +157,142 @@ List<CoverageWay> _clipCoverageIsolate(_ClipPayload p) {
       if (!wanted.contains(w.wayId)) continue;
       if (!seen.add(w.wayId)) continue;
       geomByWayId[w.wayId] = w.geometry;
+      nodesByWayId[w.wayId] = w.nodeIds;
     }
   }
 
+  return clipDrivenWays(
+    unionByWayId: p.unionByWayId,
+    geomByWayId: geomByWayId,
+    nodesByWayId: nodesByWayId,
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Pure render logic (isolate-safe, unit-testable)
+// ---------------------------------------------------------------------------
+
+/// Minimum raw driven-union length (m) below which a NON-bridging way is
+/// treated as a junction mis-snap ("thorn") and dropped. A couple of GPS fixes
+/// clipping onto a neighbouring road near a junction produce a near-zero-length
+/// interval a few metres from a way endpoint; without this floor they render as
+/// tiny orange spikes. Bridging connectors (both endpoints pinned to the driven
+/// network) are exempt — they close junction gaps.
+const double kThornFloorMeters = 25;
+
+/// A bridging way at or below this full length is drawn end-to-end even if the
+/// matcher only captured a near-zero span on it (a traversed junction link/arc
+/// the decoder collapsed to a point). Over-draw-safe: it is short AND pinned to
+/// the driven network at BOTH endpoints, so it cannot be a spurious stub.
+const double kConnectorFullDrawMeters = 80;
+
+/// A driven interval end within this distance of a way endpoint that is SHARED
+/// with another driven way is snapped exactly to that endpoint node, so two
+/// adjacent driven ways meet at the real OSM junction (closes gaps). Node-id
+/// gated — stronger and safer than a blanket own-end snap.
+const double kStitchToleranceMeters = 25;
+
+/// Clip driven ways to their union interval(s) with topology-aware rules.
+///
+/// [unionByWayId]: wayId → disjoint driven union intervals `(start, end)` m.
+/// [geomByWayId]:  wayId → OSM polyline. [nodesByWayId]: wayId → parallel node
+/// ids (empty when the source had none — then this way falls back to the old
+/// blanket end-snap and is never thorn-dropped, for fixture back-compat).
+///
+/// Rules (see [kThornFloorMeters] / [kConnectorFullDrawMeters] /
+/// [kStitchToleranceMeters]):
+///  - THORN-DROP: a way with node ids that does NOT bridge two driven ways and
+///    whose total driven length < floor is dropped.
+///  - CONNECTOR-CLOSE: a short way that bridges two driven ways at OPPOSITE
+///    endpoints is drawn full-length (closes the junction).
+///  - NORMAL-CLIP: otherwise clip to the union interval(s); snap an interval end
+///    to a shared endpoint node when within tolerance.
+///
+/// Pure — no I/O, no Flutter; safe on the matcher/compute isolate.
+List<CoverageWay> clipDrivenWays({
+  required Map<int, List<(double, double)>> unionByWayId,
+  required Map<int, List<LatLng>> geomByWayId,
+  required Map<int, List<int>> nodesByWayId,
+}) {
+  // Driven-way endpoint node graph: nodeId → driven wayIds that start/end there.
+  final nodeToWays = <int, Set<int>>{};
+  geomByWayId.forEach((wid, g) {
+    final n = nodesByWayId[wid];
+    if (n == null || n.length != g.length || n.isEmpty) return;
+    (nodeToWays[n.first] ??= <int>{}).add(wid);
+    (nodeToWays[n.last] ??= <int>{}).add(wid);
+  });
+  bool sharedWithOther(int node, int self) {
+    final s = nodeToWays[node];
+    return s != null && s.any((w) => w != self);
+  }
+
   final out = <CoverageWay>[];
-  for (final entry in p.unionByWayId.entries) {
-    final geom = geomByWayId[entry.key];
+  for (final entry in unionByWayId.entries) {
+    final wayId = entry.key;
+    final geom = geomByWayId[wayId];
     if (geom == null) continue; // geometry not cached (offline gap) — skip
-    for (final (start, end) in entry.value) {
-      final seg = reconstructWaySubsegment(
-        geom,
-        start,
-        end,
-        snapMeters: kWaySubsegmentSnapMeters,
-      );
-      if (seg.length < 2) continue; // degenerate / empty overlap
+    final intervals = entry.value;
+    if (intervals.isEmpty) continue;
+
+    final nodes = nodesByWayId[wayId];
+    final hasNodes =
+        nodes != null && nodes.length == geom.length && nodes.isNotEmpty;
+    final full = polylineLengthMeters(geom);
+
+    var drivenUnionM = 0.0;
+    for (final (s, e) in intervals) {
+      drivenUnionM += (e - s).abs();
+    }
+
+    final firstShared = hasNodes && sharedWithOther(nodes.first, wayId);
+    final lastShared = hasNodes && sharedWithOther(nodes.last, wayId);
+    final bridges = firstShared && lastShared;
+
+    // THORN-DROP: short, node-known, not bridging → junction mis-snap.
+    if (hasNodes && !bridges && drivenUnionM < kThornFloorMeters) continue;
+
+    // CONNECTOR-CLOSE: short bridging link the matcher may have collapsed to a
+    // point → draw full so the junction closes.
+    if (bridges && full <= kConnectorFullDrawMeters) {
       out.add(
         CoverageWay(
-          wayId: entry.key,
+          wayId: wayId,
+          geometry: List<LatLng>.of(geom),
+          datum: const CoverageDatum(fraction: 1, isFull: true),
+        ),
+      );
+      continue;
+    }
+
+    // NORMAL-CLIP: clip each union interval; node-id-gated stitch on the
+    // outermost interval ends only.
+    final sorted = [...intervals]..sort((a, b) {
+        final la = a.$1 < a.$2 ? a.$1 : a.$2;
+        final lb = b.$1 < b.$2 ? b.$1 : b.$2;
+        return la.compareTo(lb);
+      });
+    for (var i = 0; i < sorted.length; i++) {
+      var lo = sorted[i].$1 < sorted[i].$2 ? sorted[i].$1 : sorted[i].$2;
+      var hi = sorted[i].$1 > sorted[i].$2 ? sorted[i].$1 : sorted[i].$2;
+      if (i == 0 && firstShared && lo <= kStitchToleranceMeters) lo = 0;
+      if (i == sorted.length - 1 &&
+          lastShared &&
+          hi >= full - kStitchToleranceMeters) {
+        hi = full;
+      }
+      // With node ids we do the stitch ourselves (snapMeters:0); without them
+      // fall back to the old blanket own-end snap.
+      final seg = reconstructWaySubsegment(
+        geom,
+        lo,
+        hi,
+        snapMeters: hasNodes ? 0 : kWaySubsegmentSnapMeters,
+      );
+      if (seg.length < 2) continue;
+      out.add(
+        CoverageWay(
+          wayId: wayId,
           geometry: seg,
           datum: const CoverageDatum(fraction: 1, isFull: true),
         ),

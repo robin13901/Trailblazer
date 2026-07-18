@@ -26,6 +26,7 @@ import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
+import 'package:auto_explore/features/coverage/data/driven_way_geometry_resolver.dart';
 import 'package:auto_explore/features/coverage/domain/interval_union.dart';
 import 'package:auto_explore/features/coverage/domain/way_subsegment.dart';
 import 'package:auto_explore/features/matching/data/overpass_response_parser.dart';
@@ -97,7 +98,7 @@ void main() {
     const matcher = HmmMatcher();
 
     final allBefore = <List<LatLng>>[];
-    final allAfter = <List<LatLng>>[];
+    final xTripUnion = <int, List<Interval>>{};
 
     for (final trip in trips) {
       final tripId = trip['id'] as int;
@@ -175,7 +176,13 @@ void main() {
           'dropped; before=${before.length} segs, after=${after.length} segs');
 
       allBefore.addAll(before);
-      allAfter.addAll(after);
+      // Accumulate the cross-trip union so the overview AFTER can be rendered
+      // via the REAL production clipDrivenWays (dedup + thorn-drop + stitch).
+      for (final iv in result.intervals) {
+        xTripUnion
+            .putIfAbsent(iv.wayId, () => [])
+            .add(Interval(iv.startMeters, iv.endMeters));
+      }
 
       await _renderPolylines(
         '$_outDir/before_trip$tripId.png',
@@ -192,7 +199,29 @@ void main() {
     // Combined overview across all trips.
     await _renderPolylines('$_outDir/overview_before.png', allBefore,
         const Color(0xFFFFA500));
-    await _renderPolylines('$_outDir/overview_after.png', allAfter,
+
+    // AFTER overview via the REAL production render (clipDrivenWays): cross-trip
+    // union per wayId → thorn-drop + connector-close + node-stitch. This is
+    // exactly what the app draws, so the PNG matches on-device.
+    final prodUnion = <int, List<(double, double)>>{
+      for (final e in xTripUnion.entries)
+        e.key: [for (final iv in e.value) (iv.startMeters, iv.endMeters)],
+    };
+    final prodGeom = <int, List<LatLng>>{};
+    final prodNodes = <int, List<int>>{};
+    for (final wid in xTripUnion.keys) {
+      final w = allWaysById[wid];
+      if (w == null) continue;
+      prodGeom[wid] = w.geometry;
+      prodNodes[wid] = w.nodeIds;
+    }
+    final prodRendered = clipDrivenWays(
+      unionByWayId: prodUnion,
+      geomByWayId: prodGeom,
+      nodesByWayId: prodNodes,
+    );
+    final prodAfter = [for (final c in prodRendered) c.geometry];
+    await _renderPolylines('$_outDir/overview_after.png', prodAfter,
         const Color(0xFFFFA500));
 
     // Auto-locate the worst BEFORE artifacts (sharp direction reversals — the
@@ -213,12 +242,30 @@ void main() {
       );
       await _renderWindow(
         '$_outDir/zoom${i}_after.png',
-        segments: allAfter,
+        segments: prodAfter,
         roads: allRoads,
         centre: c,
         halfSpanMeters: 120,
       );
     }
+
+    // Dedicated roundabout crop (Am Hundsrück, Kleinheubach) — the reported
+    // gaps + thorns location — before vs the production render.
+    const roundabout = LatLng(49.7120, 9.2160);
+    await _renderWindow(
+      '$_outDir/roundabout_before.png',
+      segments: allBefore,
+      roads: allRoads,
+      centre: roundabout,
+      halfSpanMeters: 180,
+    );
+    await _renderWindow(
+      '$_outDir/roundabout_after.png',
+      segments: prodAfter,
+      roads: allRoads,
+      centre: roundabout,
+      halfSpanMeters: 180,
+    );
 
     print('Wrote PNGs to $_outDir (${hotspots.length} zoom hotspots)');
     expect(Directory(_outDir).listSync().whereType<File>().length,
