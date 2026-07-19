@@ -98,16 +98,17 @@ class _LiveTrailBridgeState extends ConsumerState<LiveTrailBridge> {
     final controller = ref.read(mapControllerProvider);
     final applier = ref.read(liveTrailApplierProvider);
     if (!_sourceAdded) {
-      // Need at least 2 points for a LineString; the applier enforces this.
-      if (_trail.length < 2) return;
+      // We render one fix BEHIND (see _renderTrail), so the rendered set only
+      // reaches the 2-point LineString minimum once 3 fixes have accumulated.
+      if (_trail.length < 3) return;
       _sourceAdded = true;
       _dispatch(
-        () => applier.addOrUpdate(controller, _trailSnapshot(), colorHex: _coverageColorHex()),
+        () => applier.addOrUpdate(controller, _renderTrail(), colorHex: _coverageColorHex()),
         'addOrUpdate(initial)',
       );
     } else {
       _dispatch(
-        () => applier.addOrUpdate(controller, _trailSnapshot(), colorHex: _coverageColorHex()),
+        () => applier.addOrUpdate(controller, _renderTrail(), colorHex: _coverageColorHex()),
         'addOrUpdate',
       );
     }
@@ -123,17 +124,27 @@ class _LiveTrailBridgeState extends ConsumerState<LiveTrailBridge> {
 
   /// Re-add after a style reload if we still have a trail to draw.
   void _scheduleReadd() {
-    if (_trail.length < 2) return;
+    // Rendered set is one fix behind, so we need 3 accumulated points to have
+    // the 2-point LineString minimum.
+    if (_trail.length < 3) return;
     final controller = ref.read(mapControllerProvider);
     final applier = ref.read(liveTrailApplierProvider);
     _sourceAdded = true;
     _dispatch(
-      () => applier.addOrUpdate(controller, _trailSnapshot(), colorHex: _coverageColorHex()),
+      () => applier.addOrUpdate(controller, _renderTrail(), colorHex: _coverageColorHex()),
       'addOrUpdate(re-add)',
     );
   }
 
-  List<LatLng> _trailSnapshot() => List<LatLng>.unmodifiable(_trail);
+  /// The trail to render: all accumulated fixes EXCEPT the last one, so the
+  /// live line tip sits one fix behind the true position. The native MapLibre
+  /// puck follows the true position closely but slightly behind its own
+  /// cadence; drawing the line one fix back makes the tip and the puck
+  /// visually coincide (a single dot at the tip) rather than the line racing
+  /// ahead of the puck. No data is lost — post-trip coverage is rebuilt from
+  /// the full point set in the DB by the matcher.
+  List<LatLng> _renderTrail() =>
+      List<LatLng>.unmodifiable(_trail.sublist(0, _trail.length - 1));
 
   /// Current coverage color as a `#RRGGBB` hex, matching the persistent
   /// coverage overlay, so the live line looks identical to what finalizes

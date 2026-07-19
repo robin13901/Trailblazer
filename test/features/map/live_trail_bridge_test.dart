@@ -143,35 +143,44 @@ void main() {
       );
     });
 
-    testWidgets('does not draw until 2 points accumulate, then addOrUpdate',
+    testWidgets('draws one fix behind: no draw until 3 points, renders 2',
         (tester) async {
       final f = await _pump(tester);
       _bumpStyleTick(tester);
       await tester.pump();
 
+      // The live line is drawn ONE FIX BEHIND (LiveTrailBridge._renderTrail),
+      // so the 2-point LineString minimum is only met once 3 fixes arrive.
       f.fixes.add(_fix(50, 9));
       await tester.pump();
       expect(f.fake.calls, isEmpty);
 
       f.fixes.add(_fix(50.001, 9));
       await tester.pump();
+      expect(f.fake.calls, isEmpty, reason: '2 fixes → only 1 rendered point');
+
+      f.fixes.add(_fix(50.002, 9));
+      await tester.pump();
       expect(f.fake.calls, hasLength(1));
       final call = f.fake.calls.single;
       expect(call, isA<_AddOrUpdateCall>());
+      // 3 fixes accumulated, last one dropped → 2 points rendered.
       expect((call as _AddOrUpdateCall).trail, hasLength(2));
     });
 
-    testWidgets('each subsequent fix updates the trail (growing point count)',
+    testWidgets('each subsequent fix updates the trail (one fix behind)',
         (tester) async {
       final f = await _pump(tester);
       _bumpStyleTick(tester);
       await tester.pump();
 
-      for (var i = 0; i < 4; i++) {
+      for (var i = 0; i < 5; i++) {
         f.fixes.add(_fix(50.0 + i * 0.001, 9));
         await tester.pump();
       }
 
+      // 5 fixes → draws fire at fix 3, 4, 5 → 3 addOrUpdate calls, each
+      // rendering one fewer point than accumulated (one fix behind).
       final addCalls = f.fake.calls.whereType<_AddOrUpdateCall>().toList();
       expect(addCalls, hasLength(3));
       expect(addCalls.first.trail, hasLength(2));
@@ -185,8 +194,10 @@ void main() {
       await tester.pump();
 
       f.tracking.emit(_recording());
+      // 3 fixes needed to cross the one-fix-behind draw floor.
       f.fixes.add(_fix(50, 9));
       f.fixes.add(_fix(50.001, 9));
+      f.fixes.add(_fix(50.002, 9));
       await tester.pump();
       expect(f.fake.calls.whereType<_AddOrUpdateCall>(), isNotEmpty);
 
@@ -200,7 +211,7 @@ void main() {
       expect(
         f.fake.calls.whereType<_AddOrUpdateCall>().length,
         before,
-        reason: 'single post-stop point is below the 2-point draw floor',
+        reason: 'single post-stop point is below the draw floor',
       );
     });
   });

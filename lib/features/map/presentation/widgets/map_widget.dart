@@ -10,8 +10,6 @@ import 'package:auto_explore/features/map/presentation/providers/map_controller_
 import 'package:auto_explore/features/map/presentation/providers/map_style_loaded_provider.dart';
 import 'package:auto_explore/features/map/presentation/providers/map_style_provider.dart';
 import 'package:auto_explore/features/map/presentation/widgets/map_style_fade.dart';
-import 'package:auto_explore/features/trips/domain/tracking_state.dart';
-import 'package:auto_explore/features/trips/presentation/providers/tracking_state_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart' show SchedulerPhase;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -173,23 +171,20 @@ class _MapWidgetState extends ConsumerState<MapWidget>
     final permissionAsync = ref.watch(locationPermissionProvider);
     final cameraState = ref.watch(cameraStateProvider);
     final styleUrl = ref.watch(mapStyleUrlProvider);
-    final trackingState = ref.watch(trackingStateProvider);
 
     final isGranted = permissionAsync.maybeWhen(
       data: (s) => s.isGranted || s.isLimited,
       orElse: () => false,
     );
-    // While recording we draw our OWN puck (LivePuckBridge) from the same
-    // liveFixProvider tick as the live coverage line, so the dot sits exactly
-    // at the line tip with zero lag. The native MapLibre puck runs on its own
-    // smoothed cadence and trails the line (the "lagging puck" — reverted then
-    // re-adopted 2026-07-18), so suppress it while recording to avoid two dots.
-    //
-    // IMPORTANT: myLocationEnabled=false ALSO disables MapLibre's native
-    // camera follow (centering + rotation). TrackingCameraSync compensates by
-    // driving the full camera (center + bearing) per-frame while recording.
-    final isRecording = trackingState is TrackingRecording;
-    final locationEnabled = isGranted && !isRecording;
+    // The native MapLibre location puck stays ON while recording and owns the
+    // camera via MyLocationTrackingMode.trackingGps (centering + heading-up
+    // rotation). It follows the live position closely; the live coverage line
+    // is drawn one fix BEHIND (LiveTrailBridge) so its tip visually coincides
+    // with the puck. This is a single-camera-owner design (2026-07-19): the
+    // earlier manual per-frame moveCamera fought native tracking — every manual
+    // camera nudge tripped onCameraTrackingDismissed, which silently killed the
+    // rotation — and required a second (manual) puck. Both are gone now.
+    final locationEnabled = isGranted;
     // Exhaustive FollowMode -> MyLocationTrackingMode mapping.
     //
     // Plan 04-19 (2026-07-09 drive fix): locationAndHeading maps to
@@ -241,16 +236,12 @@ class _MapWidgetState extends ConsumerState<MapWidget>
         trackCameraPosition: true,
         myLocationEnabled: locationEnabled,
         // Puck render mode. In heading-up recording the map itself rotates to
-        // the (road-snapped) travel direction, so a compass cone driven by the
-        // device magnetometer would point where the *phone* faces — fighting
-        // the map rotation and reading wrong in a car (metal + mount magnets
-        // deflect the compass 20-90°). Use the plain dot + accuracy ring while
+        // the travel direction, so a compass cone driven by the device
+        // magnetometer would point where the *phone* faces — fighting the map
+        // rotation and reading wrong in a car (metal + mount magnets deflect
+        // the compass 20-90°). Use the plain dot + accuracy ring while
         // heading-locked; keep the compass cone only in north-up modes where
         // it still conveys useful orientation.
-        //
-        // While recording, myLocationEnabled=false (native dot suppressed in
-        // favour of LivePuckBridge) so render mode MUST be normal — MapLibreMap
-        // asserts compass requires myLocationEnabled=true.
         myLocationRenderMode: (locationEnabled &&
                 cameraState.followMode != FollowMode.locationAndHeading)
             ? MyLocationRenderMode.compass

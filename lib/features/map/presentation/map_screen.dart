@@ -5,7 +5,6 @@ import 'package:auto_explore/features/map/presentation/providers/location_permis
 import 'package:auto_explore/features/map/presentation/widgets/align_north_button.dart';
 import 'package:auto_explore/features/map/presentation/widgets/bottom_nav_shell.dart';
 import 'package:auto_explore/features/map/presentation/widgets/focus_area_pill.dart';
-import 'package:auto_explore/features/map/presentation/widgets/live_puck_bridge.dart';
 import 'package:auto_explore/features/map/presentation/widgets/live_trail_bridge.dart';
 import 'package:auto_explore/features/map/presentation/widgets/map_widget.dart';
 import 'package:auto_explore/features/map/presentation/widgets/permission_denial_banner.dart';
@@ -129,28 +128,16 @@ class MapScreen extends ConsumerWidget {
           // stop so the solid post-trip matched coverage takes over. Zero-size
           // Positioned OUTSIDE the isMapTab block so it keeps accumulating the
           // trail even if the user browses another tab mid-drive.
+          //
+          // The line is drawn ONE FIX BEHIND the true position so its tip
+          // coincides with the native MapLibre puck (which follows closely but
+          // slightly behind its own cadence) — a single visible dot at the tip.
           const Positioned(
             top: 0,
             left: 0,
             width: 0,
             height: 0,
             child: LiveTrailBridge(),
-          ),
-
-          // Headless live-puck bridge: draws our own location puck from the
-          // same liveFixProvider tick as the live trail so the dot always sits
-          // at the tip of the line with ZERO lag (the native puck trails on its
-          // own smoothed cadence — re-adopted 2026-07-18). Zero-size Positioned
-          // OUTSIDE the isMapTab block — mirrors LiveTrailBridge placement. The
-          // native dot is suppressed by MapWidget while recording
-          // (myLocationEnabled=false) and restored when idle; TrackingCameraSync
-          // drives the camera (center + bearing) manually to compensate.
-          const Positioned(
-            top: 0,
-            left: 0,
-            width: 0,
-            height: 0,
-            child: LivePuckBridge(),
           ),
 
           // Non-map tabs render their Scaffold (opaque background) over the
