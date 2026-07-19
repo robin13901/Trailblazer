@@ -129,15 +129,22 @@ final tripMatchCoordinatorProvider = Provider<TripMatchCoordinator>((ref) {
     progressClearSink: (tripId) =>
         ref.read(matchProgressProvider.notifier).clear(tripId),
     onIntervalsLanded: (tripId) {
-      // Auto recompute-only (Decision 6 / OQ1-PERF incremental path):
-      // recomputeForTrip() upserts only the regions the new trip's bbox
-      // touches — much cheaper than full deleteAll+recompute for a single
-      // short drive. Does NOT wipe other regions (no deleteAll). Fire-and-forget.
+      // Auto recompute (Decision 6 auto seam). Uses the FULL recompute()
+      // (all-trips union bbox), NOT the incremental recomputeForTrip().
+      //
+      // Why not incremental: recomputeForTrip() upserts absolute driven_length_m
+      // for only the regions inside the NEW trip's bbox, and can only attribute
+      // ways whose centroid falls in that bbox. A later short drive with a
+      // narrower bbox therefore OVERWRITES a region's total with a partial sum
+      // that omits earlier trips' ways outside the new bbox — coverage % goes
+      // DOWN (non-monotonic; observed Kleinheubach 34.1% → 23.2%). The full
+      // recompute() rebuilds every region from the all-trips union and is
+      // known-correct/monotonic. Heavier, but fire-and-forget, once per match.
       unawaited(
-        computeService.recomputeForTrip(tripId).then((result) {
+        computeService.recompute().then((result) {
           result.when(
             ok: (rows) => log.fine(
-              'auto-recompute after trip $tripId: $rows regions upserted',
+              'auto-recompute after trip $tripId: $rows regions written',
             ),
             err: (e) => log.warning(
               'auto-recompute after trip $tripId failed: $e',

@@ -250,7 +250,17 @@ List<CoverageWay> clipDrivenWays({
     final bridges = firstShared && lastShared;
 
     // THORN-DROP: short, node-known, not bridging → junction mis-snap.
-    if (hasNodes && !bridges && drivenUnionM < kThornFloorMeters) continue;
+    // Guard with the driven FRACTION: a mostly-driven short through-road pinned
+    // to the net at only ONE endpoint (out-and-back turnaround) has a high
+    // du/full ratio and must NOT be discarded — dropping it punched 24-40m
+    // holes in Miltenberg through-roads (Mainstraße/Jahnstraße/Mainzer Straße).
+    // A genuine 2-fix mis-snap has du/full ≈ 0, so the 0.5 cutoff separates them.
+    if (hasNodes &&
+        !bridges &&
+        drivenUnionM < kThornFloorMeters &&
+        (full <= 0 || drivenUnionM / full < 0.5)) {
+      continue;
+    }
 
     // CONNECTOR-CLOSE: short bridging link the matcher may have collapsed to a
     // point → draw full so the junction closes.

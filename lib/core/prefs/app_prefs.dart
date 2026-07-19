@@ -78,8 +78,12 @@ class AppPrefs {
   /// `coverage_cache` repopulation on the next launch. `1` = 2026-07-11
   /// Phase-8 backfill: trips confirmed before the Phase-8 recompute hook
   /// existed left `coverage_cache` empty, so the region browser + focus pill
-  /// showed nothing despite driven intervals existing.
-  static const int kCurrentCoverageRecomputeVersion = 1;
+  /// showed nothing despite driven intervals existing. `2` = 2026-07-19 heal:
+  /// the auto seam used the incremental `recomputeForTrip()`, whose partial
+  /// per-bbox overwrite drove region coverage % DOWN (non-monotonic). The seam
+  /// is now the full `recompute()`; this forces one clean full pass to repair
+  /// the corrupted absolute driven/total lengths left by the incremental path.
+  static const int kCurrentCoverageRecomputeVersion = 2;
 
   /// Version stamp of the last stuck-fetch recovery migration applied to this
   /// device. Bumped when a one-shot recovery of trips parked by an Overpass
