@@ -32,6 +32,7 @@ import 'package:auto_explore/features/map/domain/follow_mode.dart';
 import 'package:auto_explore/features/map/presentation/providers/camera_state_provider.dart';
 import 'package:auto_explore/features/map/presentation/providers/live_camera_provider.dart';
 import 'package:auto_explore/features/map/presentation/providers/map_controller_provider.dart';
+import 'package:auto_explore/features/map/presentation/providers/region_outline_provider.dart';
 import 'package:auto_explore/features/regions/domain/region_coverage.dart';
 import 'package:auto_explore/features/regions/presentation/providers/region_sheet_open_provider.dart';
 import 'package:auto_explore/features/regions/presentation/widgets/region_card.dart';
@@ -110,6 +111,12 @@ class _RegionDetailContent extends ConsumerWidget {
       final drivenCenter = _drivenCentroidInRegion(ref, adm);
       final target = _cameraForBbox(adm, override: drivenCenter);
       ref.read(cameraStateProvider.notifier).jumpTo(target);
+
+      // Draw this region's actual boundary on the map (dashed neutral border +
+      // faint fill), dismissible via the on-map X chip. Persists until the user
+      // taps that chip. The RegionOutlineBridge (mounted in MapScreen) watches
+      // regionOutlineProvider and drives the MapLibre layers.
+      ref.read(regionOutlineProvider.notifier).show(adm);
 
       // Update the focus pill immediately. The pill watches liveCameraProvider
       // (fed by the map's onCameraMove), NOT cameraStateProvider — so without

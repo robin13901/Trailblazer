@@ -9,6 +9,8 @@ import 'package:auto_explore/features/map/presentation/widgets/live_trail_bridge
 import 'package:auto_explore/features/map/presentation/widgets/map_widget.dart';
 import 'package:auto_explore/features/map/presentation/widgets/permission_denial_banner.dart';
 import 'package:auto_explore/features/map/presentation/widgets/recenter_button.dart';
+import 'package:auto_explore/features/map/presentation/widgets/region_outline_bridge.dart';
+import 'package:auto_explore/features/map/presentation/widgets/region_outline_dismiss_chip.dart';
 import 'package:auto_explore/features/map/presentation/widgets/settings_glass_button.dart';
 import 'package:auto_explore/features/map/presentation/widgets/tracking_camera_sync.dart';
 import 'package:auto_explore/features/map/presentation/widgets/trip_fab.dart';
@@ -140,6 +142,19 @@ class MapScreen extends ConsumerWidget {
             child: LiveTrailBridge(),
           ),
 
+          // Headless region-outline bridge: draws the actual boundary of a
+          // region the user picked via "Auf Karte anzeigen" (dashed neutral
+          // border + faint fill), dismissed by the on-map X chip. Zero-size
+          // Positioned OUTSIDE the isMapTab block so it re-adds correctly after
+          // the map remounts on the return to the Map tab.
+          const Positioned(
+            top: 0,
+            left: 0,
+            width: 0,
+            height: 0,
+            child: RegionOutlineBridge(),
+          ),
+
           // Non-map tabs render their Scaffold (opaque background) over the
           // map when the shell index is > 0.
           if (navigationShell != null && !isMapTab)
@@ -189,6 +204,16 @@ class MapScreen extends ConsumerWidget {
               left: 0,
               right: 0,
               child: SafeArea(child: Center(child: FocusAreaPill())),
+            ),
+
+            // Region-outline dismiss chip — centered just below the focus pill.
+            // Only visible while a region boundary is drawn on the map (the
+            // chip renders nothing otherwise). Tapping it clears the outline.
+            const Positioned(
+              top: _chromeRowTopInset + 56,
+              left: 0,
+              right: 0,
+              child: SafeArea(child: Center(child: RegionOutlineDismissChip())),
             ),
 
             // Top-right glass align-north button — mirrors the top-left
