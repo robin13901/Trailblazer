@@ -26,7 +26,7 @@ class PermissionAlwaysPage extends ConsumerWidget {
       icon: Icons.explore,
       title: 'Fahrten im Hintergrund aufzeichnen',
       body:
-          'Trailblazer zeichnet Fahrten auch dann auf, wenn die App geschlossen '
+          'OKF Buddy zeichnet Fahrten auch dann auf, wenn die App geschlossen '
           'ist — so erfassen wir die ganze Fahrt, nicht nur den Moment, in dem '
           'du die App geöffnet hast.',
       primaryLabel: 'Standort im Hintergrund aktivieren',

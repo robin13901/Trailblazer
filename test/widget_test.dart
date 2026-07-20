@@ -57,7 +57,7 @@ void main() {
     await tester.pumpAndSettle(const Duration(seconds: 1));
 
     // First launch (empty prefs) -> onboarding page 1 (3-page permission ladder).
-    expect(find.textContaining('Standort während der Nutzung von Trailblazer'), findsOneWidget);
+    expect(find.textContaining('Standort während der Nutzung von OKF Buddy'), findsOneWidget);
 
     // Tap page 1 Continue -> page 2.
     await tester.tap(find.text('Weiter').first);
@@ -79,6 +79,6 @@ void main() {
 
     // Map shell (StatefulShellRoute) is active — BottomNavShell is visible.
     expect(find.byType(BottomNavShell), findsOneWidget);
-    expect(find.textContaining('Standort während der Nutzung von Trailblazer'), findsNothing);
+    expect(find.textContaining('Standort während der Nutzung von OKF Buddy'), findsNothing);
   });
 }

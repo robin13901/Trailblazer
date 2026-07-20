@@ -41,7 +41,7 @@ class _DataBackupSectionState extends ConsumerState<DataBackupSection> {
         case Ok(:final value):
           await ref.read(filePlatformProvider).shareFile(
                 value,
-                subject: 'Trailblazer Backup',
+                subject: 'OKF Buddy Backup',
               );
           if (!mounted) return;
           messenger.showSnackBar(

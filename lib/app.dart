@@ -217,7 +217,7 @@ class _AppState extends ConsumerState<App> with WidgetsBindingObserver {
   Widget build(BuildContext context) {
     final router = ref.watch(appRouterProvider);
     return MaterialApp.router(
-      title: 'Trailblazer',
+      title: 'OKF Buddy',
       theme: AppTheme.light,
       darkTheme: AppTheme.dark,
       routerConfig: router,

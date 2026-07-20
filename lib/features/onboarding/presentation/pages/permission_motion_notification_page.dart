@@ -94,7 +94,7 @@ class _PermissionMotionNotificationPageState
       body: isIOS
           ? 'Der Bewegungs- & Fitness-Sensor von iOS hilft, Fahren von Gehen zu '
               'unterscheiden — das macht die automatische Erkennung intelligenter.'
-          : 'Trailblazer zeigt während der Aufnahme eine dauerhafte '
+          : 'OKF Buddy zeigt während der Aufnahme eine dauerhafte '
               'Benachrichtigung an (Android braucht dies, um das Tracking am '
               'Leben zu halten). Es bittet Android außerdem, die '
               'Batterieoptimierung zu ignorieren, damit das Betriebssystem das '

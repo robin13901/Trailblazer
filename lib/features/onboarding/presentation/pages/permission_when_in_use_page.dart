@@ -16,9 +16,9 @@ class PermissionWhenInUsePage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     return PermissionRationalePage(
       icon: Icons.location_on,
-      title: 'Standort während der Nutzung von Trailblazer',
+      title: 'Standort während der Nutzung von OKF Buddy',
       body:
-          'Trailblazer zeichnet die von dir gefahrenen Straßen auf der Karte '
+          'OKF Buddy zeichnet die von dir gefahrenen Straßen auf der Karte '
           'nach. Zuerst braucht die App die Berechtigung, deinen Standort zu '
           'sehen, während du die App verwendest.',
       primaryLabel: 'Weiter',

@@ -36,7 +36,7 @@ class AboutSection extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
-            'Trailblazer zeichnet die von dir gefahrenen Straßen auf einer '
+            'OKF Buddy zeichnet die von dir gefahrenen Straßen auf einer '
             'Offline-Weltkarte nach.',
           ),
           const SizedBox(height: 8),
@@ -55,7 +55,7 @@ class AboutSection extends StatelessWidget {
             trailing: const Icon(Icons.chevron_right),
             onTap: () => showLicensePage(
               context: context,
-              applicationName: 'Trailblazer',
+              applicationName: 'OKF Buddy',
               applicationVersion: kAppVersion,
             ),
           ),
