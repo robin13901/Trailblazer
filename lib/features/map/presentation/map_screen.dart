@@ -209,8 +209,13 @@ class MapScreen extends ConsumerWidget {
             // Region-outline dismiss chip — centered just below the focus pill.
             // Only visible while a region boundary is drawn on the map (the
             // chip renders nothing otherwise). Tapping it clears the outline.
+            //
+            // 56 dp clears the pill's height; the extra +12 (matching the
+            // chrome gap used elsewhere) keeps a small breathing gap so the
+            // chip doesn't sit flush against the pill (on-device feedback
+            // 2026-07-21).
             const Positioned(
-              top: _chromeRowTopInset + 56,
+              top: _chromeRowTopInset + 56 + _chromeGap,
               left: 0,
               right: 0,
               child: SafeArea(child: Center(child: RegionOutlineDismissChip())),

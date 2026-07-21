@@ -1,15 +1,28 @@
 // Trailblazer Phase 8, Plan 08-04 (Wave 2):
 // FocusPillProvider — debounced live camera -> region name + coverage %.
 //
-// Watches liveCameraProvider; on each camera change (re)starts a 150 ms
-// trailing debounce timer, then calls _resolve() which walks the fallback
-// level chain (zoom_level_mapper.dart), reads the coverage_cache via PK
-// point-read, and updates state. Hold-last-value anti-flicker: state is
-// NEVER reset to blank between resolves — only overwritten when a fresh
-// resolve completes (CONTEXT.md lines 29, 55).
+// Two drivers:
+//   * IDLE (not recording): watches liveCameraProvider; on each camera change
+//     (re)starts a 150 ms trailing debounce, then resolves the region under the
+//     map CENTER at the ZOOM-DERIVED level (fallbackLevelsFrom) — so a zoomed-
+//     out view shows the coarser containing region.
+//   * RECORDING (live driving): watches liveFixProvider; on each accepted GPS
+//     fix (re)starts the same debounce, then resolves the region under the FIX
+//     coordinate using the FINEST-level-first chain (smallest region always —
+//     e.g. "Kleinheubach", never "Landkreis Miltenberg" / "Bayern"),
+//     independent of camera zoom. This makes the pill switch live as the driver
+//     crosses a town boundary (on-device request 2026-07-21). While recording,
+//     the camera driver is suppressed so a coarse zoom-derived resolve can't
+//     clobber the fine live-fix one (the native camera follows the GPS puck, so
+//     onCameraMove fires continuously during a drive).
+//
+// Neither path recomputes coverage — percent is always a cheap cache PK read.
+//
+// Hold-last-value anti-flicker: state is NEVER reset to blank between resolves
+// — only overwritten when a fresh resolve completes (CONTEXT.md lines 29, 55).
 //
 // Out-of-order guard: monotonically increasing _requestId ensures a slow
-// resolve cannot clobber a newer one (prevents jitter on rapid pans).
+// resolve cannot clobber a newer one (prevents jitter on rapid pans/fixes).
 //
 // Plain NotifierProvider — no @Riverpod codegen (STATE.md Plan 01-01).
 // Package imports only.
@@ -21,6 +34,9 @@ import 'package:auto_explore/features/coverage/data/coverage_providers.dart';
 import 'package:auto_explore/features/map/presentation/providers/live_camera_provider.dart';
 import 'package:auto_explore/features/regions/domain/region_coverage.dart';
 import 'package:auto_explore/features/regions/domain/zoom_level_mapper.dart';
+import 'package:auto_explore/features/trips/domain/live_fix_sample.dart';
+import 'package:auto_explore/features/trips/domain/tracking_state.dart';
+import 'package:auto_explore/features/trips/presentation/providers/tracking_state_provider.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -72,20 +88,66 @@ class FocusPillNotifier extends Notifier<FocusPillState> {
       // Listen to the live camera without triggering a state reset. Using
       // ref.listen keeps the "hold-last-value" contract: the notifier's state
       // is NOT set back to a blank value on each camera change.
+      //
+      // Suppressed while recording: the native camera follows the GPS puck, so
+      // onCameraMove fires continuously during a drive. A coarse zoom-derived
+      // camera resolve would otherwise race with — and clobber — the fine
+      // live-fix resolve below. During recording the fix stream owns the pill.
       ..listen<LiveCamera?>(liveCameraProvider, (_, next) {
         if (next == null) return;
+        if (_isRecording()) return;
         _debounce?.cancel();
-        _debounce = Timer(_kDebounce, () => _resolve(next));
+        _debounce = Timer(
+          _kDebounce,
+          () => _resolve(
+            lat: next.latitude,
+            lon: next.longitude,
+            // IDLE: resolve at the zoom-derived level so a zoomed-out view
+            // shows the coarser containing region.
+            levels: fallbackLevelsFrom(next.zoom),
+          ),
+        );
+      })
+
+      // Listen to accepted GPS fixes. While recording, each fix (re)starts the
+      // debounce and resolves the SMALLEST region containing the fix — always
+      // finest-level-first so we show "Kleinheubach", not the enclosing
+      // Landkreis / Bundesland (on-device request 2026-07-21).
+      ..listen<AsyncValue<LiveFixSample>>(liveFixProvider, (_, next) {
+        if (next case AsyncData(:final value)) {
+          _debounce?.cancel();
+          _debounce = Timer(
+            _kDebounce,
+            () => _resolve(
+              lat: value.lat,
+              lon: value.lon,
+              // RECORDING: always start at the finest level (smallest region).
+              levels: kFallbackLevels,
+            ),
+          );
+        }
       });
 
     // Initial state: blank — name is null until the first resolve completes.
     return const FocusPillState();
   }
 
+  /// True while a trip is actively recording. Read (not watched) so it does
+  /// not itself trigger a rebuild — the fix/camera listeners drive updates.
+  bool _isRecording() => ref.read(trackingStateProvider) is TrackingRecording;
+
   /// Async resolve: look up the containing region + cache row, then update
   /// state. A monotonically increasing [_requestId] guards against
-  /// out-of-order completions on rapid pans.
-  Future<void> _resolve(LiveCamera camera) async {
+  /// out-of-order completions on rapid pans/fixes.
+  ///
+  /// [levels] is the fallback chain to try in order (first non-null wins).
+  /// Callers pass the zoom-derived chain when idle, or [kFallbackLevels]
+  /// (finest-first) while recording so the pill shows the smallest region.
+  Future<void> _resolve({
+    required double lat,
+    required double lon,
+    required List<int> levels,
+  }) async {
     final myId = ++_requestId;
 
     final lookup = ref.read(adminRegionLookupProvider);
@@ -94,12 +156,10 @@ class FocusPillNotifier extends Notifier<FocusPillState> {
     // Walk the fallback chain: first non-null region wins. The bundle has no
     // level-2 (country) polygon, so a `[2]`-only chain (country zoom) resolves
     // nothing here — Deutschland is handled explicitly below.
-    final levels = fallbackLevelsFrom(camera.zoom);
     final region = await () async {
       for (final level in levels) {
         if (level == 2) continue; // no country polygon in the bundle
-        final r =
-            await lookup.regionAt(camera.latitude, camera.longitude, level);
+        final r = await lookup.regionAt(lat, lon, level);
         if (r != null) return r;
       }
       return null;
@@ -115,12 +175,7 @@ class FocusPillNotifier extends Notifier<FocusPillState> {
     // last Bundesland at country zoom and when panning abroad, because the old
     // code kept the last value whenever the chain missed.)
     if (region == null) {
-      final inGermany = await lookup.regionAt(
-            camera.latitude,
-            camera.longitude,
-            4,
-          ) !=
-          null;
+      final inGermany = await lookup.regionAt(lat, lon, 4) != null;
       if (myId != _requestId) return;
       state = inGermany
           // Over DE at a level with no polygon (country zoom / small water

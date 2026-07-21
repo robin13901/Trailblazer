@@ -12,6 +12,8 @@
 //      pill shows "Deutschland".
 //   6. No-cache row → percentLabel is null (widget shows "— %").
 
+import 'dart:async';
+
 import 'package:auto_explore/core/db/app_database.dart';
 import 'package:auto_explore/features/admin/data/admin_region.dart';
 import 'package:auto_explore/features/admin/data/admin_region_lookup.dart';
@@ -20,6 +22,9 @@ import 'package:auto_explore/features/coverage/data/coverage_cache_dao.dart';
 import 'package:auto_explore/features/coverage/data/coverage_providers.dart';
 import 'package:auto_explore/features/map/presentation/providers/live_camera_provider.dart';
 import 'package:auto_explore/features/regions/presentation/providers/focus_pill_provider.dart';
+import 'package:auto_explore/features/trips/domain/live_fix_sample.dart';
+import 'package:auto_explore/features/trips/domain/tracking_state.dart';
+import 'package:auto_explore/features/trips/presentation/providers/tracking_state_provider.dart';
 import 'package:drift/native.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -97,13 +102,46 @@ Future<AppDatabase> _dbWithCacheRow({required int osmId}) async {
   return db;
 }
 
+/// Fake TrackingNotifier that reports a fixed [TrackingState].
+///
+/// Overriding [trackingStateProvider] keeps the pill provider from pulling the
+/// real TrackingService (FGB facade + DB) into these pure-container tests. The
+/// pill only ever reads whether the state is [TrackingRecording].
+class _FakeTrackingNotifier extends Notifier<TrackingState>
+    implements TrackingNotifier {
+  _FakeTrackingNotifier(this._state);
+  final TrackingState _state;
+
+  @override
+  TrackingState build() => _state;
+
+  @override
+  Future<void> startManual() async {}
+
+  @override
+  Future<void> stopActive() async {}
+}
+
+TrackingState _recording() => TrackingRecording(
+      tripId: 1,
+      startedAt: DateTime(2026, 7, 21),
+      distanceMeters: 0,
+      pointCount: 0,
+      manuallyStarted: true,
+    );
+
 /// Builds a ProviderContainer that overrides the lookup + cache providers.
 ///
 /// [resolver] controls what regionAt returns.
 /// [db] is the in-memory AppDatabase (its CoverageCacheDao is used).
+/// [tracking] is the fixed tracking state (default: idle). Pass [_recording]
+/// to exercise the live-fix-driven path.
+/// [fixStream] is the live GPS fix stream (default: empty).
 ProviderContainer _makeContainer({
   required _RegionResolver resolver,
   required AppDatabase db,
+  TrackingState tracking = const TrackingIdle(),
+  Stream<LiveFixSample> fixStream = const Stream<LiveFixSample>.empty(),
 }) {
   return ProviderContainer(
     overrides: [
@@ -113,6 +151,8 @@ ProviderContainer _makeContainer({
       coverageCacheDaoProvider.overrideWithValue(
         CoverageCacheDao(db),
       ),
+      trackingStateProvider.overrideWith(() => _FakeTrackingNotifier(tracking)),
+      liveFixProvider.overrideWith((ref) => fixStream),
     ],
   );
 }
@@ -297,6 +337,104 @@ void main() {
           s.percentLabel,
           isNull,
           reason: 'No cache row → percentLabel null → widget shows —%',
+        );
+      },
+    );
+
+    test(
+      '7. recording: live fix resolves the SMALLEST region (finest-first), '
+      'independent of camera zoom',
+      () async {
+        final region = _grebenhainRegion();
+        // Track which levels regionAt was probed at, in order.
+        final probedLevels = <int>[];
+        // Single-subscription (NOT broadcast): buffers the fix until the
+        // StreamProvider subscribes, so adding it synchronously after init
+        // can't be dropped before subscription.
+        final fixes = StreamController<LiveFixSample>();
+        addTearDown(fixes.close);
+
+        final c = _makeContainer(
+          resolver: (_, _, level) {
+            probedLevels.add(level);
+            // Region resolves at the finest level (10) — a coarser camera-zoom
+            // chain would have skipped straight past it.
+            return level == 10 ? region : null;
+          },
+          db: db,
+          tracking: _recording(),
+          fixStream: fixes.stream,
+        );
+        addTearDown(c.dispose);
+
+        // Keep the notifier alive AND eagerly subscribe liveFixProvider by
+        // listening (a bare read can settle before the StreamProvider wires its
+        // subscription). Let that subscription establish before adding a fix.
+        c
+          ..listen(focusPillProvider, (_, _) {})
+          ..listen(liveFixProvider, (_, _) {});
+        await Future<void>.delayed(Duration.zero);
+        // Even with a country-zoom camera (zoom 4), the recording path must
+        // ignore the camera and resolve from the fix, finest-level-first.
+        c.read(liveCameraProvider.notifier).update(
+              const CameraPosition(target: LatLng(51, 10), zoom: 4),
+            );
+
+        fixes.add(
+          LiveFixSample(ts: DateTime(2026, 7, 21), lat: 50.51, lon: 9.385),
+        );
+        await Future<void>.delayed(const Duration(milliseconds: 400));
+
+        final s = c.read(focusPillProvider);
+        expect(s.name, 'Grebenhain');
+        // Finest-first: level 10 was probed before any coarser level.
+        expect(probedLevels.first, 10);
+      },
+    );
+
+    test(
+      '8. recording: camera pan does NOT override the fix-driven region',
+      () async {
+        final region = _grebenhainRegion();
+        final fixes = StreamController<LiveFixSample>();
+        addTearDown(fixes.close);
+
+        final c = _makeContainer(
+          // Region resolves at level 10 for the Grebenhain area (lat > 50);
+          // anywhere else returns null at every level.
+          resolver: (lat, _, level) {
+            if (lat > 50 && level == 10) return region;
+            return null;
+          },
+          db: db,
+          tracking: _recording(),
+          fixStream: fixes.stream,
+        );
+        addTearDown(c.dispose);
+
+        c
+          ..listen(focusPillProvider, (_, _) {})
+          ..listen(liveFixProvider, (_, _) {});
+        await Future<void>.delayed(Duration.zero);
+
+        // Live fix over Grebenhain → pill shows Grebenhain.
+        fixes.add(
+          LiveFixSample(ts: DateTime(2026, 7, 21), lat: 50.51, lon: 9.385),
+        );
+        await Future<void>.delayed(const Duration(milliseconds: 400));
+        expect(c.read(focusPillProvider).name, 'Grebenhain');
+
+        // A camera move to (0,0) while recording MUST be suppressed — the pill
+        // stays on the fix-driven region rather than flipping to "—".
+        c.read(liveCameraProvider.notifier).update(
+              const CameraPosition(target: LatLng(0, 0), zoom: 14),
+            );
+        await Future<void>.delayed(const Duration(milliseconds: 400));
+
+        expect(
+          c.read(focusPillProvider).name,
+          'Grebenhain',
+          reason: 'Recording suppresses the camera driver',
         );
       },
     );
