@@ -68,6 +68,8 @@ class _FakeWayCandidateSource implements WayCandidateSource {
     required double maxLat,
     required double maxLon,
     bool throwOnError = true,
+    Set<TileId>? restrictTiles,
+    void Function(int done, int total)? onTileProgress,
   }) async =>
       ways;
 
@@ -78,6 +80,8 @@ class _FakeWayCandidateSource implements WayCandidateSource {
     required double maxLat,
     required double maxLon,
     bool throwOnError = true,
+    Set<TileId>? restrictTiles,
+    void Function(int done, int total)? onTileProgress,
   }) async {
     if (ways.isEmpty) return const [];
     return [

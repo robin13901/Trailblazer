@@ -146,9 +146,17 @@ class _AppState extends ConsumerState<App> with WidgetsBindingObserver {
       final db = ref.read(appDatabaseProvider);
       final resetRows = await db.pendingRoadFetchesDao.resetAllBackoff();
       final purgedTiles = await db.overpassWayCacheDao.deleteZeroWayTiles();
+      // Orphan reconcile (2026-07-21): re-enqueue trips stranded at
+      // pendingRoadData with no queue row (e.g. app killed mid-fetch after a
+      // long drive) so the drainQueue below can complete them. Without this
+      // they are invisible to every recovery path and spin forever.
+      final reconciled = await ref
+          .read(tripRoadFetchCoordinatorProvider)
+          .reconcileOrphanedPendingRoadData();
       _log.info(
         'stuck-fetch recovery: reset $resetRows queued fetch(es), '
-        'purged $purgedTiles zero-way tile(s)',
+        'purged $purgedTiles zero-way tile(s), '
+        'reconciled $reconciled orphaned pendingRoadData trip(s)',
       );
       // Kick recovery immediately instead of waiting for the next resume.
       unawaited(ref.read(tripRoadFetchCoordinatorProvider).drainQueue());

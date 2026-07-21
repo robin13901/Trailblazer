@@ -58,6 +58,8 @@ class FixtureWayCandidateSource implements WayCandidateSource {
     required double maxLat,
     required double maxLon,
     bool throwOnError = true,
+    Set<TileId>? restrictTiles,
+    void Function(int done, int total)? onTileProgress,
   }) async {
     return _waysInBbox(minLat, minLon, maxLat, maxLon);
   }
@@ -69,6 +71,8 @@ class FixtureWayCandidateSource implements WayCandidateSource {
     required double maxLat,
     required double maxLon,
     bool throwOnError = true,
+    Set<TileId>? restrictTiles,
+    void Function(int done, int total)? onTileProgress,
   }) async {
     // Re-emit the bbox ways as ONE gzipped Overpass envelope so the matcher
     // isolate's decode/parse/filter path is exercised end-to-end from a

@@ -5,9 +5,12 @@
 // `TripsDao` behaviour) + a `FakeWayCandidateSource` (no network) + a
 // `FakeConnectivitySeam` (deterministic online/offline).
 
+import 'dart:async';
+
 import 'package:auto_explore/core/db/app_database.dart';
 import 'package:auto_explore/core/db/daos/pending_road_fetches_dao.dart';
 import 'package:auto_explore/features/matching/data/connectivity_seam.dart';
+import 'package:auto_explore/features/matching/data/tile_bbox_math.dart';
 import 'package:auto_explore/features/matching/data/trip_road_fetch_coordinator.dart';
 import 'package:auto_explore/features/matching/data/way_candidate_source.dart';
 import 'package:auto_explore/features/matching/domain/way_candidate.dart';
@@ -23,6 +26,33 @@ class FakeWayCandidateSource implements WayCandidateSource {
   int calls = 0;
   bool shouldThrow = false;
 
+  /// The `restrictTiles` argument seen on the last fetch call (corridor check).
+  Set<TileId>? lastRestrictTiles;
+
+  /// Progress steps the fake emits via `onTileProgress` on each fetch, e.g.
+  /// `[(1, 4), (2, 4), (3, 4), (4, 4)]`. Empty = emit nothing.
+  List<(int, int)> progressSteps = const [];
+
+  /// Invoked (awaited) INSIDE the fetch, before it returns/throws — lets a test
+  /// assert state that must hold *during* the fetch (e.g. the enqueue-first
+  /// row already exists by the time the network call runs).
+  Future<void> Function()? duringFetch;
+
+  Future<void> _run({
+    Set<TileId>? restrictTiles,
+    void Function(int, int)? onTileProgress,
+  }) async {
+    calls++;
+    lastRestrictTiles = restrictTiles;
+    for (final (done, total) in progressSteps) {
+      onTileProgress?.call(done, total);
+    }
+    if (duringFetch != null) await duringFetch!();
+    if (shouldThrow) {
+      throw Exception('fake network failure');
+    }
+  }
+
   @override
   Future<List<WayCandidate>> fetchWaysInBbox({
     required double minLat,
@@ -30,11 +60,10 @@ class FakeWayCandidateSource implements WayCandidateSource {
     required double maxLat,
     required double maxLon,
     bool throwOnError = true,
+    Set<TileId>? restrictTiles,
+    void Function(int done, int total)? onTileProgress,
   }) async {
-    calls++;
-    if (shouldThrow) {
-      throw Exception('fake network failure');
-    }
+    await _run(restrictTiles: restrictTiles, onTileProgress: onTileProgress);
     return const [];
   }
 
@@ -45,11 +74,10 @@ class FakeWayCandidateSource implements WayCandidateSource {
     required double maxLat,
     required double maxLon,
     bool throwOnError = true,
+    Set<TileId>? restrictTiles,
+    void Function(int done, int total)? onTileProgress,
   }) async {
-    calls++;
-    if (shouldThrow) {
-      throw Exception('fake network failure');
-    }
+    await _run(restrictTiles: restrictTiles, onTileProgress: onTileProgress);
     return const [];
   }
 }
@@ -84,6 +112,10 @@ void main() {
   late FakeWayCandidateSource source;
   late FakeConnectivitySeam connectivity;
 
+  /// Progress fractions captured from the coordinator's progressSink, keyed by
+  /// tripId. Each fetch appends; a `null` marker records a clear() call.
+  late Map<int, List<double?>> progressLog;
+
   const bbox = (
     minLat: 52.49,
     minLon: 13.39,
@@ -98,6 +130,7 @@ void main() {
     pendingDao = db.pendingRoadFetchesDao;
     source = FakeWayCandidateSource();
     connectivity = FakeConnectivitySeam();
+    progressLog = {};
   });
 
   tearDown(() async {
@@ -110,7 +143,11 @@ void main() {
       pendingDao: pendingDao,
       repository: repository,
       connectivity: connectivity,
+      tripsDao: tripsDao,
       now: now,
+      progressSink: (tripId, frac) =>
+          (progressLog[tripId] ??= []).add(frac),
+      progressClearSink: (tripId) => (progressLog[tripId] ??= []).add(null),
     );
   }
 
@@ -274,6 +311,186 @@ void main() {
       final coord = buildCoord();
       await coord.drainQueue();
       expect(source.calls, 0);
+    });
+  });
+
+  group('enqueue-first (orphan-proofing)', () {
+    test('online: a queue row exists DURING the fetch, removed after success',
+        () async {
+      final tripId = await _insertRecordingTrip(db);
+      connectivity.online = true;
+      var rowSeenDuringFetch = false;
+      source.duringFetch = () async {
+        rowSeenDuringFetch = await pendingDao.getByTrip(tripId) != null;
+      };
+      final coord = buildCoord();
+
+      await coord.onTripStopped(tripId, bbox: bbox);
+
+      expect(
+        rowSeenDuringFetch,
+        isTrue,
+        reason: 'row must be enqueued BEFORE the network attempt',
+      );
+      // Success → row cleaned up, trip advanced.
+      expect(await pendingDao.listPending(), isEmpty);
+      expect(await _statusOf(db, tripId), TripStatus.pending);
+    });
+
+    test('mid-fetch death leaves a drainable row (no throw, never resolves)',
+        () async {
+      // Simulate a process death: the fetch "hangs" (row already enqueued),
+      // and onTripStopped never completes. The queue row must survive so the
+      // next drainQueue recovers it.
+      final tripId = await _insertRecordingTrip(db);
+      connectivity.online = true;
+      final hang = Completer<void>();
+      source.duringFetch = () => hang.future; // never resolves
+      final coord = buildCoord();
+
+      // Fire and DON'T await — mimics the app dying mid-fetch.
+      unawaited(coord.onTripStopped(tripId, bbox: bbox));
+      await Future<void>.delayed(Duration.zero); // let it reach the fetch
+
+      final pending = await pendingDao.listPending();
+      expect(pending, hasLength(1), reason: 'orphan-proof: row persists');
+      expect(await _statusOf(db, tripId), TripStatus.pendingRoadData);
+    });
+
+    test('does not double-enqueue when a row already exists', () async {
+      final tripId = await _insertRecordingTrip(db);
+      await tripsDao.transitionToPendingRoadData(tripId);
+      await pendingDao.enqueue(
+        tripId: tripId,
+        minLat: bbox.minLat,
+        minLon: bbox.minLon,
+        maxLat: bbox.maxLat,
+        maxLon: bbox.maxLon,
+      );
+      connectivity.online = false;
+      final coord = buildCoord();
+
+      await coord.onTripStopped(tripId, bbox: bbox);
+
+      expect(await pendingDao.listPending(), hasLength(1));
+    });
+  });
+
+  group('corridor tile restriction', () {
+    test('passes restrictTiles built from the trip points', () async {
+      final tripId = await _insertRecordingTrip(db);
+      // Two points inside the bbox → their z12 tiles form the corridor set.
+      await db.batch((b) {
+        b.insertAll(db.tripPoints, [
+          TripPointsCompanion.insert(
+            tripId: tripId,
+            seq: 0,
+            lat: 52.495,
+            lon: 13.40,
+            ts: DateTime(2026),
+          ),
+          TripPointsCompanion.insert(
+            tripId: tripId,
+            seq: 1,
+            lat: 52.505,
+            lon: 13.41,
+            ts: DateTime(2026, 1, 1, 0, 0, 1),
+          ),
+        ]);
+      });
+      connectivity.online = true;
+      final coord = buildCoord();
+
+      await coord.onTripStopped(tripId, bbox: bbox);
+
+      final expected = const TileBboxMath().tilesForPath(
+        const [(lat: 52.495, lon: 13.40), (lat: 52.505, lon: 13.41)],
+      );
+      expect(source.lastRestrictTiles, isNotNull);
+      expect(source.lastRestrictTiles, expected);
+    });
+
+    test('null restrictTiles when the trip has no points', () async {
+      final tripId = await _insertRecordingTrip(db);
+      connectivity.online = true;
+      final coord = buildCoord();
+
+      await coord.onTripStopped(tripId, bbox: bbox);
+
+      expect(source.lastRestrictTiles, isNull);
+    });
+  });
+
+  group('progress feedback', () {
+    test('forwards tile progress as a rising fraction, cleared on handoff',
+        () async {
+      final tripId = await _insertRecordingTrip(db);
+      connectivity.online = true;
+      source.progressSteps = const [(1, 4), (2, 4), (3, 4), (4, 4)];
+      final coord = buildCoord();
+
+      await coord.onTripStopped(tripId, bbox: bbox);
+
+      final log = progressLog[tripId]!;
+      // Fractions then a trailing null (clear at fetch→match handoff).
+      expect(log, [0.25, 0.5, 0.75, 1.0, null]);
+    });
+  });
+
+  group('reconcileOrphanedPendingRoadData', () {
+    test('re-enqueues a pendingRoadData trip that has no queue row', () async {
+      final tripId = await _insertRecordingTrip(db);
+      // Park it in pendingRoadData with a stored bbox but NO queue row.
+      await (db.update(db.trips)..where((t) => t.id.equals(tripId))).write(
+        TripsCompanion(
+          status: const Value(TripStatus.pendingRoadData),
+          bboxMinLat: Value(bbox.minLat),
+          bboxMinLon: Value(bbox.minLon),
+          bboxMaxLat: Value(bbox.maxLat),
+          bboxMaxLon: Value(bbox.maxLon),
+        ),
+      );
+      final coord = buildCoord();
+
+      final n = await coord.reconcileOrphanedPendingRoadData();
+
+      expect(n, 1);
+      final pending = await pendingDao.listPending();
+      expect(pending, hasLength(1));
+      expect(pending.first.tripId, tripId);
+      // A following drain now completes it.
+      await coord.drainQueue();
+      expect(await _statusOf(db, tripId), TripStatus.pending);
+    });
+
+    test('skips a pendingRoadData trip that already has a queue row', () async {
+      final tripId = await _insertRecordingTrip(db);
+      await tripsDao.transitionToPendingRoadData(tripId);
+      await pendingDao.enqueue(
+        tripId: tripId,
+        minLat: bbox.minLat,
+        minLon: bbox.minLon,
+        maxLat: bbox.maxLat,
+        maxLon: bbox.maxLon,
+      );
+      final coord = buildCoord();
+
+      final n = await coord.reconcileOrphanedPendingRoadData();
+
+      expect(n, 0);
+      expect(await pendingDao.listPending(), hasLength(1));
+    });
+
+    test('null-bbox orphan is advanced straight to pending', () async {
+      final tripId = await _insertRecordingTrip(db);
+      await tripsDao.transitionToPendingRoadData(tripId); // bbox stays null
+      final coord = buildCoord();
+
+      final n = await coord.reconcileOrphanedPendingRoadData();
+
+      expect(n, 1);
+      expect(await pendingDao.listPending(), isEmpty);
+      expect(await _statusOf(db, tripId), TripStatus.pending);
     });
   });
 }

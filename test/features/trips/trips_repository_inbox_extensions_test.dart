@@ -16,6 +16,7 @@ import 'package:auto_explore/features/admin/data/admin_region.dart';
 import 'package:auto_explore/features/admin/data/admin_region_lookup.dart';
 import 'package:auto_explore/features/coverage/data/coverage_cache_dao.dart';
 import 'package:auto_explore/features/coverage/data/coverage_invalidator.dart';
+import 'package:auto_explore/features/matching/data/tile_bbox_math.dart';
 import 'package:auto_explore/features/matching/data/way_candidate_source.dart';
 import 'package:auto_explore/features/matching/domain/way_candidate.dart';
 import 'package:auto_explore/features/regions/data/coverage_compute_service.dart';
@@ -119,6 +120,8 @@ class _EmptyWayCandidateSource implements WayCandidateSource {
     required double maxLat,
     required double maxLon,
     bool throwOnError = true,
+    Set<TileId>? restrictTiles,
+    void Function(int done, int total)? onTileProgress,
   }) async =>
       const [];
 
@@ -129,6 +132,8 @@ class _EmptyWayCandidateSource implements WayCandidateSource {
     required double maxLat,
     required double maxLon,
     bool throwOnError = true,
+    Set<TileId>? restrictTiles,
+    void Function(int done, int total)? onTileProgress,
   }) async =>
       const [];
 }

@@ -112,6 +112,8 @@ class OverpassWayCandidateSource implements WayCandidateSource {
     required double maxLat,
     required double maxLon,
     bool throwOnError = true,
+    Set<TileId>? restrictTiles,
+    void Function(int done, int total)? onTileProgress,
   }) async {
     final freshCached = await _collectFreshTiles(
       minLat: minLat,
@@ -119,6 +121,8 @@ class OverpassWayCandidateSource implements WayCandidateSource {
       maxLat: maxLat,
       maxLon: maxLon,
       throwOnError: throwOnError,
+      restrictTiles: restrictTiles,
+      onTileProgress: onTileProgress,
     );
 
     // Decode every cached tile's payload, dedupe, and bbox-clip.
@@ -148,6 +152,8 @@ class OverpassWayCandidateSource implements WayCandidateSource {
     required double maxLat,
     required double maxLon,
     bool throwOnError = true,
+    Set<TileId>? restrictTiles,
+    void Function(int done, int total)? onTileProgress,
   }) async {
     final freshCached = await _collectFreshTiles(
       minLat: minLat,
@@ -155,6 +161,8 @@ class OverpassWayCandidateSource implements WayCandidateSource {
       maxLat: maxLat,
       maxLon: maxLon,
       throwOnError: throwOnError,
+      restrictTiles: restrictTiles,
+      onTileProgress: onTileProgress,
     );
     // Return the raw gzipped payloads + tile bboxes WITHOUT decoding — the
     // matcher isolate does the decode/parse/filter (Plan 06-07). Only the
@@ -178,9 +186,26 @@ class OverpassWayCandidateSource implements WayCandidateSource {
     required double maxLat,
     required double maxLon,
     required bool throwOnError,
+    Set<TileId>? restrictTiles,
+    void Function(int done, int total)? onTileProgress,
   }) async {
-    final tiles = _tileMath.bboxToZ12Tiles(minLat, minLon, maxLat, maxLon);
+    var tiles = _tileMath.bboxToZ12Tiles(minLat, minLon, maxLat, maxLon);
+    // Corridor restriction (2026-07-21): keep only tiles the trip path touches.
+    // Intersection (not replacement) guarantees the result stays ⊆ bbox even if
+    // the caller's set was computed at a different zoom or drifted — a safety
+    // net, never an expansion. An empty intersection would fetch nothing, so
+    // only apply when it leaves at least one tile.
+    if (restrictTiles != null) {
+      final narrowed = tiles.intersection(restrictTiles);
+      if (narrowed.isNotEmpty) tiles = narrowed;
+    }
     final cutoff = _now().subtract(kOverpassCacheTtl);
+
+    final total = tiles.length;
+    var done = 0;
+    // Emit the initial 0/total so the UI shows a determinate bar immediately
+    // rather than flashing the indeterminate spinner before the first tile.
+    onTileProgress?.call(done, total);
 
     // 1. Cache pass — figure out which tiles are already fresh in the DB
     //    and which ones need network fetch. Increment [_cacheHits] /
@@ -195,6 +220,7 @@ class OverpassWayCandidateSource implements WayCandidateSource {
       } else {
         _cacheHits++;
         freshCached[t] = row;
+        onTileProgress?.call(++done, total);
       }
     }
 
@@ -213,7 +239,10 @@ class OverpassWayCandidateSource implements WayCandidateSource {
           },
           throwOnError: throwOnError,
           onError: (e) => firstError ??= e,
-          onFetched: (tile, row) => freshCached[tile] = row,
+          onFetched: (tile, row) {
+            freshCached[tile] = row;
+            onTileProgress?.call(++done, total);
+          },
         ),
       );
       await Future.wait(workers);

@@ -13,6 +13,7 @@ import 'package:auto_explore/core/db/app_database.dart';
 import 'package:auto_explore/core/db/daos/driven_way_intervals_dao.dart';
 import 'package:auto_explore/features/matching/data/match_job.dart';
 import 'package:auto_explore/features/matching/data/matcher_isolate.dart';
+import 'package:auto_explore/features/matching/data/tile_bbox_math.dart';
 import 'package:auto_explore/features/matching/data/way_candidate_source.dart';
 import 'package:auto_explore/features/matching/domain/driven_way_interval_draft.dart';
 import 'package:auto_explore/features/matching/domain/gps_fix.dart';
@@ -124,30 +125,37 @@ class TripMatchCoordinator {
       return;
     }
 
+    // Load GPS points for this trip FIRST — we need them both to build the
+    // corridor tile set (so the fetch/cache-scan only touches tiles the path
+    // crosses, not the whole bbox) and as the matcher input.
+    final points = await _tripsDao.listPointsForTrip(tripId);
+    if (points.isEmpty) {
+      _log.warning('trip $tripId has no points — marking matched');
+      await _tripsRepository.transitionToMatched(tripId);
+      return;
+    }
+
     // Fetch RAW gzipped tiles (cache-first). No decode/parse here — the
     // matcher isolate does that tile-by-tile (Plan 06-07 re-drive #3), so the
     // heavy CPU work stays off the main isolate and the full way-set never
     // lands on the main heap next to the resident MapLibre GL surface.
+    //
+    // restrictTiles (2026-07-21): scope to the tiles the path touches. Without
+    // it, the matcher's fetch would rescan every bbox tile as a cache miss and
+    // re-trigger the network fetch the road-fetch phase deliberately narrowed.
     final rawTiles = await _source.fetchRawTilesInBbox(
       minLat: tripRow.bboxMinLat!,
       minLon: tripRow.bboxMinLon!,
       maxLat: tripRow.bboxMaxLat!,
       maxLon: tripRow.bboxMaxLon!,
       throwOnError: false,
+      restrictTiles: _corridorTiles(points),
     );
     if (rawTiles.isEmpty) {
       _log.warning(
         'trip $tripId has no road tiles in bbox — marking matched with 0 '
         'intervals',
       );
-      await _tripsRepository.transitionToMatched(tripId);
-      return;
-    }
-
-    // Load GPS points for this trip.
-    final points = await _tripsDao.listPointsForTrip(tripId);
-    if (points.isEmpty) {
-      _log.warning('trip $tripId has no points — marking matched');
       await _tripsRepository.transitionToMatched(tripId);
       return;
     }
@@ -201,6 +209,17 @@ class TripMatchCoordinator {
   /// (no-op when no sink is wired). Called on completion, error, and cancel.
   void _clearProgress(int tripId) {
     _progressClearSink?.call(tripId);
+  }
+
+  /// Corridor tile set (⊆ bbox) for the trip's [points], passed as
+  /// `restrictTiles` so the tile fetch/cache-scan only touches tiles the path
+  /// crosses. Returns null when there are no points (caller then falls back to
+  /// full-bbox behaviour). See `TileBboxMath.tilesForPath`.
+  Set<TileId>? _corridorTiles(List<TripPoint> points) {
+    if (points.isEmpty) return null;
+    return const TileBboxMath().tilesForPath(
+      [for (final p in points) (lat: p.lat, lon: p.lon)],
+    );
   }
 
   Future<void> _writeIntervals(
@@ -337,17 +356,18 @@ class TripMatchCoordinator {
       return false;
     }
 
+    final points = await _tripsDao.listPointsForTrip(tripId);
+    if (points.isEmpty) return false;
+
     final rawTiles = await _source.fetchRawTilesInBbox(
       minLat: tripRow.bboxMinLat!,
       minLon: tripRow.bboxMinLon!,
       maxLat: tripRow.bboxMaxLat!,
       maxLon: tripRow.bboxMaxLon!,
       throwOnError: false,
+      restrictTiles: _corridorTiles(points),
     );
     if (rawTiles.isEmpty) return false;
-
-    final points = await _tripsDao.listPointsForTrip(tripId);
-    if (points.isEmpty) return false;
 
     final fixes = points
         .map(

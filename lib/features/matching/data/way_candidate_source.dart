@@ -45,6 +45,17 @@ class RawTilePayload {
 ///     HTTP failures, wrapped `UnknownError` otherwise).
 ///   * `false` — return whatever cached candidates are available and swallow
 ///     the network error. Used by the offline-drain path (04-15 coordinator).
+///
+/// `restrictTiles` (added 2026-07-21 for the corridor-fetch fix) narrows the
+/// work set to the intersection of the bbox tiles and the given tile set —
+/// pass the tiles the trip *path* touches (see `TileBboxMath.tilesForPath`) so
+/// a long point-to-point trip fetches only its ~corridor tiles instead of the
+/// whole (mostly-empty) bounding rectangle. `null` (default) = no restriction,
+/// i.e. the pre-existing full-bbox behaviour (detail-overlay + golden callers).
+///
+/// `onTileProgress`, when non-null, is invoked with `(done, total)` as tiles
+/// are resolved (`total` = the count of tiles in scope, cache hits included).
+/// Lets the road-fetch coordinator surface N/M tile progress to the UI pill.
 abstract class WayCandidateSource {
   Future<List<WayCandidate>> fetchWaysInBbox({
     required double minLat,
@@ -52,6 +63,8 @@ abstract class WayCandidateSource {
     required double maxLat,
     required double maxLon,
     bool throwOnError = true,
+    Set<TileId>? restrictTiles,
+    void Function(int done, int total)? onTileProgress,
   });
 
   /// Like [fetchWaysInBbox] but returns the RAW gzipped tile payloads without
@@ -60,12 +73,15 @@ abstract class WayCandidateSource {
   /// the CPU-heavy stage off the main isolate; only cache reads + network
   /// fetches (async I/O) run here.
   ///
-  /// `throwOnError` has the same semantics as [fetchWaysInBbox].
+  /// `throwOnError`, `restrictTiles`, and `onTileProgress` have the same
+  /// semantics as [fetchWaysInBbox].
   Future<List<RawTilePayload>> fetchRawTilesInBbox({
     required double minLat,
     required double minLon,
     required double maxLat,
     required double maxLon,
     bool throwOnError = true,
+    Set<TileId>? restrictTiles,
+    void Function(int done, int total)? onTileProgress,
   });
 }

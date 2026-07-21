@@ -101,8 +101,15 @@ final tripRoadFetchCoordinatorProvider =
     pendingDao: ref.watch(appDatabaseProvider).pendingRoadFetchesDao,
     repository: ref.watch(tripsRepositoryProvider),
     connectivity: ref.watch(connectivitySeamProvider),
+    tripsDao: TripsDao(ref.watch(appDatabaseProvider)),
     tileMath: ref.watch(tileBboxMathProvider),
     matchCoordinator: ref.watch(tripMatchCoordinatorProvider),
+    // Surface road-fetch tile progress to the same pill the matcher uses
+    // (writes the tripId → 0.0..1.0 slot). Cleared at the fetch→match handoff.
+    progressSink: (tripId, frac) =>
+        ref.read(matchProgressProvider.notifier).update(tripId, frac),
+    progressClearSink: (tripId) =>
+        ref.read(matchProgressProvider.notifier).clear(tripId),
   );
 });
 

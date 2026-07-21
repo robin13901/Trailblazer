@@ -19,6 +19,7 @@ import 'package:auto_explore/core/errors/domain_error.dart';
 import 'package:auto_explore/core/errors/result.dart';
 import 'package:auto_explore/features/map/presentation/providers/location_permission_provider.dart';
 import 'package:auto_explore/features/matching/data/matching_providers.dart';
+import 'package:auto_explore/features/matching/data/tile_bbox_math.dart';
 import 'package:auto_explore/features/matching/data/way_candidate_source.dart';
 import 'package:auto_explore/features/matching/domain/way_candidate.dart';
 import 'package:auto_explore/features/trips/data/trips_dao.dart';
@@ -56,6 +57,8 @@ class _FakeWaySource implements WayCandidateSource {
     required double maxLat,
     required double maxLon,
     bool throwOnError = true,
+    Set<TileId>? restrictTiles,
+    void Function(int done, int total)? onTileProgress,
   }) async {
     if (throwError) {
       throw const NetworkError('offline', statusCode: 0);
@@ -70,6 +73,8 @@ class _FakeWaySource implements WayCandidateSource {
     required double maxLat,
     required double maxLon,
     bool throwOnError = true,
+    Set<TileId>? restrictTiles,
+    void Function(int done, int total)? onTileProgress,
   }) async {
     if (throwError) {
       throw const NetworkError('offline', statusCode: 0);

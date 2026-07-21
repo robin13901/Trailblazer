@@ -231,6 +231,65 @@ void main() {
       expect(cachedTiles, tiles.length);
     });
 
+    test('restrictTiles fetches ONLY the corridor tiles, not the whole bbox',
+        () async {
+      // Multi-tile bbox, but restrict to a single tile → only that tile should
+      // hit the network and be cached (the corridor-fetch win).
+      const bigHalfLon = 0.1;
+      final bboxTiles = tileMath.bboxToZ12Tiles(
+        centreLat - smallHalfLat,
+        centreLon - bigHalfLon,
+        centreLat + smallHalfLat,
+        centreLon + bigHalfLon,
+      );
+      expect(bboxTiles.length, greaterThanOrEqualTo(2));
+      // The centre tile — one of the bbox tiles — is our corridor.
+      final centreTile = TileId(
+        12,
+        tileMath.lonToTileX(centreLon, 12),
+        tileMath.latToTileY(centreLat, 12),
+      );
+      expect(bboxTiles, contains(centreTile));
+
+      var calls = 0;
+      var wayIdCounter = 200;
+      final client = buildClient((req) async {
+        calls++;
+        return okJson(syntheticOverpassJson(
+          wayId: wayIdCounter++,
+          lat: centreLat,
+          lon: centreLon,
+        ));
+      });
+      final source = OverpassWayCandidateSource(
+        client: client,
+        cacheDao: cacheDao,
+      );
+
+      final progress = <(int, int)>[];
+      await source.fetchWaysInBbox(
+        minLat: centreLat - smallHalfLat,
+        minLon: centreLon - bigHalfLon,
+        maxLat: centreLat + smallHalfLat,
+        maxLon: centreLon + bigHalfLon,
+        restrictTiles: {centreTile},
+        onTileProgress: (done, total) => progress.add((done, total)),
+      );
+
+      expect(calls, 1, reason: 'only the single corridor tile is fetched');
+      // Only the centre tile cached; the others were never requested.
+      for (final t in bboxTiles) {
+        final row = await cacheDao.getByTile(t.z, t.x, t.y);
+        if (t == centreTile) {
+          expect(row, isNotNull);
+        } else {
+          expect(row, isNull, reason: 'non-corridor tile must not be fetched');
+        }
+      }
+      // Progress reported over the restricted total (1), ending at 1/1.
+      expect(progress.last, (1, 1));
+    });
+
     test('overlapping tiles do not double-count the same wayId', () async {
       // Seed two neighbouring cache rows that both contain wayId=42.
       final tiles = tileMath

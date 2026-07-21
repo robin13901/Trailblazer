@@ -18,6 +18,7 @@ import 'dart:io';
 import 'package:auto_explore/core/db/app_database.dart';
 import 'package:auto_explore/core/db/daos/driven_way_intervals_dao.dart';
 import 'package:auto_explore/core/errors/domain_error.dart';
+import 'package:auto_explore/features/matching/data/tile_bbox_math.dart';
 import 'package:auto_explore/features/matching/data/way_candidate_source.dart';
 import 'package:auto_explore/features/matching/domain/way_candidate.dart';
 import 'package:auto_explore/features/trips/data/golden_fixture_exporter.dart';
@@ -44,6 +45,8 @@ class _FakeWaySource implements WayCandidateSource {
     required double maxLat,
     required double maxLon,
     bool throwOnError = true,
+    Set<TileId>? restrictTiles,
+    void Function(int done, int total)? onTileProgress,
   }) async =>
       ways;
 
@@ -54,6 +57,8 @@ class _FakeWaySource implements WayCandidateSource {
     required double maxLat,
     required double maxLon,
     bool throwOnError = true,
+    Set<TileId>? restrictTiles,
+    void Function(int done, int total)? onTileProgress,
   }) async =>
       const [];
 }

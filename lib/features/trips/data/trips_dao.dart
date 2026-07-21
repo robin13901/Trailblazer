@@ -130,6 +130,19 @@ class TripsDao extends DatabaseAccessor<AppDatabase> {
             ..orderBy([(t) => OrderingTerm.asc(t.endedAt)]))
           .get();
 
+  /// All trips still parked at `status == TripStatus.pendingRoadData`, ordered
+  /// by `endedAt` ascending. Used by the startup orphan-reconcile
+  /// (`app.dart`): a trip left here with no `pending_road_fetches` row (e.g.
+  /// app killed mid-fetch after a long drive) is invisible to both `drainQueue`
+  /// (walks the queue) and `processPending` (matches `pending` only), so it
+  /// would spin forever. Reconcile re-enqueues these so `drainQueue` completes
+  /// them.
+  Future<List<Trip>> listPendingRoadDataTrips() =>
+      (select(trips)
+            ..where((t) => t.status.equalsValue(TripStatus.pendingRoadData))
+            ..orderBy([(t) => OrderingTerm.asc(t.endedAt)]))
+          .get();
+
   /// All trip_points for [tripId], ordered by `seq`. Returned as plain
   /// Drift rows; conversion to GpsFix happens on the caller side.
   Future<List<TripPoint>> listPointsForTrip(int tripId) =>

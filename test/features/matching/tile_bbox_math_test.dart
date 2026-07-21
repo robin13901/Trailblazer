@@ -91,4 +91,61 @@ void main() {
       expect(b.maxLon, 0);
     });
   });
+
+  group('TileBboxMath.tilesForPath', () {
+    test('empty path → empty set', () {
+      expect(math.tilesForPath(const []), isEmpty);
+    });
+
+    test('single point → its own tile', () {
+      final tiles = math.tilesForPath(const [(lat: 52.52, lon: 13.405)]);
+      expect(tiles, {
+        TileId(12, math.lonToTileX(13.405, 12), math.latToTileY(52.52, 12)),
+      });
+    });
+
+    test('is a SUBSET of the enclosing bbox tiles (corridor ⊆ bbox)', () {
+      // A diagonal path across a wide box: the path tiles must all be within
+      // the bbox tiles, and (for a non-space-filling diagonal) strictly fewer.
+      const path = [
+        (lat: 49.25, lon: 8.644), // SW corner (Walldorf-ish)
+        (lat: 49.49, lon: 8.93),
+        (lat: 49.724, lon: 9.224), // NE corner (Kleinheubach-ish)
+      ];
+      final pathTiles = math.tilesForPath(path);
+      final bboxTiles = math.bboxToZ12Tiles(49.25, 8.644, 49.724, 9.224);
+      expect(pathTiles, isNotEmpty);
+      expect(
+        pathTiles.difference(bboxTiles),
+        isEmpty,
+        reason: 'every path tile must lie within the bbox tiles',
+      );
+      expect(
+        pathTiles.length,
+        lessThan(bboxTiles.length),
+        reason: 'a diagonal corridor touches fewer tiles than the full box',
+      );
+    });
+
+    test('samples along a sparse segment so no intermediate tile is skipped',
+        () {
+      // Two points ~40 km apart with nothing in between: naive per-point
+      // tiling would yield only the 2 endpoint tiles, leaving a hole. The
+      // along-segment sampling must fill the tiles the straight line crosses.
+      const a = (lat: 49.25, lon: 8.644);
+      const b = (lat: 49.60, lon: 8.644); // due north, ~39 km
+      final sampled = math.tilesForPath(const [a, b]);
+      // The straight south→north line crosses every y-tile row between the two
+      // endpoints at that x; assert we got more than just the 2 endpoints.
+      expect(sampled.length, greaterThan(2));
+      // Endpoints are always present.
+      expect(
+        sampled,
+        containsAll(<TileId>{
+          TileId(12, math.lonToTileX(a.lon, 12), math.latToTileY(a.lat, 12)),
+          TileId(12, math.lonToTileX(b.lon, 12), math.latToTileY(b.lat, 12)),
+        }),
+      );
+    });
+  });
 }

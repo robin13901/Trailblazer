@@ -95,11 +95,14 @@ class AppPrefs {
       'stuck_fetch_recovery_version';
 
   /// Current stuck-fetch recovery version. Bump to force a one-shot recovery
-  /// on the next launch. `1` = 2026-07-14: the Overpass HTTP-200-error client
-  /// fix — trips parked under the 5min→24h backoff (or abandoned) and tiles
-  /// poisoned as 0-way HTML need a one-time reset + purge to recover without a
-  /// fresh drive.
-  static const int kCurrentStuckFetchRecoveryVersion = 1;
+  /// on the next launch.
+  /// * `1` = 2026-07-14: the Overpass HTTP-200-error client fix — trips parked
+  ///   under the 5min→24h backoff (or abandoned) and tiles poisoned as 0-way
+  ///   HTML need a one-time reset + purge to recover without a fresh drive.
+  /// * `2` = 2026-07-21: orphan reconcile — trips stranded at `pendingRoadData`
+  ///   with no `pending_road_fetches` row (app killed mid-fetch) are
+  ///   re-enqueued so the resume drain completes them.
+  static const int kCurrentStuckFetchRecoveryVersion = 2;
 
   final SharedPreferencesAsync _prefs;
 

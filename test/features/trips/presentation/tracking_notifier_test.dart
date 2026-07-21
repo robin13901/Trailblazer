@@ -2,6 +2,7 @@ import 'package:auto_explore/core/db/app_database.dart' hide TripPoint;
 import 'package:auto_explore/core/db/app_database_providers.dart';
 import 'package:auto_explore/features/matching/data/connectivity_seam.dart';
 import 'package:auto_explore/features/matching/data/matching_providers.dart';
+import 'package:auto_explore/features/matching/data/tile_bbox_math.dart';
 import 'package:auto_explore/features/matching/data/way_candidate_source.dart';
 import 'package:auto_explore/features/matching/domain/way_candidate.dart';
 import 'package:auto_explore/features/trips/data/background_geolocation_facade_provider.dart';
@@ -46,6 +47,8 @@ class _NoopWayCandidateSource implements WayCandidateSource {
     required double maxLat,
     required double maxLon,
     bool throwOnError = true,
+    Set<TileId>? restrictTiles,
+    void Function(int done, int total)? onTileProgress,
   }) async {
     return const [];
   }
@@ -57,6 +60,8 @@ class _NoopWayCandidateSource implements WayCandidateSource {
     required double maxLat,
     required double maxLon,
     bool throwOnError = true,
+    Set<TileId>? restrictTiles,
+    void Function(int done, int total)? onTileProgress,
   }) async {
     return const [];
   }
