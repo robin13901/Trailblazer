@@ -58,6 +58,7 @@ class _FakeWaySource implements WayCandidateSource {
     required double maxLon,
     bool throwOnError = true,
     Set<TileId>? restrictTiles,
+    bool cacheOnly = false,
     void Function(int done, int total)? onTileProgress,
   }) async {
     if (throwError) {
@@ -74,6 +75,7 @@ class _FakeWaySource implements WayCandidateSource {
     required double maxLon,
     bool throwOnError = true,
     Set<TileId>? restrictTiles,
+    bool cacheOnly = false,
     void Function(int done, int total)? onTileProgress,
   }) async {
     if (throwError) {

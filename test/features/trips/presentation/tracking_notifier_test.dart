@@ -48,6 +48,7 @@ class _NoopWayCandidateSource implements WayCandidateSource {
     required double maxLon,
     bool throwOnError = true,
     Set<TileId>? restrictTiles,
+    bool cacheOnly = false,
     void Function(int done, int total)? onTileProgress,
   }) async {
     return const [];
@@ -61,6 +62,7 @@ class _NoopWayCandidateSource implements WayCandidateSource {
     required double maxLon,
     bool throwOnError = true,
     Set<TileId>? restrictTiles,
+    bool cacheOnly = false,
     void Function(int done, int total)? onTileProgress,
   }) async {
     return const [];

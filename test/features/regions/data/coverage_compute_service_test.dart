@@ -89,6 +89,7 @@ class _FixedWayCandidateSource implements WayCandidateSource {
     required double maxLon,
     bool throwOnError = true,
     Set<TileId>? restrictTiles,
+    bool cacheOnly = false,
     void Function(int done, int total)? onTileProgress,
   }) async =>
       ways;
@@ -101,6 +102,7 @@ class _FixedWayCandidateSource implements WayCandidateSource {
     required double maxLon,
     bool throwOnError = true,
     Set<TileId>? restrictTiles,
+    bool cacheOnly = false,
     void Function(int done, int total)? onTileProgress,
   }) async =>
       const [];

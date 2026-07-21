@@ -114,13 +114,19 @@ class CoverageComputeService {
       }
 
       // Step 4: Cache-first geometry for the union bbox.
-      // throwOnError:false → offline gap returns whatever is cached.
+      // cacheOnly:true → this is a DISPLAY recompute over geometry the matcher
+      // already fetched; it must NEVER fire network fetches for off-corridor
+      // tiles in the (wide) union bbox. A long trip's bbox spans dozens of
+      // never-driven tiles; awaiting their throttled Overpass fetches here hung
+      // the whole recompute so coverage_cache stayed stale (2026-07-21 fix).
+      // throwOnError:false is redundant under cacheOnly but kept for clarity.
       final ways = await _waySource.fetchWaysInBbox(
         minLat: bounds.southwest.latitude,
         minLon: bounds.southwest.longitude,
         maxLat: bounds.northeast.latitude,
         maxLon: bounds.northeast.longitude,
         throwOnError: false,
+        cacheOnly: true,
       );
 
       // Step 5: Accumulate total + driven lengths per region_id.
@@ -264,12 +270,15 @@ class CoverageComputeService {
       }
 
       // Fetch ways only in the trip bbox (much cheaper than full union bbox).
+      // cacheOnly:true for the same reason as recompute() — display pass over
+      // already-fetched geometry, never blocks on off-corridor network fetches.
       final ways = await _waySource.fetchWaysInBbox(
         minLat: minLat,
         minLon: minLon,
         maxLat: maxLat,
         maxLon: maxLon,
         throwOnError: false,
+        cacheOnly: true,
       );
 
       // Accumulate totals for affected regions only.

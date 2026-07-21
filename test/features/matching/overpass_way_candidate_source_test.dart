@@ -356,5 +356,82 @@ void main() {
       );
       expect(ways, isEmpty);
     });
+
+    test(
+      'cacheOnly: never hits network for uncached tiles (returns empty, '
+      '0 calls) — the coverage-recompute/overlay hang fix (2026-07-21)',
+      () async {
+        var calls = 0;
+        final client = buildClient((req) async {
+          calls++;
+          return okJson(syntheticOverpassJson(
+            wayId: 1,
+            lat: centreLat,
+            lon: centreLon,
+          ));
+        });
+        final source = OverpassWayCandidateSource(
+          client: client,
+          cacheDao: cacheDao,
+        );
+
+        // Cache is empty and cacheOnly suppresses the fetch-missing step, so
+        // the wide (many-tile) bbox resolves to nothing WITHOUT any network
+        // call — this is what keeps recompute()/overlay from hanging on the
+        // off-corridor tiles of a long trip's union bbox.
+        final ways = await source.fetchWaysInBbox(
+          minLat: centreLat - 0.1,
+          minLon: centreLon - 0.1,
+          maxLat: centreLat + 0.1,
+          maxLon: centreLon + 0.1,
+          cacheOnly: true,
+        );
+
+        expect(ways, isEmpty);
+        expect(calls, 0, reason: 'cacheOnly must not fire any network fetch');
+      },
+    );
+
+    test(
+      'cacheOnly: still returns geometry already present in the cache',
+      () async {
+        // Pre-seed the cache for the centre tile (no network needed).
+        final tile = TileId(
+          12,
+          tileMath.lonToTileX(centreLon, 12),
+          tileMath.latToTileY(centreLat, 12),
+        );
+        await cacheDao.put(
+          z: tile.z,
+          x: tile.x,
+          y: tile.y,
+          payloadGzip: gzipUtf8(
+            syntheticOverpassJson(wayId: 7, lat: centreLat, lon: centreLon),
+          ),
+          wayCount: 1,
+        );
+
+        var calls = 0;
+        final client = buildClient((req) async {
+          calls++;
+          return http.Response('should-not-be-called', 500);
+        });
+        final source = OverpassWayCandidateSource(
+          client: client,
+          cacheDao: cacheDao,
+        );
+
+        final ways = await source.fetchWaysInBbox(
+          minLat: centreLat - smallHalfLat,
+          minLon: centreLon - smallHalfLon,
+          maxLat: centreLat + smallHalfLat,
+          maxLon: centreLon + smallHalfLon,
+          cacheOnly: true,
+        );
+
+        expect(ways.where((w) => w.wayId == 7), hasLength(1));
+        expect(calls, 0, reason: 'cached tile served without a network call');
+      },
+    );
   });
 }

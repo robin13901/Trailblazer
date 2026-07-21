@@ -121,6 +121,7 @@ class _EmptyWayCandidateSource implements WayCandidateSource {
     required double maxLon,
     bool throwOnError = true,
     Set<TileId>? restrictTiles,
+    bool cacheOnly = false,
     void Function(int done, int total)? onTileProgress,
   }) async =>
       const [];
@@ -133,6 +134,7 @@ class _EmptyWayCandidateSource implements WayCandidateSource {
     required double maxLon,
     bool throwOnError = true,
     Set<TileId>? restrictTiles,
+    bool cacheOnly = false,
     void Function(int done, int total)? onTileProgress,
   }) async =>
       const [];

@@ -113,6 +113,7 @@ class OverpassWayCandidateSource implements WayCandidateSource {
     required double maxLon,
     bool throwOnError = true,
     Set<TileId>? restrictTiles,
+    bool cacheOnly = false,
     void Function(int done, int total)? onTileProgress,
   }) async {
     final freshCached = await _collectFreshTiles(
@@ -122,6 +123,7 @@ class OverpassWayCandidateSource implements WayCandidateSource {
       maxLon: maxLon,
       throwOnError: throwOnError,
       restrictTiles: restrictTiles,
+      cacheOnly: cacheOnly,
       onTileProgress: onTileProgress,
     );
 
@@ -153,6 +155,7 @@ class OverpassWayCandidateSource implements WayCandidateSource {
     required double maxLon,
     bool throwOnError = true,
     Set<TileId>? restrictTiles,
+    bool cacheOnly = false,
     void Function(int done, int total)? onTileProgress,
   }) async {
     final freshCached = await _collectFreshTiles(
@@ -162,6 +165,7 @@ class OverpassWayCandidateSource implements WayCandidateSource {
       maxLon: maxLon,
       throwOnError: throwOnError,
       restrictTiles: restrictTiles,
+      cacheOnly: cacheOnly,
       onTileProgress: onTileProgress,
     );
     // Return the raw gzipped payloads + tile bboxes WITHOUT decoding — the
@@ -187,6 +191,7 @@ class OverpassWayCandidateSource implements WayCandidateSource {
     required double maxLon,
     required bool throwOnError,
     Set<TileId>? restrictTiles,
+    bool cacheOnly = false,
     void Function(int done, int total)? onTileProgress,
   }) async {
     var tiles = _tileMath.bboxToZ12Tiles(minLat, minLon, maxLat, maxLon);
@@ -227,7 +232,14 @@ class OverpassWayCandidateSource implements WayCandidateSource {
     // 2. Fetch missing tiles (bounded concurrency). Any per-tile network
     //    error is either surfaced (throwOnError=true) or swallowed
     //    (throwOnError=false — used by the offline-drain path).
-    if (missing.isNotEmpty) {
+    //
+    //    cacheOnly SHORT-CIRCUITS this step: read-only display recomputes
+    //    (coverage overlay + region recompute) must never block on network
+    //    fetches for off-corridor tiles the matcher never needed — those
+    //    uncached tiles are simply omitted (2026-07-21 hang fix). The missing
+    //    tiles are still counted in `total` above, so progress ends < total,
+    //    which is fine: no consumer of a cacheOnly call reads progress.
+    if (missing.isNotEmpty && !cacheOnly) {
       DomainError? firstError;
       final iter = missing.iterator;
       final workers = List.generate(

@@ -61,6 +61,7 @@ class FakeWayCandidateSource implements WayCandidateSource {
     required double maxLon,
     bool throwOnError = true,
     Set<TileId>? restrictTiles,
+    bool cacheOnly = false,
     void Function(int done, int total)? onTileProgress,
   }) async {
     await _run(restrictTiles: restrictTiles, onTileProgress: onTileProgress);
@@ -75,6 +76,7 @@ class FakeWayCandidateSource implements WayCandidateSource {
     required double maxLon,
     bool throwOnError = true,
     Set<TileId>? restrictTiles,
+    bool cacheOnly = false,
     void Function(int done, int total)? onTileProgress,
   }) async {
     await _run(restrictTiles: restrictTiles, onTileProgress: onTileProgress);

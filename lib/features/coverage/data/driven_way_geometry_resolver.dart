@@ -87,13 +87,19 @@ class DrivenWayGeometryResolver {
       }
 
       // 2. Fetch RAW gzipped tiles for the union bbox (no parse on this
-      //    isolate). throwOnError:false → offline gap yields cached tiles.
+      //    isolate). cacheOnly:true → this overlay is a DISPLAY pass over
+      //    geometry the matcher already fetched; it must NEVER fire network
+      //    fetches for the off-corridor tiles in a long trip's wide union bbox.
+      //    Awaiting those (throttled) Overpass fetches here left the overlay
+      //    empty — nothing drawn after a long drive (2026-07-21 fix). All
+      //    driven ways are already cached, so cacheOnly loses no geometry.
       final rawTiles = await _waySource.fetchRawTilesInBbox(
         minLat: unionBounds.southwest.latitude,
         minLon: unionBounds.southwest.longitude,
         maxLat: unionBounds.northeast.latitude,
         maxLon: unionBounds.northeast.longitude,
         throwOnError: false,
+        cacheOnly: true,
       );
       if (rawTiles.isEmpty) {
         _log.fine('resolve: no cached tiles for bbox — returning empty');

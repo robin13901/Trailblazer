@@ -56,6 +56,15 @@ class RawTilePayload {
 /// `onTileProgress`, when non-null, is invoked with `(done, total)` as tiles
 /// are resolved (`total` = the count of tiles in scope, cache hits included).
 /// Lets the road-fetch coordinator surface N/M tile progress to the UI pill.
+///
+/// `cacheOnly` (added 2026-07-21 for the coverage-recompute/overlay hang fix)
+/// suppresses the fetch-missing network step entirely: only tiles already in
+/// the DB cache are returned, and uncached tiles are silently skipped. This is
+/// for READ-ONLY display recomputes (coverage overlay + region recompute) whose
+/// geometry the matcher already fetched — without it, a long trip's wide union
+/// bbox enumerates dozens of off-corridor tiles that were never driven, and the
+/// pass hangs awaiting their (throttled) Overpass fetches instead of drawing the
+/// cached data. `false` (default) preserves the fetch-missing behaviour.
 abstract class WayCandidateSource {
   Future<List<WayCandidate>> fetchWaysInBbox({
     required double minLat,
@@ -64,6 +73,7 @@ abstract class WayCandidateSource {
     required double maxLon,
     bool throwOnError = true,
     Set<TileId>? restrictTiles,
+    bool cacheOnly = false,
     void Function(int done, int total)? onTileProgress,
   });
 
@@ -73,8 +83,8 @@ abstract class WayCandidateSource {
   /// the CPU-heavy stage off the main isolate; only cache reads + network
   /// fetches (async I/O) run here.
   ///
-  /// `throwOnError`, `restrictTiles`, and `onTileProgress` have the same
-  /// semantics as [fetchWaysInBbox].
+  /// `throwOnError`, `restrictTiles`, `cacheOnly`, and `onTileProgress` have the
+  /// same semantics as [fetchWaysInBbox].
   Future<List<RawTilePayload>> fetchRawTilesInBbox({
     required double minLat,
     required double minLon,
@@ -82,6 +92,7 @@ abstract class WayCandidateSource {
     required double maxLon,
     bool throwOnError = true,
     Set<TileId>? restrictTiles,
+    bool cacheOnly = false,
     void Function(int done, int total)? onTileProgress,
   });
 }
