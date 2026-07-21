@@ -63,7 +63,14 @@ class AppPrefs {
   /// and deduped per way (no longer `coverage_path_json`). Re-match rewrites
   /// every stored trip's intervals under the new matcher so existing trips
   /// repaint correctly without a fresh drive.
-  static const int kCurrentMatcherRematchVersion = 5;
+  /// `6` = 2026-07-21 partial-match repair: a long trip matched on INCOMPLETE
+  /// tile data (the stuck-fetch build cached the trip's northern tiles only
+  /// AFTER the match already ran) froze with intervals for just part of the
+  /// path — the map drew a fraction of the drive and coverage was under-counted.
+  /// All corridor tiles are cached now, so one forced re-match rebuilds the
+  /// complete intervals. Paired with a recompute bump so `coverage_cache` is
+  /// rebuilt from the repaired intervals (see [kCurrentCoverageRecomputeVersion]).
+  static const int kCurrentMatcherRematchVersion = 6;
 
   /// Version stamp of the last coverage-cache recompute migration applied to
   /// this device. Bumped whenever `coverage_cache` needs a one-shot
@@ -83,7 +90,12 @@ class AppPrefs {
   /// per-bbox overwrite drove region coverage % DOWN (non-monotonic). The seam
   /// is now the full `recompute()`; this forces one clean full pass to repair
   /// the corrupted absolute driven/total lengths left by the incremental path.
-  static const int kCurrentCoverageRecomputeVersion = 2;
+  /// `3` = 2026-07-21: rebuild `coverage_cache` after the v6 re-match repairs
+  /// trip 11's partial intervals. Also: the recompute now runs UNCONDITIONALLY
+  /// whenever the re-match migration runs (see App._runStartupMigrations), so a
+  /// future forced re-match can never again leave the region stats stale — this
+  /// bump is the belt-and-suspenders trigger for the current repair.
+  static const int kCurrentCoverageRecomputeVersion = 3;
 
   /// Version stamp of the last stuck-fetch recovery migration applied to this
   /// device. Bumped when a one-shot recovery of trips parked by an Overpass
