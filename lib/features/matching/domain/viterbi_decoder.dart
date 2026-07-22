@@ -378,54 +378,89 @@ class ViterbiDecoder {
 
     // Walk each sub-track independently.
     for (final (lo, hi) in subTracks) {
-      // Find the best terminal state.
-      var bestIdx = 0;
-      for (var i = 1; i < trellis[hi].length; i++) {
-        if (trellis[hi][i].totalLogP > trellis[hi][bestIdx].totalLogP) {
-          bestIdx = i;
+      // A single sub-track can still contain INTERNAL broken-path resets: a
+      // step whose WINNING chain state has backptr == null because no
+      // predecessor was routable within the search cap, even though sibling
+      // states at that step kept valid backptrs (so the `allNull` sub-track
+      // splitter above did NOT fire). Chasing one chain from `hi` and stopping
+      // at the first such reset would silently drop every step before it — the
+      // trip-11 half-match bug (2026-07-22): a 97 km trace decoded as one
+      // sub-track lost its entire first half when the winning chain reset
+      // mid-trip. Fix: after a chain terminates at a reset step B, re-run
+      // best-terminal + chase over the remaining prefix [lo..B-1], repeating
+      // until the whole sub-track is covered. Each contiguous chain is written
+      // independently; every matched step is emitted.
+      var segHi = hi;
+      while (segHi >= lo) {
+        // Best terminal state within [lo..segHi] at segHi.
+        var bestIdx = 0;
+        for (var i = 1; i < trellis[segHi].length; i++) {
+          if (trellis[segHi][i].totalLogP > trellis[segHi][bestIdx].totalLogP) {
+            bestIdx = i;
+          }
         }
-      }
 
-      // Chase back-pointers from hi → lo.
-      final chain = <(int, int)>[];
-      var curIdx = bestIdx;
-      var s = hi;
-      while (s >= lo) {
-        chain.add((s, curIdx));
-        final bp = trellis[s][curIdx].backptr;
-        if (bp == null) break;
-        curIdx = bp;
-        s--;
-      }
+        // Chase back-pointers from segHi toward lo, stopping at a reset (null
+        // backptr). `breakStep` is where the chain reset (a fresh sub-track
+        // start); the next iteration continues from just before it.
+        final chain = <(int, int)>[];
+        var curIdx = bestIdx;
+        var s = segHi;
+        var breakStep = lo;
+        while (s >= lo) {
+          chain.add((s, curIdx));
+          final bp = trellis[s][curIdx].backptr;
+          if (bp == null) {
+            breakStep = s;
+            break;
+          }
+          curIdx = bp;
+          s--;
+        }
 
-      // Reverse to chronological order for direction resolution.
-      for (var k = chain.length - 1; k >= 0; k--) {
-        final (step, stateIdx) = chain[k];
-        final state = trellis[step][stateIdx];
-        // Snap the fix onto its matched segment: lerp between the segment's two
-        // nodes by the projection fraction. Cheap linear lat/lon interpolation
-        // over one short segment matches the equirectangular approximation used
-        // throughout segment_geometry.dart. Feeds the road-snapped coverage
-        // line (2026-07-14 rework).
-        final f = state.projectionFraction;
-        result[step] = MatchedStep(
-          wayId: state.segment.wayId,
-          segIdx: state.segment.segIdx,
-          projectionFraction: state.projectionFraction,
-          perpDistMeters: state.perpDistMeters,
-          emissionLogP: state.emissionLogP,
-          direction: _directionFrom(state, step, result),
-          highwayClass: state.segment.highwayClass,
-          oneway: state.segment.oneway,
-          snappedLat:
-              state.segment.aLat + (state.segment.bLat - state.segment.aLat) * f,
-          snappedLon:
-              state.segment.aLon + (state.segment.bLon - state.segment.aLon) * f,
-        );
+        _writeChain(chain, trellis, result);
+
+        // Continue with the prefix strictly before the reset step. When the
+        // chain reached `lo` without a reset, breakStep == lo and we stop.
+        segHi = breakStep - 1;
       }
     }
 
     return result;
+  }
+
+  /// Write a back-chased [chain] of `(step, stateIdx)` cells into [result] in
+  /// chronological order (so [_directionFrom] can look back at already-written
+  /// prior steps on the same way).
+  void _writeChain(
+    List<(int, int)> chain,
+    List<List<_State>> trellis,
+    List<MatchedStep?> result,
+  ) {
+    for (var k = chain.length - 1; k >= 0; k--) {
+      final (step, stateIdx) = chain[k];
+      final state = trellis[step][stateIdx];
+      // Snap the fix onto its matched segment: lerp between the segment's two
+      // nodes by the projection fraction. Cheap linear lat/lon interpolation
+      // over one short segment matches the equirectangular approximation used
+      // throughout segment_geometry.dart. Feeds the road-snapped coverage
+      // line (2026-07-14 rework).
+      final f = state.projectionFraction;
+      result[step] = MatchedStep(
+        wayId: state.segment.wayId,
+        segIdx: state.segment.segIdx,
+        projectionFraction: state.projectionFraction,
+        perpDistMeters: state.perpDistMeters,
+        emissionLogP: state.emissionLogP,
+        direction: _directionFrom(state, step, result),
+        highwayClass: state.segment.highwayClass,
+        oneway: state.segment.oneway,
+        snappedLat:
+            state.segment.aLat + (state.segment.bLat - state.segment.aLat) * f,
+        snappedLon:
+            state.segment.aLon + (state.segment.bLon - state.segment.aLon) * f,
+      );
+    }
   }
 
   /// Determine the direction of travel for [state] at [step].

@@ -327,6 +327,78 @@ void main() {
   });
 
   // ---------------------------------------------------------------------------
+  // Test 7b: Mid-subtrack broken-path reset — the WINNING chain resets in the
+  // middle of one sub-track (no time gap), because the route between two
+  // consecutive candidates is unreachable on the node graph. Regression for the
+  // trip-11 half-match bug (2026-07-22): the traceback used to `break` at the
+  // first null back-pointer and silently drop every step BEFORE it. The fix
+  // re-chases the prefix so ALL matched fixes are written.
+  // ---------------------------------------------------------------------------
+  test('7b. mid-subtrack broken-path reset still writes the pre-reset half',
+      () {
+    // Way A: E-W around lon 9.000-9.004 at lat 49.
+    final wayA = eastWestWay(
+      wayId: 701,
+      latBase: 49,
+      lonStart: 9,
+      lonEnd: 9.004,
+    );
+    // Way B: E-W FAR away (lat 49.20, ~22 km north) and NOT connected to A on
+    // the node graph — no shared node, and far beyond the route-search cap. A
+    // fix jumping from A to B is a Newson-Krumm broken path → B's state resets
+    // (backptr null) mid-sub-track.
+    final wayB = eastWestWay(
+      wayId: 702,
+      latBase: 49.20,
+      lonStart: 9,
+      lonEnd: 9.004,
+    );
+    final index = WaySegmentIndex.buildFromWays([wayA, wayB]);
+    final nodeGraph = NodeGraph.fromWays([wayA, wayB]);
+    const decoder = ViterbiDecoder();
+
+    final base = DateTime.utc(2026, 7, 8, 12);
+    final fixes = <GpsFix>[];
+    // Fixes 0..4 hug way A.
+    for (var i = 0; i < 5; i++) {
+      fixes.add(GpsFix(
+        lat: 49,
+        lon: 9.000 + i * 0.001,
+        accuracyMeters: 5,
+        speedKmh: 50,
+        ts: base.add(Duration(seconds: i)),
+      ));
+    }
+    // Fixes 5..9 hug way B — only 1 s later each (NO time gap → same sub-track),
+    // but spatially disconnected so the A→B transition is a broken path.
+    for (var i = 5; i < 10; i++) {
+      fixes.add(GpsFix(
+        lat: 49.20,
+        lon: 9.000 + (i - 5) * 0.001,
+        accuracyMeters: 5,
+        speedKmh: 50,
+        ts: base.add(Duration(seconds: i)),
+      ));
+    }
+
+    final result = decoder.decode(fixes, index, nodeGraph: nodeGraph);
+    expect(result, hasLength(10));
+
+    // The PRE-reset half (way A, fixes 0..4) must be written — this is exactly
+    // what the old traceback dropped.
+    for (var i = 0; i < 5; i++) {
+      expect(result[i], isNotNull,
+          reason: 'fix $i on way A must be matched, not dropped');
+      expect(result[i]!.wayId, equals(701));
+    }
+    // The post-reset half (way B) is matched too.
+    for (var i = 5; i < 10; i++) {
+      expect(result[i], isNotNull, reason: 'fix $i on way B must be matched');
+      expect(result[i]!.wayId, equals(702));
+    }
+  });
+
+  // ---------------------------------------------------------------------------
   // Test 8: Low-confidence drop — all fixes 500 m from any way → all null
   // ---------------------------------------------------------------------------
   test('8. low-confidence drop: all fixes 500 m from ways → all null', () {
