@@ -21,18 +21,35 @@
 //
 // Never throws — wraps at DomainError boundary and returns Err.
 
+import 'dart:typed_data';
+
 import 'package:auto_explore/core/db/daos/driven_way_intervals_dao.dart';
 import 'package:auto_explore/core/errors/domain_error.dart';
 import 'package:auto_explore/core/errors/result.dart';
 import 'package:auto_explore/features/admin/data/admin_region_lookup.dart';
 import 'package:auto_explore/features/coverage/data/coverage_cache_dao.dart';
 import 'package:auto_explore/features/coverage/domain/interval_union.dart';
+import 'package:auto_explore/features/matching/data/tile_bbox_math.dart';
 import 'package:auto_explore/features/matching/data/way_candidate_source.dart';
+import 'package:auto_explore/features/regions/data/coverage_compute_job.dart';
 import 'package:auto_explore/features/regions/data/region_totals_lookup.dart';
 import 'package:auto_explore/features/trips/data/trips_dao.dart';
 import 'package:auto_explore/features/trips/domain/haversine.dart';
 import 'package:logging/logging.dart';
 import 'package:maplibre_gl/maplibre_gl.dart' show LatLng;
+
+/// Runs the heavy coverage attribution and returns `regionId → RegionAccum`.
+///
+/// Injected into [CoverageComputeService] so production can delegate to the
+/// long-lived `CoverageComputeIsolate` (off the UI thread) while tests pass a
+/// synchronous closure. Takes the raw gzipped tiles + parallel bboxes + the
+/// flattened driven intervals per wayId — exactly the sendable payload of a
+/// [CoverageComputeJob].
+typedef CoverageAttributionRunner = Future<Map<String, RegionAccum>> Function(
+  List<Uint8List> gzippedTiles,
+  List<LatLonBbox> tileBboxes,
+  Map<int, List<double>> intervalsByWayId,
+);
 
 /// Admin levels attributed during the recompute pass.
 ///
@@ -42,15 +59,27 @@ import 'package:maplibre_gl/maplibre_gl.dart' show LatLng;
 /// is not a meaningful Phase-8 display (RESEARCH.md Pitfall 2).
 /// Level 9 is INCLUDED — Ortsteil-level granularity is in scope per
 /// RESEARCH.md line 263.
+///
+/// NOTE: the full `recompute()` path now attributes inside the compute isolate
+/// (see coverage_attribution.dart's own copy of this list). This copy is still
+/// used by the incremental `recomputeForTrip()` region-probe below.
 const List<int> kComputeAdminLevels = [4, 6, 8, 9, 10];
+
+/// Yield to the event loop every N ways in the (still main-isolate) incremental
+/// `recomputeForTrip()` loop so it never starves the UI thread. The full
+/// `recompute()` no longer needs this — it runs entirely off the UI isolate.
+const int _kYieldEveryWays = 50;
 
 /// Recomputes `coverage_cache` for all admin regions at levels 4/6/8/9/10.
 ///
-/// Injected with the same set of collaborators as `DrivenWayGeometryResolver`
-/// plus an [AdminRegionLookup] and [CoverageCacheDao].
+/// The heavy attribution (tile parse + point-in-polygon) runs OFF the UI thread
+/// via the injected [CoverageAttributionRunner] (wired to a long-lived
+/// `CoverageComputeIsolate` in production). This service stays on the main
+/// isolate for all Drift reads/writes so the regions-tab `.watch()` reactivity
+/// fires (Drift table-write invalidation is per-connection).
 ///
 /// This class is STATELESS — [recompute] reads fresh from each DAO/source on
-/// every call. All writes go through [CoverageCacheDao.upsert].
+/// every call. All writes go through [CoverageCacheDao].
 class CoverageComputeService {
   CoverageComputeService({
     required DrivenWayIntervalsDao intervalsDao,
@@ -59,6 +88,8 @@ class CoverageComputeService {
     required CoverageCacheDao cacheDao,
     required TripsDao tripsDao,
     required RegionTotalsLookup totalsLookup,
+    required CoverageAttributionRunner compute,
+    Future<void> Function()? ensureComputeReady,
     Logger? logger,
   })  : _intervalsDao = intervalsDao,
         _waySource = waySource,
@@ -66,6 +97,8 @@ class CoverageComputeService {
         _cacheDao = cacheDao,
         _tripsDao = tripsDao,
         _totalsLookup = totalsLookup,
+        _compute = compute,
+        _ensureComputeReady = ensureComputeReady,
         _log = logger ?? Logger('CoverageComputeService');
 
   final DrivenWayIntervalsDao _intervalsDao;
@@ -74,28 +107,34 @@ class CoverageComputeService {
   final CoverageCacheDao _cacheDao;
   final TripsDao _tripsDao;
   final RegionTotalsLookup _totalsLookup;
+
+  /// Off-isolate attribution runner (production: the compute isolate's
+  /// `computeAttribution`; tests: a synchronous closure).
+  final CoverageAttributionRunner _compute;
+
+  /// Optional warm-up hook awaited before the first [recompute] job (production:
+  /// `CoverageComputeIsolate.start`, which is idempotent + single-flight). Null
+  /// in tests that inject a synchronous [_compute].
+  final Future<void> Function()? _ensureComputeReady;
+
   final Logger _log;
 
   /// Recompute and upsert coverage statistics for every admin region that
   /// has any matched/confirmed Kfz ways. Returns the number of rows written.
   ///
+  /// The heavy attribution runs OFF the UI thread via [_compute]; this method
+  /// only does the (cheap) Drift reads/writes on the main isolate so the
+  /// regions-tab `.watch()` reactivity fires.
+  ///
   /// Error posture: never throws. Non-DomainError exceptions are wrapped via
   /// [DomainError.wrap] and returned as [Err].
   Future<Result<int>> recompute() async {
     try {
-      // Step 1: Ensure admin bundle is loaded on the MAIN isolate.
-      // Asset bundle is not reachable off-isolate (Pitfall 1).
-      await _regionLookup.ensureLoaded();
+      // Warm up the compute backend (idempotent; production: isolate.start()).
+      await _ensureComputeReady?.call();
 
-      // Step 1b: Ensure the bundled totals table is loaded. Also runs on the
-      // main isolate (same asset-bundle constraint). If the asset is absent
-      // (deferred PBF checkpoint not yet run), ensureLoaded() is a no-op and
-      // totalFor() will return null for every region — real_total_length_m is
-      // then written as null, which the UI renders as "—". No error is raised.
-      await _totalsLookup.ensureLoaded();
-
-      // Step 2: One-shot union bbox — null means no trips → empty cache is
-      // the correct state (no trips driven = no coverage to display).
+      // One-shot union bbox — null means no trips → empty cache is the correct
+      // state (no trips driven = no coverage to display).
       final bounds = await _tripsDao.watchUnionBbox().first;
       if (bounds == null) {
         await _cacheDao.deleteAll();
@@ -103,24 +142,23 @@ class CoverageComputeService {
         return const Ok(0);
       }
 
-      // Step 3: Read all intervals, group by wayId in Dart.
-      // (Avoids fragile SQL GROUP_CONCAT — mirrors resolver lines 83-88.)
+      // Read all intervals, group by wayId, and FLATTEN to sendable doubles
+      // ([s0,e0,s1,e1,…]) for the compute payload.
       final allIntervals = await _intervalsDao.getAllIntervals();
-      final byWayId = <int, List<Interval>>{};
+      final intervalsByWayId = <int, List<double>>{};
       for (final row in allIntervals) {
-        byWayId
-            .putIfAbsent(row.wayId, () => [])
-            .add(Interval(row.startMeters, row.endMeters));
+        intervalsByWayId
+            .putIfAbsent(row.wayId, () => <double>[])
+            .addAll([row.startMeters, row.endMeters]);
       }
 
-      // Step 4: Cache-first geometry for the union bbox.
-      // cacheOnly:true → this is a DISPLAY recompute over geometry the matcher
-      // already fetched; it must NEVER fire network fetches for off-corridor
-      // tiles in the (wide) union bbox. A long trip's bbox spans dozens of
-      // never-driven tiles; awaiting their throttled Overpass fetches here hung
-      // the whole recompute so coverage_cache stayed stale (2026-07-21 fix).
-      // throwOnError:false is redundant under cacheOnly but kept for clarity.
-      final ways = await _waySource.fetchWaysInBbox(
+      // RAW cached tiles for the union bbox — NOT parsed here. cacheOnly:true →
+      // this is a DISPLAY recompute over geometry the matcher already fetched;
+      // it must NEVER fire network fetches for off-corridor tiles in the (wide)
+      // union bbox (2026-07-21 hang fix). The gunzip + parse + point-in-polygon
+      // all happen inside the compute isolate (2026-07-22), so the main thread
+      // stays smooth.
+      final rawTiles = await _waySource.fetchRawTilesInBbox(
         minLat: bounds.southwest.latitude,
         minLon: bounds.southwest.longitude,
         maxLat: bounds.northeast.latitude,
@@ -129,63 +167,34 @@ class CoverageComputeService {
         cacheOnly: true,
       );
 
-      // Step 5: Accumulate total + driven lengths per region_id.
-      // Keys are OSM relation IDs as strings — globally unique across
-      // levels (RESEARCH.md line 491 — do NOT prefix with "$level:").
-      final total = <String, double>{};
-      final driven = <String, double>{};
-      var processed = 0;
-
-      for (final way in ways) {
-        final c = _centroid(way.geometry);
-        if (c == null) continue; // degenerate empty geometry — skip
-        final wayLen = _polylineLengthMeters(way.geometry);
-        final unionLen = byWayId.containsKey(way.wayId)
-            ? drivenLengthMeters(byWayId[way.wayId]!)
-            : 0.0;
-
-        for (final level in kComputeAdminLevels) {
-          final region = await _regionLookup.regionAt(c.latitude, c.longitude, level);
-          if (region == null) continue;
-          final id = region.osmId.toString();
-          total[id] = (total[id] ?? 0) + wayLen;
-          if (unionLen > 0) driven[id] = (driven[id] ?? 0) + unionLen;
-        }
-
-        // Pitfall 3: regionAt is sync-fast after load but yield periodically
-        // so a large way set never starves the UI thread.
-        processed++;
-        if (processed % 250 == 0) await Future<void>.delayed(Duration.zero);
-      }
-
-      // Step 6: Wipe stale rows, then upsert every region with total length.
-      // deleteAll first so a region that dropped to 0 coverage disappears.
-      await _cacheDao.deleteAll();
-      final now = DateTime.now();
-      var written = 0;
-      for (final id in total.keys) {
-        // real_total_length_m is the BUNDLED per-region Kfz total from
-        // region_totals.json.gz (Plan 10-04 Decision 8). This is the
-        // authoritative denominator for the region browser % and km stats —
-        // it fixes the Bayern==Miltenberg denominator because it covers the
-        // full road network of the region, not just the ways near the user's
-        // trips. If the bundled asset is absent (PBF checkpoint not yet run),
-        // totalFor() returns null and the UI renders "—" rather than a spinner.
-        await _cacheDao.upsert(
-          regionId: id,
-          drivenLengthM: driven[id] ?? 0,
-          totalLengthM: total[id]!,
-          updatedAt: now,
-          realTotalLengthM: _totalsLookup.totalFor(id),
-          // extractVersion: null — Phase 10 wires this; null is the default
-        );
-        written++;
-      }
-
-      _log.info(
-        'recompute: ${ways.length} ways processed, $written regions written',
+      // Heavy attribution off the UI thread.
+      final accum = await _compute(
+        [for (final t in rawTiles) t.payloadGzip],
+        [for (final t in rawTiles) t.bbox],
+        intervalsByWayId,
       );
-      return Ok(written);
+
+      // Wipe + rebuild coverage_cache in a single transaction so the regions
+      // tab's watchAllWithCoverage() stream fires exactly once at commit (and
+      // the deleteAll + upserts are atomic). Writes stay on the MAIN Drift
+      // connection — Drift table-write invalidation is per-connection.
+      final now = DateTime.now();
+      await _cacheDao.attachedDatabase.transaction(() async {
+        await _cacheDao.deleteAll();
+        for (final entry in accum.entries) {
+          await _cacheDao.upsert(
+            regionId: entry.key,
+            drivenLengthM: entry.value.driven,
+            totalLengthM: entry.value.total,
+            updatedAt: now,
+            realTotalLengthM: entry.value.realTotal,
+            // extractVersion: null — Phase 10 wires this; null is the default
+          );
+        }
+      });
+
+      _log.info('recompute: ${accum.length} regions written');
+      return Ok(accum.length);
 
       // Catches all throwables (Error + Exception) for DomainError.wrap.
       // ignore: avoid_catches_without_on_clauses
@@ -308,7 +317,9 @@ class CoverageComputeService {
         }
 
         processed++;
-        if (processed % 250 == 0) await Future<void>.delayed(Duration.zero);
+        if (processed % _kYieldEveryWays == 0) {
+          await Future<void>.delayed(Duration.zero);
+        }
       }
 
       // Upsert only the affected regions — no deleteAll.

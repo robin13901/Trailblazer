@@ -19,6 +19,7 @@ import 'package:auto_explore/features/coverage/data/coverage_invalidator.dart';
 import 'package:auto_explore/features/matching/data/tile_bbox_math.dart';
 import 'package:auto_explore/features/matching/data/way_candidate_source.dart';
 import 'package:auto_explore/features/matching/domain/way_candidate.dart';
+import 'package:auto_explore/features/regions/data/coverage_compute_job.dart';
 import 'package:auto_explore/features/regions/data/coverage_compute_service.dart';
 import 'package:auto_explore/features/regions/data/region_totals_lookup.dart';
 import 'package:auto_explore/features/trips/data/trips_dao.dart';
@@ -140,6 +141,15 @@ class _EmptyWayCandidateSource implements WayCandidateSource {
       const [];
 }
 
+/// Stand-in [CoverageAttributionRunner] — never invoked ([_NoopComputeService]
+/// overrides recompute()), just satisfies the required constructor param.
+Future<Map<String, RegionAccum>> _unusedCompute(
+  List<Uint8List> gzippedTiles,
+  List<LatLonBbox> tileBboxes,
+  Map<int, List<double>> intervalsByWayId,
+) async =>
+    const {};
+
 /// No-op CoverageComputeService — overrides recompute() so that the
 /// fire-and-forget call in confirmTrip completes immediately with Ok(0).
 /// Tests for the actual recompute behavior live in
@@ -153,6 +163,8 @@ class _NoopComputeService extends CoverageComputeService {
           cacheDao: CoverageCacheDao(db),
           tripsDao: TripsDao(db),
           totalsLookup: RegionTotalsLookup(),
+          // recompute() is overridden below, so this runner is never invoked.
+          compute: _unusedCompute,
         );
 
   @override

@@ -27,9 +27,11 @@ import 'package:auto_explore/features/coverage/data/coverage_cache_dao.dart';
 import 'package:auto_explore/features/matching/data/tile_bbox_math.dart';
 import 'package:auto_explore/features/matching/data/way_candidate_source.dart';
 import 'package:auto_explore/features/matching/domain/way_candidate.dart';
+import 'package:auto_explore/features/regions/data/coverage_compute_job.dart';
 import 'package:auto_explore/features/regions/data/coverage_compute_service.dart';
 import 'package:auto_explore/features/regions/data/region_totals_lookup.dart';
 import 'package:auto_explore/features/trips/data/trips_dao.dart';
+import 'package:auto_explore/features/trips/domain/haversine.dart';
 import 'package:auto_explore/features/trips/domain/trip_status.dart';
 import 'package:drift/drift.dart' hide isNotNull, isNull;
 import 'package:drift/native.dart';
@@ -247,18 +249,82 @@ void main() {
   });
 
   // Local helper — no leading underscore (no_leading_underscores_for_local_identifiers).
+  //
+  // The heavy attribution now runs off-isolate via an injected runner; in these
+  // plumbing tests we inject a SYNCHRONOUS closure that attributes the fixture
+  // `ways` against `byLevel` directly (same centroid → containsPoint → union
+  // logic as the production coverage_attribution.dart, exercised end-to-end in
+  // coverage_attribution_test.dart). This keeps these tests focused on the
+  // service's Drift read/write plumbing (null-bbox → Ok(0), transactional
+  // deleteAll+upsert, realTotal passthrough, Ok(count)).
   CoverageComputeService buildService({
     required Map<int, AdminRegion?> byLevel,
     List<WayCandidate> ways = const [],
     _FakeRegionTotalsLookup? totalsLookup,
   }) {
+    final totals = totalsLookup ?? _FakeRegionTotalsLookup();
+    final regionsByLevel = <int, List<AdminRegion>>{
+      for (final e in byLevel.entries)
+        if (e.value != null) e.key: [e.value!],
+    };
     return CoverageComputeService(
       intervalsDao: intervalsDao,
       waySource: _FixedWayCandidateSource(ways),
       regionLookup: _FakeAdminRegionLookup(byLevel),
       cacheDao: cacheDao,
       tripsDao: tripsDao,
-      totalsLookup: totalsLookup ?? _FakeRegionTotalsLookup(),
+      totalsLookup: totals,
+      compute: (gzippedTiles, tileBboxes, intervalsByWayId) async {
+        // Rebuild union length per wayId from the flattened intervals.
+        final unionLenByWay = <int, double>{};
+        for (final entry in intervalsByWayId.entries) {
+          final flat = entry.value;
+          var sum = 0.0;
+          for (var i = 0; i + 1 < flat.length; i += 2) {
+            sum += (flat[i + 1] - flat[i]).abs();
+          }
+          unionLenByWay[entry.key] = sum;
+        }
+        final total = <String, double>{};
+        final driven = <String, double>{};
+        for (final way in ways) {
+          if (way.geometry.isEmpty) continue;
+          var sumLat = 0.0;
+          var sumLon = 0.0;
+          for (final p in way.geometry) {
+            sumLat += p.latitude;
+            sumLon += p.longitude;
+          }
+          final cLat = sumLat / way.geometry.length;
+          final cLon = sumLon / way.geometry.length;
+          var wayLen = 0.0;
+          for (var i = 0; i < way.geometry.length - 1; i++) {
+            wayLen += haversineMeters(
+              way.geometry[i].latitude,
+              way.geometry[i].longitude,
+              way.geometry[i + 1].latitude,
+              way.geometry[i + 1].longitude,
+            );
+          }
+          final unionLen = unionLenByWay[way.wayId] ?? 0.0;
+          for (final level in kComputeAdminLevels) {
+            final region = regionsByLevel[level];
+            if (region == null) continue;
+            if (!region.first.containsPoint(cLat, cLon)) continue;
+            final id = region.first.osmId.toString();
+            total[id] = (total[id] ?? 0) + wayLen;
+            if (unionLen > 0) driven[id] = (driven[id] ?? 0) + unionLen;
+          }
+        }
+        return {
+          for (final id in total.keys)
+            id: RegionAccum(
+              driven: driven[id] ?? 0,
+              total: total[id]!,
+              realTotal: totals.totalFor(id),
+            ),
+        };
+      },
     );
   }
 

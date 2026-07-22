@@ -25,16 +25,34 @@
 // No code change is needed when the asset later arrives; the loader picks it
 // up at runtime from the already-declared assets/admin/ directory in pubspec.
 
-import 'dart:convert';
-import 'dart:io' show gzip;
 import 'dart:typed_data';
 
+import 'package:auto_explore/features/regions/data/region_totals_parser.dart';
 import 'package:flutter/foundation.dart' show compute;
 import 'package:flutter/services.dart' show AssetBundle, rootBundle;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// Path of the bundled per-region totals asset in the app rootBundle.
 const String kRegionTotalsAssetPath = 'assets/admin/region_totals.json.gz';
+
+/// Reads the raw (still-gzipped) totals bytes on the CALLING (main) isolate,
+/// or null when the deferred asset is absent from this build.
+///
+/// Extracted as a top-level function (2026-07-22) so the coverage-compute
+/// isolate provider can ship these bytes to the worker (rootBundle is
+/// unreachable from a spawned isolate). Graceful absence: a missing asset
+/// returns null rather than throwing.
+Future<Uint8List?> loadRegionTotalsBytes({AssetBundle? bundle}) async {
+  final resolvedBundle = bundle ?? rootBundle;
+  try {
+    final byteData = await resolvedBundle.load(kRegionTotalsAssetPath);
+    return byteData.buffer
+        .asUint8List(byteData.offsetInBytes, byteData.lengthInBytes);
+  } on Object {
+    // Asset absent (deferred PBF checkpoint not yet run).
+    return null;
+  }
+}
 
 /// Loads and caches the bundled per-region total Kfz road lengths.
 ///
@@ -68,17 +86,13 @@ class RegionTotalsLookup {
 
   Future<void> _load() async {
     try {
-      Uint8List bytes;
-      try {
-        final byteData = await _bundle.load(kRegionTotalsAssetPath);
-        bytes = byteData.buffer
-            .asUint8List(byteData.offsetInBytes, byteData.lengthInBytes);
-      } on Object {
+      final bytes = await loadRegionTotalsBytes(bundle: _bundle);
+      if (bytes == null) {
         // Asset absent (deferred PBF checkpoint not yet run) — leave _totals
         // null so totalFor() returns null gracefully.
         return;
       }
-      _totals = await compute(_parseTotalsBundle, bytes);
+      _totals = await compute(parseRegionTotalsBundle, bytes);
     } finally {
       _loading = null;
     }
@@ -98,28 +112,6 @@ class RegionTotalsLookup {
 
   /// Test-visible: number of entries in the loaded table (0 if not loaded).
   int get entryCount => _totals?.length ?? 0;
-}
-
-/// Isolate entry point: inflate + parse the gzipped JSON bundle into a
-/// String→double map. Runs via [compute] on a background isolate. Takes the
-/// raw gzipped bytes — the asset bundle is not reachable off the UI isolate,
-/// so the caller reads the bytes first and hands them over here.
-Map<String, double> _parseTotalsBundle(Uint8List bytes) {
-  try {
-    final decoded = utf8.decode(gzip.decode(bytes));
-    final json = jsonDecode(decoded);
-    if (json is! Map<String, dynamic>) return const {};
-    final out = <String, double>{};
-    for (final entry in json.entries) {
-      final v = entry.value;
-      if (v is num) out[entry.key] = v.toDouble();
-    }
-    return out;
-    // Corrupt/unexpected bytes: return empty rather than crashing the lookup.
-    // ignore: avoid_catches_without_on_clauses
-  } catch (_) {
-    return const {};
-  }
 }
 
 /// Singleton `RegionTotalsLookup` — plain `Provider<T>` per STATE 01-01 (no
