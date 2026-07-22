@@ -143,14 +143,13 @@ class TripMatchCoordinator {
     // restrictTiles (2026-07-21): scope to the tiles the path touches. Without
     // it, the matcher's fetch would rescan every bbox tile as a cache miss and
     // re-trigger the network fetch the road-fetch phase deliberately narrowed.
-    final corridor = _corridorTiles(points);
     final rawTiles = await _source.fetchRawTilesInBbox(
       minLat: tripRow.bboxMinLat!,
       minLon: tripRow.bboxMinLon!,
       maxLat: tripRow.bboxMaxLat!,
       maxLon: tripRow.bboxMaxLon!,
       throwOnError: false,
-      restrictTiles: corridor,
+      restrictTiles: _corridorTiles(points),
     );
     if (rawTiles.isEmpty) {
       _log.warning(
@@ -161,30 +160,16 @@ class TripMatchCoordinator {
       return;
     }
 
-    // PARTIAL-TILE GUARD (2026-07-21): if the corridor needed N tiles but only
-    // M < N came back (some were uncached AND the network fetch failed — e.g.
-    // Overpass throttling), matching on this partial set would produce
-    // intervals for only PART of the path and then finalize the trip as
-    // `matched` forever. That is exactly what froze trip 11 (northern half
-    // unmatched despite a full drive). Instead of finalizing on incomplete
-    // data, leave the trip in `pending` so `processPending` (app resume) or the
-    // road-fetch drain retries once the missing tiles are cached — self-healing,
-    // no permanent partial match. Guard only when we KNOW the expected count
-    // (corridor non-null/non-empty); otherwise fall through (full-bbox caller).
-    if (corridor != null &&
-        corridor.isNotEmpty &&
-        rawTiles.length < corridor.length) {
-      _log.warning(
-        'trip $tripId matched on PARTIAL tiles (${rawTiles.length}/'
-        '${corridor.length} corridor tiles) — leaving in `pending` for retry '
-        'instead of finalizing a partial match',
-      );
-      // Ensure the trip is retryable: processPending() walks `pending` trips.
-      // It is already `pending` here (the fetch phase advanced it), so no state
-      // change is needed — just do NOT transition to matched. Return early.
-      _clearProgress(tripId);
-      return;
-    }
+    // NOTE (2026-07-22): a "partial-tile guard" was briefly added here on the
+    // theory that trip 11's half-match came from matching on an incomplete tile
+    // set. That theory was WRONG — trip 11 had every corridor tile cached; the
+    // half-match was a Viterbi traceback bug (fixed in viterbi_decoder.dart).
+    // The guard was reverted because it compared rawTiles.length against the
+    // raw tilesForPath count (which is NOT intersected with the bbox the way
+    // fetchRawTilesInBbox is), so it could spuriously leave a fully-fetched trip
+    // stuck in `pending` forever — the stuck "wird abgeglichen" spinner. The
+    // fetch phase (throwOnError:true) already keeps a trip in pendingRoadData on
+    // a genuine fetch failure, so no guard is needed here.
 
     // Convert TripPoint rows → GpsFix values.
     final fixes = points
@@ -385,31 +370,15 @@ class TripMatchCoordinator {
     final points = await _tripsDao.listPointsForTrip(tripId);
     if (points.isEmpty) return false;
 
-    final corridor = _corridorTiles(points);
     final rawTiles = await _source.fetchRawTilesInBbox(
       minLat: tripRow.bboxMinLat!,
       minLon: tripRow.bboxMinLon!,
       maxLat: tripRow.bboxMaxLat!,
       maxLon: tripRow.bboxMaxLon!,
       throwOnError: false,
-      restrictTiles: corridor,
+      restrictTiles: _corridorTiles(points),
     );
     if (rawTiles.isEmpty) return false;
-
-    // PARTIAL-TILE GUARD (2026-07-21): re-match REPLACES existing intervals
-    // (deleteByTrip below). If the corridor fetch came back short (uncached +
-    // network failure), re-matching on the partial set would DELETE the trip's
-    // good intervals and rewrite worse ones. Bail out (keep old intervals) so a
-    // later launch — once the tiles are cached — completes the re-match.
-    if (corridor != null &&
-        corridor.isNotEmpty &&
-        rawTiles.length < corridor.length) {
-      _log.warning(
-        'rematchOne: trip $tripId got PARTIAL tiles (${rawTiles.length}/'
-        '${corridor.length}) — keeping existing intervals, will retry next run',
-      );
-      return false;
-    }
 
     final fixes = points
         .map(

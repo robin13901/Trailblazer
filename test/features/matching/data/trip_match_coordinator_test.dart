@@ -324,68 +324,6 @@ void main() {
   });
 
   // -------------------------------------------------------------------------
-  // Test 4b: PARTIAL-tile guard — corridor needs >1 tile but the fetch returns
-  // fewer → do NOT finalize as matched; leave in `pending` for retry.
-  // Regression guard for the 2026-07-21 frozen-partial-match (trip 11).
-  // -------------------------------------------------------------------------
-  test(
-      '4b. partial corridor fetch leaves trip in `pending` (not matched) '
-      'instead of finalizing a partial match', () async {
-    // Trip whose points span two clearly different z12 tiles, so the corridor
-    // tile set has length >= 2. The fake source always returns exactly ONE
-    // RawTilePayload, so rawTiles.length (1) < corridor.length (>=2) → guard.
-    final tripId = await _insertTripWithBbox(
-      db,
-      minLat: 52.50,
-      minLon: 13.40,
-      maxLat: 52.52,
-      maxLon: 13.60,
-    );
-    // Point A (52.500, 13.400) and point B (52.515, 13.590) are ~13 km apart in
-    // longitude → different z12 tiles.
-    await db.into(db.tripPoints).insert(
-          TripPointsCompanion.insert(
-            tripId: tripId,
-            seq: 1,
-            lat: 52.500,
-            lon: 13.400,
-            ts: DateTime(2026, 1, 1, 0, 0, 1),
-          ),
-        );
-    await db.into(db.tripPoints).insert(
-          TripPointsCompanion.insert(
-            tripId: tripId,
-            seq: 2,
-            lat: 52.515,
-            lon: 13.590,
-            ts: DateTime(2026, 1, 1, 0, 0, 2),
-          ),
-        );
-
-    const canned = MatchResult(
-      steps: [],
-      intervals: [
-        DrivenWayIntervalDraft(
-          wayId: 42,
-          startMeters: 0,
-          endMeters: 50,
-          direction: 'forward',
-        ),
-      ],
-      matchedFixCount: 2,
-      droppedFixCount: 0,
-    );
-
-    final coord = buildCoord(ways: [_berlinWay()], cannedResult: canned);
-    await coord.onTripReadyForMatching(tripId);
-
-    // Guard fired: trip stays `pending` (retryable by processPending), and NO
-    // partial intervals were written.
-    expect(await _statusOf(db, tripId), TripStatus.pending);
-    expect(await intervalsDao.getByTrip(tripId), isEmpty);
-  });
-
-  // -------------------------------------------------------------------------
   // Test 5: cancel deletes already-written intervals
   // -------------------------------------------------------------------------
   test('5. cancel deletes any intervals already written for the trip',
