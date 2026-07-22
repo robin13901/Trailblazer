@@ -57,7 +57,11 @@ Future<void> showTripDetailSheet(
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (_) => DraggableScrollableSheet(
-        initialChildSize: 0.4,
+        // Open tall enough that the "Auf Karte anzeigen" button is visible
+        // without dragging — the trip sheet has more content than the region
+        // sheet (5 stat/endpoint rows + button), so 0.4 pushed the button below
+        // the screen edge (on-device feedback 2026-07-22).
+        initialChildSize: 0.62,
         maxChildSize: 0.85,
         builder: (ctx, scrollController) => _TripDetailContent(
           item: item,

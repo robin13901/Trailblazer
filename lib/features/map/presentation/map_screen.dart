@@ -2,6 +2,7 @@ import 'package:auto_explore/features/coverage/presentation/coverage_overlay_bri
 import 'package:auto_explore/features/map/domain/follow_mode.dart';
 import 'package:auto_explore/features/map/presentation/providers/camera_state_provider.dart';
 import 'package:auto_explore/features/map/presentation/providers/location_permission_provider.dart';
+import 'package:auto_explore/features/map/presentation/providers/region_outline_provider.dart';
 import 'package:auto_explore/features/map/presentation/widgets/align_north_button.dart';
 import 'package:auto_explore/features/map/presentation/widgets/bottom_nav_shell.dart';
 import 'package:auto_explore/features/map/presentation/widgets/focus_area_pill.dart';
@@ -78,6 +79,11 @@ class MapScreen extends ConsumerWidget {
     // glass pill does not overlap the sheet card (on-device feedback
     // 2026-07-13).
     final regionSheetOpen = ref.watch(regionSheetOpenProvider);
+    // Whether a region outline is currently drawn. The trip-path dismiss chip
+    // normally sits at the SAME spot as the region-outline chip; only when an
+    // outline is ALSO showing does it drop to the second row so the two don't
+    // overlap (both can be visible at once). On-device feedback 2026-07-22.
+    final outlineActive = ref.watch(regionOutlineProvider) != null;
 
     return Scaffold(
       // UI-06: no AppBar.
@@ -237,15 +243,18 @@ class MapScreen extends ConsumerWidget {
               child: SafeArea(child: Center(child: RegionOutlineDismissChip())),
             ),
 
-            // Trip-path dismiss chip — one chip-row below the region chip so
-            // both can be visible at once (a trip line and a region outline can
-            // be shown together) without overlapping. ~40 dp chip height + a
-            // chrome gap below the region chip's row.
-            const Positioned(
-              top: _chromeRowTopInset + 56 + _chromeGap + 40 + _chromeGap,
+            // Trip-path dismiss chip — sits at the SAME position as the region
+            // chip (on-device feedback 2026-07-22). Only when a region outline
+            // is ALSO shown does it drop one chip-row (~40 dp + a gap) so the
+            // two chips don't overlap; both can be visible at once (a trip line
+            // and a region outline can be drawn together).
+            Positioned(
+              top: outlineActive
+                  ? _chromeRowTopInset + 56 + _chromeGap + 40 + _chromeGap
+                  : _chromeRowTopInset + 56 + _chromeGap,
               left: 0,
               right: 0,
-              child: SafeArea(child: Center(child: TripPathDismissChip())),
+              child: const SafeArea(child: Center(child: TripPathDismissChip())),
             ),
 
             // Top-right glass align-north button — mirrors the top-left
