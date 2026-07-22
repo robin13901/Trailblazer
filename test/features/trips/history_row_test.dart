@@ -12,7 +12,6 @@ import 'package:auto_explore/features/trips/presentation/widgets/history_row.dar
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:go_router/go_router.dart';
 
 TripListItem _item({
   required TripStatus status,
@@ -149,32 +148,12 @@ void main() {
     expect(indicator.value, isNull, reason: 'indeterminate spinner');
   });
 
-  testWidgets('row tap pushes /trips/:id', (tester) async {
-    final router = GoRouter(
-      initialLocation: '/',
-      routes: [
-        GoRoute(
-          path: '/',
-          builder: (context, state) => Scaffold(
-            body: HistoryRow(item: _item(id: 77, status: TripStatus.confirmed)),
-          ),
-        ),
-        GoRoute(
-          path: '/trips/:id',
-          builder: (context, state) =>
-              Scaffold(body: Text('detail ${state.pathParameters['id']}')),
-        ),
-      ],
-    );
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: _overrides,
-        child: MaterialApp.router(routerConfig: router),
-      ),
-    );
-    await tester.pump();
+  testWidgets('row tap opens the trip detail sheet', (tester) async {
+    await _pumpRow(tester, _item(id: 77, status: TripStatus.confirmed));
     await tester.tap(find.text('Miltenberg → Aschaffenburg'));
     await tester.pumpAndSettle();
-    expect(find.text('detail 77'), findsOneWidget);
+    // The sheet surfaces the stats (top of the sheet, above the fold).
+    expect(find.text('Dauer'), findsOneWidget);
+    expect(find.text('Ø-Tempo'), findsOneWidget);
   });
 }

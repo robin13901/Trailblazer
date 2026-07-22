@@ -38,4 +38,16 @@ class Trips extends Table {
   // deletion of `trip_points`. Road-matched `driven_way_intervals` remain the
   // source for region-km math; this column is the visual layer only.
   TextColumn get coveragePathJson => text().nullable()();
+
+  // v7 (2026-07-22): denormalized trip endpoints (first/last `trip_points`
+  // fix by seq). Persisted on the trip row so the start/end reverse-geocoded
+  // place names survive raw-GPS retention deletion of `trip_points` (the
+  // inbox/history read-model previously derived these via a live subquery over
+  // `trip_points`, which broke once the raw fixes were purged). Nullable so
+  // existing rows are untouched on upgrade; backfilled from `trip_points` in
+  // the v6→v7 migration.
+  RealColumn get startLat => real().nullable()();
+  RealColumn get startLon => real().nullable()();
+  RealColumn get endLat => real().nullable()();
+  RealColumn get endLon => real().nullable()();
 }

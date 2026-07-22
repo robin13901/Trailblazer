@@ -18,7 +18,6 @@ import 'package:auto_explore/features/trips/presentation/widgets/trip_card.dart'
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:go_router/go_router.dart';
 import 'package:maplibre_gl/maplibre_gl.dart';
 
 /// Records confirm/discard calls; returns a canned Result.
@@ -222,31 +221,13 @@ void main() {
     expect(find.textContaining('boom'), findsOneWidget);
   });
 
-  testWidgets('whole-card tap pushes /trips/:id', (tester) async {
-    final router = GoRouter(
-      initialLocation: '/',
-      routes: [
-        GoRoute(
-          path: '/',
-          builder: (context, state) => Scaffold(body: TripCard(item: _item(id: 99))),
-        ),
-        GoRoute(
-          path: '/trips/:id',
-          builder: (context, state) =>
-              Scaffold(body: Text('detail ${state.pathParameters['id']}')),
-        ),
-      ],
-    );
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: overrides(),
-        child: MaterialApp.router(routerConfig: router),
-      ),
-    );
-    await tester.pump();
+  testWidgets('whole-card tap opens the trip detail sheet', (tester) async {
+    await pumpCard(tester, _item(id: 99));
     // Tap the card body (title text region) — avoids the buttons.
     await tester.tap(find.text('Miltenberg → Aschaffenburg'));
     await tester.pumpAndSettle();
-    expect(find.text('detail 99'), findsOneWidget);
+    // The sheet surfaces the stats (top of the sheet, above the fold).
+    expect(find.text('Dauer'), findsOneWidget);
+    expect(find.text('Ø-Tempo'), findsOneWidget);
   });
 }

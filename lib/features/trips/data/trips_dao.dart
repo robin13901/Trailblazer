@@ -70,6 +70,25 @@ class TripsDao extends DatabaseAccessor<AppDatabase> {
   Future<void> deleteTrip(int tripId) =>
       (delete(trips)..where((t) => t.id.equals(tripId))).go();
 
+  /// Denormalize [tripId]'s start/end coordinates onto the trips row from its
+  /// first/last `trip_points` fix (by `seq`). Called right after [closeTrip]
+  /// (while the raw points still exist) so the reverse-geocoded place names
+  /// survive later raw-GPS retention deletion of `trip_points`. No-op if the
+  /// trip has no points. Mirrors the v6→v7 migration backfill.
+  Future<void> backfillEndpoints(int tripId) => customUpdate(
+        '''
+UPDATE trips SET
+  start_lat = (SELECT lat FROM trip_points WHERE trip_id = ?1 ORDER BY seq ASC  LIMIT 1),
+  start_lon = (SELECT lon FROM trip_points WHERE trip_id = ?1 ORDER BY seq ASC  LIMIT 1),
+  end_lat   = (SELECT lat FROM trip_points WHERE trip_id = ?1 ORDER BY seq DESC LIMIT 1),
+  end_lon   = (SELECT lon FROM trip_points WHERE trip_id = ?1 ORDER BY seq DESC LIMIT 1)
+WHERE id = ?1
+  AND EXISTS (SELECT 1 FROM trip_points WHERE trip_id = ?1)''',
+        variables: [Variable.withInt(tripId)],
+        updates: {trips},
+        updateKind: UpdateKind.update,
+      );
+
   /// Flip [tripId] to [TripStatus.pendingRoadData] — used by the 04-15 trip
   /// road-fetch coordinator after a trip stops but BEFORE the Overpass road
   /// data has arrived. Idempotent (no-op if the trip is already in that

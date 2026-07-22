@@ -64,6 +64,11 @@ class TripsRepository {
   }) async {
     try {
       await _dao.closeTrip(tripId, summary, status: status);
+      // Denormalize start/end coords onto the trip row now, while its raw
+      // `trip_points` still exist, so reverse-geocoded place names survive a
+      // later retention sweep of the points (v7). Best-effort: the close
+      // itself already succeeded, so a backfill hiccup must not fail it.
+      await _dao.backfillEndpoints(tripId);
       return const Ok(null);
       // Catches all throwables (Error + Exception) for DomainError.wrap.
       // ignore: avoid_catches_without_on_clauses

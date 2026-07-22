@@ -28,6 +28,11 @@ class TripsInboxDao extends DatabaseAccessor<AppDatabase> {
 
   /// Shared SELECT — trip columns + derived start/end coords + interval
   /// count. `:statuses` placeholder is expanded by the caller.
+  ///
+  /// Start/end coords prefer the denormalized `trips` columns (v7), falling
+  /// back to the live first/last `trip_points` subquery for rows not yet
+  /// backfilled — so a trip whose raw points were swept still shows its place
+  /// names.
   String _listQuery(String statusPlaceholders) => '''
 SELECT
   t.id                AS id,
@@ -40,10 +45,10 @@ SELECT
   t.bbox_min_lon      AS bbox_min_lon,
   t.bbox_max_lat      AS bbox_max_lat,
   t.bbox_max_lon      AS bbox_max_lon,
-  (SELECT lat FROM trip_points WHERE trip_id = t.id ORDER BY seq ASC  LIMIT 1) AS start_lat,
-  (SELECT lon FROM trip_points WHERE trip_id = t.id ORDER BY seq ASC  LIMIT 1) AS start_lon,
-  (SELECT lat FROM trip_points WHERE trip_id = t.id ORDER BY seq DESC LIMIT 1) AS end_lat,
-  (SELECT lon FROM trip_points WHERE trip_id = t.id ORDER BY seq DESC LIMIT 1) AS end_lon,
+  COALESCE(t.start_lat, (SELECT lat FROM trip_points WHERE trip_id = t.id ORDER BY seq ASC  LIMIT 1)) AS start_lat,
+  COALESCE(t.start_lon, (SELECT lon FROM trip_points WHERE trip_id = t.id ORDER BY seq ASC  LIMIT 1)) AS start_lon,
+  COALESCE(t.end_lat,   (SELECT lat FROM trip_points WHERE trip_id = t.id ORDER BY seq DESC LIMIT 1)) AS end_lat,
+  COALESCE(t.end_lon,   (SELECT lon FROM trip_points WHERE trip_id = t.id ORDER BY seq DESC LIMIT 1)) AS end_lon,
   (SELECT COUNT(*) FROM driven_way_intervals WHERE trip_id = t.id) AS interval_count
 FROM trips t
 WHERE t.status IN ($statusPlaceholders)
@@ -98,10 +103,10 @@ SELECT
   t.bbox_min_lon      AS bbox_min_lon,
   t.bbox_max_lat      AS bbox_max_lat,
   t.bbox_max_lon      AS bbox_max_lon,
-  (SELECT lat FROM trip_points WHERE trip_id = t.id ORDER BY seq ASC  LIMIT 1) AS start_lat,
-  (SELECT lon FROM trip_points WHERE trip_id = t.id ORDER BY seq ASC  LIMIT 1) AS start_lon,
-  (SELECT lat FROM trip_points WHERE trip_id = t.id ORDER BY seq DESC LIMIT 1) AS end_lat,
-  (SELECT lon FROM trip_points WHERE trip_id = t.id ORDER BY seq DESC LIMIT 1) AS end_lon,
+  COALESCE(t.start_lat, (SELECT lat FROM trip_points WHERE trip_id = t.id ORDER BY seq ASC  LIMIT 1)) AS start_lat,
+  COALESCE(t.start_lon, (SELECT lon FROM trip_points WHERE trip_id = t.id ORDER BY seq ASC  LIMIT 1)) AS start_lon,
+  COALESCE(t.end_lat,   (SELECT lat FROM trip_points WHERE trip_id = t.id ORDER BY seq DESC LIMIT 1)) AS end_lat,
+  COALESCE(t.end_lon,   (SELECT lon FROM trip_points WHERE trip_id = t.id ORDER BY seq DESC LIMIT 1)) AS end_lon,
   (SELECT COUNT(*) FROM driven_way_intervals WHERE trip_id = t.id) AS interval_count
 FROM trips t
 WHERE t.id = ?''',

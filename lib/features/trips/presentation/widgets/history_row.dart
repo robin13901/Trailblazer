@@ -14,9 +14,9 @@ import 'package:auto_explore/features/trips/data/trip_place_lookup_providers.dar
 import 'package:auto_explore/features/trips/domain/trip_list_item.dart';
 import 'package:auto_explore/features/trips/presentation/widgets/trip_card.dart'
     show formatDistance, formatDuration, formatTripDateTime, placeNamesLabel;
+import 'package:auto_explore/features/trips/presentation/widgets/trip_detail_sheet.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 /// One History-list row.
 class HistoryRow extends ConsumerWidget {
@@ -28,7 +28,7 @@ class HistoryRow extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     return ListTile(
-      onTap: () => context.push('/trips/${item.id}'),
+      onTap: () => showTripDetailSheet(context, ref, item),
       title: _PlaceNames(item: item),
       subtitle: Text(
         '${formatTripDateTime(item.startedAt)} · '

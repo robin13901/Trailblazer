@@ -17,6 +17,20 @@ import 'package:drift_flutter/drift_flutter.dart';
 
 part 'app_database.g.dart';
 
+/// Denormalizes each trip's start/end coordinates onto the `trips` row from the
+/// first/last `trip_points` fix (by `seq`). Shared by the v6→v7 migration
+/// (bulk backfill of existing rows) and `TripsDao.backfillEndpoints` (single
+/// trip, run right after `closeTrip` while its points still exist) so both use
+/// identical logic. Only touches rows whose `trip_points` still exist; a trip
+/// with no points is left null.
+const String backfillTripEndpointsSql = '''
+UPDATE trips SET
+  start_lat = (SELECT lat FROM trip_points WHERE trip_id = trips.id ORDER BY seq ASC  LIMIT 1),
+  start_lon = (SELECT lon FROM trip_points WHERE trip_id = trips.id ORDER BY seq ASC  LIMIT 1),
+  end_lat   = (SELECT lat FROM trip_points WHERE trip_id = trips.id ORDER BY seq DESC LIMIT 1),
+  end_lon   = (SELECT lon FROM trip_points WHERE trip_id = trips.id ORDER BY seq DESC LIMIT 1)
+WHERE EXISTS (SELECT 1 FROM trip_points WHERE trip_id = trips.id)''';
+
 @DriftDatabase(
   tables: [
     Trips,
@@ -33,7 +47,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase([QueryExecutor? executor]) : super(executor ?? _openConnection());
 
   @override
-  int get schemaVersion => 6;
+  int get schemaVersion => 7;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -66,15 +80,23 @@ class AppDatabase extends _$AppDatabase {
         // actually targets v4+.
         await customStatement('DROP TABLE IF EXISTS bt_fingerprints');
         await customStatement('DROP TABLE IF EXISTS vehicles');
-        // `coveragePathJson` (added in the current Dart schema for v5) does not
-        // exist on a v3 `trips` table, so declare it as a new column here — the
-        // rebuild creates it fresh (nullable, default null) instead of trying
-        // to SELECT it from the old table. When the DB is being upgraded
-        // straight to v5 the `from < 5` block below is a no-op for trips
-        // (the column already exists); a v3→v4-only stepped upgrade leaves it
-        // present and null, which is correct.
+        // `coveragePathJson` (added in the current Dart schema for v5) and the
+        // v7 endpoint columns (start/end lat/lon) do not exist on a v3 `trips`
+        // table, so declare them as new columns here — the rebuild creates them
+        // fresh (nullable, default null) instead of trying to SELECT them from
+        // the old table. The `from < 5` / `from < 7` blocks below then skip
+        // their addColumn steps for any path that ran this rebuild.
         await m.alterTable(
-          TableMigration(trips, newColumns: [trips.coveragePathJson]),
+          TableMigration(
+            trips,
+            newColumns: [
+              trips.coveragePathJson,
+              trips.startLat,
+              trips.startLon,
+              trips.endLat,
+              trips.endLon,
+            ],
+          ),
         );
       }
       if (from < 5 && to >= 5) {
@@ -96,6 +118,27 @@ class AppDatabase extends _$AppDatabase {
         // stores per-cell sums so a killed / flaky Bundesland pass resumes
         // instead of restarting ~1600 cells. Nullable, cleared on completion.
         await m.addColumn(coverageCache, coverageCache.realTotalProgressJson);
+      }
+      if (from < 7 && to >= 7) {
+        // v7 (2026-07-22): denormalize each trip's start/end coordinates onto
+        // the trips row so reverse-geocoded place names survive raw-GPS
+        // retention deletion of `trip_points`. Backfill from the surviving
+        // first/last `trip_points` fix by seq.
+        //
+        // The four columns are only added here when the v4 `TableMigration`
+        // above did NOT already create them — i.e. only for a DB already at
+        // v4/v5/v6 (`from >= 4`). A v3→v7 path rebuilt `trips` with these
+        // columns as `newColumns`, so re-adding would fail "duplicate column".
+        //
+        // Backfill only reaches trips whose `trip_points` still exist at
+        // upgrade time — a trip whose points were already swept stays null.
+        if (from >= 4) {
+          await m.addColumn(trips, trips.startLat);
+          await m.addColumn(trips, trips.startLon);
+          await m.addColumn(trips, trips.endLat);
+          await m.addColumn(trips, trips.endLon);
+        }
+        await customStatement(backfillTripEndpointsSql);
       }
     },
     beforeOpen: (details) async {

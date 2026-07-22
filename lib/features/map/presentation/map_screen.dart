@@ -14,6 +14,8 @@ import 'package:auto_explore/features/map/presentation/widgets/region_outline_di
 import 'package:auto_explore/features/map/presentation/widgets/settings_glass_button.dart';
 import 'package:auto_explore/features/map/presentation/widgets/tracking_camera_sync.dart';
 import 'package:auto_explore/features/map/presentation/widgets/trip_fab.dart';
+import 'package:auto_explore/features/map/presentation/widgets/trip_path_bridge.dart';
+import 'package:auto_explore/features/map/presentation/widgets/trip_path_dismiss_chip.dart';
 import 'package:auto_explore/features/regions/presentation/providers/region_sheet_open_provider.dart';
 import 'package:auto_explore/features/trips/presentation/widgets/live_tracking_panel.dart';
 import 'package:flutter/material.dart';
@@ -155,6 +157,20 @@ class MapScreen extends ConsumerWidget {
             child: RegionOutlineBridge(),
           ),
 
+          // Headless trip-path bridge: draws the on-road line of a trip the
+          // user picked via "Auf Karte anzeigen" in the trip detail sheet,
+          // in a distinct turquoise (NOT a coverage preset color), dismissed
+          // by the trip X chip. Zero-size Positioned OUTSIDE the isMapTab
+          // block so it re-adds correctly after the map remounts on return
+          // to the Map tab (same pattern as RegionOutlineBridge).
+          const Positioned(
+            top: 0,
+            left: 0,
+            width: 0,
+            height: 0,
+            child: TripPathBridge(),
+          ),
+
           // Non-map tabs render their Scaffold (opaque background) over the
           // map when the shell index is > 0.
           if (navigationShell != null && !isMapTab)
@@ -219,6 +235,17 @@ class MapScreen extends ConsumerWidget {
               left: 0,
               right: 0,
               child: SafeArea(child: Center(child: RegionOutlineDismissChip())),
+            ),
+
+            // Trip-path dismiss chip — one chip-row below the region chip so
+            // both can be visible at once (a trip line and a region outline can
+            // be shown together) without overlapping. ~40 dp chip height + a
+            // chrome gap below the region chip's row.
+            const Positioned(
+              top: _chromeRowTopInset + 56 + _chromeGap + 40 + _chromeGap,
+              left: 0,
+              right: 0,
+              child: SafeArea(child: Center(child: TripPathDismissChip())),
             ),
 
             // Top-right glass align-north button — mirrors the top-left

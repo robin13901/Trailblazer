@@ -5,7 +5,6 @@ import 'package:auto_explore/features/onboarding/presentation/splash_screen.dart
 import 'package:auto_explore/features/regions/presentation/regions_screen.dart';
 import 'package:auto_explore/features/settings/presentation/settings_screen.dart';
 import 'package:auto_explore/features/settings/presentation/tracking_diagnostics_screen.dart';
-import 'package:auto_explore/features/trips/presentation/trip_detail_screen.dart';
 import 'package:auto_explore/features/trips/presentation/trips_screen.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
@@ -72,16 +71,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           path: '/settings/stress-coverage',
           builder: (context, state) => const StressCoverageScreen(),
         ),
-      // Full-screen trip-detail route (Plan 06-05 Task 3). Lives OUTSIDE the
-      // bottom-nav StatefulShellRoute — tapping a trip card/row pushes this on
-      // top of the shell (map + raw polyline + matched intervals + delete),
-      // not as a tab branch.
-      GoRoute(
-        path: '/trips/:id',
-        builder: (context, state) => TripDetailScreen(
-          tripId: int.parse(state.pathParameters['id']!),
-        ),
-      ),
       StatefulShellRoute.indexedStack(
         builder: (context, state, navigationShell) =>
             MapScreen(navigationShell: navigationShell),

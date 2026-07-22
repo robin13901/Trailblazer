@@ -15,9 +15,9 @@ import 'package:auto_explore/features/trips/data/trip_place_lookup_providers.dar
 import 'package:auto_explore/features/trips/data/trips_repository_inbox_extensions.dart';
 import 'package:auto_explore/features/trips/domain/trip_list_item.dart';
 import 'package:auto_explore/features/trips/presentation/widgets/discard_confirmation_dialog.dart';
+import 'package:auto_explore/features/trips/presentation/widgets/trip_detail_sheet.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:maplibre_gl/maplibre_gl.dart';
 
 // ---------------------------------------------------------------------------
@@ -52,6 +52,15 @@ String formatDistance(double? meters) {
   if (meters == null) return '—';
   if (meters < 1000) return '${meters.round()} m';
   return '${formatKm(meters / 1000)} km';
+}
+
+/// e.g. "42 km/h". Average speed derived from distance / duration (the trip
+/// read-model does not carry the stored avg_speed_kmh column). Null-/zero-safe
+/// → "—" when either input is missing or the duration is zero.
+String formatSpeed(double? meters, int? seconds) {
+  if (meters == null || seconds == null || seconds <= 0) return '—';
+  final kmh = meters / seconds * 3.6;
+  return '${kmh.round()} km/h';
 }
 
 /// Human-readable start→end place label from resolved place names. Loops
@@ -169,7 +178,7 @@ class _TripCardState extends ConsumerState<TripCard> {
       margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
-        onTap: () => context.push('/trips/${item.id}'),
+        onTap: () => showTripDetailSheet(context, ref, item),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
