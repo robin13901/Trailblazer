@@ -10,6 +10,7 @@
 // renderFallback` (see TripThumbnail) — no live MapLibre surface is hosted
 // here.
 
+import 'package:auto_explore/features/map/presentation/widgets/bottom_nav_shell.dart';
 import 'package:auto_explore/features/trips/presentation/providers/inbox_providers.dart';
 import 'package:auto_explore/features/trips/presentation/widgets/history_empty_state.dart';
 import 'package:auto_explore/features/trips/presentation/widgets/history_row.dart';
@@ -48,6 +49,9 @@ class _HistoryList extends ConsumerWidget {
       data: (items) {
         if (items.isEmpty) return const HistoryEmptyState();
         return ListView.builder(
+          // Reserve space for the nav pill layered on top (Stack sibling),
+          // so the last trip clears it instead of scrolling underneath.
+          padding: const EdgeInsets.only(bottom: kBottomNavClearance),
           itemCount: items.length,
           itemBuilder: (context, i) => HistoryRow(item: items[i]),
         );

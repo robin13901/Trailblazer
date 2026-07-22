@@ -98,24 +98,46 @@ void main() {
     });
 
     test(
-        'hydration branch: init() with an in-flight trip invokes '
-        'start() exactly once (after ready)', () async {
-      // Seed an active trip directly via repo, before service init.
+        'crash recovery: init() with an interrupted `recording` trip finalizes '
+        'it as a completed trip (does NOT resume, does NOT start FGB)', () async {
+      // Seed an interrupted recording trip WITH points that clear the keeper
+      // threshold (>60 s, >100 m), simulating an app kill mid-drive.
       final seedResult = await repo.openTrip(
-        startedAt: DateTime.now(),
+        startedAt: DateTime(2026, 1, 1, 12),
         manuallyStarted: true,
       );
       final seededTripId = seedResult.when(ok: (v) => v, err: (_) => -1);
       expect(seededTripId, isNot(-1));
 
+      // ~120 s of movement well over the 100 m keeper distance.
+      final points = <TripPointsCompanion>[
+        for (var i = 0; i < 120; i++)
+          TripPointsCompanion.insert(
+            tripId: seededTripId,
+            seq: i,
+            ts: DateTime(2026, 1, 1, 12, 0, i),
+            lat: 49.7 + i * 0.0002,
+            lon: 9.2 + i * 0.0002,
+          ),
+      ];
+      await repo.appendPoints(seededTripId, points);
+
       final svc = makeService();
       await svc.init();
 
-      expect(svc.currentState, isA<TrackingRecording>());
-      expect(facade.readyCalls, 1,
-          reason: 'Hydration must call ready() before start()');
-      expect(facade.startCalls, 1,
-          reason: 'Hydration must call start() exactly once');
+      // Recovered trips are finalized, not resumed → service is idle.
+      expect(svc.currentState, isA<TrackingIdle>(),
+          reason: 'an interrupted trip is finalized, never resumed as live');
+      // No FGB spin-up for a recovered trip (manual-only app can't re-arm it).
+      expect(facade.startCalls, 0,
+          reason: 'recovery must not start FGB');
+      expect(facade.readyCalls, 0,
+          reason: 'recovery must not call ready()');
+
+      // The trip is now closed (endedAt set, no longer the active trip).
+      final stillActive = await repo.activeTrip();
+      expect(stillActive.when(ok: (t) => t, err: (_) => null), isNull,
+          reason: 'the recovered trip must no longer be open (endedAt set)');
 
       await svc.dispose();
     });

@@ -34,6 +34,7 @@ import 'package:auto_explore/features/map/presentation/providers/live_camera_pro
 import 'package:auto_explore/features/map/presentation/providers/map_controller_provider.dart';
 import 'package:auto_explore/features/map/presentation/providers/region_outline_provider.dart';
 import 'package:auto_explore/features/regions/domain/region_coverage.dart';
+import 'package:auto_explore/features/regions/presentation/providers/region_ancestors_provider.dart';
 import 'package:auto_explore/features/regions/presentation/providers/region_sheet_open_provider.dart';
 import 'package:auto_explore/features/regions/presentation/widgets/region_card.dart';
 import 'package:flutter/material.dart';
@@ -304,7 +305,7 @@ class _GlassDetailPanel extends StatelessWidget {
               controller: scrollController,
               padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
               children: [
-                // Header: name + level tag (NO breadcrumb — CONTEXT.md 43).
+                // Header: name + level tag.
                 Row(
                   children: [
                     Expanded(
@@ -326,6 +327,9 @@ class _GlassDetailPanel extends StatelessWidget {
                     ),
                   ],
                 ),
+                // Upward hierarchy breadcrumb (Deutschland › Bayern › …).
+                // Renders nothing while resolving or if unresolved.
+                _HierarchyBreadcrumb(osmId: region.osmId),
                 const SizedBox(height: 20),
                 // Coverage % — one decimal (CONTEXT.md line 49).
                 // Plan 10-04: spinner removed; total always comes from the
@@ -359,6 +363,46 @@ class _GlassDetailPanel extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Upward admin-hierarchy breadcrumb, e.g. "Deutschland › Bayern › Landkreis
+/// Miltenberg". Resolved by containment from the region's interior point (see
+/// [regionAncestorsProvider]). Renders nothing while resolving or when the
+/// chain is empty (unresolved) so it never adds empty space or a spinner.
+class _HierarchyBreadcrumb extends ConsumerWidget {
+  const _HierarchyBreadcrumb({required this.osmId});
+
+  final int osmId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final crumbs = ref.watch(regionAncestorsProvider(osmId)).value;
+    if (crumbs == null || crumbs.isEmpty) return const SizedBox.shrink();
+
+    final theme = Theme.of(context);
+    final style = theme.textTheme.bodySmall?.copyWith(
+      color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+    );
+    final sepStyle = theme.textTheme.bodySmall?.copyWith(
+      color: theme.colorScheme.onSurface.withValues(alpha: 0.35),
+    );
+
+    // Inline wrapping crumbs joined by "›". Wrap so a deep chain (Deutschland ›
+    // Bayern › Landkreis › Gemeinde) flows onto a second line instead of
+    // overflowing on a narrow phone.
+    final children = <Widget>[];
+    for (var i = 0; i < crumbs.length; i++) {
+      if (i > 0) children.add(Text('  ›  ', style: sepStyle));
+      children.add(Text(crumbs[i].name, style: style));
+    }
+    return Padding(
+      padding: const EdgeInsets.only(top: 6),
+      child: Wrap(
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: children,
       ),
     );
   }

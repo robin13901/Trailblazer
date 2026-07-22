@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:auto_explore/core/db/app_database.dart' hide TripPoint;
 import 'package:auto_explore/core/errors/domain_error.dart';
+import 'package:auto_explore/features/matching/data/live_tile_prefetch_service.dart';
 import 'package:auto_explore/features/matching/data/trip_road_fetch_coordinator.dart';
 import 'package:auto_explore/features/trips/data/background_geolocation_facade.dart';
 import 'package:auto_explore/features/trips/data/trips_repository.dart';
@@ -55,6 +56,7 @@ class TrackingService {
     double resumeRadiusMeters = 500,
     Duration notificationInterval = const Duration(seconds: 30),
     TripRoadFetchCoordinator? roadFetchCoordinator,
+    LiveTilePrefetchService? tilePrefetch,
   })  : _facade = facade,
         _repository = repository,
         _pointsSink = pointsSink,
@@ -63,7 +65,8 @@ class TrackingService {
         _resumeWindow = resumeWindow,
         _resumeRadiusMeters = resumeRadiusMeters,
         _notificationInterval = notificationInterval,
-        _roadFetchCoordinator = roadFetchCoordinator;
+        _roadFetchCoordinator = roadFetchCoordinator,
+        _tilePrefetch = tilePrefetch;
 
   final BackgroundGeolocationFacade _facade;
   final TripsRepository _repository;
@@ -80,6 +83,12 @@ class TrackingService {
   // This keeps the 141 pre-existing tests (Wave 2 + Phase 3.1) green while
   // the road-fetch flow rolls out.
   final TripRoadFetchCoordinator? _roadFetchCoordinator;
+
+  /// Optional live tile-prefetcher (Idea #6 Half A). When set, it warms the
+  /// Overpass tile cache for the driven-so-far corridor during recording so the
+  /// trip-end match starts cache-hot. Purely an optimization — null in tests /
+  /// pre-existing call sites keeps behaviour identical.
+  final LiveTilePrefetchService? _tilePrefetch;
 
   final _log = Logger('tracking');
 
@@ -139,6 +148,19 @@ class TrackingService {
   // to avoid coupling to widget or Riverpod lifecycles (which can churn on
   // hot reload / background mode).
   Timer? _notificationTicker;
+
+  // Periodic batcher flush during recording. The batcher itself only flushes
+  // on its 20-point boundary (~20 s at 1 Hz) or on a motion/gap checkpoint, so
+  // up to ~19 accepted fixes can sit in RAM unflushed. If the app is killed
+  // (crash, battery death, OS kill) those buffered points are lost. A periodic
+  // flush caps that loss window at [_flushInterval] regardless of motion
+  // events (a steady straight drive emits none). Owned by the service so it
+  // lives across the same lifecycle as the notification ticker.
+  Timer? _flushTicker;
+
+  /// How often to force-flush the batcher during recording, capping the
+  /// crash-loss window to a few seconds of fixes (vs up to ~20 s otherwise).
+  static const Duration _flushInterval = Duration(seconds: 5);
 
   // Lazy-init flag: facade.ready() is called at most once per service instance,
   // on first tracking use (manual start, auto-trip, or hydrated resume).
@@ -229,28 +251,66 @@ class TrackingService {
       return;
     }
 
-    // An in-flight trip exists — initialise the facade so FGB can resume
-    // delivering location events and the FGS notification is updated.
-    await _ensureFacadeReady();
-    // H1 fix (Plan 03-1-02): FGB `start()` MUST be called after `ready()` to
-    // actually enable the foreground service + fix stream. Without this, the
-    // hydrated trip would appear active in-app but no fixes would arrive.
-    await _facade.start();
-    _currentTripId = trip!.id;
-    _tripStartedAt = trip!.startedAt;
-    _ingestor = _ingestorFactory();
-    _batcher = TripFixBatcher(tripId: trip!.id, sink: _pointsSink);
-    _emitState(
-      TrackingRecording(
-        tripId: trip!.id,
-        startedAt: trip!.startedAt,
-        distanceMeters: trip!.distanceMeters ?? 0,
-        pointCount: trip!.pointCount ?? 0,
-        manuallyStarted: trip!.manuallyStarted,
-      ),
+    // An in-flight `recording` trip exists from a PREVIOUS process — i.e. the
+    // app was killed mid-recording (crash, battery death, OS kill) without a
+    // normal Stop. Recover it WITHOUT losing data: replay its already-persisted
+    // GPS points through a fresh ingestor and finalize it as a completed
+    // (truncated) trip, exactly as a normal Stop would — including the matching
+    // hand-off. Only fixes buffered in RAM at the instant of the crash are lost
+    // (they never reached the DB); everything flushed survives.
+    //
+    // This deliberately does NOT resume the trip as live (the pre-2026-07-22
+    // behaviour): a manual-only app has no way to re-arm FGB for an old trip,
+    // and the old resume path also silently dropped every post-resume point via
+    // a seq-collision. Finalize-on-launch is lossless for persisted data and
+    // never leaves a trip stuck in `recording` forever.
+    await _recoverInterruptedTrip(trip!);
+  }
+
+  /// Finalizes an interrupted `recording` trip (from a killed prior process)
+  /// as a completed, truncated trip. Replays stored points through a fresh
+  /// ingestor to rebuild the summary, then runs the shared close + matching
+  /// hand-off. Emits [TrackingIdle] at the end (recovered trips are never live).
+  ///
+  /// A single trip's stored points can never contain a mid-trip split boundary
+  /// (a split during recording already opened a separate trip row), so replay
+  /// only ever yields `FixAccepted` / `GapObserved` — the summary math matches a
+  /// normal stop exactly. Micro-trips below the keeper threshold are discarded,
+  /// same as a normal stop.
+  Future<void> _recoverInterruptedTrip(Trip trip) async {
+    final fixesResult = await _repository.loadFixInputs(trip.id);
+    var fixes = const <FixInput>[];
+    DomainError? loadError;
+    fixesResult.when(ok: (f) => fixes = f, err: (e) => loadError = e);
+
+    if (loadError != null) {
+      _log.severe(
+        'crash-recovery: loadFixInputs failed for trip ${trip.id}: '
+        '${loadError!.message}',
+      );
+      // Leave the trip as-is; a later launch retries. Do not crash startup.
+      _emitState(const TrackingIdle());
+      return;
+    }
+
+    final ingestor = _ingestorFactory();
+    // Replay is order-preserving and split-free (see doc above); we only care
+    // about the running-stat side effects, not each per-fix outcome. A plain
+    // loop (not forEach+tear-off) since ingest() returns a value we discard.
+    // ignore: prefer_foreach
+    for (final fix in fixes) {
+      ingestor.ingest(fix);
+    }
+    final summary = ingestor.finalize(startedAt: trip.startedAt);
+
+    _log.info(
+      'crash-recovery: finalizing interrupted trip ${trip.id} '
+      '(${fixes.length} persisted fixes)',
     );
-    // Resume the notification updater for the hydrated trip.
-    _startNotificationTicker();
+
+    // No live batcher/ingestor to flush — the points are already in the DB.
+    // Route through the shared close path (same as a normal Stop).
+    await _closeWithSummary(trip.id, summary, autoStopped: false);
   }
 
   /// Manual start (FAB tap). Opens a new recording trip with manuallyStarted=true.
@@ -285,6 +345,8 @@ class TrackingService {
           manuallyStarted: true,
         ));
         _startNotificationTicker();
+        _startFlushTicker();
+        _tilePrefetch?.start(id);
       },
       err: (e) {
         _log.severe('startManual openTrip failed: ${e.message}');
@@ -310,6 +372,8 @@ class TrackingService {
 
     _cancelDwellTimers();
     _stopNotificationTicker();
+    _stopFlushTicker();
+    _tilePrefetch?.stop();
 
     await _finalizeAndClose(tripId, autoStopped: false);
 
@@ -334,6 +398,8 @@ class TrackingService {
   Future<void> dispose() async {
     _cancelDwellTimers();
     _stopNotificationTicker();
+    _stopFlushTicker();
+    _tilePrefetch?.stop();
     await _locSub?.cancel();
     await _motionSub?.cancel();
     await _activitySub?.cancel();
@@ -516,6 +582,9 @@ class TrackingService {
         _lastAcceptedFix = null;
         _ingestor = _ingestorFactory();
         _batcher = TripFixBatcher(tripId: newId, sink: _pointsSink);
+        // Re-key the tile prefetcher to the new trip id (the flush + notification
+        // tickers keep running across the split; prefetch is tripId-scoped).
+        _tilePrefetch?.start(newId);
 
         // 5. Feed recovered fix into the new ingestor.
         final recovered = split.recovered;
@@ -648,6 +717,8 @@ class TrackingService {
     _pendingStopAt = null;
     _pendingStopFix = null;
     _stopNotificationTicker();
+    _stopFlushTicker();
+    _tilePrefetch?.stop();
     final tripId = _currentTripId;
     if (tripId == null) return;
     unawaited(_finalizeAndClose(tripId, autoStopped: true));
@@ -673,6 +744,23 @@ class TrackingService {
     // events don't open another trip against the same ID.
     _clearActiveTrip();
 
+    await _closeWithSummary(tripId, summary, autoStopped: autoStopped);
+  }
+
+  /// Shared close path: given a computed [summary], either close [tripId] as a
+  /// keeper (writing summary fields, flipping status, handing off to the road
+  /// fetch/matching coordinator) or delete it as a below-threshold micro-trip.
+  /// Emits [TrackingIdle] at the end.
+  ///
+  /// Extracted from [_finalizeAndClose] so crash-recovery
+  /// ([_recoverInterruptedTrip]) reuses the EXACT same keeper gate, close, and
+  /// matching hand-off as a normal Stop — the only difference being that
+  /// recovery has no live batcher/ingestor to flush first.
+  Future<void> _closeWithSummary(
+    int tripId,
+    TripSummaryDraft? summary, {
+    required bool autoStopped,
+  }) async {
     if (summary != null && summary.passesKeeperThreshold) {
       final tripSummary = TripSummary(
         startedAt: summary.startedAt,
@@ -779,6 +867,23 @@ class TrackingService {
   void _stopNotificationTicker() {
     _notificationTicker?.cancel();
     _notificationTicker = null;
+  }
+
+  /// Starts (or restarts) the periodic batcher flush during recording. Caps
+  /// the crash-loss window to [_flushInterval] of buffered fixes. Fire-and-
+  /// forget; the sink swallows and logs any write error.
+  void _startFlushTicker() {
+    _flushTicker?.cancel();
+    _flushTicker = Timer.periodic(_flushInterval, (_) {
+      if (_currentState is! TrackingRecording) return;
+      unawaited(_batcher?.flush());
+    });
+  }
+
+  /// Cancels the periodic batcher flush.
+  void _stopFlushTicker() {
+    _flushTicker?.cancel();
+    _flushTicker = null;
   }
 
   /// Calls [BackgroundGeolocationFacade.ready] exactly once per service

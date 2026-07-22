@@ -2,6 +2,7 @@ import 'package:auto_explore/core/db/app_database.dart';
 import 'package:auto_explore/core/errors/domain_error.dart';
 import 'package:auto_explore/core/errors/result.dart';
 import 'package:auto_explore/features/trips/data/trips_dao.dart';
+import 'package:auto_explore/features/trips/domain/trip_fix_input.dart';
 import 'package:auto_explore/features/trips/domain/trip_status.dart';
 import 'package:auto_explore/features/trips/domain/trip_summary.dart';
 
@@ -133,6 +134,41 @@ class TripsRepository {
     try {
       final trip = await _dao.activeTrip();
       return Ok(trip);
+      // Catches all throwables (Error + Exception) for DomainError.wrap.
+      // ignore: avoid_catches_without_on_clauses
+    } catch (e, st) {
+      return Err(DomainError.wrap(e, st));
+    }
+  }
+
+  /// Load all persisted GPS fixes for [tripId] (seq order) as [FixInput]s —
+  /// used by cold-start crash recovery to REPLAY an interrupted `recording`
+  /// trip through a fresh ingestor and finalize it as a completed (truncated)
+  /// trip. Returns the persisted points only; any fixes buffered in RAM at the
+  /// time of the crash are already lost (never reached the DB).
+  ///
+  /// A stored point carries no per-fix UUID (dedup is a live-only concern), so
+  /// `uuid` is null on replay — harmless: the points were already accepted once
+  /// and their seq order guarantees no duplicates.
+  Future<Result<List<FixInput>>> loadFixInputs(int tripId) async {
+    try {
+      final points = await _dao.listPointsForTrip(tripId);
+      final fixes = [
+        for (final p in points)
+          FixInput(
+            ts: p.ts,
+            lat: p.lat,
+            lon: p.lon,
+            // Stored accuracy already passed the ingestor's accuracy gate when
+            // first accepted; default to 0 (best) when the column is null so a
+            // null never re-fails the filter on replay.
+            accuracyMeters: p.accuracyMeters ?? 0,
+            speedMps: p.speedKmh != null ? p.speedKmh! / 3.6 : null,
+            altitudeMeters: p.altitudeMeters,
+            activityType: p.motionType,
+          ),
+      ];
+      return Ok(fixes);
       // Catches all throwables (Error + Exception) for DomainError.wrap.
       // ignore: avoid_catches_without_on_clauses
     } catch (e, st) {

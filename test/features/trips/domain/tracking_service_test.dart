@@ -369,11 +369,14 @@ void main() {
     });
 
     // -------------------------------------------------------------------------
-    // 9. Cold-start hydration
+    // 9. Cold-start crash recovery — an interrupted `recording` trip is
+    //    FINALIZED (not resumed) on next launch (2026-07-22).
     // -------------------------------------------------------------------------
-    test('cold-start hydration: existing active trip → init() → TrackingRecording',
-        () async {
-      // Seed an active trip directly via repo.
+    test(
+        'cold-start recovery: interrupted recording trip with no usable points '
+        '→ init() finalizes (discards) it → TrackingIdle, not active', () async {
+      // Seed an active trip directly via repo (no points → below keeper
+      // threshold, so recovery discards it as a micro-trip).
       final seedResult = await repo.openTrip(
         startedAt: DateTime.now(),
         manuallyStarted: true,
@@ -385,10 +388,44 @@ void main() {
       final svc = makeService();
       await svc.init();
 
-      expect(svc.currentState, isA<TrackingRecording>());
-      final state = svc.currentState as TrackingRecording;
-      expect(state.tripId, seededTripId);
-      expect(state.manuallyStarted, isTrue);
+      // Recovered, never resumed → service is idle.
+      expect(svc.currentState, isA<TrackingIdle>());
+      // The interrupted trip is no longer the active (open) trip.
+      final active = await repo.activeTrip();
+      expect(active.when(ok: (t) => t, err: (_) => null), isNull);
+
+      await svc.dispose();
+    });
+
+    test(
+        'cold-start recovery: interrupted recording trip WITH keeper-passing '
+        'points → init() finalizes it as a completed trip', () async {
+      final seedResult = await repo.openTrip(
+        startedAt: DateTime(2026, 1, 1, 12),
+        manuallyStarted: true,
+      );
+      final seededTripId = seedResult.when(ok: (v) => v, err: (_) => -1);
+      expect(seededTripId, isNot(-1));
+
+      // ~120 s of movement well over the 100 m keeper distance.
+      await repo.appendPoints(seededTripId, [
+        for (var i = 0; i < 120; i++)
+          TripPointsCompanion.insert(
+            tripId: seededTripId,
+            seq: i,
+            ts: DateTime(2026, 1, 1, 12, 0, i),
+            lat: 49.7 + i * 0.0002,
+            lon: 9.2 + i * 0.0002,
+          ),
+      ]);
+
+      final svc = makeService();
+      await svc.init();
+
+      expect(svc.currentState, isA<TrackingIdle>());
+      // Finalized → no longer open.
+      final active = await repo.activeTrip();
+      expect(active.when(ok: (t) => t, err: (_) => null), isNull);
 
       await svc.dispose();
     });

@@ -11,6 +11,7 @@
 //     no search hits → "Keine Treffer".
 //   - withValues(alpha:) only; package imports only.
 
+import 'package:auto_explore/features/map/presentation/widgets/bottom_nav_shell.dart';
 import 'package:auto_explore/features/regions/domain/region_coverage.dart';
 import 'package:auto_explore/features/regions/presentation/providers/region_browser_provider.dart';
 import 'package:auto_explore/features/regions/presentation/widgets/region_card.dart';
@@ -103,6 +104,9 @@ class _RegionList extends ConsumerWidget {
       return _EmptyState(queryIsEmpty: searchQuery.trim().isEmpty);
     }
     return ListView.builder(
+      // Reserve space for the nav pill layered on top (Stack sibling), so the
+      // last region card clears it instead of scrolling underneath.
+      padding: const EdgeInsets.only(bottom: kBottomNavClearance),
       itemCount: list.length,
       itemBuilder: (context, i) {
         final region = list[i];

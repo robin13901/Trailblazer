@@ -1,6 +1,18 @@
 import 'package:auto_explore/features/map/presentation/widgets/glass_pill.dart';
 import 'package:flutter/material.dart';
 
+/// Vertical space the bottom nav pill + its row inset occupy above the
+/// safe-area bottom edge: pill height (64) + `_navRowBottomInset` (4) + a small
+/// breathing gap (12) ≈ 80 dp.
+///
+/// The nav pill is a Stack sibling layered ON TOP of the Trips/Regions tab
+/// content, so scrollable tab lists must reserve this as bottom padding —
+/// otherwise the last item scrolls under the pill and is obscured (on-device
+/// feedback 2026-07-22). The lists' own SafeArea handles the home-indicator
+/// inset; this clearance is measured from that same safe-area bottom, so it
+/// lines up with the pill regardless of device.
+const double kBottomNavClearance = 80;
+
 /// Glass bottom pill with 3 tabs: Map / Trips / Regions.
 ///
 /// This is a **pure presentation widget** — it accepts [currentIndex] and
@@ -121,19 +133,25 @@ class _NavTabItem extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(icon, size: 22, color: color),
+              Icon(icon, size: 20, color: color),
               const SizedBox(height: 2),
-              Text(
-                label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                // One step smaller than labelSmall so the longest label
-                // ("Regionen") fits on narrow iPhones without ellipsizing to
-                // "Regio…" (on-device feedback 2026-07-18).
-                style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                  fontSize: 10,
-                  color: color,
-                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+              // FittedBox(scaleDown) guarantees the label never truncates:
+              // at the default text scale "Regionen" fits at 9 pt in the
+              // ~72 dp tab, so all three render identically; only at large
+              // accessibility text scales does it shrink to fit — which is
+              // strictly better than ellipsizing to "Regio…" (on-device
+              // feedback 2026-07-22, superseding the 10 pt + ellipsis fix).
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  softWrap: false,
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                    fontSize: 9,
+                    color: color,
+                    fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+                  ),
                 ),
               ),
             ],
