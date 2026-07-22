@@ -70,7 +70,15 @@ class AppPrefs {
   /// All corridor tiles are cached now, so one forced re-match rebuilds the
   /// complete intervals. Paired with a recompute bump so `coverage_cache` is
   /// rebuilt from the repaired intervals (see [kCurrentCoverageRecomputeVersion]).
-  static const int kCurrentMatcherRematchVersion = 6;
+  /// `7` = 2026-07-22 Viterbi traceback repair: the v6 re-match (shipped with
+  /// the OLD decoder) already ran on-device and stamped version 6, so the
+  /// 2026-07-22 traceback chain-break fix (viterbi_decoder.dart — long trips
+  /// were dropping the pre-reset FIRST half, e.g. trip 11: 271 of ~560
+  /// intervals, only the southern part drawn) was gated OUT: `applied(6) >=
+  /// current(6)` skipped the re-match entirely. This bump forces exactly one
+  /// re-match under the FIXED decoder so every stored trip rebuilds its full
+  /// intervals end-to-end. Paired with the recompute bump below.
+  static const int kCurrentMatcherRematchVersion = 7;
 
   /// Version stamp of the last coverage-cache recompute migration applied to
   /// this device. Bumped whenever `coverage_cache` needs a one-shot
@@ -95,7 +103,12 @@ class AppPrefs {
   /// whenever the re-match migration runs (see App._runStartupMigrations), so a
   /// future forced re-match can never again leave the region stats stale — this
   /// bump is the belt-and-suspenders trigger for the current repair.
-  static const int kCurrentCoverageRecomputeVersion = 3;
+  /// `4` = 2026-07-22: paired with the v7 re-match (Viterbi traceback fix). The
+  /// `force: rematched` path already rebuilds `coverage_cache` from the repaired
+  /// intervals, but this explicit bump keeps the recompute stamp truthful and
+  /// gives a standalone trigger should the re-match itself be a no-op on some
+  /// device (e.g. version already 7 but cache never written).
+  static const int kCurrentCoverageRecomputeVersion = 4;
 
   /// Version stamp of the last stuck-fetch recovery migration applied to this
   /// device. Bumped when a one-shot recovery of trips parked by an Overpass
