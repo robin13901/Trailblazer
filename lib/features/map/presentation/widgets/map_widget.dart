@@ -84,12 +84,30 @@ class _MapWidgetState extends ConsumerState<MapWidget>
   /// location. Set once so later fixes don't fight the user's panning.
   bool _didColdStartRecenter = false;
 
+  /// Whether this map instance mounted on a genuine cold start — i.e. the
+  /// persisted [CameraState] was still the (0,0) sentinel at mount time.
+  ///
+  /// Snapshotted HERE in initState, NOT re-read inside `onUserLocationUpdated`.
+  /// Reason (the "opens in Berlin, no recenter button" bug, 2026-07-23): the
+  /// map opens at the Berlin fallback, settles, and fires `onCameraIdle`, which
+  /// persists the Berlin coordinates into `cameraStateProvider` — BEFORE the
+  /// first GPS fix arrives. A guard that re-read the persisted position at
+  /// fix-time would therefore see Berlin (non-sentinel) and skip the recenter,
+  /// leaving the camera stuck at Berlin and the recenter button hidden (still
+  /// in `location` follow mode). Capturing the decision at mount time, before
+  /// any idle can clobber the sentinel, closes that race.
+  bool _mountedOnColdStart = false;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     // ignore: avoid_assigning_notifiers_to_variables — standard safe-dispose pattern
     _mapControllerNotifier = ref.read(mapControllerProvider.notifier);
+    // Snapshot the cold-start decision before any onCameraIdle can persist the
+    // Berlin fallback over the (0,0) sentinel (see field doc above).
+    final persisted = ref.read(cameraStateProvider);
+    _mountedOnColdStart = persisted.latitude == 0 && persisted.longitude == 0;
   }
 
   @override
@@ -282,11 +300,12 @@ class _MapWidgetState extends ConsumerState<MapWidget>
         onUserLocationUpdated: (location) {
           if (!mounted || _didColdStartRecenter) return;
           _didColdStartRecenter = true;
-          final persisted = ref.read(cameraStateProvider);
           // Only take over the camera on a genuine cold start (sentinel
-          // position). If a real position was restored (tab switch, jump-to),
-          // respect it and don't yank the camera to the user.
-          if (persisted.latitude != 0 || persisted.longitude != 0) return;
+          // position captured at mount, BEFORE onCameraIdle could persist the
+          // Berlin fallback over it — see _mountedOnColdStart). If a real
+          // position was restored (tab switch, jump-to), respect it and don't
+          // yank the camera to the user.
+          if (!_mountedOnColdStart) return;
           final controller = ref.read(mapControllerProvider);
           if (controller == null) return;
           // Fire-and-forget; the map must never crash on a camera error.

@@ -34,7 +34,12 @@ class HistoryRow extends ConsumerWidget {
         '${formatTripDateTime(item.startedAt)} · '
         '${formatDuration(item.duration)} · '
         '${formatDistance(item.distanceMeters)}',
-        style: theme.textTheme.bodySmall,
+        // Muted gray (matches the trip sheet's Start/Ziel two-liner) so the
+        // second line reads with a touch more contrast against the title
+        // (on-device feedback 2026-07-23).
+        style: theme.textTheme.bodySmall?.copyWith(
+          color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+        ),
       ),
       trailing: _StatusPill(item: item),
     );

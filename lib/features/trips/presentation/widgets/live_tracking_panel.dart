@@ -7,8 +7,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// Glass pill overlay that appears above the FAB row while a trip is recording.
 ///
-/// Renders `Recording · MM:SS · X.X km · N km/h` updated every second via
-/// [TrackingDurationTicker]. Collapses to [SizedBox.shrink] when not recording.
+/// Renders `MM:SS · X.X km · N km/h` (or `H:MM:SS ·` once past the hour mark),
+/// updated every second via [TrackingDurationTicker]. Collapses to
+/// [SizedBox.shrink] when not recording.
 ///
 /// The timer lives inside [TrackingDurationTicker] (a StatefulWidget), NOT in
 /// this ConsumerWidget — otherwise it would leak on every rebuild (Pitfall 4).
@@ -22,12 +23,9 @@ class LiveTrackingPanel extends ConsumerWidget {
 
     return TrackingDurationTicker(
       builder: (context, now) {
-        final d = state.duration(now);
-        final mm = d.inMinutes.remainder(60).toString().padLeft(2, '0');
-        final ss = d.inSeconds.remainder(60).toString().padLeft(2, '0');
         final km = (state.distanceMeters / 1000).toStringAsFixed(1);
         final spd = state.currentSpeedKmh?.round().toString() ?? '—';
-        final text = 'Aufnahme · $mm:$ss · $km km · $spd km/h';
+        final text = '${_formatElapsed(state.duration(now))} · $km km · $spd km/h';
 
         return GlassPill(
           overMap: true,
@@ -40,4 +38,15 @@ class LiveTrackingPanel extends ConsumerWidget {
       },
     );
   }
+}
+
+/// Elapsed-time label: `MM:SS` under an hour, `H:MM:SS` once past it (so the
+/// counter keeps climbing instead of wrapping back to `00:00` at the hour mark
+/// — on-device feedback 2026-07-23).
+String _formatElapsed(Duration d) {
+  final hh = d.inHours;
+  final mm = d.inMinutes.remainder(60).toString().padLeft(2, '0');
+  final ss = d.inSeconds.remainder(60).toString().padLeft(2, '0');
+  if (hh > 0) return '$hh:$mm:$ss';
+  return '$mm:$ss';
 }

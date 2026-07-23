@@ -51,17 +51,23 @@ Future<void> showTripDetailSheet(
   TripListItem item,
 ) async {
   ref.read(regionSheetOpenProvider.notifier).isOpen = true;
+  // Size the sheet to roughly hug its content instead of a fixed screen
+  // fraction. The content (handle + title + 3 stat rows + 2 two-line endpoint
+  // rows + button) is ~460 dp tall; expressing that as a fraction of THIS
+  // device's height keeps the "Auf Karte anzeigen" button just above the
+  // bottom edge on every screen size, rather than leaving a big empty gap
+  // below it on tall phones (on-device feedback 2026-07-23). Clamped so it
+  // never collapses too small nor exceeds the drag ceiling.
+  const contentHeightDp = 460.0;
+  final screenHeight = MediaQuery.sizeOf(context).height;
+  final initialSize = (contentHeightDp / screenHeight).clamp(0.35, 0.85);
   try {
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (_) => DraggableScrollableSheet(
-        // Open tall enough that the "Auf Karte anzeigen" button is visible
-        // without dragging — the trip sheet has more content than the region
-        // sheet (5 stat/endpoint rows + button), so 0.4 pushed the button below
-        // the screen edge (on-device feedback 2026-07-22).
-        initialChildSize: 0.62,
+        initialChildSize: initialSize,
         maxChildSize: 0.85,
         builder: (ctx, scrollController) => _TripDetailContent(
           item: item,
@@ -374,7 +380,10 @@ class _EndpointRow extends ConsumerWidget {
 
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      crossAxisAlignment: CrossAxisAlignment.start,
+      // crossAxisAlignment defaults to center — the "Start"/"Ziel" label sits
+      // vertically centered across the two right-hand lines (place name +
+      // timestamp) rather than pinned to the top line (on-device feedback
+      // 2026-07-23; was CrossAxisAlignment.start).
       children: [
         Text(
           label,
