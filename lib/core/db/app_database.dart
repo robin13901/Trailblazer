@@ -2,6 +2,7 @@ import 'package:auto_explore/core/db/converters/trip_status_converter.dart';
 import 'package:auto_explore/core/db/daos/driven_way_intervals_dao.dart';
 import 'package:auto_explore/core/db/daos/overpass_way_cache_dao.dart';
 import 'package:auto_explore/core/db/daos/pending_road_fetches_dao.dart';
+import 'package:auto_explore/core/db/daos/way_region_attribution_dao.dart';
 import 'package:auto_explore/core/db/tables/app_prefs_table.dart';
 import 'package:auto_explore/core/db/tables/coverage_cache_table.dart';
 import 'package:auto_explore/core/db/tables/driven_intervals_table.dart';
@@ -9,6 +10,7 @@ import 'package:auto_explore/core/db/tables/overpass_way_cache_table.dart';
 import 'package:auto_explore/core/db/tables/pending_road_fetches_table.dart';
 import 'package:auto_explore/core/db/tables/trip_points_table.dart';
 import 'package:auto_explore/core/db/tables/trips_table.dart';
+import 'package:auto_explore/core/db/tables/way_region_attribution_table.dart';
 // TripStatus is referenced by the Drift-generated app_database.g.dart (part of
 // this library) — the type must be in scope for the part file to compile.
 import 'package:auto_explore/features/trips/domain/trip_status.dart';
@@ -40,14 +42,20 @@ WHERE EXISTS (SELECT 1 FROM trip_points WHERE trip_id = trips.id)''';
     AppPrefs,
     OverpassWayCache,
     PendingRoadFetches,
+    WayRegionAttribution,
   ],
-  daos: [DrivenWayIntervalsDao, OverpassWayCacheDao, PendingRoadFetchesDao],
+  daos: [
+    DrivenWayIntervalsDao,
+    OverpassWayCacheDao,
+    PendingRoadFetchesDao,
+    WayRegionAttributionDao,
+  ],
 )
 class AppDatabase extends _$AppDatabase {
   AppDatabase([QueryExecutor? executor]) : super(executor ?? _openConnection());
 
   @override
-  int get schemaVersion => 7;
+  int get schemaVersion => 8;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -139,6 +147,19 @@ class AppDatabase extends _$AppDatabase {
           await m.addColumn(trips, trips.endLon);
         }
         await customStatement(backfillTripEndpointsSql);
+      }
+      if (from < 8 && to >= 8) {
+        // v8 (2026-07-25): direction-aware matching + durable coverage.
+        //   * `trip_points.heading` — GPS course persisted so the matcher can
+        //     pick the correct carriageway of a divided road (nullable; null on
+        //     historical rows, which fall back to a derived bearing on
+        //     re-match).
+        //   * `way_region_attribution` — durable clip-per-region cache so
+        //     coverage recompute is eviction-proof, monotonic, and fast.
+        // Both are purely additive; guarded `to >= 8` per the destructive-step
+        // convention even though neither is destructive.
+        await m.addColumn(tripPoints, tripPoints.heading);
+        await m.createTable(wayRegionAttribution);
       }
     },
     beforeOpen: (details) async {

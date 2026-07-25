@@ -14,6 +14,15 @@ class TripPoints extends Table {
   RealColumn get altitudeMeters => real().nullable()();
   TextColumn get motionType => text().nullable()();
 
+  /// GPS course-over-ground in degrees (0=N, 90=E), from
+  /// flutter_background_geolocation's `coords.heading` (mirrored onto
+  /// `TrackingRecording.headingDegrees` live). Nullable: absent on historical
+  /// rows written before schema v8, and null when the device reports no
+  /// heading (stationary / no fix). The matcher prefers this stored value when
+  /// present and the vehicle is moving, else derives a bearing from
+  /// consecutive fixes (see `ViterbiDecoder._travelBearing`).
+  RealColumn get heading => real().nullable()();
+
   @override
   List<Set<Column>> get uniqueKeys => [
     {tripId, seq},
