@@ -12,6 +12,7 @@ import 'package:auto_explore/features/map/presentation/widgets/permission_denial
 import 'package:auto_explore/features/map/presentation/widgets/recenter_button.dart';
 import 'package:auto_explore/features/map/presentation/widgets/region_outline_bridge.dart';
 import 'package:auto_explore/features/map/presentation/widgets/region_outline_dismiss_chip.dart';
+import 'package:auto_explore/features/map/presentation/widgets/regions_search_reset_on_leave.dart';
 import 'package:auto_explore/features/map/presentation/widgets/settings_glass_button.dart';
 import 'package:auto_explore/features/map/presentation/widgets/tracking_camera_sync.dart';
 import 'package:auto_explore/features/map/presentation/widgets/trip_fab.dart';
@@ -176,6 +177,21 @@ class MapScreen extends ConsumerWidget {
             height: 0,
             child: TripPathBridge(),
           ),
+
+          // Headless reset: clears the Regions search query when the user
+          // leaves the Regions tab (branch 2 → other). Only meaningful with a
+          // real shell; in isolated widget tests (navigationShell == null)
+          // there is no tab index to observe. Zero-size Positioned mirrors the
+          // other sync widgets so it neither sizes the Stack nor intercepts
+          // hit-tests.
+          if (navigationShell != null)
+            Positioned(
+              top: 0,
+              left: 0,
+              width: 0,
+              height: 0,
+              child: RegionsSearchResetOnLeave(currentIndex: currentIndex),
+            ),
 
           // Non-map tabs render their Scaffold (opaque background) over the
           // map when the shell index is > 0.

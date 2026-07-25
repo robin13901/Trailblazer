@@ -39,6 +39,12 @@ class SearchQueryNotifier extends Notifier<String> {
 
   /// Update the search query. Callers: `ref.read(regionSearchQueryProvider.notifier).query = value`.
   set query(String value) => state = value;
+
+  /// Reset the search query to empty. Called when the user LEAVES the Regions
+  /// tab (see `RegionsSearchResetOnLeave` in `map_screen.dart`) so the search
+  /// does not survive a tab switch. The `_SearchField` listens for this reset
+  /// and clears its `TextEditingController` accordingly.
+  void clear() => state = '';
 }
 
 /// Provider for the current search text. Empty string = no filter.
