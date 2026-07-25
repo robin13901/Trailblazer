@@ -50,6 +50,7 @@ class _SearchField extends ConsumerWidget {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: TextField(
+        textCapitalization: TextCapitalization.words,
         decoration: InputDecoration(
           hintText: 'Region suchen …',
           prefixIcon: const Icon(Icons.search),
