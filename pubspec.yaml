@@ -36,6 +36,7 @@ dependencies:
   shared_preferences: ^2.5.5
   sqlite3: ^3.0.0
   url_launcher: ^6.3.1
+  wakelock_plus: ^1.5.2
 
 dev_dependencies:
   build_runner: ^2.15.0
@@ -56,6 +57,10 @@ dev_dependencies:
   # `SharedPreferencesAsyncPlatform.instance` (see onboarding tests).
   shared_preferences_platform_interface: ^2.4.2
   very_good_analysis: ^10.3.0
+  # Needed by test/features/map/wakelock_sync_test.dart to override
+  # WakelockPlusPlatformInterface.instance with a recording fake (no platform
+  # channel). Version tracks wakelock_plus 1.5.2's resolved interface.
+  wakelock_plus_platform_interface: ^1.6.0
   # riverpod_lint + custom_lint temporarily dropped:
   # drift_dev 2.34 requires analyzer ^13, custom_lint 0.8.1 pins analyzer ^8
   # — no overlapping resolution as of 2026-07. Re-add when custom_lint bumps analyzer.

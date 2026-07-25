@@ -4,12 +4,15 @@ import 'package:auto_explore/app.dart';
 import 'package:auto_explore/core/errors/domain_error.dart';
 import 'package:auto_explore/core/logging/app_logger.dart';
 import 'package:auto_explore/core/theme/liquid_glass_settings.dart';
+import 'package:auto_explore/features/map/data/last_known_location.dart';
 import 'package:auto_explore/features/map/data/tile_provider_config.dart';
 import 'package:auto_explore/features/map/presentation/providers/map_style_provider.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:logging/logging.dart';
+import 'package:maplibre_gl/maplibre_gl.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 final _log = Logger('main');
 
@@ -83,9 +86,22 @@ Future<void> main() async {
     language: mapLanguage,
   );
 
+  // Preload the persisted last-known map location so the map's initial camera
+  // opens where the user last was instead of flashing the Berlin fallback on a
+  // cold start (issue #5b). Read once here, before runApp, then injected via
+  // an override so MapWidget has it synchronously at first build. Best-effort:
+  // any failure falls back to null (Berlin default).
+  LatLng? initialSeed;
+  try {
+    initialSeed = await LastKnownLocationStore(SharedPreferencesAsync()).read();
+  } on Object catch (e) {
+    _log.warning('Last-known location preload failed (using Berlin): $e');
+  }
+
   final container = ProviderContainer(
     overrides: [
       tileProviderConfigProvider.overrideWithValue(tileProviderConfig),
+      initialMapSeedProvider.overrideWithValue(initialSeed),
     ],
   );
 

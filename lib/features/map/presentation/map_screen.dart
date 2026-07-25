@@ -18,7 +18,10 @@ import 'package:auto_explore/features/map/presentation/widgets/tracking_camera_s
 import 'package:auto_explore/features/map/presentation/widgets/trip_fab.dart';
 import 'package:auto_explore/features/map/presentation/widgets/trip_path_bridge.dart';
 import 'package:auto_explore/features/map/presentation/widgets/trip_path_dismiss_chip.dart';
+import 'package:auto_explore/features/map/presentation/widgets/wakelock_sync.dart';
 import 'package:auto_explore/features/regions/presentation/providers/region_sheet_open_provider.dart';
+import 'package:auto_explore/features/trips/domain/tracking_state.dart';
+import 'package:auto_explore/features/trips/presentation/providers/tracking_state_provider.dart';
 import 'package:auto_explore/features/trips/presentation/widgets/live_tracking_panel.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -117,6 +120,19 @@ class MapScreen extends ConsumerWidget {
             width: 0,
             height: 0,
             child: TrackingCameraSync(),
+          ),
+
+          // Headless listener: holds a screen wakelock while a trip is
+          // recording so the display never sleeps mid-drive (issue #4).
+          // OUTSIDE the isMapTab block (zero-size Positioned) so the wakelock
+          // persists across tab switches — the screen stays on even if the
+          // user leaves the Map tab mid-recording.
+          const Positioned(
+            top: 0,
+            left: 0,
+            width: 0,
+            height: 0,
+            child: WakelockSync(),
           ),
 
           // Headless coverage overlay bridge: watches the style-load tick,
@@ -440,11 +456,32 @@ class _RecenterOrEmpty extends ConsumerWidget {
       data: (s) => s.isGranted || s.isLimited,
       orElse: () => false,
     );
+    if (!isGranted) return const SizedBox.shrink();
+
+    final isRecording = ref.watch(trackingStateProvider) is TrackingRecording;
+
+    if (isRecording) {
+      // Issue #12c: during an active recording the desired camera is heading-up
+      // follow (locationAndHeading → native trackingGps). If that is NOT active
+      // — because a tab-return remount or a user pan dropped follow — show the
+      // button so the user can re-lock. Only heading-up follow hides it; passive
+      // `location` follow during recording still offers the re-lock (it is not
+      // the recording follow mode). This is a stable rule keyed off followMode,
+      // so it does not flicker: it shows exactly when follow != locationAndHeading.
+      final headingUpActive =
+          cameraState.followMode == FollowMode.locationAndHeading;
+      return headingUpActive
+          ? const SizedBox.shrink()
+          : const RecenterButton();
+    }
+
+    // Not recording: keep the existing behavior — hide while passively
+    // following (location or locationAndHeading), show once the user pans away.
     final isFollowing =
         cameraState.followMode == FollowMode.location ||
         cameraState.followMode == FollowMode.locationAndHeading;
 
-    if (!isGranted || isFollowing) return const SizedBox.shrink();
+    if (isFollowing) return const SizedBox.shrink();
     return const RecenterButton();
   }
 }

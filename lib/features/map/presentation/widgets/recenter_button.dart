@@ -3,6 +3,8 @@ import 'package:auto_explore/features/map/domain/follow_mode.dart';
 import 'package:auto_explore/features/map/presentation/providers/camera_state_provider.dart';
 import 'package:auto_explore/features/map/presentation/providers/map_controller_provider.dart';
 import 'package:auto_explore/features/map/presentation/widgets/glass_circle.dart';
+import 'package:auto_explore/features/trips/domain/tracking_state.dart';
+import 'package:auto_explore/features/trips/presentation/providers/tracking_state_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:logging/logging.dart';
@@ -46,11 +48,23 @@ class RecenterButton extends ConsumerWidget {
             return;
           }
           try {
+            // Recording-aware follow mode (issue #12b): during an active
+            // recording, restore heading-up follow (FollowMode.locationAndHeading
+            // → MyLocationTrackingMode.trackingGps) so the re-lock returns to
+            // the same heading-locked camera the trip started with. Outside
+            // recording, keep the passive north-up follow (FollowMode.location
+            // → MyLocationTrackingMode.tracking).
+            final isRecording =
+                ref.read(trackingStateProvider) is TrackingRecording;
+            final followMode =
+                isRecording ? FollowMode.locationAndHeading : FollowMode.location;
+            final trackingMode = isRecording
+                ? MyLocationTrackingMode.trackingGps
+                : MyLocationTrackingMode.tracking;
+
             // Update follow-mode state FIRST so MapWidget's next build
-            // passes `myLocationTrackingMode: tracking` to MapLibreMap.
-            ref
-                .read(cameraStateProvider.notifier)
-                .setFollowMode(FollowMode.location);
+            // passes the matching myLocationTrackingMode to MapLibreMap.
+            ref.read(cameraStateProvider.notifier).setFollowMode(followMode);
 
             // Read the current user location from the native side.
             // Returns null if no fix is available yet.
@@ -74,9 +88,7 @@ class RecenterButton extends ConsumerWidget {
             // Enable native tracking so the camera continues to follow
             // subsequent GPS ticks. Safe to call even without a fix —
             // MapLibre just no-ops until one arrives.
-            await controller.updateMyLocationTrackingMode(
-              MyLocationTrackingMode.tracking,
-            );
+            await controller.updateMyLocationTrackingMode(trackingMode);
           } on Object catch (e, st) {
             _log.warning('Recenter failed: $e', e, st);
             // Revert optimistic state so the button reappears.

@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math';
 
+import 'package:auto_explore/features/map/data/last_known_location.dart';
 import 'package:auto_explore/features/map/domain/camera_state.dart';
 import 'package:auto_explore/features/map/domain/follow_mode.dart';
 import 'package:auto_explore/features/map/presentation/providers/camera_state_provider.dart';
@@ -98,6 +99,19 @@ class _MapWidgetState extends ConsumerState<MapWidget>
   /// any idle can clobber the sentinel, closes that race.
   bool _mountedOnColdStart = false;
 
+  /// The cold-start camera seed read once at mount from [initialMapSeedProvider]
+  /// (the persisted last-known location, preloaded in `main()`). Used ONLY when
+  /// the live [CameraState] is still the (0,0) sentinel — i.e. a genuine cold
+  /// start — so the map opens at the user's last position instead of flashing
+  /// the Berlin fallback (issue #5b). `null` when nothing was ever persisted.
+  LatLng? _seed;
+
+  /// Whether this map instance has already persisted a real GPS fix as the
+  /// last-known-location seed. Set on the first `onUserLocationUpdated` so we
+  /// write to disk once per session (cheap) rather than on every fix while
+  /// recording — the seed only needs to survive to the NEXT cold start.
+  bool _persistedSeed = false;
+
   @override
   void initState() {
     super.initState();
@@ -108,6 +122,23 @@ class _MapWidgetState extends ConsumerState<MapWidget>
     // Berlin fallback over the (0,0) sentinel (see field doc above).
     final persisted = ref.read(cameraStateProvider);
     _mountedOnColdStart = persisted.latitude == 0 && persisted.longitude == 0;
+    // Read the preloaded last-known-location seed once (plain value provider,
+    // never changes during the widget's lifetime).
+    _seed = ref.read(initialMapSeedProvider);
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    if (state == AppLifecycleState.resumed) {
+      // Issue #5a: the location permission may have been granted by the OS
+      // AFTER locationPermissionProvider resolved once at launch (it is built
+      // from a read-only currentStatus() and never refreshed). Invalidating it
+      // on resume re-reads the status, so myLocationEnabled flips true once the
+      // grant lands → the native location engine turns on → onUserLocationUpdated
+      // fires → the cold-start recenter can escape the Berlin fallback.
+      ref.invalidate(locationPermissionProvider);
+    }
   }
 
   @override
@@ -181,6 +212,28 @@ class _MapWidgetState extends ConsumerState<MapWidget>
     // source + layer. setStyle() wipes all programmatic sources on the native
     // side, so the bridge must re-add them on every style (re)load.
     ref.read(mapStyleLoadedTickProvider.notifier).bump();
+    // Issue #12a: re-arm native heading-up follow after the map REMOUNTS on a
+    // tab-return during recording. MapWidget is disposed when leaving the Map
+    // tab and reconstructed on return; the native trackingGps mode is only
+    // supplied as a constructor prop (myLocationTrackingMode) and may not
+    // re-engage. If follow mode is still locationAndHeading (recording, not
+    // dismissed by a user pan), imperatively re-apply trackingGps once the
+    // controller + location component are ready (guaranteed by style-load).
+    // Fire-and-forget, best-effort — never crash the map on a tracking error.
+    final controller = ref.read(mapControllerProvider);
+    if (controller != null &&
+        ref.read(cameraStateProvider).followMode ==
+            FollowMode.locationAndHeading) {
+      unawaited(() async {
+        try {
+          await controller.updateMyLocationTrackingMode(
+            MyLocationTrackingMode.trackingGps,
+          );
+        } on Object {
+          // Swallow — re-arm is best-effort.
+        }
+      }());
+    }
     widget.onStyleLoaded?.call();
   }
 
@@ -229,8 +282,12 @@ class _MapWidgetState extends ConsumerState<MapWidget>
         // Seed from the persisted CameraState when it holds a real position
         // (lat/lng != 0,0 sentinel) so that disposing + recreating the map on
         // a tab switch (memory fix — the map's ~500 MB GL surface is freed
-        // while off the Map tab) returns to where the user left it. Falls back
-        // to the widget's initial target on a genuine cold start.
+        // while off the Map tab) returns to where the user left it.
+        //
+        // On a genuine cold start (sentinel position), fall back to the
+        // persisted last-known location [_seed] (issue #5b) so the map opens
+        // where the user last was — Berlin (widget.initialTarget) is only the
+        // ultimate fallback when nothing was ever persisted.
         initialCameraPosition: (cameraState.latitude != 0 ||
                 cameraState.longitude != 0)
             ? CameraPosition(
@@ -239,7 +296,7 @@ class _MapWidgetState extends ConsumerState<MapWidget>
                 bearing: cameraState.bearing,
               )
             : CameraPosition(
-                target: widget.initialTarget,
+                target: _seed ?? widget.initialTarget,
                 zoom: widget.initialZoom,
               ),
         // 02-CONTEXT.md: flat 2D only — tilt is the only non-default gesture flag.
@@ -298,7 +355,24 @@ class _MapWidgetState extends ConsumerState<MapWidget>
         // — so the app always opens "where I am" without waiting on MapLibre's
         // tracking-mode snap (unreliable on the first iOS fix).
         onUserLocationUpdated: (location) {
-          if (!mounted || _didColdStartRecenter) return;
+          if (!mounted) return;
+          // Persist the first real fix as the last-known-location seed so the
+          // NEXT cold start opens here instead of Berlin (issue #5b). Once per
+          // session — the seed only needs to survive to the next launch, so we
+          // don't re-write on every recording fix. Fire-and-forget, best-effort.
+          if (!_persistedSeed) {
+            _persistedSeed = true;
+            unawaited(() async {
+              try {
+                await ref
+                    .read(lastKnownLocationStoreProvider)
+                    .write(location.position);
+              } on Object {
+                // Swallow — persisting the seed is best-effort.
+              }
+            }());
+          }
+          if (_didColdStartRecenter) return;
           _didColdStartRecenter = true;
           // Only take over the camera on a genuine cold start (sentinel
           // position captured at mount, BEFORE onCameraIdle could persist the
