@@ -911,8 +911,18 @@
             "dsl_features": []
           },
           {
-            "name": "clipped_length_m",
-            "getter_name": "clippedLengthM",
+            "name": "range_start_m",
+            "getter_name": "rangeStartM",
+            "moor_type": "double",
+            "nullable": false,
+            "customConstraints": null,
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "range_end_m",
+            "getter_name": "rangeEndM",
             "moor_type": "double",
             "nullable": false,
             "customConstraints": null,
@@ -936,7 +946,8 @@
         "constraints": [],
         "explicit_pk": [
           "way_id",
-          "region_id"
+          "region_id",
+          "range_start_m"
         ]
       }
     }
@@ -1010,7 +1021,7 @@
       "sql": [
         {
           "dialect": "sqlite",
-          "sql": "CREATE TABLE IF NOT EXISTS \"way_region_attribution\" (\"way_id\" INTEGER NOT NULL, \"region_id\" TEXT NOT NULL, \"admin_level\" INTEGER NOT NULL, \"clipped_length_m\" REAL NOT NULL, \"computed_at\" INTEGER NOT NULL DEFAULT (CAST(strftime('%s', CURRENT_TIMESTAMP) AS INTEGER)), PRIMARY KEY (\"way_id\", \"region_id\"));"
+          "sql": "CREATE TABLE IF NOT EXISTS \"way_region_attribution\" (\"way_id\" INTEGER NOT NULL, \"region_id\" TEXT NOT NULL, \"admin_level\" INTEGER NOT NULL, \"range_start_m\" REAL NOT NULL, \"range_end_m\" REAL NOT NULL, \"computed_at\" INTEGER NOT NULL DEFAULT (CAST(strftime('%s', CURRENT_TIMESTAMP) AS INTEGER)), PRIMARY KEY (\"way_id\", \"region_id\", \"range_start_m\"));"
         }
       ]
     }

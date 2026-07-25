@@ -1,15 +1,16 @@
-// Long-lived coverage-compute isolate (2026-07-22).
+// Long-lived coverage-compute isolate (2026-07-22; reworked 2026-07-25).
 //
-// Moves the heavy coverage recompute (tile gunzip+parse + ~10k point-in-polygon
-// lookups against the ~20K-polygon admin index) OFF the Flutter main isolate so
-// the UI stays smooth while a trip's coverage is recomputed. Mirrors
+// Moves the heavy STAGE-1 attribution (tile gunzip+parse + polyline-vs-polygon
+// clip against the ~20K-polygon admin index) OFF the Flutter main isolate so
+// the UI stays smooth while a trip's new ways are attributed. Mirrors
 // MatcherIsolate, with a TWO-PHASE startup: after the SendPort handshake, the
 // main isolate reads the admin + totals asset bytes (rootBundle is unreachable
 // from a spawned isolate) and ships them once via [CoverageLoadBundle]; the
 // worker parses+indexes them and replies [CoverageReady] before start()
 // completes. The polygon index lives ONLY inside the worker and is NEVER sent
-// back — only small RegionAccum results cross the boundary (this is what avoids
-// the 2026-07-10 OOM, which was a large index copied over the SendPort).
+// back — only the small [WayRegionAttributionRow] list crosses the boundary
+// (this is what avoids the 2026-07-10 OOM, which was a large index copied over
+// the SendPort).
 //
 // No Drift, no Flutter imports in this file or its worker entry function.
 
@@ -22,7 +23,6 @@ import 'package:auto_explore/features/admin/data/admin_region.dart';
 import 'package:auto_explore/features/matching/data/tile_bbox_math.dart';
 import 'package:auto_explore/features/regions/data/coverage_attribution.dart';
 import 'package:auto_explore/features/regions/data/coverage_compute_job.dart';
-import 'package:auto_explore/features/regions/data/region_totals_parser.dart';
 import 'package:logging/logging.dart';
 
 /// Loads the raw gzipped admin bundle bytes on the MAIN isolate (rootBundle is
@@ -34,7 +34,7 @@ typedef AdminBytesLoader = Future<Uint8List> Function();
 typedef TotalsBytesLoader = Future<Uint8List?> Function();
 
 /// Long-lived isolate wrapping [computeCoverageAttribution] for off-main-thread
-/// coverage recompute.
+/// STAGE-1 clip.
 ///
 /// Usage:
 /// ```dart
@@ -43,8 +43,8 @@ typedef TotalsBytesLoader = Future<Uint8List?> Function();
 ///   loadTotalsBytes: loadRegionTotalsBytes,
 /// );
 /// await iso.start(); // spawns, ships bundle bytes, parses index in worker
-/// final accum = await iso.computeAttribution(
-///   gzippedTiles: ..., tileBboxes: ..., intervalsByWayId: ...);
+/// final rows = await iso.computeAttribution(
+///   gzippedTiles: ..., tileBboxes: ..., alreadyAttributedWayIds: ...);
 /// iso.dispose();
 /// ```
 ///
@@ -72,7 +72,7 @@ class CoverageComputeIsolate {
   final _mainPort = ReceivePort();
 
   /// jobSeq → Completer awaiting the worker's reply.
-  final _pending = <int, Completer<Map<String, RegionAccum>>>{};
+  final _pending = <int, Completer<List<WayRegionAttributionRow>>>{};
 
   int _seq = 0;
   bool _started = false;
@@ -125,8 +125,8 @@ class CoverageComputeIsolate {
             if (comp == null) return; // stale reply after dispose
             if (msg.error != null) {
               comp.completeError(msg.error!);
-            } else if (msg.result != null) {
-              comp.complete(msg.result!);
+            } else if (msg.rows != null) {
+              comp.complete(msg.rows!);
             }
           }
         });
@@ -163,13 +163,14 @@ class CoverageComputeIsolate {
     }
   }
 
-  /// Enqueue a coverage-attribution job; resolves with `regionId → RegionAccum`.
+  /// Enqueue a STAGE-1 attribution job; resolves with the durable
+  /// [WayRegionAttributionRow]s for the NEW ways in the payload.
   ///
   /// Throws [StateError] if [start] has not completed.
-  Future<Map<String, RegionAccum>> computeAttribution({
+  Future<List<WayRegionAttributionRow>> computeAttribution({
     required List<Uint8List> gzippedTiles,
     required List<LatLonBbox> tileBboxes,
-    required Map<int, List<double>> intervalsByWayId,
+    Set<int> alreadyAttributedWayIds = const {},
   }) {
     if (!_started) throw StateError('CoverageComputeIsolate not started');
     final seq = ++_seq;
@@ -177,9 +178,9 @@ class CoverageComputeIsolate {
       jobSeq: seq,
       gzippedTiles: gzippedTiles,
       tileBboxes: tileBboxes,
-      intervalsByWayId: intervalsByWayId,
+      alreadyAttributedWayIds: alreadyAttributedWayIds,
     );
-    final comp = Completer<Map<String, RegionAccum>>();
+    final comp = Completer<List<WayRegionAttributionRow>>();
     _pending[seq] = comp;
     _workerPort!.send(job);
     return comp.future;
@@ -208,17 +209,17 @@ void _coverageWorker(SendPort mainPort) {
   // Send our own SendPort back to the main isolate (readiness handshake #1).
   mainPort.send(workerPort.sendPort);
 
-  // The resident polygon index + totals — parsed ONCE from the LoadBundle
-  // message and retained across all jobs. Never sent back over the port.
+  // The resident polygon index — parsed ONCE from the LoadBundle message and
+  // retained across all jobs. Never sent back over the port.
   Map<int, List<AdminRegion>>? regionsByLevel;
-  Map<String, double>? totals;
 
   workerPort.listen((msg) {
     if (msg is CoverageLoadBundle) {
       final regions = parseAdminBundle(msg.adminBytes);
       regionsByLevel = bucketRegionsByLevel(regions);
-      final tb = msg.totalsBytes;
-      totals = tb != null ? parseRegionTotalsBundle(tb) : null;
+      // totalsBytes is intentionally ignored here — real per-region totals are
+      // resolved on the MAIN isolate in STAGE 2 (RegionTotalsLookup). The field
+      // is retained on the bundle only for loader-wiring symmetry.
       // Readiness handshake #2: index is live, accept jobs.
       mainPort.send(const CoverageReady());
       return;
@@ -231,15 +232,14 @@ void _coverageWorker(SendPort mainPort) {
           // the two-phase startup, but fail loudly rather than silently empty.
           throw StateError('CoverageComputeJob before CoverageLoadBundle');
         }
-        final result = computeCoverageAttribution(
+        final rows = computeCoverageAttribution(
           regionsByLevel: index,
-          totals: totals,
           gzippedTiles: msg.gzippedTiles,
           tileBboxes: msg.tileBboxes,
-          intervalsByWayId: msg.intervalsByWayId,
+          alreadyAttributedWayIds: msg.alreadyAttributedWayIds,
         );
         mainPort.send(
-          CoverageComputeReply(jobSeq: msg.jobSeq, result: result),
+          CoverageComputeReply(jobSeq: msg.jobSeq, rows: rows),
         );
       } on Object catch (e) {
         mainPort.send(CoverageComputeReply(jobSeq: msg.jobSeq, error: e));

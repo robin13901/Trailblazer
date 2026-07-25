@@ -83,9 +83,16 @@ class TripMatchCoordinator {
   final _log = Logger('trip_match_coordinator');
 
   /// Re-entrancy guard for the auto-recompute trigger.
-  /// True while a recompute is already in flight — a subsequent intervals-
-  /// landed event is debounced (skipped) rather than queuing a second pass.
+  /// True while a recompute is already in flight.
   bool _recomputeInFlight = false;
+
+  /// Coalesce flag: set when an intervals-landed event arrives WHILE a recompute
+  /// is already in flight. When the in-flight pass finishes, if this is set, we
+  /// run EXACTLY ONE more recompute (with the freshest committed intervals) —
+  /// so back-to-back trips never lose a coverage update (2026-07-25 #7). The
+  /// trailing pass carries the last-requested tripId for logging only.
+  bool _recomputePending = false;
+  int _pendingTripId = -1;
 
   /// Invoked by 04-15's TripRoadFetchCoordinator immediately after a trip
   /// transitions from `pendingRoadData` to `pending`.
@@ -260,18 +267,31 @@ class TripMatchCoordinator {
 
   /// Fire-and-forget auto recompute trigger.
   ///
-  /// Re-entrancy: if a recompute is already in flight, the call is skipped.
-  /// The in-flight pass will use the freshest intervals when it runs (they
-  /// are already committed to the DB at this point), so no data is lost.
+  /// Re-entrancy COALESCE (2026-07-25 #7): if a recompute is already in flight,
+  /// the event is not dropped — instead a `_recomputePending` flag is set so
+  /// that exactly ONE more recompute runs after the in-flight one finishes
+  /// (using the freshest committed intervals). Rapid back-to-back trips
+  /// therefore always end with an up-to-date coverage cache. Errors are logged,
+  /// never thrown.
   void _triggerAutoRecompute(int tripId) {
     final callback = _onIntervalsLanded;
     if (callback == null) return;
     if (_recomputeInFlight) {
+      _recomputePending = true;
+      _pendingTripId = tripId;
       _log.fine(
-        'auto-recompute: recompute already in flight for trip $tripId — skipping',
+        'auto-recompute: recompute in flight — coalescing trip $tripId '
+        'into one trailing pass',
       );
       return;
     }
+    _runRecompute(callback, tripId);
+  }
+
+  /// Runs one recompute pass fire-and-forget; on completion, if a coalesced
+  /// event arrived meanwhile, runs exactly one more (loop-free single trailing
+  /// pass — a further arrival during the trailing pass re-arms the flag again).
+  void _runRecompute(OnIntervalsLandedCallback callback, int tripId) {
     _recomputeInFlight = true;
     unawaited(
       Future(() {
@@ -281,6 +301,12 @@ class TripMatchCoordinator {
           _log.warning('auto-recompute: onIntervalsLanded threw: $e', e, st);
         } finally {
           _recomputeInFlight = false;
+          if (_recomputePending) {
+            _recomputePending = false;
+            final next = _pendingTripId;
+            _pendingTripId = -1;
+            _runRecompute(callback, next);
+          }
         }
       }),
     );

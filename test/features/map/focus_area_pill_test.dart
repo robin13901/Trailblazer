@@ -9,9 +9,12 @@
 //      Exercises the GlassPillFallback path (platformBlurEnabled = false).
 
 import 'package:auto_explore/core/theme/liquid_glass_settings.dart';
+import 'package:auto_explore/features/coverage/domain/coverage_color_preset.dart';
+import 'package:auto_explore/features/coverage/presentation/coverage_preset_provider.dart';
 import 'package:auto_explore/features/map/presentation/widgets/focus_area_pill.dart';
 import 'package:auto_explore/features/map/presentation/widgets/glass_pill.dart';
 import 'package:auto_explore/features/regions/presentation/providers/focus_pill_provider.dart';
+import 'package:auto_explore/features/trips/presentation/providers/inbox_providers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -30,6 +33,11 @@ Future<void> _pumpPill(
     ProviderScope(
       overrides: [
         focusPillProvider.overrideWith(() => _FixedFocusPillNotifier(state)),
+        // Not computing → normal (non-pulsing) border; avoids the real inbox
+        // repo/DB (#8 wiring watches inFlightCount + preset).
+        inFlightCountProvider.overrideWith((ref) => Stream.value(0)),
+        coveragePresetValueProvider
+            .overrideWithValue(CoverageColorPreset.amber),
       ],
       child: const MaterialApp(
         home: Scaffold(

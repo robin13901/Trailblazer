@@ -1,33 +1,44 @@
-// Trailblazer Phase 8, Plan 08-02 (Wave 1) / updated Phase 10, Plan 10-04:
-// CoverageComputeService unit tests — integration-style against an in-memory
-// Drift database + fake collaborators.
+// Trailblazer coverage recompute service tests — integration-style against an
+// in-memory Drift database + fake collaborators.
+//
+// 2026-07-25 DURABLE CLIP-PER-REGION REWORK (#7): recompute() is now two-stage.
+// These tests inject the REAL STAGE-1 clip (computeCoverageAttribution) as the
+// off-isolate runner over a fake WayCandidateSource that returns a gzipped tile,
+// and assert the STAGE-2 DB aggregation writes the correct driven/total lengths.
 //
 // Test inventory:
 //  1. Empty DB (no intervals, null bbox) → recompute() == Ok(0), cache empty.
-//  2. Ways present but null bbox (no matched/confirmed trips) → Ok(0), no rows.
-//  3. No matching admin region (regionAt all null) → Ok(0), no rows written.
-//  4. One driven way inside a known region → row written with totalLengthM > 0
-//     AND drivenLengthM > 0; getAllWithCoverage() contains the region.
-//  5. Un-driven way in region → totalLengthM > 0 but drivenLengthM == 0;
-//     getAllWithCoverage() does NOT contain it (driven > 0 filter).
-//  6. Re-population: deleteByRegionIds simulates the invalidator; recompute()
-//     again → row reappears.
-//  7. Level 2 is never written (explicit assertion when the fake injects
-//     a level-2 region alongside level 8).
-//  8. Bundled real total: when RegionTotalsLookup provides a total for the
-//     region, recompute() writes real_total_length_m from the bundled table.
-//  9. Missing bundled total: when RegionTotalsLookup returns null for a
-//     region, real_total_length_m is written as null (no error, no crash).
+//  2. Trips exist but none matched → null bbox → Ok(0).
+//  3. No matching admin region → Ok(0), no rows written.
+//  4. One driven way inside a region → row with totalLengthM > 0 AND
+//     drivenLengthM > 0 (overlap of the driven interval with the in-region range).
+//  5. Un-driven way in region → totalLengthM > 0 but drivenLengthM == 0.
+//  6. Re-population after simulated invalidation → row reappears (attribution
+//     rows are durable; STAGE-1 is skipped, STAGE-2 rebuilds).
+//  7. Level 2 is never written.
+//  8. Bundled real total written from RegionTotalsLookup.
+//  9. Missing bundled total → real_total_length_m null.
+// 10. recomputeForTrip (incremental centroid path) — same numbers for a single
+//     trip.
+// 11. recomputeForTrip with null bbox → Ok(0).
+// 12. Monotonic clip: driven interval covering only ONE region's range credits
+//     only that region (boundary-crossing way, no double count).
+// 13. Eviction-proof: attribution rows present but tile cache empty → coverage
+//     still computed from durable rows.
+
+import 'dart:convert';
+import 'dart:io' show gzip;
 
 import 'package:auto_explore/core/db/app_database.dart';
 import 'package:auto_explore/core/db/daos/driven_way_intervals_dao.dart';
+import 'package:auto_explore/core/db/daos/way_region_attribution_dao.dart';
 import 'package:auto_explore/features/admin/data/admin_region.dart';
 import 'package:auto_explore/features/admin/data/admin_region_lookup.dart';
 import 'package:auto_explore/features/coverage/data/coverage_cache_dao.dart';
 import 'package:auto_explore/features/matching/data/tile_bbox_math.dart';
 import 'package:auto_explore/features/matching/data/way_candidate_source.dart';
 import 'package:auto_explore/features/matching/domain/way_candidate.dart';
-import 'package:auto_explore/features/regions/data/coverage_compute_job.dart';
+import 'package:auto_explore/features/regions/data/coverage_attribution.dart';
 import 'package:auto_explore/features/regions/data/coverage_compute_service.dart';
 import 'package:auto_explore/features/regions/data/region_totals_lookup.dart';
 import 'package:auto_explore/features/trips/data/trips_dao.dart';
@@ -43,7 +54,6 @@ import 'package:maplibre_gl/maplibre_gl.dart' show LatLng;
 // ---------------------------------------------------------------------------
 
 /// Fake AdminRegionLookup backed by a map from admin_level → region.
-/// A null entry explicitly signals "no region at this level".
 class _FakeAdminRegionLookup implements AdminRegionLookup {
   _FakeAdminRegionLookup(this._byLevel);
 
@@ -53,11 +63,7 @@ class _FakeAdminRegionLookup implements AdminRegionLookup {
   Future<void> ensureLoaded() async {}
 
   @override
-  Future<AdminRegion?> regionAt(
-    double lat,
-    double lon,
-    int adminLevel,
-  ) async =>
+  Future<AdminRegion?> regionAt(double lat, double lon, int adminLevel) async =>
       _byLevel[adminLevel];
 
   @override
@@ -78,10 +84,32 @@ class _FakeAdminRegionLookup implements AdminRegionLookup {
   int get bundleLoadCount => 0;
 }
 
-/// Fake WayCandidateSource — returns a fixed list of ways for any bbox.
+/// Gzip a single-tile Overpass envelope wrapping [ways].
+Uint8List _gzTile(List<WayCandidate> ways) {
+  final env = {
+    'version': 0.6,
+    'elements': [
+      for (final w in ways)
+        {
+          'type': 'way',
+          'id': w.wayId,
+          'geometry': [
+            for (final p in w.geometry) {'lat': p.latitude, 'lon': p.longitude},
+          ],
+          'tags': {'highway': w.highwayClass},
+        },
+    ],
+  };
+  return Uint8List.fromList(gzip.encode(utf8.encode(jsonEncode(env))));
+}
+
+/// Fake WayCandidateSource — returns a fixed way list. Its raw-tiles path
+/// gzips those ways into one tile (so STAGE-1 clip runs) unless [emptyRawTiles]
+/// is set (to exercise the eviction-proof STAGE-2-only path).
 class _FixedWayCandidateSource implements WayCandidateSource {
-  _FixedWayCandidateSource(this.ways);
+  _FixedWayCandidateSource(this.ways, {this.emptyRawTiles = false});
   final List<WayCandidate> ways;
+  final bool emptyRawTiles;
 
   @override
   Future<List<WayCandidate>> fetchWaysInBbox({
@@ -106,12 +134,23 @@ class _FixedWayCandidateSource implements WayCandidateSource {
     Set<TileId>? restrictTiles,
     bool cacheOnly = false,
     void Function(int done, int total)? onTileProgress,
-  }) async =>
-      const [];
+  }) async {
+    if (emptyRawTiles || ways.isEmpty) return const [];
+    return [
+      RawTilePayload(
+        payloadGzip: _gzTile(ways),
+        bbox: LatLonBbox(
+          minLat: minLat,
+          minLon: minLon,
+          maxLat: maxLat,
+          maxLon: maxLon,
+        ),
+      ),
+    ];
+  }
 }
 
 /// Fake RegionTotalsLookup backed by a fixed map (osm_id string → meters).
-/// Null map means "asset absent": all [totalFor] calls return null.
 class _FakeRegionTotalsLookup extends RegionTotalsLookup {
   _FakeRegionTotalsLookup([this._totals]);
 
@@ -137,7 +176,6 @@ AdminRegion _regionLevel8({int osmId = 151999}) => AdminRegion(
       bboxMinLon: 9.17,
       bboxMaxLat: 49.82,
       bboxMaxLon: 9.22,
-      // Simple square polygon; must be a closed ring (first == last), ≥4 pts.
       polygons: const [
         [
           [
@@ -173,7 +211,8 @@ AdminRegion _regionLevel2({int osmId = 51477}) => AdminRegion(
       ],
     );
 
-/// Straight 3-point way at ~(49.80, 9.19) — inside `_regionLevel8`.
+/// Straight 3-point way at ~(49.80, 9.19) — inside `_regionLevel8`. Length
+/// ~222 m (0.002° lat).
 WayCandidate _fixtureWay({int wayId = 100001}) => WayCandidate(
       wayId: wayId,
       highwayClass: 'residential',
@@ -183,6 +222,16 @@ WayCandidate _fixtureWay({int wayId = 100001}) => WayCandidate(
         LatLng(49.801, 9.190),
       ],
     );
+
+double _wayLen(WayCandidate w) {
+  final g = w.geometry;
+  var total = 0.0;
+  for (var i = 0; i < g.length - 1; i++) {
+    total += haversineMeters(
+        g[i].latitude, g[i].longitude, g[i + 1].latitude, g[i + 1].longitude);
+  }
+  return total;
+}
 
 /// Seed a matched trip with a bbox covering Kleinheubach in [db].
 Future<int> _seedMatchedTrip(AppDatabase db) async {
@@ -234,12 +283,14 @@ void main() {
   late TripsDao tripsDao;
   late DrivenWayIntervalsDao intervalsDao;
   late CoverageCacheDao cacheDao;
+  late WayRegionAttributionDao attributionDao;
 
   setUp(() async {
     db = AppDatabase(NativeDatabase.memory());
     tripsDao = TripsDao(db);
     intervalsDao = DrivenWayIntervalsDao(db);
     cacheDao = CoverageCacheDao(db);
+    attributionDao = WayRegionAttributionDao(db);
     // Trigger beforeOpen PRAGMAs (foreign_keys=ON, journal_mode=WAL).
     await db.customSelect('SELECT 1').getSingle();
   });
@@ -248,19 +299,14 @@ void main() {
     await db.close();
   });
 
-  // Local helper — no leading underscore (no_leading_underscores_for_local_identifiers).
-  //
-  // The heavy attribution now runs off-isolate via an injected runner; in these
-  // plumbing tests we inject a SYNCHRONOUS closure that attributes the fixture
-  // `ways` against `byLevel` directly (same centroid → containsPoint → union
-  // logic as the production coverage_attribution.dart, exercised end-to-end in
-  // coverage_attribution_test.dart). This keeps these tests focused on the
-  // service's Drift read/write plumbing (null-bbox → Ok(0), transactional
-  // deleteAll+upsert, realTotal passthrough, Ok(count)).
+  // Builds a service whose off-isolate STAGE-1 runner is the REAL clip
+  // (computeCoverageAttribution) over the provided regionsByLevel. STAGE-2 (DB
+  // aggregation) runs unchanged inside the service.
   CoverageComputeService buildService({
     required Map<int, AdminRegion?> byLevel,
     List<WayCandidate> ways = const [],
     _FakeRegionTotalsLookup? totalsLookup,
+    bool emptyRawTiles = false,
   }) {
     final totals = totalsLookup ?? _FakeRegionTotalsLookup();
     final regionsByLevel = <int, List<AdminRegion>>{
@@ -269,69 +315,23 @@ void main() {
     };
     return CoverageComputeService(
       intervalsDao: intervalsDao,
-      waySource: _FixedWayCandidateSource(ways),
+      waySource: _FixedWayCandidateSource(ways, emptyRawTiles: emptyRawTiles),
       regionLookup: _FakeAdminRegionLookup(byLevel),
       cacheDao: cacheDao,
       tripsDao: tripsDao,
       totalsLookup: totals,
-      compute: (gzippedTiles, tileBboxes, intervalsByWayId) async {
-        // Rebuild union length per wayId from the flattened intervals.
-        final unionLenByWay = <int, double>{};
-        for (final entry in intervalsByWayId.entries) {
-          final flat = entry.value;
-          var sum = 0.0;
-          for (var i = 0; i + 1 < flat.length; i += 2) {
-            sum += (flat[i + 1] - flat[i]).abs();
-          }
-          unionLenByWay[entry.key] = sum;
-        }
-        final total = <String, double>{};
-        final driven = <String, double>{};
-        for (final way in ways) {
-          if (way.geometry.isEmpty) continue;
-          var sumLat = 0.0;
-          var sumLon = 0.0;
-          for (final p in way.geometry) {
-            sumLat += p.latitude;
-            sumLon += p.longitude;
-          }
-          final cLat = sumLat / way.geometry.length;
-          final cLon = sumLon / way.geometry.length;
-          var wayLen = 0.0;
-          for (var i = 0; i < way.geometry.length - 1; i++) {
-            wayLen += haversineMeters(
-              way.geometry[i].latitude,
-              way.geometry[i].longitude,
-              way.geometry[i + 1].latitude,
-              way.geometry[i + 1].longitude,
-            );
-          }
-          final unionLen = unionLenByWay[way.wayId] ?? 0.0;
-          for (final level in kComputeAdminLevels) {
-            final region = regionsByLevel[level];
-            if (region == null) continue;
-            if (!region.first.containsPoint(cLat, cLon)) continue;
-            final id = region.first.osmId.toString();
-            total[id] = (total[id] ?? 0) + wayLen;
-            if (unionLen > 0) driven[id] = (driven[id] ?? 0) + unionLen;
-          }
-        }
-        return {
-          for (final id in total.keys)
-            id: RegionAccum(
-              driven: driven[id] ?? 0,
-              total: total[id]!,
-              realTotal: totals.totalFor(id),
-            ),
-        };
-      },
+      attributionDao: attributionDao,
+      compute: (gzippedTiles, tileBboxes, alreadyAttributedWayIds) async =>
+          computeCoverageAttribution(
+        regionsByLevel: regionsByLevel,
+        gzippedTiles: gzippedTiles,
+        tileBboxes: tileBboxes,
+        alreadyAttributedWayIds: alreadyAttributedWayIds,
+      ),
     );
   }
 
   group('CoverageComputeService.recompute', () {
-    // -----------------------------------------------------------------------
-    // Test 1: Empty DB → Ok(0), cache empty
-    // -----------------------------------------------------------------------
     test('empty DB (no trips, no intervals) → Ok(0), getAllWithCoverage empty',
         () async {
       final service = buildService(byLevel: {8: _regionLevel8()});
@@ -342,12 +342,8 @@ void main() {
       expect(await cacheDao.getAllWithCoverage(), isEmpty);
     });
 
-    // -----------------------------------------------------------------------
-    // Test 2: No matched trips → null bbox → Ok(0)
-    // -----------------------------------------------------------------------
     test('trips exist but none matched → null bbox → Ok(0), cache cleared',
         () async {
-      // Insert a recording-status trip (not matched → not in union bbox).
       await db.into(db.trips).insert(
             TripsCompanion.insert(
               startedAt: DateTime(2026, 7, 11, 8),
@@ -361,9 +357,6 @@ void main() {
       expect(result.when(ok: (v) => v, err: (_) => -1), 0);
     });
 
-    // -----------------------------------------------------------------------
-    // Test 3: All regionAt calls return null → Ok(0), no rows written
-    // -----------------------------------------------------------------------
     test('regionAt returns null for all levels → Ok(0), no cache rows',
         () async {
       final tripId = await _seedMatchedTrip(db);
@@ -378,24 +371,13 @@ void main() {
       expect(await cacheDao.getAllWithCoverage(), isEmpty);
     });
 
-    // -----------------------------------------------------------------------
-    // Test 4: One driven way in a known region → row with both lengths > 0
-    // -----------------------------------------------------------------------
     test(
-      'one driven way in level-8 region → '
-      'totalLengthM > 0, drivenLengthM > 0, '
-      'getByRegionId non-null, getAllWithCoverage contains region',
+      'one driven way in level-8 region → totalLengthM > 0, drivenLengthM > 0',
       () async {
         final tripId = await _seedMatchedTrip(db);
-        await _seedInterval(
-          db,
-          tripId: tripId,
-          wayId: 100001,
-          // 100 m driven
-        );
+        await _seedInterval(db, tripId: tripId, wayId: 100001);
 
         final service = buildService(
-          // Provide level-8 region only; other levels return null.
           byLevel: {4: null, 6: null, 8: _regionLevel8(), 9: null, 10: null},
           ways: [_fixtureWay()],
         );
@@ -409,21 +391,16 @@ void main() {
         expect(row!.totalLengthM, greaterThan(0));
         expect(row.drivenLengthM, greaterThan(0));
         expect(row.drivenLengthM, lessThanOrEqualTo(row.totalLengthM));
+        // Driven == overlap([0,100], [0, wayLen]) == 100 m.
+        expect(row.drivenLengthM, closeTo(100, 0.5));
 
         final allWithCoverage = await cacheDao.getAllWithCoverage();
-        expect(
-          allWithCoverage.any((r) => r.regionId == regionId),
-          isTrue,
-        );
+        expect(allWithCoverage.any((r) => r.regionId == regionId), isTrue);
       },
     );
 
-    // -----------------------------------------------------------------------
-    // Test 5: Un-driven way → total > 0, driven == 0, not in getAllWithCoverage
-    // -----------------------------------------------------------------------
     test(
-      'un-driven way (no intervals for that wayId) → '
-      'totalLengthM > 0, drivenLengthM == 0, not in getAllWithCoverage',
+      'un-driven way → totalLengthM > 0, drivenLengthM == 0, not in coverage',
       () async {
         await _seedMatchedTrip(db);
         // No interval seeded for wayId 100001 → driven == 0.
@@ -434,7 +411,6 @@ void main() {
         );
 
         final result = await service.recompute();
-        // One row written (total > 0), but driven == 0.
         expect(result.when(ok: (v) => v, err: (_) => -1), 1);
 
         final regionId = _regionLevel8().osmId.toString();
@@ -443,17 +419,13 @@ void main() {
         expect(row!.totalLengthM, greaterThan(0));
         expect(row.drivenLengthM, 0);
 
-        // getAllWithCoverage filters driven > 0.
         expect(await cacheDao.getAllWithCoverage(), isEmpty);
       },
     );
 
-    // -----------------------------------------------------------------------
-    // Test 6: Re-population after simulated invalidation
-    // -----------------------------------------------------------------------
     test(
-      're-population: deleteByRegionIds (simulated invalidator) then '
-      'recompute() → row reappears',
+      're-population: deleteByRegionIds then recompute() → row reappears '
+      '(attribution rows durable)',
       () async {
         final tripId = await _seedMatchedTrip(db);
         await _seedInterval(db, tripId: tripId, wayId: 100001);
@@ -463,132 +435,233 @@ void main() {
           ways: [_fixtureWay()],
         );
 
-        // First recompute — establishes the row.
         await service.recompute();
         final regionId = _regionLevel8().osmId.toString();
         expect(await cacheDao.getByRegionId(regionId), isNotNull);
+        // Attribution row persisted.
+        expect(await attributionDao.getAllRows(), isNotEmpty);
 
-        // Simulate CoverageInvalidator deleting the row.
         await cacheDao.deleteByRegionIds([regionId]);
         expect(await cacheDao.getByRegionId(regionId), isNull);
 
-        // Second recompute — row must reappear.
         final result2 = await service.recompute();
         expect(result2.when(ok: (v) => v, err: (_) => -1), 1);
         expect(await cacheDao.getByRegionId(regionId), isNotNull);
+      },
+    );
+
+    test('level 2 region is never written', () async {
+      final tripId = await _seedMatchedTrip(db);
+      await _seedInterval(db, tripId: tripId, wayId: 100001);
+
+      final l2Region = _regionLevel2();
+      final l8Region = _regionLevel8();
+      final service = buildService(
+        byLevel: {2: l2Region, 4: null, 6: null, 8: l8Region, 9: null, 10: null},
+        ways: [_fixtureWay()],
+      );
+
+      await service.recompute();
+
+      expect(await cacheDao.getByRegionId(l2Region.osmId.toString()), isNull);
+      expect(await cacheDao.getByRegionId(l8Region.osmId.toString()), isNotNull);
+    });
+
+    test('bundled total → real_total_length_m written from RegionTotalsLookup',
+        () async {
+      final tripId = await _seedMatchedTrip(db);
+      await _seedInterval(db, tripId: tripId, wayId: 100001);
+
+      final regionId = _regionLevel8().osmId.toString();
+      const bundledTotal = 62638.0;
+
+      final service = buildService(
+        byLevel: {4: null, 6: null, 8: _regionLevel8(), 9: null, 10: null},
+        ways: [_fixtureWay()],
+        totalsLookup: _FakeRegionTotalsLookup({regionId: bundledTotal}),
+      );
+
+      await service.recompute();
+
+      final row = await cacheDao.getByRegionId(regionId);
+      expect(row, isNotNull);
+      expect(row!.realTotalLengthM, bundledTotal);
+      expect(row.totalLengthM, greaterThan(0));
+    });
+
+    test('bundled total absent → real_total_length_m null', () async {
+      final tripId = await _seedMatchedTrip(db);
+      await _seedInterval(db, tripId: tripId, wayId: 100001);
+
+      final service = buildService(
+        byLevel: {4: null, 6: null, 8: _regionLevel8(), 9: null, 10: null},
+        ways: [_fixtureWay()],
+      );
+
+      await service.recompute();
+
+      final regionId = _regionLevel8().osmId.toString();
+      final row = await cacheDao.getByRegionId(regionId);
+      expect(row, isNotNull);
+      expect(row!.realTotalLengthM, isNull);
+      expect(row.totalLengthM, greaterThan(0));
+    });
+
+    // -----------------------------------------------------------------------
+    // (b) Monotonic clip: an interval covering only ONE region's range credits
+    //     only that region — a boundary-crossing way, no double count.
+    // -----------------------------------------------------------------------
+    test(
+      'boundary-crossing way: interval in region A only credits A, not B',
+      () async {
+        // Two level-8 regions split at lon 9.195.
+        const west = AdminRegion(
+          osmId: 111,
+          adminLevel: 8,
+          name: 'West',
+          bboxMinLat: 49.78,
+          bboxMinLon: 9.17,
+          bboxMaxLat: 49.82,
+          bboxMaxLon: 9.195,
+          polygons: [
+            [
+              [
+                [49.78, 9.17],
+                [49.82, 9.17],
+                [49.82, 9.195],
+                [49.78, 9.195],
+                [49.78, 9.17],
+              ],
+            ],
+          ],
+        );
+        const east = AdminRegion(
+          osmId: 222,
+          adminLevel: 8,
+          name: 'East',
+          bboxMinLat: 49.78,
+          bboxMinLon: 9.195,
+          bboxMaxLat: 49.82,
+          bboxMaxLon: 9.22,
+          polygons: [
+            [
+              [
+                [49.78, 9.195],
+                [49.82, 9.195],
+                [49.82, 9.22],
+                [49.78, 9.22],
+                [49.78, 9.195],
+              ],
+            ],
+          ],
+        );
+        // Horizontal way crossing the boundary.
+        const way = WayCandidate(
+          wayId: 500,
+          highwayClass: 'residential',
+          geometry: [
+            LatLng(49.80, 9.180),
+            LatLng(49.80, 9.190),
+            LatLng(49.80, 9.200),
+            LatLng(49.80, 9.210),
+          ],
+        );
+
+        final tripId = await _seedMatchedTrip(db);
+        // Drive ONLY the first 200 m — falls in the WEST region's range.
+        await _seedInterval(
+          db,
+          tripId: tripId,
+          wayId: 500,
+          endMeters: 200,
+        );
+
+        // Multi-level fake: return west OR east by level probe not needed;
+        // regionsByLevel holds both at level 8 (clip picks by midpoint).
+        final service = CoverageComputeService(
+          intervalsDao: intervalsDao,
+          waySource: _FixedWayCandidateSource([way]),
+          regionLookup: _FakeAdminRegionLookup(const {}),
+          cacheDao: cacheDao,
+          tripsDao: tripsDao,
+          totalsLookup: _FakeRegionTotalsLookup(),
+          attributionDao: attributionDao,
+          compute: (gz, bboxes, already) async => computeCoverageAttribution(
+            regionsByLevel: {
+              8: [west, east],
+            },
+            gzippedTiles: gz,
+            tileBboxes: bboxes,
+            alreadyAttributedWayIds: already,
+          ),
+        );
+
+        await service.recompute();
+
+        final wRow = await cacheDao.getByRegionId('111');
+        final eRow = await cacheDao.getByRegionId('222');
+        expect(wRow, isNotNull);
+        expect(eRow, isNotNull);
+        // West credited (driven interval [0,200] falls in its range); East not.
+        expect(wRow!.drivenLengthM, greaterThan(0));
+        expect(eRow!.drivenLengthM, 0,
+            reason: 'the driven half does not spill into region B');
+        // Totals split the way length across both regions (no double count).
         expect(
-          (await cacheDao.getAllWithCoverage())
-              .any((r) => r.regionId == regionId),
-          isTrue,
+          wRow.totalLengthM + eRow.totalLengthM,
+          closeTo(_wayLen(way), 1.0),
         );
       },
     );
 
     // -----------------------------------------------------------------------
-    // Test 7: Level 2 is never written
+    // (d) Eviction-proof: attribution rows already present but the tile cache
+    //     is empty → coverage is still computed from the durable rows.
     // -----------------------------------------------------------------------
     test(
-      'level 2 region is never written, even when regionAt(level=2) returns one',
+      'eviction-proof: attribution rows present, empty tile cache → still '
+      'computes coverage from durable rows',
       () async {
         final tripId = await _seedMatchedTrip(db);
         await _seedInterval(db, tripId: tripId, wayId: 100001);
-
-        // Provide BOTH level-2 and level-8 regions from the fake lookup.
-        // The compute service ONLY iterates kComputeAdminLevels = [4,6,8,9,10]
-        // which explicitly excludes level 2.
-        final l2Region = _regionLevel2();
-        final l8Region = _regionLevel8();
-        final service = buildService(
-          byLevel: {
-            2: l2Region, // NOT in kComputeAdminLevels → must never be written
-            4: null,
-            6: null,
-            8: l8Region,
-            9: null,
-            10: null,
-          },
-          ways: [_fixtureWay()],
-        );
-
-        await service.recompute();
-
-        // Level-2 row must NOT exist.
-        expect(
-          await cacheDao.getByRegionId(l2Region.osmId.toString()),
-          isNull,
-        );
-        // Level-8 row MUST exist.
-        expect(
-          await cacheDao.getByRegionId(l8Region.osmId.toString()),
-          isNotNull,
-        );
-      },
-    );
-
-    // -----------------------------------------------------------------------
-    // Test 8: Bundled real total → real_total_length_m written from lookup
-    // -----------------------------------------------------------------------
-    test(
-      'bundled total available → real_total_length_m written from RegionTotalsLookup',
-      () async {
-        final tripId = await _seedMatchedTrip(db);
-        await _seedInterval(db, tripId: tripId, wayId: 100001);
-
-        final regionId = _regionLevel8().osmId.toString(); // '151999'
-        const bundledTotal = 62638.0; // realistic Kleinheubach km total
-
-        final service = buildService(
-          byLevel: {4: null, 6: null, 8: _regionLevel8(), 9: null, 10: null},
-          ways: [_fixtureWay()],
-          totalsLookup: _FakeRegionTotalsLookup({regionId: bundledTotal}),
-        );
-
-        await service.recompute();
-
-        final row = await cacheDao.getByRegionId(regionId);
-        expect(row, isNotNull);
-        // real_total_length_m must come from the bundled table, not haversine.
-        expect(row!.realTotalLengthM, bundledTotal,
-            reason: 'real_total_length_m must be the bundled value');
-        // haversine total is written separately (backward compat).
-        expect(row.totalLengthM, greaterThan(0),
-            reason: 'haversine total_length_m still written for backward compat');
-      },
-    );
-
-    // -----------------------------------------------------------------------
-    // Test 9: Missing bundled total → real_total_length_m written as null
-    // -----------------------------------------------------------------------
-    test(
-      'bundled total absent (asset not yet generated) → real_total_length_m null',
-      () async {
-        final tripId = await _seedMatchedTrip(db);
-        await _seedInterval(db, tripId: tripId, wayId: 100001);
-
-        final service = buildService(
-          byLevel: {4: null, 6: null, 8: _regionLevel8(), 9: null, 10: null},
-          ways: [_fixtureWay()],
-          // Default _FakeRegionTotalsLookup(null) — returns null for all ids.
-        );
-
-        await service.recompute();
 
         final regionId = _regionLevel8().osmId.toString();
+        final wayLen = _wayLen(_fixtureWay());
+        // Pre-seed a durable attribution row (simulating a prior STAGE-1 pass).
+        await attributionDao.upsertBatch([
+          WayRegionAttributionCompanion.insert(
+            wayId: 100001,
+            regionId: regionId,
+            adminLevel: 8,
+            rangeStartM: 0,
+            rangeEndM: wayLen,
+          ),
+        ]);
+
+        // Tile cache is EMPTY (emptyRawTiles) → STAGE-1 is skipped entirely.
+        final service = buildService(
+          byLevel: {4: null, 6: null, 8: _regionLevel8(), 9: null, 10: null},
+          ways: [_fixtureWay()],
+          emptyRawTiles: true,
+        );
+
+        final result = await service.recompute();
+        expect(result.when(ok: (v) => v, err: (_) => -1), 1);
+
         final row = await cacheDao.getByRegionId(regionId);
         expect(row, isNotNull);
-        expect(row!.realTotalLengthM, isNull,
-            reason: 'null from lookup → real_total_length_m written as null');
-        // haversine total still present (backward compat).
-        expect(row.totalLengthM, greaterThan(0));
+        expect(row!.totalLengthM, closeTo(wayLen, 0.01));
+        expect(row.drivenLengthM, closeTo(100, 0.5),
+            reason: 'driven from overlap of [0,100] with [0, wayLen]');
       },
     );
 
     // -----------------------------------------------------------------------
-    // Test 10: recomputeForTrip (incremental path) — single-trip scenario
-    //          produces same driven/total lengths as full recompute()
+    // recomputeForTrip (incremental centroid path) — single trip
     // -----------------------------------------------------------------------
     test(
-      'recomputeForTrip (incremental) produces same driven/total as full recompute for a single trip',
+      'recomputeForTrip (incremental) produces same driven/total as full '
+      'recompute for a single trip',
       () async {
         final tripId = await _seedMatchedTrip(db);
         await _seedInterval(db, tripId: tripId, wayId: 100001);
@@ -598,7 +671,6 @@ void main() {
           ways: [_fixtureWay()],
         );
 
-        // Baseline: full recompute.
         await service.recompute();
         final regionId = _regionLevel8().osmId.toString();
         final fullRow = await cacheDao.getByRegionId(regionId);
@@ -606,48 +678,36 @@ void main() {
         final fullDriven = fullRow!.drivenLengthM;
         final fullTotal = fullRow.totalLengthM;
 
-        // Reset cache so incremental path starts fresh.
         await cacheDao.deleteAll();
         expect(await cacheDao.getByRegionId(regionId), isNull);
 
-        // Incremental recomputeForTrip — should produce the same numbers.
         final result = await service.recomputeForTrip(tripId);
         expect(result.isOk, isTrue);
         expect(result.when(ok: (v) => v, err: (_) => -1), greaterThan(0));
 
         final incrRow = await cacheDao.getByRegionId(regionId);
-        expect(incrRow, isNotNull,
-            reason: 'recomputeForTrip must upsert the region row');
-        expect(incrRow!.drivenLengthM, closeTo(fullDriven, 0.01),
-            reason: 'incremental driven length must equal full recompute');
-        expect(incrRow.totalLengthM, closeTo(fullTotal, 0.01),
-            reason: 'incremental total length must equal full recompute');
+        expect(incrRow, isNotNull);
+        expect(incrRow!.drivenLengthM, closeTo(fullDriven, 0.01));
+        expect(incrRow.totalLengthM, closeTo(fullTotal, 0.01));
       },
     );
 
-    // -----------------------------------------------------------------------
-    // Test 11: recomputeForTrip with no bbox → Ok(0), no rows written
-    // -----------------------------------------------------------------------
-    test(
-      'recomputeForTrip with null bbox → Ok(0), no rows written',
-      () async {
-        // Trip with no bbox.
-        final tripId = await db.into(db.trips).insert(
-              TripsCompanion.insert(
-                startedAt: DateTime(2026, 7, 17, 8),
-                manuallyStarted: const Value(true),
-              ),
-            );
+    test('recomputeForTrip with null bbox → Ok(0), no rows written', () async {
+      final tripId = await db.into(db.trips).insert(
+            TripsCompanion.insert(
+              startedAt: DateTime(2026, 7, 17, 8),
+              manuallyStarted: const Value(true),
+            ),
+          );
 
-        final service = buildService(
-          byLevel: {4: null, 6: null, 8: _regionLevel8(), 9: null, 10: null},
-          ways: [_fixtureWay()],
-        );
+      final service = buildService(
+        byLevel: {4: null, 6: null, 8: _regionLevel8(), 9: null, 10: null},
+        ways: [_fixtureWay()],
+      );
 
-        final result = await service.recomputeForTrip(tripId);
-        expect(result.when(ok: (v) => v, err: (_) => -1), 0);
-        expect(await cacheDao.getAllWithCoverage(), isEmpty);
-      },
-    );
+      final result = await service.recomputeForTrip(tripId);
+      expect(result.when(ok: (v) => v, err: (_) => -1), 0);
+      expect(await cacheDao.getAllWithCoverage(), isEmpty);
+    });
   });
 }

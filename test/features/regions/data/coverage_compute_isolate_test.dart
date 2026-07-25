@@ -1,7 +1,7 @@
-// CoverageComputeIsolate round-trip tests (2026-07-22). Mirrors
-// matcher_isolate_test.dart: spawns the real isolate, ships in-memory bundle
-// bytes, runs a compute job, asserts the accum. Timeout 30s to fail fast on
-// hangs; dispose in tearDown.
+// CoverageComputeIsolate round-trip tests (2026-07-22; reworked 2026-07-25).
+// Mirrors matcher_isolate_test.dart: spawns the real isolate, ships in-memory
+// bundle bytes, runs a STAGE-1 clip job, asserts the returned attribution rows.
+// Timeout 30s to fail fast on hangs; dispose in tearDown.
 
 import 'dart:convert';
 import 'dart:io' show gzip;
@@ -66,9 +66,6 @@ Uint8List _gzAdminBundle() {
   return Uint8List.fromList(gzip.encode(utf8.encode(jsonEncode(fc))));
 }
 
-Uint8List _gzTotals(Map<String, double> totals) =>
-    Uint8List.fromList(gzip.encode(utf8.encode(jsonEncode(totals))));
-
 WayCandidate _fixtureWay({int wayId = 100001}) => WayCandidate(
       wayId: wayId,
       highwayClass: 'residential',
@@ -81,7 +78,7 @@ WayCandidate _fixtureWay({int wayId = 100001}) => WayCandidate(
 
 void main() {
   group('CoverageComputeIsolate', () {
-    test('round-trip: attributes a driven way to its region (totals null)',
+    test('round-trip: clips a way to its region → one attribution row',
         () async {
       final iso = CoverageComputeIsolate(
         loadAdminBytes: () async => _gzAdminBundle(),
@@ -91,34 +88,34 @@ void main() {
       await iso.start();
 
       final way = _fixtureWay();
-      final accum = await iso.computeAttribution(
+      final rows = await iso.computeAttribution(
         gzippedTiles: [_gzTile([way])],
         tileBboxes: const [_bbox],
-        intervalsByWayId: {way.wayId: [0, 100]},
       );
 
-      final acc = accum['151999'];
-      expect(acc, isNotNull);
-      expect(acc!.total, greaterThan(0));
-      expect(acc.driven, greaterThan(0));
-      expect(acc.realTotal, isNull, reason: 'totals bytes were null');
+      expect(rows, hasLength(1));
+      final r = rows.single;
+      expect(r.wayId, way.wayId);
+      expect(r.regionId, '151999');
+      expect(r.adminLevel, 8);
+      expect(r.rangeEndM, greaterThan(r.rangeStartM));
     }, timeout: const Timeout(Duration(seconds: 30)));
 
-    test('round-trip: realTotal resolved from shipped totals bytes', () async {
+    test('round-trip: already-attributed wayIds are skipped', () async {
       final iso = CoverageComputeIsolate(
         loadAdminBytes: () async => _gzAdminBundle(),
-        loadTotalsBytes: () async => _gzTotals({'151999': 5000}),
+        loadTotalsBytes: () async => null,
       );
       addTearDown(iso.dispose);
       await iso.start();
 
       final way = _fixtureWay();
-      final accum = await iso.computeAttribution(
+      final rows = await iso.computeAttribution(
         gzippedTiles: [_gzTile([way])],
         tileBboxes: const [_bbox],
-        intervalsByWayId: {way.wayId: [0, 100]},
+        alreadyAttributedWayIds: {way.wayId},
       );
-      expect(accum['151999']!.realTotal, 5000);
+      expect(rows, isEmpty);
     }, timeout: const Timeout(Duration(seconds: 30)));
 
     test('two concurrent jobs resolve with correctly-keyed results', () async {
@@ -134,17 +131,14 @@ void main() {
       final fa = iso.computeAttribution(
         gzippedTiles: [_gzTile([wayA])],
         tileBboxes: const [_bbox],
-        intervalsByWayId: {1: [0, 100]},
       );
       final fb = iso.computeAttribution(
         gzippedTiles: [_gzTile([wayB])],
         tileBboxes: const [_bbox],
-        intervalsByWayId: {2: [0, 100]},
       );
       final results = await Future.wait([fa, fb]);
-      // Both attribute to the same region (same geometry) — both non-empty.
-      expect(results[0]['151999'], isNotNull);
-      expect(results[1]['151999'], isNotNull);
+      expect(results[0].single.wayId, 1);
+      expect(results[1].single.wayId, 2);
     }, timeout: const Timeout(Duration(seconds: 30)));
 
     test('start then dispose without hanging (no jobs)', () async {

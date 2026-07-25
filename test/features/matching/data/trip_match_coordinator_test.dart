@@ -486,11 +486,16 @@ void main() {
   );
 
   // -------------------------------------------------------------------------
-  // Test 10: re-entrancy guard — rapid interval writes do not cause two
-  // concurrent recompute invocations
+  // Test 10: re-entrancy COALESCE — rapid interval writes never LOSE an update.
+  // A second intervals-landed event while a recompute is in flight is coalesced
+  // into exactly one trailing pass (2026-07-25 #7). Whether the first pass
+  // finishes before or after the second event, the total number of recompute
+  // invocations settles at 2 (one per trip) — never 1 (dropped) and never
+  // unbounded.
   // -------------------------------------------------------------------------
   test(
-    '10. re-entrancy guard: second intervals-landed event skipped when first recompute in flight',
+    '10. re-entrancy coalesce: two rapid intervals-landed events → exactly two '
+    'recompute invocations (none lost)',
     () async {
       final t1 = await _insertTripWithBbox(db);
       final t2 = await _insertTripWithBbox(db);
@@ -524,17 +529,17 @@ void main() {
       );
 
       // Match two trips back-to-back without awaiting the fire-and-forget
-      // callbacks — the second event should be debounced.
+      // callbacks — the second event must be coalesced, not dropped.
       await coord.onTripReadyForMatching(t1);
       await coord.onTripReadyForMatching(t2);
 
-      // Flush microtasks so both fire-and-forget Futures execute.
+      // Flush microtasks + event-queue tasks so both recompute passes execute.
+      await Future<void>.delayed(Duration.zero);
       await Future<void>.delayed(Duration.zero);
       await Future<void>.delayed(Duration.zero);
 
-      // The first callback fires, the second is debounced → exactly 1 call.
-      expect(callCount, 1,
-          reason: 're-entrancy guard must debounce rapid interval writes');
+      expect(callCount, 2,
+          reason: 'coalesce runs the trailing recompute — no update lost');
     },
   );
 

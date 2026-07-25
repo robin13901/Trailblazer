@@ -1,11 +1,23 @@
-// Pure coverage attribution (2026-07-22) — the heavy compute extracted from
-// CoverageComputeService.recompute() so it runs inside the coverage-compute
-// worker isolate (and is unit-testable WITHOUT spawning one).
+// Pure STAGE-1 coverage attribution (2026-07-25) — the geometric polyline-vs-
+// polygon clip extracted from CoverageComputeService so it runs inside the
+// coverage-compute worker isolate (and is unit-testable WITHOUT spawning one).
 //
-// Given the parsed admin polygon index, the bundled per-region totals, the raw
-// gzipped Overpass tiles + their bboxes, and the driven union intervals per
-// wayId, this attributes every driven way to its containing admin region(s) at
-// levels 4/6/8/9/10 and accumulates driven + total road length per region.
+// Given the parsed admin polygon index and the raw gzipped Overpass tiles +
+// their bboxes, this walks each NEW driven way's polyline and, for each admin
+// level, emits the contiguous meter-RANGES along the way that lie inside each
+// containing region's polygon. These rows are DURABLE: a way's region
+// membership + meter-ranges are static (geometry never moves), so they are
+// computed ONCE per new wayId and cached forever in `way_region_attribution`.
+// The driven-vs-total aggregation (STAGE 2) is then a pure DB read/sum on the
+// main isolate — eviction-proof + monotonic.
+//
+// Sampling granularity: SEGMENT-level. The way's polyline is already densified
+// upstream (Overpass `out geom`), so each segment [mStart, mEnd] is attributed
+// to the region containing its MIDPOINT, then consecutive same-region segments
+// at the same level are MERGED into one range row. This is the acceptable
+// approximation called out in the schema docstring — a boundary crossing lands
+// on a segment boundary (± half a densified segment), which is negligible
+// against per-region km totals.
 //
 // STRICTLY PURE + isolate-safe: dart:convert, dart:io(gzip), dart:typed_data,
 // and pure domain/value types only. NO Flutter, NO Drift, NO Riverpod. Mirror
@@ -17,15 +29,13 @@ import 'dart:convert';
 import 'dart:io' show gzip;
 
 import 'package:auto_explore/features/admin/data/admin_region.dart';
-import 'package:auto_explore/features/coverage/domain/interval_union.dart';
 import 'package:auto_explore/features/matching/data/overpass_response_parser.dart';
 import 'package:auto_explore/features/matching/data/tile_bbox_math.dart';
 import 'package:auto_explore/features/matching/domain/way_candidate.dart';
 import 'package:auto_explore/features/regions/data/coverage_compute_job.dart';
 import 'package:auto_explore/features/trips/domain/haversine.dart';
-import 'package:maplibre_gl/maplibre_gl.dart' show LatLng;
 
-/// Admin levels attributed during the recompute pass.
+/// Admin levels attributed during the clip pass.
 ///
 /// Level 2 (country) is intentionally excluded: the DE country row would
 /// accumulate every driven meter and its total would be the entire German road
@@ -34,42 +44,29 @@ import 'package:maplibre_gl/maplibre_gl.dart' show LatLng;
 /// coverage_compute_service.dart (kept identical so behaviour is unchanged).
 const List<int> kComputeAdminLevels = [4, 6, 8, 9, 10];
 
-/// Attribute driven ways to admin regions and accumulate coverage per region.
+/// STAGE 1: clip each NEW driven way's polyline against the admin polygons and
+/// return the durable per-(way, region, meter-range) attribution rows.
 ///
 /// - [regionsByLevel]: admin polygon index bucketed by adminLevel (built once
 ///   inside the worker from the shipped bundle bytes — NOT copied per call).
-/// - [totals]: bundled per-region real total lengths (osm_id string → meters);
-///   null when the deferred asset is absent → every `realTotal` is null.
 /// - [gzippedTiles] / [tileBboxes]: parallel raw cached Overpass tiles; decoded
 ///   tile-by-tile here (bounded memory), deduped by wayId, bbox-clipped.
-/// - [intervalsByWayId]: wayId → flattened driven union intervals
-///   `[start0,end0,start1,end1,…]`; rebuilt into [Interval]s locally.
+/// - [alreadyAttributedWayIds]: wayIds that already have rows in
+///   `way_region_attribution` — SKIPPED (attribution is static per wayId).
 ///
-/// Returns `regionId (osm_id string) → RegionAccum(driven, total, realTotal)`.
-/// Only regions with at least some attributed total length appear. Pure +
-/// synchronous — no yields needed (it runs off the UI isolate).
-Map<String, RegionAccum> computeCoverageAttribution({
+/// Returns one [WayRegionAttributionRow] per (way, level, contiguous in-region
+/// run). A way that stays inside one region at a level produces one row spanning
+/// its whole length; a boundary-crossing way produces one row per region run.
+/// Pure + synchronous — no yields needed (it runs off the UI isolate).
+List<WayRegionAttributionRow> computeCoverageAttribution({
   required Map<int, List<AdminRegion>> regionsByLevel,
-  required Map<String, double>? totals,
   required List<List<int>> gzippedTiles,
   required List<LatLonBbox> tileBboxes,
-  required Map<int, List<double>> intervalsByWayId,
+  Set<int> alreadyAttributedWayIds = const {},
   List<int> levels = kComputeAdminLevels,
   OverpassResponseParser parser = const OverpassResponseParser(),
 }) {
-  // Rebuild the driven union intervals per wayId (flattened doubles → Interval).
-  final unionByWayId = <int, List<Interval>>{};
-  for (final entry in intervalsByWayId.entries) {
-    final flat = entry.value;
-    final ivs = <Interval>[];
-    for (var i = 0; i + 1 < flat.length; i += 2) {
-      ivs.add(Interval(flat[i], flat[i + 1]));
-    }
-    if (ivs.isNotEmpty) unionByWayId[entry.key] = ivs;
-  }
-
-  final total = <String, double>{};
-  final driven = <String, double>{};
+  final out = <WayRegionAttributionRow>[];
   final seenIds = <int>{};
 
   for (var t = 0; t < gzippedTiles.length; t++) {
@@ -80,48 +77,101 @@ Map<String, RegionAccum> computeCoverageAttribution({
 
     for (final way in ways) {
       if (!seenIds.add(way.wayId)) continue; // dedupe across tile boundaries
+      if (alreadyAttributedWayIds.contains(way.wayId)) continue; // cached
       if (bbox != null && !_geometryTouchesBbox(way, bbox)) continue; // clip
-
-      final c = _centroid(way.geometry);
-      if (c == null) continue; // degenerate geometry
-      final wayLen = _polylineLengthMeters(way.geometry);
-      final ivs = unionByWayId[way.wayId];
-      final unionLen = ivs != null ? drivenLengthMeters(ivs) : 0.0;
+      if (way.geometry.length < 2) continue; // degenerate — no segments
 
       for (final level in levels) {
-        final region = _regionAt(regionsByLevel, c.latitude, c.longitude, level);
-        if (region == null) continue;
-        // OSM relation ids are globally unique across levels — do NOT prefix.
-        final id = region.osmId.toString();
-        total[id] = (total[id] ?? 0) + wayLen;
-        if (unionLen > 0) driven[id] = (driven[id] ?? 0) + unionLen;
+        _clipWayAtLevel(
+          way: way,
+          regions: regionsByLevel[level],
+          level: level,
+          out: out,
+        );
       }
     }
   }
 
-  final out = <String, RegionAccum>{};
-  for (final id in total.keys) {
-    out[id] = RegionAccum(
-      driven: driven[id] ?? 0,
-      total: total[id]!,
-      realTotal: totals?[id],
-    );
-  }
   return out;
 }
 
-/// Sync point-in-polygon lookup over the pre-bucketed index — the isolate-local
-/// replacement for the async `AdminRegionLookup.regionAt`. Scans only the
-/// requested level's bucket; bbox cull is inside `containsPoint`.
-AdminRegion? _regionAt(
-  Map<int, List<AdminRegion>> regionsByLevel,
-  double lat,
-  double lon,
-  int level,
-) {
-  final candidates = regionsByLevel[level];
-  if (candidates == null) return null;
-  for (final region in candidates) {
+/// Walk [way]'s segments, attributing each segment to the region (at [level])
+/// containing its midpoint, and merge consecutive same-region segments into one
+/// contiguous meter-range row appended to [out]. Segments whose midpoint is in
+/// no region flush the current run (a gap outside every polygon at this level).
+void _clipWayAtLevel({
+  required WayCandidate way,
+  required List<AdminRegion>? regions,
+  required int level,
+  required List<WayRegionAttributionRow> out,
+}) {
+  if (regions == null || regions.isEmpty) return;
+  final geom = way.geometry;
+
+  // Current in-region run: the region id it belongs to and its meter-range.
+  String? runRegionId;
+  var runStart = 0.0;
+  var runEnd = 0.0;
+
+  var cursorM = 0.0;
+  for (var i = 0; i < geom.length - 1; i++) {
+    final a = geom[i];
+    final b = geom[i + 1];
+    final segLen = haversineMeters(a.latitude, a.longitude, b.latitude, b.longitude);
+    final segStart = cursorM;
+    final segEnd = cursorM + segLen;
+    cursorM = segEnd;
+    if (segLen <= 0) continue; // zero-length segment contributes nothing
+
+    // Region containing this segment's midpoint (finest match at this level).
+    final midLat = (a.latitude + b.latitude) / 2;
+    final midLon = (a.longitude + b.longitude) / 2;
+    final region = _regionAt(regions, midLat, midLon);
+    final id = region?.osmId.toString();
+
+    if (id == runRegionId) {
+      // Same region (including "both null" = still outside) → extend the run.
+      if (id != null) runEnd = segEnd;
+      continue;
+    }
+
+    // Region changed — flush the prior run (if it was inside a region).
+    if (runRegionId != null && runEnd > runStart) {
+      out.add(
+        WayRegionAttributionRow(
+          wayId: way.wayId,
+          regionId: runRegionId,
+          adminLevel: level,
+          rangeStartM: runStart,
+          rangeEndM: runEnd,
+        ),
+      );
+    }
+    // Start a new run at this segment.
+    runRegionId = id;
+    runStart = segStart;
+    runEnd = segEnd;
+  }
+
+  // Flush the trailing run.
+  if (runRegionId != null && runEnd > runStart) {
+    out.add(
+      WayRegionAttributionRow(
+        wayId: way.wayId,
+        regionId: runRegionId,
+        adminLevel: level,
+        rangeStartM: runStart,
+        rangeEndM: runEnd,
+      ),
+    );
+  }
+}
+
+/// Sync point-in-polygon lookup over one level's bucket — the isolate-local
+/// replacement for the async `AdminRegionLookup.regionAt`. Returns the first
+/// region whose polygon contains the point; bbox cull is inside `containsPoint`.
+AdminRegion? _regionAt(List<AdminRegion> regions, double lat, double lon) {
+  for (final region in regions) {
     if (region.containsPoint(lat, lon)) return region;
   }
   return null;
@@ -139,30 +189,4 @@ bool _geometryTouchesBbox(WayCandidate c, LatLonBbox bbox) {
     }
   }
   return false;
-}
-
-/// Mean lat/lon of [geometry]. Returns null for empty geometry.
-LatLng? _centroid(List<LatLng> geometry) {
-  if (geometry.isEmpty) return null;
-  var sumLat = 0.0;
-  var sumLon = 0.0;
-  for (final p in geometry) {
-    sumLat += p.latitude;
-    sumLon += p.longitude;
-  }
-  return LatLng(sumLat / geometry.length, sumLon / geometry.length);
-}
-
-/// Haversine sum of consecutive point distances along [geometry].
-double _polylineLengthMeters(List<LatLng> geometry) {
-  var total = 0.0;
-  for (var i = 0; i < geometry.length - 1; i++) {
-    total += haversineMeters(
-      geometry[i].latitude,
-      geometry[i].longitude,
-      geometry[i + 1].latitude,
-      geometry[i + 1].longitude,
-    );
-  }
-  return total;
 }

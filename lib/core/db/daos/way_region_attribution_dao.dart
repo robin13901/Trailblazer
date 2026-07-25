@@ -23,8 +23,10 @@ class WayRegionAttributionDao extends DatabaseAccessor<AppDatabase>
     with _$WayRegionAttributionDaoMixin {
   WayRegionAttributionDao(super.attachedDatabase);
 
-  /// All `(wayId, regionId, adminLevel, clippedLengthM)` rows. Recompute reads
-  /// these once and joins them against the driven union intervals in Dart.
+  /// All attribution rows (`wayId, regionId, adminLevel, rangeStartM,
+  /// rangeEndM`). Recompute reads these once and, per region, intersects each
+  /// row's `[rangeStartM, rangeEndM]` with the way's driven union intervals in
+  /// Dart to produce per-region driven + total length.
   Future<List<WayRegionAttributionData>> getAllRows() {
     return select(wayRegionAttribution).get();
   }

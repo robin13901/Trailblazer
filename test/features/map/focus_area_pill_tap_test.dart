@@ -22,10 +22,13 @@ import 'package:auto_explore/features/admin/data/admin_region_lookup.dart';
 import 'package:auto_explore/features/admin/data/admin_region_providers.dart';
 import 'package:auto_explore/features/coverage/data/coverage_cache_dao.dart';
 import 'package:auto_explore/features/coverage/data/coverage_providers.dart';
+import 'package:auto_explore/features/coverage/domain/coverage_color_preset.dart';
+import 'package:auto_explore/features/coverage/presentation/coverage_preset_provider.dart';
 import 'package:auto_explore/features/map/presentation/providers/live_camera_provider.dart';
 import 'package:auto_explore/features/map/presentation/widgets/focus_area_pill.dart';
 import 'package:auto_explore/features/regions/data/region_totals_lookup.dart';
 import 'package:auto_explore/features/regions/presentation/providers/focus_pill_provider.dart';
+import 'package:auto_explore/features/trips/presentation/providers/inbox_providers.dart';
 import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -136,6 +139,10 @@ Future<void> _pumpPillWithFakes(
         adminRegionLookupProvider.overrideWithValue(_FakeLookup(_kTestRegion)),
         coverageCacheDaoProvider.overrideWithValue(dao),
         regionTotalsLookupProvider.overrideWithValue(_FakeTotalsLookup()),
+        // Not computing → no pulse; avoids pulling the real inbox repo/DB.
+        inFlightCountProvider.overrideWith((ref) => Stream.value(0)),
+        coveragePresetValueProvider
+            .overrideWithValue(CoverageColorPreset.amber),
       ],
       child: const MaterialApp(
         home: Scaffold(

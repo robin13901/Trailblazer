@@ -14,6 +14,8 @@
 
 import 'dart:async';
 
+import 'package:auto_explore/core/db/app_database_providers.dart';
+import 'package:auto_explore/core/db/daos/way_region_attribution_dao.dart';
 import 'package:auto_explore/features/admin/data/admin_region_lookup.dart';
 import 'package:auto_explore/features/admin/data/admin_region_providers.dart';
 import 'package:auto_explore/features/coverage/data/coverage_overlay_providers.dart';
@@ -61,11 +63,13 @@ final coverageComputeServiceProvider = Provider<CoverageComputeService>((ref) {
     cacheDao: ref.watch(coverageCacheDaoProvider),
     tripsDao: ref.watch(tripsDaoProvider),
     totalsLookup: ref.watch(regionTotalsLookupProvider),
-    compute: (gzippedTiles, tileBboxes, intervalsByWayId) =>
+    attributionDao:
+        WayRegionAttributionDao(ref.watch(appDatabaseProvider)),
+    compute: (gzippedTiles, tileBboxes, alreadyAttributedWayIds) =>
         isolate.computeAttribution(
       gzippedTiles: gzippedTiles,
       tileBboxes: tileBboxes,
-      intervalsByWayId: intervalsByWayId,
+      alreadyAttributedWayIds: alreadyAttributedWayIds,
     ),
     ensureComputeReady: isolate.start,
   );
