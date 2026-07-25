@@ -79,8 +79,9 @@ void main() {
 
       // The pill shows the speed segment (no "Aufnahme" prefix anymore).
       expect(find.textContaining('42 km/h'), findsOneWidget);
-      // Distance should read "1.5 km".
-      expect(find.textContaining('1.5 km'), findsOneWidget);
+      // Distance is formatted with the shared German helper: comma decimal
+      // separator (1500 m → "1,5 km"), matching every other distance in the app.
+      expect(find.textContaining('1,5 km'), findsOneWidget);
     });
 
     testWidgets(
