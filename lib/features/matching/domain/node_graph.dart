@@ -99,6 +99,21 @@ class NodeGraph {
   /// Metric length of segment (wayId, segIdx), or 0 when unknown.
   double segmentLength(int wayId, int segIdx) => _segLen[(wayId, segIdx)] ?? 0;
 
+  /// Number of DISTINCT ways meeting at [nodeId]. A node with degree 2 is a
+  /// pure continuation between exactly two ways (no branch); degree > 2 is a
+  /// junction/branch. Returns 0 for an unknown node. Used by the matcher-side
+  /// gap auto-fill (#10) to refuse bridging across a branch.
+  int nodeDegree(int nodeId) => waysAtNode(nodeId).length;
+
+  /// The set of DISTINCT wayIds whose segments touch [nodeId]. Empty for an
+  /// unknown node. Two ways being the ONLY members ({A, B}) at a degree-2 node
+  /// is the collinear-continuation signal the gap auto-fill (#10) requires.
+  Set<int> waysAtNode(int nodeId) {
+    final edges = _adj[nodeId];
+    if (edges == null) return const {};
+    return {for (final e in edges) e.wayId};
+  }
+
   /// Bounded shortest on-road distance (meters) between two candidate
   /// projection points, or `null` when no path exists within [maxMeters].
   ///

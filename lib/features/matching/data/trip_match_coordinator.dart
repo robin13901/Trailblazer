@@ -180,6 +180,7 @@ class TripMatchCoordinator {
             accuracyMeters: p.accuracyMeters ?? double.nan,
             speedKmh: p.speedKmh ?? 0.0,
             ts: p.ts,
+            headingDegrees: p.heading,
           ),
         )
         .toList(growable: false);
@@ -388,6 +389,7 @@ class TripMatchCoordinator {
             accuracyMeters: p.accuracyMeters ?? double.nan,
             speedKmh: p.speedKmh ?? 0.0,
             ts: p.ts,
+            headingDegrees: p.heading,
           ),
         )
         .toList(growable: false);

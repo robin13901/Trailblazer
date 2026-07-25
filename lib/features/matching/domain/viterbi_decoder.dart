@@ -163,6 +163,12 @@ class ViterbiDecoder {
       }
 
       // Build state list for this step.
+      // Travel direction for this fix (#11): OS heading when trustworthy,
+      // otherwise a bearing derived from the previous fix. Null → the
+      // direction term is inert (single-fix starts, low speed, gaps, near-
+      // stationary jitter). Computed ONCE per step, reused for every candidate.
+      final travelBearing = _travelBearing(fixes, step);
+
       final states = <_State>[];
       for (final seg in candidates) {
         final perp = perpDistanceToSegmentMeters(
@@ -187,6 +193,31 @@ class ViterbiDecoder {
         if (fix.speedKmh < kSpeedGuardKmh &&
             kHighClassHighwaysForSpeedGuard.contains(seg.highwayClass)) {
           emit += kMotorwayPenaltyLog;
+        }
+
+        // #11 DIRECTION TERM (dual-carriageway fix): when the vehicle's travel
+        // direction is known AND the candidate is a oneway, penalize the
+        // candidate by how far its LEGAL travel bearing is from the vehicle's.
+        // Penalty = kDirectionWeightLog * (1 - cos Δθ): 0 when aligned, max
+        // 2*kDirectionWeightLog (5.0 nats) when 180° opposed. A `oneway=no`
+        // candidate contributes NOTHING — this protects single carriageways
+        // and keeps every existing `oneway=no` golden byte-identical. Applied
+        // to the SCORE only; queryTopK is never gated by it.
+        if (travelBearing != null && seg.oneway != OnewayDirection.no) {
+          final segFwd = segmentBearingDegrees(
+            aLat: seg.aLat,
+            aLon: seg.aLon,
+            bLat: seg.bLat,
+            bLon: seg.bLon,
+          );
+          if (!segFwd.isNaN) {
+            final legal = seg.oneway == OnewayDirection.backward
+                ? (segFwd + 180) % 360
+                : segFwd;
+            final d =
+                angularDifferenceDegrees(travelBearing, legal) * math.pi / 180;
+            emit += -kDirectionWeightLog * (1 - math.cos(d));
+          }
         }
 
         states.add(
@@ -294,6 +325,10 @@ class ViterbiDecoder {
                 dfrac > 0.001) {
               trans += kOnewayViolationLog;
             }
+            // Same-way stickiness hook (#11): a small bonus for staying on the
+            // same way discourages needless cross-way flicker. Default constant
+            // is 0.0 → no-op (goldens byte-identical). Tuning hook only.
+            trans += kSameWayStickinessLog;
           }
 
           final total = pState.totalLogP + trans + s.emissionLogP;
@@ -334,6 +369,33 @@ class ViterbiDecoder {
   bool _isGap(DateTime prev, DateTime cur, int thresholdSeconds) {
     final dt = cur.difference(prev).inSeconds;
     return dt.abs() > thresholdSeconds;
+  }
+
+  /// Best available travel-direction bearing (compass degrees 0..360) for the
+  /// fix at [step], or null when no trustworthy direction exists — in which
+  /// case the #11 direction term is inert for that fix.
+  ///
+  /// Preference order:
+  /// 1. OS-reported heading (`fixes[step].headingDegrees`) when present, valid
+  ///    (>= 0), and the vehicle is moving (`speedKmh >= kDirMinSpeedKmh`).
+  /// 2. Bearing DERIVED from the previous fix → this fix, when there is a
+  ///    previous fix, no gap separates them, and they moved at least
+  ///    `kDirMinMoveMeters` apart (below that the bearing is GPS noise).
+  /// 3. null (first step, near-stationary, gap, or tiny move).
+  double? _travelBearing(List<GpsFix> fixes, int step) {
+    final cur = fixes[step];
+    final hdg = cur.headingDegrees;
+    if (hdg != null && hdg >= 0 && cur.speedKmh >= kDirMinSpeedKmh) {
+      return hdg % 360;
+    }
+    if (step == 0) return null;
+    final prev = fixes[step - 1];
+    if (_isGap(prev.ts, cur.ts, gapThresholdSeconds)) return null;
+    if (haversineMeters(prev.lat, prev.lon, cur.lat, cur.lon) <
+        kDirMinMoveMeters) {
+      return null;
+    }
+    return bearingDegrees(prev.lat, prev.lon, cur.lat, cur.lon);
   }
 
   List<MatchedStep?> _traceback(

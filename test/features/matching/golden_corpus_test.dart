@@ -84,6 +84,7 @@ List<GpsFix> _loadGpsTrace(Directory dir) {
               (m['accuracy'] as num?)?.toDouble() ?? double.nan,
           speedKmh: (m['speedKmh'] as num?)?.toDouble() ?? 0.0,
           ts: DateTime.parse(m['ts'] as String),
+          headingDegrees: (m['heading'] as num?)?.toDouble(),
         ),
       )
       .toList();
