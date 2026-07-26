@@ -345,7 +345,15 @@ class TripMatchCoordinator {
   /// logged and skipped, leaving that trip's existing intervals untouched.
   ///
   /// Returns the number of trips successfully re-matched.
-  Future<int> rematchAllStoredTrips() async {
+  ///
+  /// [onTripDone] — when supplied, is invoked once after EACH trip is
+  /// processed (whether or not it was actually re-matched) with the running
+  /// `done` count and the fixed `total`. Used by the startup migration to drive
+  /// the app-wide "Neuberechnung … Fahrt N/M" banner. Errors thrown by the
+  /// callback are ignored so a progress-UI hiccup can never abort the migration.
+  Future<int> rematchAllStoredTrips({
+    void Function(int done, int total)? onTripDone,
+  }) async {
     // Check for work BEFORE starting the isolate — on an empty DB (fresh
     // install, or a widget test) there is nothing to rematch, and spawning the
     // matcher isolate would leave a pending timer that outlives a headless
@@ -358,9 +366,11 @@ class TripMatchCoordinator {
 
     await _isolate.start(); // idempotent
 
-    _log.info('rematchAllStoredTrips: ${tripIds.length} trips to reprocess');
+    final total = tripIds.length;
+    _log.info('rematchAllStoredTrips: $total trips to reprocess');
 
     var reprocessed = 0;
+    var done = 0;
     for (final tripId in tripIds) {
       try {
         final didRematch = await _rematchOne(tripId);
@@ -373,8 +383,18 @@ class TripMatchCoordinator {
           st,
         );
       }
+      done++;
+      if (onTripDone != null) {
+        try {
+          onTripDone(done, total);
+          // A progress-UI hiccup must never abort the one-shot migration.
+          // ignore: avoid_catches_without_on_clauses
+        } catch (e, st) {
+          _log.warning('rematchAllStoredTrips: onTripDone threw: $e', e, st);
+        }
+      }
     }
-    _log.info('rematchAllStoredTrips: $reprocessed/${tripIds.length} reprocessed');
+    _log.info('rematchAllStoredTrips: $reprocessed/$total reprocessed');
     return reprocessed;
   }
 
@@ -425,6 +445,11 @@ class TripMatchCoordinator {
       fixes: fixes,
       gzippedTiles: [for (final t in rawTiles) t.payloadGzip],
       tileBboxes: [for (final t in rawTiles) t.bbox],
+      onProgress: (processed, total) {
+        if (total > 0) {
+          _progressSink?.call(tripId, processed / total);
+        }
+      },
     );
 
     // Replace old intervals atomically-ish: delete then insert. A crash
@@ -433,6 +458,11 @@ class TripMatchCoordinator {
     // one-shot cosmetic reprocess.
     await _intervalsDao.deleteByTrip(tripId);
     await _writeIntervals(tripId, result.intervals);
+    // Surface the per-trip pill to 100% then clear it, mirroring the
+    // onTripReadyForMatching completion path so a re-matching trip shows its
+    // live % on the Trips-tab _StatusPill and drives the focus-pill pulse.
+    _progressSink?.call(tripId, 1);
+    _clearProgress(tripId);
     _log.info(
       'rematchOne: trip $tripId → ${result.intervals.length} intervals '
       '(was reprocessed)',

@@ -78,7 +78,16 @@ class AppPrefs {
   /// current(6)` skipped the re-match entirely. This bump forces exactly one
   /// re-match under the FIXED decoder so every stored trip rebuilds its full
   /// intervals end-to-end. Paired with the recompute bump below.
-  static const int kCurrentMatcherRematchVersion = 7;
+  /// `8` = 2026-07-26 direction-aware matcher: the Viterbi emission now scores
+  /// a GPS-bearing-vs-oneway-direction term (correct carriageway on divided
+  /// roads, no overtaking flips), the interval collapse tracks the peak
+  /// excursion + splits genuine two-way reversals (in→U-turn→out now covers the
+  /// full length), and a small-gap auto-fill closes <=30 m gaps on continuous
+  /// roads. Historical trips never stored a heading column, so the decoder's
+  /// derived-bearing fallback (from consecutive fixes) supplies direction on
+  /// re-match. This bump forces one re-match so all stored trips gain the new
+  /// matching. Paired with the recompute bump below.
+  static const int kCurrentMatcherRematchVersion = 8;
 
   /// Version stamp of the last coverage-cache recompute migration applied to
   /// this device. Bumped whenever `coverage_cache` needs a one-shot
@@ -108,7 +117,14 @@ class AppPrefs {
   /// intervals, but this explicit bump keeps the recompute stamp truthful and
   /// gives a standalone trigger should the re-match itself be a no-op on some
   /// device (e.g. version already 7 but cache never written).
-  static const int kCurrentCoverageRecomputeVersion = 4;
+  /// `5` = 2026-07-26 durable clip-per-region recompute: coverage is now summed
+  /// from the `way_region_attribution` table (each way clipped to the meter-
+  /// ranges inside each admin region) instead of centroid-whole-way attribution
+  /// over live Overpass tiles. This is the first pass that populates the new
+  /// attribution table AND rebuilds `coverage_cache` under the corrected
+  /// (boundary-splitting, eviction-proof, monotonic) numbers. Paired with the v8
+  /// re-match so the repaired intervals feed the new aggregation.
+  static const int kCurrentCoverageRecomputeVersion = 5;
 
   /// Version stamp of the last stuck-fetch recovery migration applied to this
   /// device. Bumped when a one-shot recovery of trips parked by an Overpass

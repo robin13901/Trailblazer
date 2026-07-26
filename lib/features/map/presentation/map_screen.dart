@@ -20,6 +20,7 @@ import 'package:auto_explore/features/map/presentation/widgets/trip_path_bridge.
 import 'package:auto_explore/features/map/presentation/widgets/trip_path_dismiss_chip.dart';
 import 'package:auto_explore/features/map/presentation/widgets/wakelock_sync.dart';
 import 'package:auto_explore/features/regions/presentation/providers/region_sheet_open_provider.dart';
+import 'package:auto_explore/features/startup/presentation/widgets/global_recalc_banner.dart';
 import 'package:auto_explore/features/trips/domain/tracking_state.dart';
 import 'package:auto_explore/features/trips/presentation/providers/tracking_state_provider.dart';
 import 'package:auto_explore/features/trips/presentation/widgets/live_tracking_panel.dart';
@@ -258,6 +259,18 @@ class MapScreen extends ConsumerWidget {
               left: 0,
               right: 0,
               child: SafeArea(child: Center(child: FocusAreaPill())),
+            ),
+
+            // One-time global recalc banner (2026-07-26) — sits just below the
+            // focus pill on launch, showing the re-match + coverage-rebuild
+            // progress so the app never looks frozen. Renders nothing once the
+            // startup migration clears globalRecalcProgressProvider. Horizontal
+            // insets keep it off the settings / align-north buttons.
+            const Positioned(
+              top: _chromeRowTopInset + 56 + _chromeGap,
+              left: 64,
+              right: 64,
+              child: SafeArea(child: Center(child: GlobalRecalcBanner())),
             ),
 
             // Region-outline dismiss chip — centered just below the focus pill.

@@ -597,4 +597,106 @@ void main() {
       expect(await _statusOf(db, t), TripStatus.confirmed);
     }
   });
+
+  // -------------------------------------------------------------------------
+  // Test 11: rematchAllStoredTrips invokes onTripDone once per trip with a
+  // rising done count and a fixed total (drives the startup recalc banner).
+  // -------------------------------------------------------------------------
+  test(
+      '11. rematchAllStoredTrips invokes onTripDone once per trip with rising '
+      'done count', () async {
+    final t1 = await _insertTripWithBbox(db, status: TripStatus.confirmed);
+    final t2 = await _insertTripWithBbox(db, status: TripStatus.confirmed);
+    final t3 = await _insertTripWithBbox(db, status: TripStatus.confirmed);
+    for (final t in [t1, t2, t3]) {
+      await _insertTripPoint(db, t, 1);
+      await _insertTripPoint(db, t, 2);
+      await intervalsDao.insertBatch([
+        DrivenWayIntervalsCompanion.insert(
+          wayId: 900,
+          tripId: Value(t),
+          startMeters: 0,
+          endMeters: 5,
+        ),
+      ]);
+    }
+
+    const canned = MatchResult(
+      steps: [],
+      intervals: [
+        DrivenWayIntervalDraft(
+          wayId: 42,
+          startMeters: 0,
+          endMeters: 50,
+          direction: 'forward',
+        ),
+      ],
+      matchedFixCount: 2,
+      droppedFixCount: 0,
+    );
+    final coord = buildCoord(ways: [_berlinWay()], cannedResult: canned);
+
+    final progress = <(int, int)>[];
+    await coord.rematchAllStoredTrips(
+      onTripDone: (done, total) => progress.add((done, total)),
+    );
+
+    // One callback per trip, done rising 1→2→3, total fixed at 3.
+    expect(progress, [(1, 3), (2, 3), (3, 3)]);
+  });
+
+  // -------------------------------------------------------------------------
+  // Test 12: _rematchOne (via rematchAllStoredTrips) drives the per-trip
+  // progress sink to fraction 1 and then clears it, for each trip.
+  // -------------------------------------------------------------------------
+  test(
+      '12. rematch emits progressSink(1) then clears it per trip', () async {
+    final t1 = await _insertTripWithBbox(db, status: TripStatus.confirmed);
+    final t2 = await _insertTripWithBbox(db, status: TripStatus.confirmed);
+    for (final t in [t1, t2]) {
+      await _insertTripPoint(db, t, 1);
+      await _insertTripPoint(db, t, 2);
+      await intervalsDao.insertBatch([
+        DrivenWayIntervalsCompanion.insert(
+          wayId: 900,
+          tripId: Value(t),
+          startMeters: 0,
+          endMeters: 5,
+        ),
+      ]);
+    }
+
+    const canned = MatchResult(
+      steps: [],
+      intervals: [
+        DrivenWayIntervalDraft(
+          wayId: 42,
+          startMeters: 0,
+          endMeters: 50,
+          direction: 'forward',
+        ),
+      ],
+      matchedFixCount: 2,
+      droppedFixCount: 0,
+    );
+
+    final progressUpdates = <(int, double)>[];
+    final cleared = <int>[];
+    final coord = TripMatchCoordinator(
+      source: _FakeWayCandidateSource(ways: [_berlinWay()]),
+      matcherIsolate: _FakeMatcherIsolate(cannedResult: canned),
+      tripsDao: tripsDao,
+      tripsRepository: repository,
+      intervalsDao: intervalsDao,
+      progressSink: (id, frac) => progressUpdates.add((id, frac)),
+      progressClearSink: cleared.add,
+    );
+
+    await coord.rematchAllStoredTrips();
+
+    // Each trip reported completion at fraction 1.0 and was then cleared.
+    expect(progressUpdates, contains((t1, 1.0)));
+    expect(progressUpdates, contains((t2, 1.0)));
+    expect(cleared, containsAll([t1, t2]));
+  });
 }
