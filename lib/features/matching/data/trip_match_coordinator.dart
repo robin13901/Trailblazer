@@ -94,6 +94,18 @@ class TripMatchCoordinator {
   bool _recomputePending = false;
   int _pendingTripId = -1;
 
+  /// One-shot migration guard (2026-07-26): while [rematchAllStoredTrips] is
+  /// running, the PER-TRIP auto-recompute is SUPPRESSED. The migration writes
+  /// intervals for ~20 stored trips back-to-back; without this each
+  /// `_writeIntervals` would fire (and coalesce) a full `recompute()`, stacking
+  /// ~21 redundant passes ON TOP OF the ONE explicit recompute the startup
+  /// migration runs at the end (see `app.dart`
+  /// `_runCoverageRecomputeMigrationIfNeeded(force: rematched)`). Each such pass
+  /// re-attributes + re-aggregates — this is the 20-minute stuck-banner cause.
+  /// The normal live path ([onTripReadyForMatching] after a real drive) leaves
+  /// this false, so it STILL auto-recomputes.
+  bool _suppressAutoRecompute = false;
+
   /// Invoked by 04-15's TripRoadFetchCoordinator immediately after a trip
   /// transitions from `pendingRoadData` to `pending`.
   ///
@@ -276,6 +288,15 @@ class TripMatchCoordinator {
   void _triggerAutoRecompute(int tripId) {
     final callback = _onIntervalsLanded;
     if (callback == null) return;
+    // One-shot migration suppression (2026-07-26): rematchAllStoredTrips runs
+    // ONE explicit recompute at its end (via app.dart), so the per-trip trigger
+    // is silenced here to avoid ~21 stacked redundant passes.
+    if (_suppressAutoRecompute) {
+      _log.fine(
+        'auto-recompute: suppressed during rematchAllStoredTrips (trip $tripId)',
+      );
+      return;
+    }
     if (_recomputeInFlight) {
       _recomputePending = true;
       _pendingTripId = tripId;
@@ -369,30 +390,39 @@ class TripMatchCoordinator {
     final total = tripIds.length;
     _log.info('rematchAllStoredTrips: $total trips to reprocess');
 
+    // Suppress the per-trip auto-recompute for the whole migration: the caller
+    // (app.dart) runs ONE explicit recompute() after this returns, so the ~20
+    // per-trip triggers here would only stack redundant passes. Reset in a
+    // finally so a throw mid-migration can never leave the live path muted.
+    _suppressAutoRecompute = true;
     var reprocessed = 0;
     var done = 0;
-    for (final tripId in tripIds) {
-      try {
-        final didRematch = await _rematchOne(tripId);
-        if (didRematch) reprocessed++;
-      } on Object catch (e, st) {
-        _log.warning(
-          'rematchAllStoredTrips: trip $tripId failed — keeping old '
-          'intervals: $e',
-          e,
-          st,
-        );
-      }
-      done++;
-      if (onTripDone != null) {
+    try {
+      for (final tripId in tripIds) {
         try {
-          onTripDone(done, total);
-          // A progress-UI hiccup must never abort the one-shot migration.
-          // ignore: avoid_catches_without_on_clauses
-        } catch (e, st) {
-          _log.warning('rematchAllStoredTrips: onTripDone threw: $e', e, st);
+          final didRematch = await _rematchOne(tripId);
+          if (didRematch) reprocessed++;
+        } on Object catch (e, st) {
+          _log.warning(
+            'rematchAllStoredTrips: trip $tripId failed — keeping old '
+            'intervals: $e',
+            e,
+            st,
+          );
+        }
+        done++;
+        if (onTripDone != null) {
+          try {
+            onTripDone(done, total);
+            // A progress-UI hiccup must never abort the one-shot migration.
+            // ignore: avoid_catches_without_on_clauses
+          } catch (e, st) {
+            _log.warning('rematchAllStoredTrips: onTripDone threw: $e', e, st);
+          }
         }
       }
+    } finally {
+      _suppressAutoRecompute = false;
     }
     _log.info('rematchAllStoredTrips: $reprocessed/$total reprocessed');
     return reprocessed;

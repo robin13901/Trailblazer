@@ -544,6 +544,132 @@ void main() {
   );
 
   // -------------------------------------------------------------------------
+  // Test 13: rematchAllStoredTrips SUPPRESSES the per-trip auto-recompute
+  // (2026-07-26). The one-shot migration writes intervals for every stored
+  // trip, but the caller (app.dart) runs ONE explicit recompute at the end, so
+  // the per-trip trigger must NOT fire — otherwise ~N stacked redundant passes
+  // hammer the coverage recompute (the 20-min stuck-banner cause).
+  // -------------------------------------------------------------------------
+  test(
+    '13. rematchAllStoredTrips does NOT trigger per-trip auto-recompute '
+    '(suppressed during the one-shot migration)',
+    () async {
+      final t1 = await _insertTripWithBbox(db, status: TripStatus.confirmed);
+      final t2 = await _insertTripWithBbox(db, status: TripStatus.confirmed);
+      final t3 = await _insertTripWithBbox(db, status: TripStatus.confirmed);
+      for (final t in [t1, t2, t3]) {
+        await _insertTripPoint(db, t, 1);
+        await _insertTripPoint(db, t, 2);
+        await intervalsDao.insertBatch([
+          DrivenWayIntervalsCompanion.insert(
+            wayId: 900,
+            tripId: Value(t),
+            startMeters: 0,
+            endMeters: 5,
+          ),
+        ]);
+      }
+
+      const canned = MatchResult(
+        steps: [],
+        intervals: [
+          DrivenWayIntervalDraft(
+            wayId: 42,
+            startMeters: 0,
+            endMeters: 50,
+            direction: 'forward',
+          ),
+        ],
+        matchedFixCount: 2,
+        droppedFixCount: 0,
+      );
+
+      var callCount = 0;
+      final coord = TripMatchCoordinator(
+        source: _FakeWayCandidateSource(ways: [_berlinWay()]),
+        matcherIsolate: _FakeMatcherIsolate(cannedResult: canned),
+        tripsDao: tripsDao,
+        tripsRepository: repository,
+        intervalsDao: intervalsDao,
+        onIntervalsLanded: (_) => callCount++,
+      );
+
+      await coord.rematchAllStoredTrips();
+      // Flush any fire-and-forget recompute passes that (incorrectly) queued.
+      await Future<void>.delayed(Duration.zero);
+      await Future<void>.delayed(Duration.zero);
+      await Future<void>.delayed(Duration.zero);
+
+      expect(callCount, 0,
+          reason: 'per-trip auto-recompute must be suppressed during the '
+              'one-shot rematch migration');
+    },
+  );
+
+  // -------------------------------------------------------------------------
+  // Test 14: the NORMAL live path (onTripReadyForMatching after a real drive)
+  // is UNAFFECTED by the suppression flag — it MUST still auto-recompute.
+  // -------------------------------------------------------------------------
+  test(
+    '14. onTripReadyForMatching STILL auto-recomputes after rematchAllStoredTrips '
+    '(suppression is scoped to the migration only)',
+    () async {
+      // Run a migration first so the suppress flag is toggled true→false.
+      final tMigrate =
+          await _insertTripWithBbox(db, status: TripStatus.confirmed);
+      await _insertTripPoint(db, tMigrate, 1);
+      await _insertTripPoint(db, tMigrate, 2);
+      await intervalsDao.insertBatch([
+        DrivenWayIntervalsCompanion.insert(
+          wayId: 900,
+          tripId: Value(tMigrate),
+          startMeters: 0,
+          endMeters: 5,
+        ),
+      ]);
+
+      // A separate live trip driven afterwards.
+      final tLive = await _insertTripWithBbox(db);
+      await _insertTripPoint(db, tLive, 1);
+      await _insertTripPoint(db, tLive, 2);
+
+      const canned = MatchResult(
+        steps: [],
+        intervals: [
+          DrivenWayIntervalDraft(
+            wayId: 42,
+            startMeters: 0,
+            endMeters: 50,
+            direction: 'forward',
+          ),
+        ],
+        matchedFixCount: 2,
+        droppedFixCount: 0,
+      );
+
+      var liveCallbackFiredForTrip = -1;
+      final coord = TripMatchCoordinator(
+        source: _FakeWayCandidateSource(ways: [_berlinWay()]),
+        matcherIsolate: _FakeMatcherIsolate(cannedResult: canned),
+        tripsDao: tripsDao,
+        tripsRepository: repository,
+        intervalsDao: intervalsDao,
+        onIntervalsLanded: (t) => liveCallbackFiredForTrip = t,
+      );
+
+      await coord.rematchAllStoredTrips();
+      // Now a real drive lands — the suppression must be off again.
+      await coord.onTripReadyForMatching(tLive);
+      await Future<void>.delayed(Duration.zero);
+      await Future<void>.delayed(Duration.zero);
+
+      expect(liveCallbackFiredForTrip, tLive,
+          reason: 'the normal live path must auto-recompute after the '
+              'migration re-enables it');
+    },
+  );
+
+  // -------------------------------------------------------------------------
   // Test 7: rematchAllStoredTrips replaces stored intervals, preserves status
   // -------------------------------------------------------------------------
   test(

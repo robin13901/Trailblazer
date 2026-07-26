@@ -51,15 +51,20 @@ class _AppState extends ConsumerState<App> with WidgetsBindingObserver {
   ///      bundled totals table. Forced to run whenever the re-match migration
   ///      just ran, so a repaired trip can never leave the region stats stale.
   Future<void> _runStartupMigrations() async {
-    await _runStuckFetchRecoveryMigrationIfNeeded();
-    // Re-match returns true when it actually reprocessed trips this launch;
-    // that forces the recompute below to run even if its own version stamp is
-    // already current (repaired intervals MUST be reflected in coverage_cache).
-    final rematched = await _runMatcherRematchMigrationIfNeeded();
-    await _runCoverageRecomputeMigrationIfNeeded(force: rematched);
-    // Whichever path ran, the one-time global recalc is now finished — clear
-    // the app-wide banner so the Map screen reverts to its normal chrome.
-    ref.read(globalRecalcProgressProvider.notifier).clear();
+    try {
+      await _runStuckFetchRecoveryMigrationIfNeeded();
+      // Re-match returns true when it actually reprocessed trips this launch;
+      // that forces the recompute below to run even if its own version stamp is
+      // already current (repaired intervals MUST be reflected in coverage_cache).
+      final rematched = await _runMatcherRematchMigrationIfNeeded();
+      await _runCoverageRecomputeMigrationIfNeeded(force: rematched);
+    } finally {
+      // Whichever path ran — success OR throw — the one-time global recalc is
+      // now finished, so ALWAYS clear the app-wide banner (in a finally) so a
+      // stalled/failed recompute can never strand the "Abdeckung wird neu
+      // berechnet …" banner spinning forever (2026-07-26 stuck-banner fix).
+      ref.read(globalRecalcProgressProvider.notifier).clear();
+    }
   }
 
   /// Runs the one-shot re-match migration when the stored matcher-rematch
@@ -132,9 +137,14 @@ class _AppState extends ConsumerState<App> with WidgetsBindingObserver {
       // Switch the app-wide banner to the coverage-rebuild phase ("Abdeckung
       // wird neu berechnet …"). Cleared in _runStartupMigrations after this
       // returns.
-      ref.read(globalRecalcProgressProvider.notifier).startRecomputing();
-      final result =
-          await ref.read(coverageComputeServiceProvider).recompute();
+      final recalc = ref.read(globalRecalcProgressProvider.notifier)
+        ..startRecomputing();
+      // Thread STAGE-1 clip progress into the banner so it shows a determinate
+      // "… N/M" bar instead of a 20-min indeterminate spinner. Progress is
+      // tile-coarse (per-way counts can't cross the compute-isolate boundary).
+      final result = await ref.read(coverageComputeServiceProvider).recompute(
+            onProgress: recalc.updateRecomputing,
+          );
       // recompute() never throws — it returns Result. Only stamp on Ok so a
       // failed pass retries next launch. When only [force] triggered this (the
       // version stamp was already current), a successful pass re-stamps the

@@ -3,7 +3,9 @@
 // Tests:
 //   1. null state → banner renders nothing (SizedBox.shrink, no GlassPill).
 //   2. rematching(3, 20) → shows "Fahrt 3/20" text + determinate bar.
-//   3. recomputing → shows the coverage-rebuild text + indeterminate bar.
+//   3. recomputing (no count) → shows the coverage-rebuild text + indeterminate
+//      bar.
+//   4. recomputing(4, 10) → shows "… 4/10" text + determinate bar at 0.4.
 //
 // Forces the GlassPillFallback path (headless tests have no real renderer).
 
@@ -98,6 +100,28 @@ void main() {
         find.byType(LinearProgressIndicator),
       );
       expect(bar.value, isNull);
+    });
+
+    testWidgets('4. recomputing(4, 10) shows N/M + determinate bar at 0.4',
+        (tester) async {
+      await _pumpBanner(
+        tester,
+        const GlobalRecalcState(
+          phase: GlobalRecalcPhase.recomputing,
+          done: 4,
+          total: 10,
+        ),
+      );
+
+      expect(find.textContaining('Abdeckung wird neu berechnet'),
+          findsOneWidget);
+      expect(find.textContaining('4/10'), findsOneWidget);
+
+      // Determinate bar: value is 4/10.
+      final bar = tester.widget<LinearProgressIndicator>(
+        find.byType(LinearProgressIndicator),
+      );
+      expect(bar.value, closeTo(4 / 10, 1e-9));
     });
   });
 }

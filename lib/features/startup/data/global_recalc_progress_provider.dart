@@ -22,10 +22,13 @@ enum GlobalRecalcPhase {
 
 /// Immutable snapshot of the global recalc progress.
 ///
-/// [done]/[total] are only meaningful during [GlobalRecalcPhase.rematching]
-/// (trip N of M). During [GlobalRecalcPhase.recomputing] the coverage rebuild
-/// exposes no granular count, so both are 0 and the banner shows an
-/// indeterminate indicator with a phase label.
+/// [done]/[total] carry a trip count during [GlobalRecalcPhase.rematching]
+/// (trip N of M) AND a tile-coarse clip count during
+/// [GlobalRecalcPhase.recomputing] (see `CoverageComputeService.recompute`'s
+/// `onProgress` — progress cannot cross the isolate boundary per-way, so it
+/// counts tiles). When [total] is 0 the banner falls back to an indeterminate
+/// indicator with just the phase label; when [total] > 0 it shows a determinate
+/// bar at `done/total`.
 @immutable
 class GlobalRecalcState {
   const GlobalRecalcState({
@@ -86,9 +89,21 @@ class GlobalRecalcNotifier extends Notifier<GlobalRecalcState?> {
     );
   }
 
-  /// Switch to the coverage-recompute phase (indeterminate).
+  /// Switch to the coverage-recompute phase. Starts indeterminate (total 0);
+  /// [updateRecomputing] fills in the tile-coarse done/total as the clip runs.
   void startRecomputing() {
     state = const GlobalRecalcState(phase: GlobalRecalcPhase.recomputing);
+  }
+
+  /// Update the coverage-recompute progress as STAGE-1 clips tiles. Ignored if
+  /// the phase has since changed (defensive — the migration only calls this
+  /// during the recomputing phase). Tile-coarse (see the provider docstring).
+  void updateRecomputing(int done, int total) {
+    state = GlobalRecalcState(
+      phase: GlobalRecalcPhase.recomputing,
+      done: done,
+      total: total,
+    );
   }
 
   /// Clear the banner — the migration is done (or had nothing to do).

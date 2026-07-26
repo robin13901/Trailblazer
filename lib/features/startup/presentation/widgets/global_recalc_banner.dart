@@ -4,7 +4,9 @@
 // GlassPill-style banner over the map showing the app-wide progress of the
 // one-time global re-match + coverage rebuild:
 //   - rematching  → "Neuberechnung … Fahrt N/M" + determinate bar
-//   - recomputing → "Abdeckung wird neu berechnet …" + indeterminate bar
+//   - recomputing → "Abdeckung wird neu berechnet … N/M" + determinate bar
+//                    (falls back to an indeterminate bar until the first count
+//                    lands / when no tiles need clipping)
 // It renders nothing when the provider is null (idle / migration done).
 //
 // German UI text throughout (the app is all German).
@@ -35,7 +37,7 @@ class GlobalRecalcBanner extends ConsumerWidget {
 
     final isRematching = state.phase == GlobalRecalcPhase.rematching;
     final hasCount = state.total > 0;
-    final value = isRematching && hasCount ? state.done / state.total : null;
+    final value = hasCount ? state.done / state.total : null;
 
     final String title;
     if (isRematching) {
@@ -43,7 +45,9 @@ class GlobalRecalcBanner extends ConsumerWidget {
           ? 'Neuberechnung … Fahrt ${state.done}/${state.total}'
           : 'Neuberechnung …';
     } else {
-      title = 'Abdeckung wird neu berechnet …';
+      title = hasCount
+          ? 'Abdeckung wird neu berechnet … ${state.done}/${state.total}'
+          : 'Abdeckung wird neu berechnet …';
     }
 
     return Semantics(

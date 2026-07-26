@@ -150,6 +150,52 @@ class _FixedWayCandidateSource implements WayCandidateSource {
   }
 }
 
+/// Fake WayCandidateSource that returns MANY raw tiles (one per way) so the
+/// chunked STAGE-1 clip reports progress across multiple chunks. Each way is
+/// wrapped in its own gzipped tile with a bbox matching the fetch window.
+class _MultiTileWayCandidateSource implements WayCandidateSource {
+  _MultiTileWayCandidateSource(this.ways);
+  final List<WayCandidate> ways;
+
+  @override
+  Future<List<WayCandidate>> fetchWaysInBbox({
+    required double minLat,
+    required double minLon,
+    required double maxLat,
+    required double maxLon,
+    bool throwOnError = true,
+    Set<TileId>? restrictTiles,
+    bool cacheOnly = false,
+    void Function(int done, int total)? onTileProgress,
+  }) async =>
+      ways;
+
+  @override
+  Future<List<RawTilePayload>> fetchRawTilesInBbox({
+    required double minLat,
+    required double minLon,
+    required double maxLat,
+    required double maxLon,
+    bool throwOnError = true,
+    Set<TileId>? restrictTiles,
+    bool cacheOnly = false,
+    void Function(int done, int total)? onTileProgress,
+  }) async {
+    return [
+      for (final w in ways)
+        RawTilePayload(
+          payloadGzip: _gzTile([w]),
+          bbox: LatLonBbox(
+            minLat: minLat,
+            minLon: minLon,
+            maxLat: maxLat,
+            maxLon: maxLon,
+          ),
+        ),
+    ];
+  }
+}
+
 /// Fake RegionTotalsLookup backed by a fixed map (osm_id string → meters).
 class _FakeRegionTotalsLookup extends RegionTotalsLookup {
   _FakeRegionTotalsLookup([this._totals]);
@@ -708,6 +754,95 @@ void main() {
       final result = await service.recomputeForTrip(tripId);
       expect(result.when(ok: (v) => v, err: (_) => -1), 0);
       expect(await cacheDao.getAllWithCoverage(), isEmpty);
+    });
+
+    // -----------------------------------------------------------------------
+    // onProgress: STAGE-1 reports a rising done up to a fixed total, ending at
+    // done == total (tile-coarse — one tile per way here, chunked internally).
+    // -----------------------------------------------------------------------
+    test('recompute invokes onProgress with rising done up to total', () async {
+      final tripId = await _seedMatchedTrip(db);
+      // Enough ways that the clip spans multiple progress chunks.
+      final ways = [
+        for (var i = 0; i < 20; i++) _fixtureWay(wayId: 100001 + i),
+      ];
+      for (final w in ways) {
+        await _seedInterval(db, tripId: tripId, wayId: w.wayId);
+      }
+
+      final regionsByLevel = <int, List<AdminRegion>>{
+        8: [_regionLevel8()],
+      };
+      final service = CoverageComputeService(
+        intervalsDao: intervalsDao,
+        waySource: _MultiTileWayCandidateSource(ways),
+        regionLookup: _FakeAdminRegionLookup(const {}),
+        cacheDao: cacheDao,
+        tripsDao: tripsDao,
+        totalsLookup: _FakeRegionTotalsLookup(),
+        attributionDao: attributionDao,
+        compute: (gz, bboxes, already) async => computeCoverageAttribution(
+          regionsByLevel: regionsByLevel,
+          gzippedTiles: gz,
+          tileBboxes: bboxes,
+          alreadyAttributedWayIds: already,
+        ),
+      );
+
+      final events = <(int, int)>[];
+      final result = await service.recompute(
+        onProgress: (done, total) => events.add((done, total)),
+      );
+      expect(result.isOk, isTrue);
+
+      // At least the initial (0, N) and terminal (N, N) plus intermediate steps.
+      expect(events, isNotEmpty);
+      final total = events.last.$2;
+      expect(total, greaterThan(0));
+      // Every event shares the same fixed total and done never exceeds it.
+      for (final e in events) {
+        expect(e.$2, total);
+        expect(e.$1, lessThanOrEqualTo(total));
+      }
+      // done is monotonic non-decreasing.
+      for (var i = 1; i < events.length; i++) {
+        expect(events[i].$1, greaterThanOrEqualTo(events[i - 1].$1));
+      }
+      // Ends at 100%.
+      expect(events.last.$1, total);
+      // Rose above the start (real progress, not a single jump).
+      expect(events.first.$1, 0);
+      expect(events.any((e) => e.$1 > 0 && e.$1 < total) || events.length == 2,
+          isTrue);
+    });
+
+    // onProgress with no tiles to clip → a single (1, 1) so the banner is never
+    // stranded at 0% (eviction-proof / empty-cache path).
+    test('recompute reports (1,1) when there are no tiles to clip', () async {
+      final tripId = await _seedMatchedTrip(db);
+      await _seedInterval(db, tripId: tripId, wayId: 100001);
+      // Pre-seed a durable row so STAGE-2 still writes coverage.
+      await attributionDao.upsertBatch([
+        WayRegionAttributionCompanion.insert(
+          wayId: 100001,
+          regionId: _regionLevel8().osmId.toString(),
+          adminLevel: 8,
+          rangeStartM: 0,
+          rangeEndM: _wayLen(_fixtureWay()),
+        ),
+      ]);
+
+      final service = buildService(
+        byLevel: {4: null, 6: null, 8: _regionLevel8(), 9: null, 10: null},
+        ways: [_fixtureWay()],
+        emptyRawTiles: true,
+      );
+
+      final events = <(int, int)>[];
+      await service.recompute(
+        onProgress: (done, total) => events.add((done, total)),
+      );
+      expect(events, contains((1, 1)));
     });
   });
 }

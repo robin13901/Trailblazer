@@ -24,6 +24,7 @@
 //
 // Never throws — wraps at DomainError boundary and returns Err.
 
+import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:auto_explore/core/db/app_database.dart';
@@ -70,6 +71,21 @@ const List<int> kComputeAdminLevels = [4, 6, 8, 9, 10];
 /// Yield to the event loop every N ways in the (still main-isolate) incremental
 /// `recomputeForTrip()` loop so it never starves the UI thread.
 const int _kYieldEveryWays = 50;
+
+/// STAGE-1 tile-chunk size for progress reporting. The clip is dispatched to the
+/// compute isolate in chunks of this many tiles so the recompute can report a
+/// determinate `done/total` fraction between chunks (per-way progress cannot
+/// cross the isolate boundary cheaply, so progress is TILE-COARSE — see
+/// `recompute`'s onProgress docstring). Large enough that the per-chunk isolate
+/// round-trip overhead stays negligible against the clip cost.
+const int _kProgressTilesPerChunk = 8;
+
+/// Progress callback for [CoverageComputeService.recompute]: reports the
+/// STAGE-1 clip advancing as `done` of `total` (tile-coarse — see the method
+/// docstring). Invoked at least once with `done == total` on completion so the
+/// UI can show 100%. Never throws to the callee.
+typedef CoverageRecomputeProgress = void Function(int done, int total);
+
 
 /// Recomputes `coverage_cache` for all admin regions at levels 4/6/8/9/10 via
 /// the durable clip-per-region model.
@@ -135,9 +151,31 @@ class CoverageComputeService {
   /// Recompute and upsert coverage statistics for every admin region that has
   /// any driven ways. Returns the number of rows written.
   ///
+  /// [onProgress] — when supplied, is invoked as STAGE-1 clips the driven ways,
+  /// with a rising `done` up to a fixed `total`. Progress is TILE-COARSE: the
+  /// clip runs inside the compute isolate and per-way counts cannot cross the
+  /// SendPort cheaply, so the raw tiles are dispatched in chunks of
+  /// [_kProgressTilesPerChunk] and `done`/`total` count TILES, not ways. A final
+  /// `onProgress(total, total)` is always emitted before STAGE 2 so the banner
+  /// can render 100%. When there is nothing to clip (no trips, or no uncached
+  /// tiles) a single `onProgress(1, 1)` is emitted so the banner is never left
+  /// at 0%. Errors thrown by the callback are swallowed — a progress-UI hiccup
+  /// must never abort the recompute.
+  ///
   /// Error posture: never throws. Non-DomainError exceptions are wrapped via
   /// [DomainError.wrap] and returned as [Err].
-  Future<Result<int>> recompute() async {
+  Future<Result<int>> recompute({CoverageRecomputeProgress? onProgress}) async {
+    void reportProgress(int done, int total) {
+      if (onProgress == null) return;
+      try {
+        onProgress(done, total);
+        // A progress-UI hiccup must never abort the recompute.
+        // ignore: avoid_catches_without_on_clauses
+      } catch (e, st) {
+        _log.warning('recompute: onProgress threw: $e', e, st);
+      }
+    }
+
     try {
       // Warm up the compute backend (idempotent; production: isolate.start()).
       await _ensureComputeReady?.call();
@@ -147,6 +185,7 @@ class CoverageComputeService {
       final bounds = await _tripsDao.watchUnionBbox().first;
       if (bounds == null) {
         await _cacheDao.deleteAll();
+        reportProgress(1, 1);
         _log.fine('recompute: no union bbox (no trips) — cleared cache');
         return const Ok(0);
       }
@@ -171,29 +210,50 @@ class CoverageComputeService {
         cacheOnly: true,
       );
 
-      // Clip the new ways off the UI thread. Empty tiles → no new rows (STAGE 2
-      // still runs over whatever is already attributed — eviction-proof).
-      final newRows = rawTiles.isEmpty
-          ? const <WayRegionAttributionRow>[]
-          : await _compute(
-              [for (final t in rawTiles) t.payloadGzip],
-              [for (final t in rawTiles) t.bbox],
-              alreadyAttributed,
-            );
+      // Clip the new ways off the UI thread, dispatched in TILE CHUNKS so we can
+      // report a determinate done/total between chunks (per-way progress can't
+      // cross the isolate boundary cheaply — hence tile-coarse). Empty tiles →
+      // no new rows (STAGE 2 still runs over whatever is already attributed —
+      // eviction-proof) and a single 1/1 so the banner never sits at 0%.
+      final totalTiles = rawTiles.length;
+      if (totalTiles == 0) {
+        reportProgress(1, 1);
+      } else {
+        final newRows = <WayRegionAttributionRow>[];
+        // Ways already attributed by an EARLIER chunk in THIS pass must also be
+        // skipped by later chunks (a way can span tile boundaries), so grow the
+        // skip set as rows land.
+        final skip = <int>{...alreadyAttributed};
+        reportProgress(0, totalTiles);
+        for (var start = 0; start < totalTiles; start += _kProgressTilesPerChunk) {
+          final end = math.min(start + _kProgressTilesPerChunk, totalTiles);
+          final chunk = rawTiles.sublist(start, end);
+          final chunkRows = await _compute(
+            [for (final t in chunk) t.payloadGzip],
+            [for (final t in chunk) t.bbox],
+            skip,
+          );
+          for (final r in chunkRows) {
+            newRows.add(r);
+            skip.add(r.wayId);
+          }
+          reportProgress(end, totalTiles);
+        }
 
-      if (newRows.isNotEmpty) {
-        final now = DateTime.now();
-        await _attribution.upsertBatch([
-          for (final r in newRows)
-            WayRegionAttributionCompanion.insert(
-              wayId: r.wayId,
-              regionId: r.regionId,
-              adminLevel: r.adminLevel,
-              rangeStartM: r.rangeStartM,
-              rangeEndM: r.rangeEndM,
-              computedAt: Value(now),
-            ),
-        ]);
+        if (newRows.isNotEmpty) {
+          final now = DateTime.now();
+          await _attribution.upsertBatch([
+            for (final r in newRows)
+              WayRegionAttributionCompanion.insert(
+                wayId: r.wayId,
+                regionId: r.regionId,
+                adminLevel: r.adminLevel,
+                rangeStartM: r.rangeStartM,
+                rangeEndM: r.rangeEndM,
+                computedAt: Value(now),
+              ),
+          ]);
+        }
       }
 
       // ---------------------------------------------------------------------
