@@ -18,6 +18,7 @@ class TripPoint {
     this.accuracyMeters,
     this.altitudeMeters,
     this.motionType,
+    this.headingDegrees,
   });
 
   final int tripId;
@@ -29,4 +30,11 @@ class TripPoint {
   final double? accuracyMeters;
   final double? altitudeMeters;
   final String? motionType;
+
+  /// GPS course-over-ground in degrees (0=N, 90=E) at this fix: the OS
+  /// `coords.heading` when valid, else a motion-vector bearing from the
+  /// previous accepted fix. Null when neither is available (e.g. the first
+  /// stationary fix). Persisted to `trip_points.heading` (schema v8) so the
+  /// road matcher can disambiguate divided-carriageway direction (#11).
+  final double? headingDegrees;
 }

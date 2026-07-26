@@ -77,3 +77,27 @@ double drivenLengthMeters(Iterable<Interval> intervals) {
   }
   return total;
 }
+
+/// Length of the disjoint union of [intervals] that falls within the closed
+/// meter-range `[rangeStart, rangeEnd]`.
+///
+/// Used by the durable clip-per-region recompute (2026-07-25): a driven way's
+/// union intervals are intersected with each attribution row's in-region
+/// meter-range so a partial drive credits ONLY the region that portion falls
+/// in. Returns 0 for a degenerate range (`rangeEnd <= rangeStart`) or empty
+/// input. Pure + isolate-safe.
+double overlapLengthMeters(
+  Iterable<Interval> intervals,
+  double rangeStart,
+  double rangeEnd,
+) {
+  if (rangeEnd <= rangeStart) return 0;
+  final merged = unionIntervals(intervals);
+  var total = 0.0;
+  for (final iv in merged) {
+    final lo = math.max(iv.startMeters, rangeStart);
+    final hi = math.min(iv.endMeters, rangeEnd);
+    if (hi > lo) total += hi - lo;
+  }
+  return total;
+}

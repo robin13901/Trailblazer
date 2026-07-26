@@ -12,12 +12,17 @@ import 'package:auto_explore/features/map/presentation/widgets/permission_denial
 import 'package:auto_explore/features/map/presentation/widgets/recenter_button.dart';
 import 'package:auto_explore/features/map/presentation/widgets/region_outline_bridge.dart';
 import 'package:auto_explore/features/map/presentation/widgets/region_outline_dismiss_chip.dart';
+import 'package:auto_explore/features/map/presentation/widgets/regions_search_reset_on_leave.dart';
 import 'package:auto_explore/features/map/presentation/widgets/settings_glass_button.dart';
 import 'package:auto_explore/features/map/presentation/widgets/tracking_camera_sync.dart';
 import 'package:auto_explore/features/map/presentation/widgets/trip_fab.dart';
 import 'package:auto_explore/features/map/presentation/widgets/trip_path_bridge.dart';
 import 'package:auto_explore/features/map/presentation/widgets/trip_path_dismiss_chip.dart';
+import 'package:auto_explore/features/map/presentation/widgets/wakelock_sync.dart';
 import 'package:auto_explore/features/regions/presentation/providers/region_sheet_open_provider.dart';
+import 'package:auto_explore/features/startup/presentation/widgets/global_recalc_banner.dart';
+import 'package:auto_explore/features/trips/domain/tracking_state.dart';
+import 'package:auto_explore/features/trips/presentation/providers/tracking_state_provider.dart';
 import 'package:auto_explore/features/trips/presentation/widgets/live_tracking_panel.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -118,6 +123,19 @@ class MapScreen extends ConsumerWidget {
             child: TrackingCameraSync(),
           ),
 
+          // Headless listener: holds a screen wakelock while a trip is
+          // recording so the display never sleeps mid-drive (issue #4).
+          // OUTSIDE the isMapTab block (zero-size Positioned) so the wakelock
+          // persists across tab switches — the screen stays on even if the
+          // user leaves the Map tab mid-recording.
+          const Positioned(
+            top: 0,
+            left: 0,
+            width: 0,
+            height: 0,
+            child: WakelockSync(),
+          ),
+
           // Headless coverage overlay bridge: watches the style-load tick,
           // coverage data, and preset — drives the MapLibre GeoJSON source +
           // line layer via CoverageOverlayApplier. Placed OUTSIDE the
@@ -177,6 +195,21 @@ class MapScreen extends ConsumerWidget {
             child: TripPathBridge(),
           ),
 
+          // Headless reset: clears the Regions search query when the user
+          // leaves the Regions tab (branch 2 → other). Only meaningful with a
+          // real shell; in isolated widget tests (navigationShell == null)
+          // there is no tab index to observe. Zero-size Positioned mirrors the
+          // other sync widgets so it neither sizes the Stack nor intercepts
+          // hit-tests.
+          if (navigationShell != null)
+            Positioned(
+              top: 0,
+              left: 0,
+              width: 0,
+              height: 0,
+              child: RegionsSearchResetOnLeave(currentIndex: currentIndex),
+            ),
+
           // Non-map tabs render their Scaffold (opaque background) over the
           // map when the shell index is > 0.
           if (navigationShell != null && !isMapTab)
@@ -226,6 +259,18 @@ class MapScreen extends ConsumerWidget {
               left: 0,
               right: 0,
               child: SafeArea(child: Center(child: FocusAreaPill())),
+            ),
+
+            // One-time global recalc banner (2026-07-26) — sits just below the
+            // focus pill on launch, showing the re-match + coverage-rebuild
+            // progress so the app never looks frozen. Renders nothing once the
+            // startup migration clears globalRecalcProgressProvider. Horizontal
+            // insets keep it off the settings / align-north buttons.
+            const Positioned(
+              top: _chromeRowTopInset + 56 + _chromeGap,
+              left: 64,
+              right: 64,
+              child: SafeArea(child: Center(child: GlobalRecalcBanner())),
             ),
 
             // Region-outline dismiss chip — centered just below the focus pill.
@@ -424,11 +469,32 @@ class _RecenterOrEmpty extends ConsumerWidget {
       data: (s) => s.isGranted || s.isLimited,
       orElse: () => false,
     );
+    if (!isGranted) return const SizedBox.shrink();
+
+    final isRecording = ref.watch(trackingStateProvider) is TrackingRecording;
+
+    if (isRecording) {
+      // Issue #12c: during an active recording the desired camera is heading-up
+      // follow (locationAndHeading → native trackingGps). If that is NOT active
+      // — because a tab-return remount or a user pan dropped follow — show the
+      // button so the user can re-lock. Only heading-up follow hides it; passive
+      // `location` follow during recording still offers the re-lock (it is not
+      // the recording follow mode). This is a stable rule keyed off followMode,
+      // so it does not flicker: it shows exactly when follow != locationAndHeading.
+      final headingUpActive =
+          cameraState.followMode == FollowMode.locationAndHeading;
+      return headingUpActive
+          ? const SizedBox.shrink()
+          : const RecenterButton();
+    }
+
+    // Not recording: keep the existing behavior — hide while passively
+    // following (location or locationAndHeading), show once the user pans away.
     final isFollowing =
         cameraState.followMode == FollowMode.location ||
         cameraState.followMode == FollowMode.locationAndHeading;
 
-    if (!isGranted || isFollowing) return const SizedBox.shrink();
+    if (isFollowing) return const SizedBox.shrink();
     return const RecenterButton();
   }
 }

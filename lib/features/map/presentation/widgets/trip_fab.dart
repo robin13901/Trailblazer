@@ -1,37 +1,129 @@
+import 'dart:async';
+
+import 'package:auto_explore/features/coverage/data/coverage_overlay_providers.dart';
 import 'package:auto_explore/features/map/presentation/widgets/glass_circle.dart';
 import 'package:auto_explore/features/trips/domain/tracking_state.dart';
+import 'package:auto_explore/features/trips/presentation/providers/inbox_providers.dart';
 import 'package:auto_explore/features/trips/presentation/providers/tracking_state_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-/// Bottom-right FAB that morphs between Start and Stop variants based on
-/// the current [TrackingState].
+/// Bottom-right FAB that morphs between Start, Stop, and post-stop "finishing"
+/// variants based on the current [TrackingState].
 ///
 /// - Idle → P2 glass circle with red-dot record icon ("Start trip").
 /// - Recording → solid red circle with white square stop icon ("Stop trip").
+/// - Finishing (just after Stop, until the coverage line is drawn) → the idle
+///   liquid-glass circle but with a centered [CircularProgressIndicator] spinner
+///   instead of the record icon. This gives the user immediate feedback that
+///   their drive is being matched + rendered (#6, 2026-07-25).
 ///
-/// Transitions are cross-faded via [AnimatedSwitcher] (~200 ms). Semantics
-/// label flips to reflect the action the button will perform.
-class TripFab extends ConsumerWidget {
+/// The finishing state ends once matching for the just-ended trip has completed
+/// AND the coverage overlay has emitted (the line is on the map). Readiness is
+/// derived from [inFlightCountProvider] (pending + pendingRoadData count) with a
+/// "saw-in-flight" latch to bridge the brief race between the Stop tap and the
+/// trip reaching a matching state, plus [coverageOverlayDataProvider] having
+/// resolved to data.
+///
+/// Transitions are cross-faded via [AnimatedSwitcher] (~200 ms).
+class TripFab extends ConsumerStatefulWidget {
   const TripFab({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<TripFab> createState() => _TripFabState();
+}
+
+class _TripFabState extends ConsumerState<TripFab> {
+  /// True from the moment Stop is tapped until the coverage line for the ended
+  /// trip is drawn (matching done + overlay emitted).
+  bool _finishing = false;
+
+  /// Latch: set once we observe matching actually in flight after a Stop, so a
+  /// transient `inFlightCount == 0` in the brief race window right after the tap
+  /// does not clear [_finishing] prematurely.
+  bool _sawInFlight = false;
+
+  void _onStart() {
+    unawaited(ref.read(trackingStateProvider.notifier).startManual());
+  }
+
+  void _onStop() {
+    setState(() {
+      _finishing = true;
+      _sawInFlight = false;
+    });
+    unawaited(ref.read(trackingStateProvider.notifier).stopActive());
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final state = ref.watch(trackingStateProvider);
+
+    // While recording, a previous finishing session is irrelevant — reset it.
+    if (state is TrackingRecording && _finishing) {
+      // Defer the state mutation out of build.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && _finishing) {
+          setState(() {
+            _finishing = false;
+            _sawInFlight = false;
+          });
+        }
+      });
+    }
+
+    // Evaluate finishing readiness only while idle + finishing.
+    if (_finishing && state is TrackingIdle) {
+      final inFlight = ref.watch(inFlightCountProvider).value ?? 0;
+      final overlayReady =
+          ref.watch(coverageOverlayDataProvider).hasValue;
+
+      if (inFlight > 0) {
+        // Matching is running — remember we saw it so a later 0 means "done".
+        if (!_sawInFlight) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted && _finishing) setState(() => _sawInFlight = true);
+          });
+        }
+      } else if (_sawInFlight && overlayReady) {
+        // Matching finished (count dropped back to 0) and the overlay has
+        // emitted → the line is drawn. Clear the spinner.
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) {
+            setState(() {
+              _finishing = false;
+              _sawInFlight = false;
+            });
+          }
+        });
+      }
+      // else: race window (count still 0, matching not yet observed) → keep the
+      // spinner until matching starts.
+    }
+
+    final showFinishing = _finishing && state is TrackingIdle;
+
     final onTap = switch (state) {
-      TrackingIdle() =>
-          () => ref.read(trackingStateProvider.notifier).startManual(),
-      TrackingRecording() =>
-          () => ref.read(trackingStateProvider.notifier).stopActive(),
+      _ when showFinishing => null, // ignore taps while finishing
+      TrackingIdle() => _onStart,
+      TrackingRecording() => _onStop,
     };
+
     final child = switch (state) {
+      _ when showFinishing => const _FinishingVariant(key: ValueKey('finishing')),
       TrackingIdle() => const _StartVariant(key: ValueKey('start')),
       TrackingRecording() => const _StopVariant(key: ValueKey('stop')),
     };
 
+    final label = switch (state) {
+      _ when showFinishing => 'Fahrt wird abgeglichen',
+      TrackingIdle() => 'Fahrt starten',
+      TrackingRecording() => 'Fahrt beenden',
+    };
+
     return Semantics(
       button: true,
-      label: state is TrackingIdle ? 'Fahrt starten' : 'Fahrt beenden',
+      label: label,
       child: GestureDetector(
         onTap: onTap,
         child: AnimatedSwitcher(
@@ -81,6 +173,25 @@ class _StopVariant extends StatelessWidget {
       ),
       child: const Center(
         child: Icon(Icons.stop, color: Colors.white, size: 28),
+      ),
+    );
+  }
+}
+
+/// Idle-style glass circle with a centered spinner — shown from the Stop tap
+/// until the ended trip's coverage line is drawn (#6).
+class _FinishingVariant extends StatelessWidget {
+  const _FinishingVariant({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return const GlassCircle(
+      size: 64,
+      overMap: true,
+      child: SizedBox(
+        width: 26,
+        height: 26,
+        child: CircularProgressIndicator(strokeWidth: 2.5),
       ),
     );
   }

@@ -47,7 +47,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 /// name, even during a new in-flight resolve.
 @immutable
 class FocusPillState {
-  const FocusPillState({this.name, this.percentLabel});
+  const FocusPillState({this.name, this.percentLabel, this.regionId});
 
   /// Region name, e.g. "Grebenhain". Null only before first resolve.
   final String? name;
@@ -55,6 +55,12 @@ class FocusPillState {
   /// One-decimal coverage string, e.g. "26.4%". Null when the region exists
   /// but has no cache row yet (widget shows "—%" placeholder).
   final String? percentLabel;
+
+  /// OSM relation id (string) of the currently-shown region, or null for the
+  /// national/placeholder pill. Used to refresh the % in place when
+  /// `coverage_cache` is rewritten for THIS region (2026-07-25 #8) without a
+  /// camera move.
+  final String? regionId;
 
   /// True once the first resolve has completed and a name is held.
   bool get hasValue => name != null;
@@ -73,6 +79,13 @@ const Duration _kDebounce = Duration(milliseconds: 150);
 class FocusPillNotifier extends Notifier<FocusPillState> {
   Timer? _debounce;
   int _requestId = 0;
+
+  /// Last resolved coordinate + level chain, retained so a coverage_cache write
+  /// can re-run the resolve for the SAME location without waiting for a fresh
+  /// camera/fix event (#8 reactive %). Null until the first resolve.
+  double? _lastLat;
+  double? _lastLon;
+  List<int>? _lastLevels;
 
   @override
   FocusPillState build() {
@@ -126,6 +139,19 @@ class FocusPillNotifier extends Notifier<FocusPillState> {
             ),
           );
         }
+      })
+
+      // Listen to coverage_cache writes (recompute deleteAll+upsert). When the
+      // numbers for the currently-shown region change, re-resolve the LAST
+      // location so the % updates in place — no camera move needed (#8). This
+      // is debounced-free (recompute commits once per pass) and guarded: it
+      // only fires when we already have a resolved location to refresh.
+      ..listen(coverageCacheStreamProvider, (_, _) {
+        final lat = _lastLat;
+        final lon = _lastLon;
+        final levels = _lastLevels;
+        if (lat == null || lon == null || levels == null) return;
+        unawaited(_resolve(lat: lat, lon: lon, levels: levels));
       });
 
     // Initial state: blank — name is null until the first resolve completes.
@@ -149,6 +175,11 @@ class FocusPillNotifier extends Notifier<FocusPillState> {
     required List<int> levels,
   }) async {
     final myId = ++_requestId;
+
+    // Retain for #8 coverage-cache-driven refresh of the same location.
+    _lastLat = lat;
+    _lastLon = lon;
+    _lastLevels = levels;
 
     final lookup = ref.read(adminRegionLookupProvider);
     await lookup.ensureLoaded();
@@ -213,6 +244,7 @@ class FocusPillNotifier extends Notifier<FocusPillState> {
     state = FocusPillState(
       name: region.nameDe ?? region.name,
       percentLabel: percentLabel,
+      regionId: region.osmId.toString(),
     );
   }
 }

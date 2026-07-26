@@ -23,6 +23,7 @@ import 'package:auto_explore/features/matching/domain/node_graph.dart';
 import 'package:auto_explore/features/matching/domain/segment_geometry.dart';
 import 'package:auto_explore/features/matching/domain/viterbi_decoder.dart';
 import 'package:auto_explore/features/matching/domain/way_candidate.dart';
+import 'package:auto_explore/features/matching/domain/way_segment.dart';
 import 'package:auto_explore/features/matching/domain/way_segment_index.dart';
 import 'package:maplibre_gl/maplibre_gl.dart' show LatLng;
 
@@ -128,13 +129,18 @@ class HmmMatcher {
     );
 
     final intervals = _collapseToIntervals(steps, waysById);
+    // #10 matcher-side auto-fill: bridge small NULL/confidence gaps between
+    // adjacent intervals on the same way, and close collinear continuations
+    // across a degree-2 shared node between two ways. Conservative — see
+    // `_fillSmallGaps`. The manual tap-to-fill (DB/UI) half of #10 is separate.
+    final filled = _fillSmallGaps(intervals, waysById, nodeGraph);
 
     final matched = steps.where((s) => s != null).length;
     final dropped = steps.length - matched;
 
     return MatchResult(
       steps: steps,
-      intervals: intervals,
+      intervals: filled,
       matchedFixCount: matched,
       droppedFixCount: dropped,
     );
@@ -173,8 +179,18 @@ class HmmMatcher {
     final out = <DrivenWayIntervalDraft>[];
 
     int? runWayId;
-    double runRawStart = 0; // meters at the first step of the current run
-    double runRawEnd = 0; // meters at the latest step of the current run
+    // A same-wayId run tracks four raw meter marks so an out-and-back excursion
+    // (#9) is captured faithfully: [runRawMin..runRawMax] is the true peak
+    // span, while runRawFirst/runRawLast give the net direction. All four are
+    // seeded to the run's first `meters` at BOTH start sites.
+    double runRawFirst = 0; // meters at the first step of the current run
+    double runRawLast = 0; // meters at the latest step of the current run
+    double runRawMin = 0; // smallest meters seen this run (peak excursion lo)
+    double runRawMax = 0; // largest meters seen this run (peak excursion hi)
+    // Established travel direction along the way for this run: +1 = toward
+    // higher meters, -1 = toward lower, null = not yet determined. Drives the
+    // #9 out-and-back reversal split.
+    double? runDirSign;
     // True when this run began by transitioning DIRECTLY from a different
     // matched way (not from a gap/null or the trip start). Half of the
     // pass-through test.
@@ -189,9 +205,16 @@ class HmmMatcher {
     // [exitWayId] is that following way (null on gap/trip-end).
     void flush({required bool exitedToOtherWay, int? exitWayId}) {
       if (runWayId == null) return;
-      var start = math.min(runRawStart, runRawEnd);
-      var end = math.max(runRawStart, runRawEnd);
-      final direction = runRawEnd >= runRawStart ? 'forward' : 'backward';
+      // #9: the interval spans the full peak excursion (min..max), and the net
+      // direction is the sign of last-vs-first (the direction the run ended up
+      // heading). For a monotonic run min==first and max==last, so this is
+      // identical to the pre-change min/max behaviour — existing golden and
+      // intra-way tests are unaffected. For an out-and-back that was NOT split
+      // (excursion below kReversalMinMeters), the span still reflects the true
+      // peak rather than the collapsed endpoints.
+      var start = runRawMin;
+      var end = runRawMax;
+      final direction = runRawLast >= runRawFirst ? 'forward' : 'backward';
 
       // Pass-through recall fix (2026-07-10): a way the vehicle demonstrably
       // ENTERED from another way and EXITED to another way was traversed
@@ -275,8 +298,11 @@ class HmmMatcher {
         // Start a new run after a gap/null or at trip start — NOT entered from
         // another matched way, so reset the pass-through entry flag.
         runWayId = s.wayId;
-        runRawStart = metersFromWayStart;
-        runRawEnd = metersFromWayStart;
+        runRawFirst = metersFromWayStart;
+        runRawLast = metersFromWayStart;
+        runRawMin = metersFromWayStart;
+        runRawMax = metersFromWayStart;
+        runDirSign = null;
         enteredFromOtherWay = false;
         entryWayId = null;
       } else if (s.wayId != runWayId) {
@@ -286,14 +312,50 @@ class HmmMatcher {
         final leavingWayId = runWayId;
         flush(exitedToOtherWay: true, exitWayId: s.wayId);
         runWayId = s.wayId;
-        runRawStart = metersFromWayStart;
-        runRawEnd = metersFromWayStart;
+        runRawFirst = metersFromWayStart;
+        runRawLast = metersFromWayStart;
+        runRawMin = metersFromWayStart;
+        runRawMax = metersFromWayStart;
+        runDirSign = null;
         enteredFromOtherWay = true;
         entryWayId = leavingWayId;
         continue;
       } else {
         // Same way: extend the current run.
-        runRawEnd = metersFromWayStart;
+        // #9 OUT-AND-BACK: detect a genuine reversal on the same way. When the
+        // vehicle was heading one way (runDirSign established) and the new step
+        // moves the OPPOSITE way, and the run has already covered a real
+        // excursion (peak span >= kReversalMinMeters), flush the current
+        // directional interval and start a FRESH same-wayId run seeded here.
+        // The result is [entry..peak] in one direction + [peak..exit] in the
+        // other, together covering the full driven span — instead of a single
+        // interval whose collapsed min/max hides the turn-around direction.
+        // Guarded by kReversalMinMeters so GPS jitter does not split a run.
+        final delta = metersFromWayStart - runRawLast;
+        final newSign = delta == 0 ? 0.0 : delta.sign;
+        if (runDirSign != null &&
+            newSign != 0 &&
+            newSign != runDirSign &&
+            (runRawMax - runRawMin) >= kReversalMinMeters) {
+          // Flush the completed directional leg. This is NOT a way change, so
+          // it is not a pass-through (we did not exit to another way).
+          flush(exitedToOtherWay: false);
+          // Fresh same-wayId run seeded at the current position. The next
+          // step's delta will establish the new (reversed) direction.
+          runWayId = s.wayId;
+          runRawFirst = metersFromWayStart;
+          runRawLast = metersFromWayStart;
+          runRawMin = metersFromWayStart;
+          runRawMax = metersFromWayStart;
+          runDirSign = null;
+          enteredFromOtherWay = false;
+          entryWayId = null;
+        } else {
+          if (newSign != 0) runDirSign = newSign;
+          runRawLast = metersFromWayStart;
+          if (metersFromWayStart < runRawMin) runRawMin = metersFromWayStart;
+          if (metersFromWayStart > runRawMax) runRawMax = metersFromWayStart;
+        }
       }
     }
     // End of trace: the final run did NOT exit to another way.
@@ -469,6 +531,181 @@ class HmmMatcher {
       );
     }
     return total;
+  }
+
+  // ---------------------------------------------------------------------------
+  // #10 Matcher-side gap auto-fill (2026-07-25)
+  // ---------------------------------------------------------------------------
+
+  /// Bridge small gaps left by a NULL/confidence drop between adjacent driven
+  /// intervals. Two shapes are handled, both conservatively:
+  ///
+  /// * **Same wayId, same direction:** a confidence gap flushed the run and it
+  ///   restarted on the same way. If the metric gap `cur.start - prev.end` is
+  ///   in `(0, kMaxAutoFillGapMeters]` AND no branch node (degree > 2) lies
+  ///   strictly inside that meter interval along the way, merge into
+  ///   `[prev.start .. cur.end]`.
+  /// * **Different wayId, same direction, collinear continuation:** the two
+  ///   ways meet at a single degree-2 node shared by exactly those two ways
+  ///   (no branch), and each interval already reaches the endpoint touching
+  ///   that node (within tolerance). Extend `prev` to its endpoint and `cur`
+  ///   to its start so the junction renders continuously.
+  ///
+  /// Everything else — direction mismatch, missing/ambiguous topology, a branch
+  /// node, or a gap over the threshold — is left untouched (mirrors
+  /// `_isPassThroughConnector`'s conservative philosophy). The manual
+  /// tap-to-fill half of #10 (DB/UI) is out of scope here.
+  List<DrivenWayIntervalDraft> _fillSmallGaps(
+    List<DrivenWayIntervalDraft> intervals,
+    Map<int, WayCandidate> waysById,
+    NodeGraph nodeGraph,
+  ) {
+    if (intervals.length < 2) return intervals;
+    final result = <DrivenWayIntervalDraft>[];
+    for (final cur in intervals) {
+      if (result.isEmpty) {
+        result.add(cur);
+        continue;
+      }
+      final prev = result.last;
+      final repl = _tryFill(prev, cur, waysById, nodeGraph);
+      if (repl != null) {
+        result
+          ..removeLast()
+          ..addAll(repl);
+      } else {
+        result.add(cur);
+      }
+    }
+    return result;
+  }
+
+  /// Attempt to bridge the gap between adjacent intervals [prev] and [cur].
+  /// Returns the replacement for the pair (`[merged]` for a same-way merge, or
+  /// `[extendedPrev, extendedCur]` for a different-way collinear extension), or
+  /// `null` when no fill applies.
+  List<DrivenWayIntervalDraft>? _tryFill(
+    DrivenWayIntervalDraft prev,
+    DrivenWayIntervalDraft cur,
+    Map<int, WayCandidate> waysById,
+    NodeGraph nodeGraph,
+  ) {
+    // Must share travel direction — never bridge a reversal (#9 split).
+    if (prev.direction != cur.direction) return null;
+
+    if (prev.wayId == cur.wayId) {
+      final way = waysById[prev.wayId];
+      if (way == null || way.geometry.length < 2) return null;
+      final gap = cur.startMeters - prev.endMeters;
+      if (!(gap > 0 && gap <= kMaxAutoFillGapMeters)) return null;
+      // Refuse to bridge across a branch (degree > 2) inside the gap.
+      if (_branchNodeStrictlyBetween(
+        way,
+        prev.endMeters,
+        cur.startMeters,
+        nodeGraph,
+      )) {
+        return null;
+      }
+      return [
+        DrivenWayIntervalDraft(
+          wayId: prev.wayId,
+          startMeters: prev.startMeters,
+          endMeters: cur.endMeters,
+          direction: prev.direction,
+        ),
+      ];
+    }
+
+    // Different wayId: collinear continuation across a single shared node.
+    final pWay = waysById[prev.wayId];
+    final cWay = waysById[cur.wayId];
+    if (pWay == null || cWay == null) return null;
+    if (pWay.geometry.length < 2 || cWay.geometry.length < 2) return null;
+
+    final lenP = _polylineLengthMeters(pWay.geometry);
+    final lenC = _polylineLengthMeters(cWay.geometry);
+    if (lenP <= 0 || lenC <= 0) return null;
+    const tol = kMaxAutoFillGapMeters;
+
+    // Which endpoint node(s) does each interval already touch (within tol)?
+    // Each entry pairs the OSM node id with a flag: true = END node, false =
+    // START node — so the extension knows which meter bound to open up.
+    final pEnds = <(int nodeId, bool isEnd)>[
+      if (prev.startMeters <= tol) (_nodeIdAt(pWay, 0), false),
+      if (lenP - prev.endMeters <= tol) (_nodeIdAt(pWay, pWay.geometry.length - 1), true),
+    ];
+    final cEnds = <(int nodeId, bool isEnd)>[
+      if (cur.startMeters <= tol) (_nodeIdAt(cWay, 0), false),
+      if (lenC - cur.endMeters <= tol) (_nodeIdAt(cWay, cWay.geometry.length - 1), true),
+    ];
+
+    for (final (pNode, pIsEnd) in pEnds) {
+      for (final (cNode, cIsEnd) in cEnds) {
+        if (pNode != cNode) continue;
+        // Degree-2, shared by EXACTLY these two ways = pure continuation.
+        if (nodeGraph.nodeDegree(pNode) != 2) continue;
+        final ways = nodeGraph.waysAtNode(pNode);
+        if (ways.length != 2 ||
+            !ways.contains(prev.wayId) ||
+            !ways.contains(cur.wayId)) {
+          continue;
+        }
+        // Extend prev up to its touched endpoint, cur out from its.
+        final extPrev = DrivenWayIntervalDraft(
+          wayId: prev.wayId,
+          startMeters: pIsEnd ? prev.startMeters : 0,
+          endMeters: pIsEnd ? lenP : prev.endMeters,
+          direction: prev.direction,
+        );
+        final extCur = DrivenWayIntervalDraft(
+          wayId: cur.wayId,
+          startMeters: cIsEnd ? cur.startMeters : 0,
+          endMeters: cIsEnd ? lenC : cur.endMeters,
+          direction: cur.direction,
+        );
+        return [extPrev, extCur];
+      }
+    }
+    return null;
+  }
+
+  /// True when a branch node — one where more than two distinct ways meet —
+  /// lies STRICTLY between [loMeters] and [hiMeters] along [way]. Used to
+  /// refuse a same-way gap merge that would paint across an intersection the
+  /// vehicle might have turned off at.
+  bool _branchNodeStrictlyBetween(
+    WayCandidate way,
+    double loMeters,
+    double hiMeters,
+    NodeGraph nodeGraph,
+  ) {
+    final geom = way.geometry;
+    var cum = 0.0;
+    for (var i = 0; i < geom.length; i++) {
+      if (i > 0) {
+        cum += segmentLengthMeters(
+          aLat: geom[i - 1].latitude,
+          aLon: geom[i - 1].longitude,
+          bLat: geom[i].latitude,
+          bLon: geom[i].longitude,
+        );
+      }
+      if (cum > loMeters && cum < hiMeters) {
+        if (nodeGraph.nodeDegree(_nodeIdAt(way, i)) > 2) return true;
+      }
+    }
+    return false;
+  }
+
+  /// OSM node id of [way]'s vertex [i] — the real id when [WayCandidate.nodeIds]
+  /// is present, else the deterministic coordinate-hash surrogate the rest of
+  /// the matcher (and [NodeGraph]) uses for hand-authored fixtures.
+  int _nodeIdAt(WayCandidate way, int i) {
+    final ids = way.nodeIds;
+    if (ids.length == way.geometry.length) return ids[i];
+    final v = way.geometry[i];
+    return WaySegment.nodeKeyFor(v.latitude, v.longitude);
   }
 }
 

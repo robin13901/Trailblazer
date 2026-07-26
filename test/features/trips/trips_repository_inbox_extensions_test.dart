@@ -143,12 +143,12 @@ class _EmptyWayCandidateSource implements WayCandidateSource {
 
 /// Stand-in [CoverageAttributionRunner] — never invoked ([_NoopComputeService]
 /// overrides recompute()), just satisfies the required constructor param.
-Future<Map<String, RegionAccum>> _unusedCompute(
+Future<List<WayRegionAttributionRow>> _unusedCompute(
   List<Uint8List> gzippedTiles,
   List<LatLonBbox> tileBboxes,
-  Map<int, List<double>> intervalsByWayId,
+  Set<int> alreadyAttributedWayIds,
 ) async =>
-    const {};
+    const [];
 
 /// No-op CoverageComputeService — overrides recompute() so that the
 /// fire-and-forget call in confirmTrip completes immediately with Ok(0).

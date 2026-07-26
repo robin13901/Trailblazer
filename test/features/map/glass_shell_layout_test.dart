@@ -1,5 +1,6 @@
 import 'package:auto_explore/features/coverage/data/coverage_overlay_data.dart';
 import 'package:auto_explore/features/coverage/data/coverage_overlay_providers.dart';
+import 'package:auto_explore/features/coverage/data/coverage_providers.dart';
 import 'package:auto_explore/features/coverage/domain/coverage_color_preset.dart';
 import 'package:auto_explore/features/coverage/presentation/coverage_preset_provider.dart';
 import 'package:auto_explore/features/map/data/tile_provider_config.dart';
@@ -14,6 +15,7 @@ import 'package:auto_explore/features/map/presentation/widgets/trip_fab.dart';
 import 'package:auto_explore/features/matching/data/matching_providers.dart';
 import 'package:auto_explore/features/trips/domain/live_fix_sample.dart';
 import 'package:auto_explore/features/trips/domain/tracking_state.dart';
+import 'package:auto_explore/features/trips/presentation/providers/inbox_providers.dart';
 import 'package:auto_explore/features/trips/presentation/providers/tracking_state_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -66,6 +68,17 @@ Future<void> pumpMapScreen(WidgetTester tester) async {
         liveTrailApplierProvider.overrideWithValue(const _NoopLiveTrailApplier()),
         wayCandidateSourceProvider
             .overrideWithValue(FixtureWayCandidateSource(ways: const [])),
+        // FocusAreaPill (new on this branch) watches inFlightCountProvider and,
+        // via FocusPillNotifier.build(), ref.listens coverageCacheStreamProvider.
+        // Both chains hit the real Drift DB (tripsInboxRepositoryProvider /
+        // coverageCacheDaoProvider → appDatabaseProvider), whose open path
+        // schedules a pending Timer that never fires under the test FakeAsync —
+        // tripping the "!timersPending" invariant on dispose. Stub both at rest
+        // so the pill sits idle (inFlight == 0, no pulse) and needs no DB.
+        inFlightCountProvider.overrideWith((ref) => Stream.value(0)),
+        coverageCacheStreamProvider.overrideWith(
+          (ref) => const Stream.empty(),
+        ),
       ],
       child: const MaterialApp(
         home: MapScreen(),

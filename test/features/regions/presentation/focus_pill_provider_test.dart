@@ -393,49 +393,52 @@ void main() {
     );
 
     test(
-      '8. recording: camera pan does NOT override the fix-driven region',
+      '9. reactive: a coverage_cache write refreshes the shown region % '
+      'WITHOUT a camera move (#8)',
       () async {
         final region = _grebenhainRegion();
-        final fixes = StreamController<LiveFixSample>();
-        addTearDown(fixes.close);
+        // Fresh empty DB so we control the cache row lifecycle.
+        final freshDb = AppDatabase(NativeDatabase.memory());
+        addTearDown(freshDb.close);
+        final dao = CoverageCacheDao(freshDb);
 
-        final c = _makeContainer(
-          // Region resolves at level 10 for the Grebenhain area (lat > 50);
-          // anywhere else returns null at every level.
-          resolver: (lat, _, level) {
-            if (lat > 50 && level == 10) return region;
-            return null;
-          },
-          db: db,
-          tracking: _recording(),
-          fixStream: fixes.stream,
+        final c = ProviderContainer(
+          overrides: [
+            adminRegionLookupProvider.overrideWithValue(
+              _FakeAdminRegionLookup(
+                (_, _, level) => level == 8 ? region : null,
+              ),
+            ),
+            coverageCacheDaoProvider.overrideWithValue(dao),
+            trackingStateProvider
+                .overrideWith(() => _FakeTrackingNotifier(const TrackingIdle())),
+            liveFixProvider
+                .overrideWith((ref) => const Stream<LiveFixSample>.empty()),
+          ],
         );
         addTearDown(c.dispose);
 
+        // Keep the notifier + coverage stream alive.
         c
           ..listen(focusPillProvider, (_, _) {})
-          ..listen(liveFixProvider, (_, _) {});
-        await Future<void>.delayed(Duration.zero);
+          ..listen(coverageCacheStreamProvider, (_, _) {});
 
-        // Live fix over Grebenhain → pill shows Grebenhain.
-        fixes.add(
-          LiveFixSample(ts: DateTime(2026, 7, 21), lat: 50.51, lon: 9.385),
-        );
-        await Future<void>.delayed(const Duration(milliseconds: 400));
+        // Resolve the region via a camera move first (no cache row yet → —%).
+        await _pushCamera(c);
         expect(c.read(focusPillProvider).name, 'Grebenhain');
+        expect(c.read(focusPillProvider).percentLabel, isNull);
 
-        // A camera move to (0,0) while recording MUST be suppressed — the pill
-        // stays on the fix-driven region rather than flipping to "—".
-        c.read(liveCameraProvider.notifier).update(
-              const CameraPosition(target: LatLng(0, 0), zoom: 14),
-            );
-        await Future<void>.delayed(const Duration(milliseconds: 400));
-
-        expect(
-          c.read(focusPillProvider).name,
-          'Grebenhain',
-          reason: 'Recording suppresses the camera driver',
+        // Now a recompute writes a coverage row for THIS region. The pill must
+        // pick up the new % WITHOUT another camera move.
+        await dao.upsert(
+          regionId: region.osmId.toString(),
+          drivenLengthM: 264,
+          totalLengthM: 1000,
+          updatedAt: DateTime(2026, 7, 25),
         );
+        await Future<void>.delayed(const Duration(milliseconds: 200));
+
+        expect(c.read(focusPillProvider).percentLabel, '26,4 %');
       },
     );
   });

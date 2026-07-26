@@ -93,4 +93,47 @@ void main() {
       expect(input, equals(snapshot));
     });
   });
+
+  group('overlapLengthMeters', () {
+    test('empty intervals → 0', () {
+      expect(overlapLengthMeters(const [], 0, 100), 0);
+    });
+
+    test('degenerate range (end <= start) → 0', () {
+      expect(overlapLengthMeters(const [Interval(0, 100)], 50, 50), 0);
+      expect(overlapLengthMeters(const [Interval(0, 100)], 60, 50), 0);
+    });
+
+    test('interval fully inside range → full interval length', () {
+      expect(overlapLengthMeters(const [Interval(10, 30)], 0, 100), 20);
+    });
+
+    test('interval fully outside range → 0', () {
+      expect(overlapLengthMeters(const [Interval(200, 300)], 0, 100), 0);
+    });
+
+    test('partial overlap → clipped length', () {
+      // Driven [0,120] clipped to region range [50,100] → 50.
+      expect(overlapLengthMeters(const [Interval(0, 120)], 50, 100), 50);
+    });
+
+    test('range spans a boundary — only the in-range half counts', () {
+      // Driven the first 200 m of a way; region A occupies [0,195].
+      expect(overlapLengthMeters(const [Interval(0, 200)], 0, 195), 195);
+      // Region B occupies [195,410]; only 5 m of the drive spills in.
+      expect(overlapLengthMeters(const [Interval(0, 200)], 195, 410), 5);
+    });
+
+    test('multiple disjoint intervals summed within range', () {
+      expect(
+        overlapLengthMeters(
+          const [Interval(0, 20), Interval(40, 60)],
+          10,
+          50,
+        ),
+        // [10,20] = 10  +  [40,50] = 10  → 20
+        20,
+      );
+    });
+  });
 }

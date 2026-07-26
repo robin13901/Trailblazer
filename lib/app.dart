@@ -7,6 +7,7 @@ import 'package:auto_explore/core/routing/app_router.dart';
 import 'package:auto_explore/core/theme/app_theme.dart';
 import 'package:auto_explore/features/matching/data/matching_providers.dart';
 import 'package:auto_explore/features/regions/data/coverage_compute_providers.dart';
+import 'package:auto_explore/features/startup/data/global_recalc_progress_provider.dart';
 import 'package:auto_explore/features/trips/data/trips_repository_providers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -56,6 +57,9 @@ class _AppState extends ConsumerState<App> with WidgetsBindingObserver {
     // already current (repaired intervals MUST be reflected in coverage_cache).
     final rematched = await _runMatcherRematchMigrationIfNeeded();
     await _runCoverageRecomputeMigrationIfNeeded(force: rematched);
+    // Whichever path ran, the one-time global recalc is now finished — clear
+    // the app-wide banner so the Map screen reverts to its normal chrome.
+    ref.read(globalRecalcProgressProvider.notifier).clear();
   }
 
   /// Runs the one-shot re-match migration when the stored matcher-rematch
@@ -75,9 +79,16 @@ class _AppState extends ConsumerState<App> with WidgetsBindingObserver {
         'matcher-rematch migration: applied=$applied '
         'current=${AppPrefs.kCurrentMatcherRematchVersion} — reprocessing',
       );
+      // Surface the app-wide banner immediately ("Neuberechnung …"); the
+      // per-trip onTripDone callback below fills in the N/M counts as each
+      // stored trip is reprocessed. Cleared in _runStartupMigrations.
+      final recalc = ref.read(globalRecalcProgressProvider.notifier)
+        ..startRematching(0);
       final n = await ref
           .read(tripMatchCoordinatorProvider)
-          .rematchAllStoredTrips();
+          .rematchAllStoredTrips(
+            onTripDone: recalc.updateRematching,
+          );
       await prefs
           .setMatcherRematchVersion(AppPrefs.kCurrentMatcherRematchVersion);
       _log.info('matcher-rematch migration: done ($n trips reprocessed)');
@@ -118,6 +129,10 @@ class _AppState extends ConsumerState<App> with WidgetsBindingObserver {
         'current=${AppPrefs.kCurrentCoverageRecomputeVersion} '
         'force=$force — recomputing',
       );
+      // Switch the app-wide banner to the coverage-rebuild phase ("Abdeckung
+      // wird neu berechnet …"). Cleared in _runStartupMigrations after this
+      // returns.
+      ref.read(globalRecalcProgressProvider.notifier).startRecomputing();
       final result =
           await ref.read(coverageComputeServiceProvider).recompute();
       // recompute() never throws — it returns Result. Only stamp on Ok so a

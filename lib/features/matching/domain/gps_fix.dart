@@ -19,6 +19,7 @@ class GpsFix {
     required this.accuracyMeters,
     required this.speedKmh,
     required this.ts,
+    this.headingDegrees,
   });
 
   /// WGS84 latitude (degrees).
@@ -39,7 +40,17 @@ class GpsFix {
   /// Timestamp of the GPS fix.
   final DateTime ts;
 
+  /// Compass course-over-ground in degrees (0..360, 0 = North, 90 = East),
+  /// from the OS (flutter_background_geolocation `coords.heading`), mirrored
+  /// through `trip_points.heading` (schema v8). Null when the OS supplied no
+  /// heading (stationary / no fix) or for historical rows recorded before the
+  /// column existed. The direction term in the decoder prefers this value and
+  /// otherwise derives a bearing from consecutive fixes. Backward compatible:
+  /// existing call-sites that omit it get null, which is a no-op.
+  final double? headingDegrees;
+
   @override
   String toString() =>
-      'GpsFix($lat, $lon acc=${accuracyMeters}m spd=${speedKmh}km/h @$ts)';
+      'GpsFix($lat, $lon acc=${accuracyMeters}m spd=${speedKmh}km/h '
+      'hdg=$headingDegrees @$ts)';
 }

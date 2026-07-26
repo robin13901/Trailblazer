@@ -2,6 +2,8 @@ import 'package:auto_explore/features/map/presentation/widgets/glass_pill.dart';
 import 'package:auto_explore/features/trips/domain/tracking_state.dart';
 import 'package:auto_explore/features/trips/presentation/providers/tracking_state_provider.dart';
 import 'package:auto_explore/features/trips/presentation/widgets/tracking_duration_ticker.dart';
+import 'package:auto_explore/features/trips/presentation/widgets/trip_card.dart'
+    show formatDistance;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -23,9 +25,9 @@ class LiveTrackingPanel extends ConsumerWidget {
 
     return TrackingDurationTicker(
       builder: (context, now) {
-        final km = (state.distanceMeters / 1000).toStringAsFixed(1);
+        final dist = formatDistance(state.distanceMeters);
         final spd = state.currentSpeedKmh?.round().toString() ?? '—';
-        final text = '${_formatElapsed(state.duration(now))} · $km km · $spd km/h';
+        final text = '${_formatElapsed(state.duration(now))} · $dist · $spd km/h';
 
         return GlassPill(
           overMap: true,

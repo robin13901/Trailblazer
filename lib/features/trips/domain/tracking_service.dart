@@ -420,22 +420,13 @@ class TrackingService {
 
     switch (outcome) {
       case FixAccepted():
-        final point = TripPoint(
-          tripId: tripId,
-          seq: _seq++,
-          ts: outcome.ts,
-          lat: outcome.lat,
-          lon: outcome.lon,
-          speedKmh: outcome.speedKmh,
-          accuracyMeters: outcome.accuracyMeters,
-          altitudeMeters: outcome.altitudeMeters,
-          motionType: outcome.motionType,
-        );
         // Motion-vector heading (Plan 06-07). Prefer the fix's own course
         // over ground when valid (>= 0); otherwise compute the initial
         // bearing from the previous accepted fix to this one, but only when
         // the two are far enough apart to avoid stationary jitter. Keep the
-        // last heading otherwise.
+        // last heading otherwise. Computed BEFORE building the TripPoint so the
+        // point persists the freshest heading (trip_points.heading, schema v8)
+        // for direction-aware matching (#11).
         final prevFix = _lastAcceptedFix;
         final fixHeading = fix.headingDegrees;
         if (fixHeading != null && fixHeading >= 0) {
@@ -456,6 +447,18 @@ class TrackingService {
             );
           }
         }
+        final point = TripPoint(
+          tripId: tripId,
+          seq: _seq++,
+          ts: outcome.ts,
+          lat: outcome.lat,
+          lon: outcome.lon,
+          speedKmh: outcome.speedKmh,
+          accuracyMeters: outcome.accuracyMeters,
+          altitudeMeters: outcome.altitudeMeters,
+          motionType: outcome.motionType,
+          headingDegrees: _currentHeading,
+        );
         _lastAcceptedFix = outcome;
         _acceptCount++;
         _lastAcceptedFixSample = LastFixSample(

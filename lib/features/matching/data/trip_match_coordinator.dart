@@ -83,9 +83,16 @@ class TripMatchCoordinator {
   final _log = Logger('trip_match_coordinator');
 
   /// Re-entrancy guard for the auto-recompute trigger.
-  /// True while a recompute is already in flight — a subsequent intervals-
-  /// landed event is debounced (skipped) rather than queuing a second pass.
+  /// True while a recompute is already in flight.
   bool _recomputeInFlight = false;
+
+  /// Coalesce flag: set when an intervals-landed event arrives WHILE a recompute
+  /// is already in flight. When the in-flight pass finishes, if this is set, we
+  /// run EXACTLY ONE more recompute (with the freshest committed intervals) —
+  /// so back-to-back trips never lose a coverage update (2026-07-25 #7). The
+  /// trailing pass carries the last-requested tripId for logging only.
+  bool _recomputePending = false;
+  int _pendingTripId = -1;
 
   /// Invoked by 04-15's TripRoadFetchCoordinator immediately after a trip
   /// transitions from `pendingRoadData` to `pending`.
@@ -180,6 +187,7 @@ class TripMatchCoordinator {
             accuracyMeters: p.accuracyMeters ?? double.nan,
             speedKmh: p.speedKmh ?? 0.0,
             ts: p.ts,
+            headingDegrees: p.heading,
           ),
         )
         .toList(growable: false);
@@ -259,18 +267,31 @@ class TripMatchCoordinator {
 
   /// Fire-and-forget auto recompute trigger.
   ///
-  /// Re-entrancy: if a recompute is already in flight, the call is skipped.
-  /// The in-flight pass will use the freshest intervals when it runs (they
-  /// are already committed to the DB at this point), so no data is lost.
+  /// Re-entrancy COALESCE (2026-07-25 #7): if a recompute is already in flight,
+  /// the event is not dropped — instead a `_recomputePending` flag is set so
+  /// that exactly ONE more recompute runs after the in-flight one finishes
+  /// (using the freshest committed intervals). Rapid back-to-back trips
+  /// therefore always end with an up-to-date coverage cache. Errors are logged,
+  /// never thrown.
   void _triggerAutoRecompute(int tripId) {
     final callback = _onIntervalsLanded;
     if (callback == null) return;
     if (_recomputeInFlight) {
+      _recomputePending = true;
+      _pendingTripId = tripId;
       _log.fine(
-        'auto-recompute: recompute already in flight for trip $tripId — skipping',
+        'auto-recompute: recompute in flight — coalescing trip $tripId '
+        'into one trailing pass',
       );
       return;
     }
+    _runRecompute(callback, tripId);
+  }
+
+  /// Runs one recompute pass fire-and-forget; on completion, if a coalesced
+  /// event arrived meanwhile, runs exactly one more (loop-free single trailing
+  /// pass — a further arrival during the trailing pass re-arms the flag again).
+  void _runRecompute(OnIntervalsLandedCallback callback, int tripId) {
     _recomputeInFlight = true;
     unawaited(
       Future(() {
@@ -280,6 +301,12 @@ class TripMatchCoordinator {
           _log.warning('auto-recompute: onIntervalsLanded threw: $e', e, st);
         } finally {
           _recomputeInFlight = false;
+          if (_recomputePending) {
+            _recomputePending = false;
+            final next = _pendingTripId;
+            _pendingTripId = -1;
+            _runRecompute(callback, next);
+          }
         }
       }),
     );
@@ -318,7 +345,15 @@ class TripMatchCoordinator {
   /// logged and skipped, leaving that trip's existing intervals untouched.
   ///
   /// Returns the number of trips successfully re-matched.
-  Future<int> rematchAllStoredTrips() async {
+  ///
+  /// [onTripDone] — when supplied, is invoked once after EACH trip is
+  /// processed (whether or not it was actually re-matched) with the running
+  /// `done` count and the fixed `total`. Used by the startup migration to drive
+  /// the app-wide "Neuberechnung … Fahrt N/M" banner. Errors thrown by the
+  /// callback are ignored so a progress-UI hiccup can never abort the migration.
+  Future<int> rematchAllStoredTrips({
+    void Function(int done, int total)? onTripDone,
+  }) async {
     // Check for work BEFORE starting the isolate — on an empty DB (fresh
     // install, or a widget test) there is nothing to rematch, and spawning the
     // matcher isolate would leave a pending timer that outlives a headless
@@ -331,9 +366,11 @@ class TripMatchCoordinator {
 
     await _isolate.start(); // idempotent
 
-    _log.info('rematchAllStoredTrips: ${tripIds.length} trips to reprocess');
+    final total = tripIds.length;
+    _log.info('rematchAllStoredTrips: $total trips to reprocess');
 
     var reprocessed = 0;
+    var done = 0;
     for (final tripId in tripIds) {
       try {
         final didRematch = await _rematchOne(tripId);
@@ -346,8 +383,18 @@ class TripMatchCoordinator {
           st,
         );
       }
+      done++;
+      if (onTripDone != null) {
+        try {
+          onTripDone(done, total);
+          // A progress-UI hiccup must never abort the one-shot migration.
+          // ignore: avoid_catches_without_on_clauses
+        } catch (e, st) {
+          _log.warning('rematchAllStoredTrips: onTripDone threw: $e', e, st);
+        }
+      }
     }
-    _log.info('rematchAllStoredTrips: $reprocessed/${tripIds.length} reprocessed');
+    _log.info('rematchAllStoredTrips: $reprocessed/$total reprocessed');
     return reprocessed;
   }
 
@@ -388,6 +435,7 @@ class TripMatchCoordinator {
             accuracyMeters: p.accuracyMeters ?? double.nan,
             speedKmh: p.speedKmh ?? 0.0,
             ts: p.ts,
+            headingDegrees: p.heading,
           ),
         )
         .toList(growable: false);
@@ -397,6 +445,11 @@ class TripMatchCoordinator {
       fixes: fixes,
       gzippedTiles: [for (final t in rawTiles) t.payloadGzip],
       tileBboxes: [for (final t in rawTiles) t.bbox],
+      onProgress: (processed, total) {
+        if (total > 0) {
+          _progressSink?.call(tripId, processed / total);
+        }
+      },
     );
 
     // Replace old intervals atomically-ish: delete then insert. A crash
@@ -405,6 +458,11 @@ class TripMatchCoordinator {
     // one-shot cosmetic reprocess.
     await _intervalsDao.deleteByTrip(tripId);
     await _writeIntervals(tripId, result.intervals);
+    // Surface the per-trip pill to 100% then clear it, mirroring the
+    // onTripReadyForMatching completion path so a re-matching trip shows its
+    // live % on the Trips-tab _StatusPill and drives the focus-pill pulse.
+    _progressSink?.call(tripId, 1);
+    _clearProgress(tripId);
     _log.info(
       'rematchOne: trip $tripId → ${result.intervals.length} intervals '
       '(was reprocessed)',

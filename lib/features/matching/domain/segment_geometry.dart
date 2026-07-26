@@ -108,3 +108,33 @@ double segmentLengthMeters({
   final dy = (bLat - aLat) * mLat;
   return math.sqrt(dx * dx + dy * dy);
 }
+
+/// Compass bearing (0..360, 0 = North, 90 = East) of the directed segment
+/// a → b, computed on the same local equirectangular plane the rest of this
+/// file uses (longitude scaled by cos(mean latitude)). This matches the
+/// segment geometry the matcher already reasons about — a → b is the
+/// `OnewayDirection.forward` legal-travel direction (see `WaySegment.fromWay`).
+///
+/// Returns [double.nan] for a degenerate (zero-length) segment so callers can
+/// skip a meaningless bearing rather than emit a spurious 0°.
+double segmentBearingDegrees({
+  required double aLat,
+  required double aLon,
+  required double bLat,
+  required double bLon,
+}) {
+  final meanLat = (aLat + bLat) / 2;
+  final mLon = metersPerDegreeLon(meanLat);
+  const mLat = metersPerDegreeLat;
+  final dxEast = (bLon - aLon) * mLon;
+  final dyNorth = (bLat - aLat) * mLat;
+  if (dxEast == 0 && dyNorth == 0) return double.nan;
+  return (math.atan2(dxEast, dyNorth) * 180 / math.pi + 360) % 360;
+}
+
+/// Smallest absolute angular difference (0..180 degrees) between two compass
+/// bearings [a] and [b], wrapping across 360°. E.g. 350° vs 10° → 20°.
+double angularDifferenceDegrees(double a, double b) {
+  final d = (a - b).abs() % 360;
+  return d > 180 ? 360 - d : d;
+}

@@ -687,4 +687,253 @@ void main() {
       }
     });
   });
+
+  // ===========================================================================
+  // #9 out-and-back reversal split (2026-07-25)
+  // ===========================================================================
+  group('#9 out-and-back', () {
+    // A single TWO-WAY street driven out to its far end and back must cover the
+    // full driven span — not collapse to a near-zero interval hiding the turn.
+    test(
+        'two-way out-and-back 0→~270→0 → coverage spans the full driven length',
+        () {
+      // 300 m two-way street east at y=0. Drive east to ~x=270, then back west
+      // to ~x=20. No time gap, no way change — a pure intra-way reversal.
+      final way = _eastWay();
+      final fixes = [
+        _fix(0, 20),
+        _fix(0, 120, dtSecs: 3),
+        _fix(0, 220, dtSecs: 6),
+        _fix(0, 270, dtSecs: 9), // peak (far end)
+        _fix(0, 200, dtSecs: 12),
+        _fix(0, 100, dtSecs: 15),
+        _fix(0, 20, dtSecs: 18),
+      ];
+
+      final result = _matcher.match(fixes: fixes, ways: [way]);
+      final wayIntervals =
+          result.intervals.where((iv) => iv.wayId == way.wayId).toList();
+      expect(wayIntervals, isNotEmpty);
+      // Union of all intervals must span essentially the full 20..270 excursion.
+      final minStart =
+          wayIntervals.map((iv) => iv.startMeters).reduce((a, b) => a < b ? a : b);
+      final maxEnd =
+          wayIntervals.map((iv) => iv.endMeters).reduce((a, b) => a > b ? a : b);
+      expect(minStart, lessThan(30));
+      expect(maxEnd, greaterThan(260),
+          reason: 'out-and-back must cover the peak excursion, got $maxEnd');
+    });
+
+    test('reversal split → two intervals: forward then backward', () {
+      final way = _eastWay();
+      final fixes = [
+        _fix(0, 20),
+        _fix(0, 120, dtSecs: 3),
+        _fix(0, 220, dtSecs: 6),
+        _fix(0, 270, dtSecs: 9), // peak
+        _fix(0, 200, dtSecs: 12),
+        _fix(0, 100, dtSecs: 15),
+        _fix(0, 20, dtSecs: 18),
+      ];
+
+      final result = _matcher.match(fixes: fixes, ways: [way]);
+      final wayIntervals =
+          result.intervals.where((iv) => iv.wayId == way.wayId).toList();
+      expect(wayIntervals.length, equals(2),
+          reason: 'a genuine reversal splits into two directional intervals');
+      expect(wayIntervals[0].direction, equals('forward'));
+      expect(wayIntervals[1].direction, equals('backward'));
+    });
+
+    test('monotonic forward run → single [0..end] forward, unchanged', () {
+      // Regression guard: a straight forward run must still be ONE forward
+      // interval (min==first, max==last) — the #9 change is a no-op here.
+      final way = _eastWay();
+      final fixes = [
+        _fix(0, 20),
+        _fix(0, 90, dtSecs: 3),
+        _fix(0, 160, dtSecs: 6),
+        _fix(0, 230, dtSecs: 9),
+        _fix(0, 290, dtSecs: 12),
+      ];
+
+      final result = _matcher.match(fixes: fixes, ways: [way]);
+      final wayIntervals =
+          result.intervals.where((iv) => iv.wayId == way.wayId).toList();
+      expect(wayIntervals.length, equals(1));
+      expect(wayIntervals.first.direction, equals('forward'));
+      expect(wayIntervals.first.startMeters, lessThan(wayIntervals.first.endMeters));
+    });
+  });
+
+  // ===========================================================================
+  // #10 matcher-side gap auto-fill (2026-07-25)
+  // ===========================================================================
+  group('#10 gap auto-fill', () {
+    // Helper: a long straight way with explicit node ids so degree/branch
+    // topology is exact. Nodes are laid at the given meter marks east at y=0.
+    WayCandidate straightWayWithNodes({
+      required int wayId,
+      required List<int> nodeIds,
+      required List<double> meterMarks,
+    }) =>
+        WayCandidate(
+          wayId: wayId,
+          highwayClass: 'residential',
+          nodeIds: nodeIds,
+          geometry: [for (final m in meterMarks) _ll(0, m)],
+        );
+
+    test('same-way small gap over a degree-2 mid node → merged into one', () {
+      // Way W: nodes at 0/100/130/200 m. A confidence gap drops the fixes
+      // between meter 100 and 130 (mid node 1001, degree 2 — no branch). The
+      // two surviving runs [0..100] and [130..200] must merge into [0..200].
+      final w = straightWayWithNodes(
+        wayId: 1,
+        nodeIds: const [1000, 1001, 1002, 1003],
+        meterMarks: const [0, 100, 130, 200],
+      );
+      final fixes = [
+        _fix(0, 20),
+        _fix(0, 60, dtSecs: 2),
+        _fix(0, 98, dtSecs: 4), // prev run ends ~98
+        // gap: one fix 500 m off-road → dropped (null step, same-way restart)
+        _fix(500, 110, dtSecs: 5),
+        _fix(0, 122, dtSecs: 6), // cur run starts ~122 (gap ~24 m ≤ 30)
+        _fix(0, 160, dtSecs: 8),
+        _fix(0, 198, dtSecs: 10),
+      ];
+
+      final result = _matcher.match(fixes: fixes, ways: [w]);
+      final wIntervals = result.intervals.where((iv) => iv.wayId == 1).toList();
+      expect(wIntervals.length, equals(1),
+          reason: 'small same-way gap over a degree-2 node must merge');
+      expect(wIntervals.first.startMeters, lessThan(30));
+      expect(wIntervals.first.endMeters, greaterThan(190));
+    });
+
+    test('same-way gap with a degree-3 branch inside → NOT merged', () {
+      // Same as above, but node 1001 (at meter 100, inside the gap) is a real
+      // multi-way crossroads: TWO side roads also attach there, so its distinct-
+      // wayId degree is 3 (> 2). The vehicle might have turned off, so the gap
+      // must NOT be bridged → two intervals survive. (A single side road →
+      // degree 2 → NOT a branch under the design's >2 rule; a crossroads is.)
+      final w = straightWayWithNodes(
+        wayId: 1,
+        nodeIds: const [1000, 1001, 1002, 1003],
+        meterMarks: const [0, 100, 130, 200],
+      );
+      // Two side roads sharing node 1001 → distinct ways {1,2,3} → degree 3.
+      final sideN = WayCandidate(
+        wayId: 2,
+        highwayClass: 'residential',
+        nodeIds: const [1001, 5000],
+        geometry: [_ll(0, 100), _ll(-50, 100)],
+      );
+      final sideS = WayCandidate(
+        wayId: 3,
+        highwayClass: 'residential',
+        nodeIds: const [1001, 5001],
+        geometry: [_ll(0, 100), _ll(50, 100)],
+      );
+      final fixes = [
+        _fix(0, 20),
+        _fix(0, 60, dtSecs: 2),
+        _fix(0, 98, dtSecs: 4), // ends ~98
+        _fix(500, 110, dtSecs: 5), // dropped
+        _fix(0, 122, dtSecs: 6), // starts ~122 (gap ~24 m ≤ 30)
+        _fix(0, 160, dtSecs: 8),
+        _fix(0, 198, dtSecs: 10),
+      ];
+
+      final result = _matcher.match(fixes: fixes, ways: [w, sideN, sideS]);
+      final wIntervals = result.intervals.where((iv) => iv.wayId == 1).toList();
+      expect(wIntervals.length, greaterThanOrEqualTo(2),
+          reason: 'a degree-3 crossroads inside the gap must block the merge');
+    });
+
+    test('different-way collinear across a degree-2 shared node → filled', () {
+      // Two collinear ways meeting ONLY at node 2001 (degree 2, ways {1,2}).
+      // A: 0..100 (nodes 2000,2001). B: 100..200 (nodes 2001,2002). A gap drops
+      // the fixes right around the junction; each run reaches its shared-node
+      // endpoint. The fill extends A to its END and B from its START.
+      final a = WayCandidate(
+        wayId: 1,
+        highwayClass: 'residential',
+        nodeIds: const [2000, 2001],
+        geometry: [_ll(0, 0), _ll(0, 100)],
+      );
+      final b = WayCandidate(
+        wayId: 2,
+        highwayClass: 'residential',
+        nodeIds: const [2001, 2002],
+        geometry: [_ll(0, 100), _ll(0, 200)],
+      );
+      final fixes = [
+        _fix(0, 20),
+        _fix(0, 60, dtSecs: 2),
+        _fix(0, 92, dtSecs: 4), // near A's end (meter 100)
+        _fix(500, 100, dtSecs: 5), // dropped around the junction
+        _fix(0, 108, dtSecs: 6), // near B's start (meter 100)
+        _fix(0, 150, dtSecs: 8),
+        _fix(0, 190, dtSecs: 10),
+      ];
+
+      final result = _matcher.match(fixes: fixes, ways: [a, b]);
+      final aInt = result.intervals.where((iv) => iv.wayId == 1).toList();
+      final bInt = result.intervals.where((iv) => iv.wayId == 2).toList();
+      expect(aInt, isNotEmpty);
+      expect(bInt, isNotEmpty);
+      // A extended to its full 100 m end; B extended to its 0 m start.
+      expect(aInt.map((iv) => iv.endMeters).reduce((x, y) => x > y ? x : y),
+          greaterThan(95),
+          reason: 'A must reach its shared-node endpoint (~100 m)');
+      expect(bInt.map((iv) => iv.startMeters).reduce((x, y) => x < y ? x : y),
+          lessThan(5),
+          reason: 'B must start at its shared-node endpoint (~0 m)');
+    });
+
+    test('different-way across a degree-3 shared node → NOT filled', () {
+      // A and B meet at node 3001, but a third way T also attaches there
+      // (degree 3). Not a pure continuation → no fill; the near-junction gap
+      // is left as a visible break.
+      final a = WayCandidate(
+        wayId: 1,
+        highwayClass: 'residential',
+        nodeIds: const [3000, 3001],
+        geometry: [_ll(0, 0), _ll(0, 100)],
+      );
+      final b = WayCandidate(
+        wayId: 2,
+        highwayClass: 'residential',
+        nodeIds: const [3001, 3002],
+        geometry: [_ll(0, 100), _ll(0, 200)],
+      );
+      final t = WayCandidate(
+        wayId: 3,
+        highwayClass: 'residential',
+        nodeIds: const [3001, 6000],
+        geometry: [_ll(0, 100), _ll(-50, 100)],
+      );
+      final fixes = [
+        _fix(0, 20),
+        _fix(0, 60, dtSecs: 2),
+        _fix(0, 92, dtSecs: 4),
+        _fix(500, 100, dtSecs: 5), // dropped
+        _fix(0, 108, dtSecs: 6),
+        _fix(0, 150, dtSecs: 8),
+        _fix(0, 190, dtSecs: 10),
+      ];
+
+      final result = _matcher.match(fixes: fixes, ways: [a, b, t]);
+      final aInt = result.intervals.where((iv) => iv.wayId == 1).toList();
+      // A must NOT be auto-extended to its full end across the 3-way junction:
+      // its measured span stays short of the endpoint.
+      final aMaxEnd =
+          aInt.map((iv) => iv.endMeters).reduce((x, y) => x > y ? x : y);
+      expect(aMaxEnd, lessThan(95),
+          reason: 'degree-3 junction must block collinear extension — '
+              'A end was $aMaxEnd');
+    });
+  });
 }

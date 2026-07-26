@@ -1,7 +1,15 @@
-// Pure coverage-attribution tests (2026-07-22). Exercises
-// computeCoverageAttribution() directly — no isolate spawned — mirroring the
-// coverage_compute_service_test fixtures and the matcher_isolate_test tile
-// helper.
+// STAGE-1 clip-per-region attribution tests (2026-07-25). Exercises
+// computeCoverageAttribution() directly — no isolate spawned. The function no
+// longer takes driven intervals or totals: it returns durable
+// WayRegionAttributionRow meter-ranges (offsets along each way) per (way,
+// region, level). STAGE-2 driven/total aggregation is tested in
+// coverage_compute_service_test.dart.
+//
+// SEMANTIC CHANGE FROM THE CENTROID MODEL (deliberate, #7): a way is no longer
+// attributed whole to the ONE region containing its centroid. Instead each
+// segment is attributed to the region containing its midpoint and consecutive
+// same-region segments are merged into one meter-range — so a boundary-crossing
+// way splits its length across the two regions it passes through.
 
 import 'dart:convert';
 import 'dart:io' show gzip;
@@ -11,6 +19,7 @@ import 'package:auto_explore/features/admin/data/admin_region.dart';
 import 'package:auto_explore/features/matching/data/tile_bbox_math.dart';
 import 'package:auto_explore/features/matching/domain/way_candidate.dart';
 import 'package:auto_explore/features/regions/data/coverage_attribution.dart';
+import 'package:auto_explore/features/trips/domain/haversine.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:maplibre_gl/maplibre_gl.dart' show LatLng;
 
@@ -36,6 +45,51 @@ Uint8List _gzTile(List<WayCandidate> ways) {
   return Uint8List.fromList(gzip.encode(utf8.encode(jsonEncode(env))));
 }
 
+/// A level-8 region: WEST half [lon 9.17..9.195].
+AdminRegion _regionWest() => const AdminRegion(
+      osmId: 111,
+      adminLevel: 8,
+      name: 'West',
+      bboxMinLat: 49.78,
+      bboxMinLon: 9.17,
+      bboxMaxLat: 49.82,
+      bboxMaxLon: 9.195,
+      polygons: [
+        [
+          [
+            [49.78, 9.17],
+            [49.82, 9.17],
+            [49.82, 9.195],
+            [49.78, 9.195],
+            [49.78, 9.17],
+          ],
+        ],
+      ],
+    );
+
+/// A level-8 region: EAST half [lon 9.195..9.22].
+AdminRegion _regionEast() => const AdminRegion(
+      osmId: 222,
+      adminLevel: 8,
+      name: 'East',
+      bboxMinLat: 49.78,
+      bboxMinLon: 9.195,
+      bboxMaxLat: 49.82,
+      bboxMaxLon: 9.22,
+      polygons: [
+        [
+          [
+            [49.78, 9.195],
+            [49.82, 9.195],
+            [49.82, 9.22],
+            [49.78, 9.22],
+            [49.78, 9.195],
+          ],
+        ],
+      ],
+    );
+
+/// A single level-8 region covering the whole test square.
 AdminRegion _regionLevel8({int osmId = 151999}) => AdminRegion(
       osmId: osmId,
       adminLevel: 8,
@@ -78,7 +132,7 @@ AdminRegion _regionLevel2({int osmId = 51477}) => AdminRegion(
       ],
     );
 
-/// 3-point way inside `_regionLevel8`.
+/// 3-point vertical way inside `_regionLevel8` (all at lon 9.190).
 WayCandidate _fixtureWay({int wayId = 100001}) => WayCandidate(
       wayId: wayId,
       highwayClass: 'residential',
@@ -89,108 +143,134 @@ WayCandidate _fixtureWay({int wayId = 100001}) => WayCandidate(
       ],
     );
 
+double _len(List<LatLng> g) {
+  var total = 0.0;
+  for (var i = 0; i < g.length - 1; i++) {
+    total +=
+        haversineMeters(g[i].latitude, g[i].longitude, g[i + 1].latitude, g[i + 1].longitude);
+  }
+  return total;
+}
+
 void main() {
-  group('computeCoverageAttribution', () {
-    test('driven way inside region → total>0, driven>0, realTotal from totals',
-        () {
+  group('computeCoverageAttribution (clip-per-region)', () {
+    test('way inside one region → one row spanning [0, wayLen]', () {
       final way = _fixtureWay();
-      final out = computeCoverageAttribution(
+      final rows = computeCoverageAttribution(
         regionsByLevel: {
           8: [_regionLevel8()],
         },
-        totals: {'151999': 1234.5},
         gzippedTiles: [_gzTile([way])],
         tileBboxes: const [_bbox],
-        intervalsByWayId: {way.wayId: [0, 100]},
       );
 
-      final acc = out['151999'];
-      expect(acc, isNotNull);
-      expect(acc!.total, greaterThan(0));
-      expect(acc.driven, greaterThan(0));
-      expect(acc.realTotal, 1234.5);
+      expect(rows, hasLength(1));
+      final r = rows.single;
+      expect(r.wayId, way.wayId);
+      expect(r.regionId, '151999');
+      expect(r.adminLevel, 8);
+      expect(r.rangeStartM, 0);
+      // Full way length inside the single covering region.
+      expect(r.rangeEndM, closeTo(_len(way.geometry), 0.01));
     });
 
-    test('un-driven way (no intervals) → total>0 but driven==0', () {
+    test(
+        'boundary-crossing way splits length across two regions with '
+        'correct meter-ranges', () {
+      // Horizontal way from lon 9.18 (west) → 9.21 (east) at fixed lat.
+      const way = WayCandidate(
+        wayId: 500,
+        highwayClass: 'residential',
+        geometry: [
+          LatLng(49.80, 9.180),
+          LatLng(49.80, 9.190), // west midpoints
+          LatLng(49.80, 9.200), // segment 2 midpoint (9.195) = boundary
+          LatLng(49.80, 9.210), // east
+        ],
+      );
+      final rows = computeCoverageAttribution(
+        regionsByLevel: {
+          8: [_regionWest(), _regionEast()],
+        },
+        gzippedTiles: [_gzTile([way])],
+        tileBboxes: const [_bbox],
+      );
+
+      // One row per region (west run then east run), contiguous + adjacent.
+      final west = rows.where((r) => r.regionId == '111').toList();
+      final east = rows.where((r) => r.regionId == '222').toList();
+      expect(west, hasLength(1), reason: 'one west run');
+      expect(east, hasLength(1), reason: 'one east run');
+
+      // Ranges are adjacent and cover the whole way with no gap/overlap.
+      final total = _len(way.geometry);
+      expect(west.single.rangeStartM, 0);
+      expect(east.single.rangeEndM, closeTo(total, 0.01));
+      expect(
+        west.single.rangeEndM,
+        closeTo(east.single.rangeStartM, 0.01),
+        reason: 'runs meet at the boundary offset',
+      );
+      // Both regions get a non-trivial share.
+      expect(west.single.rangeEndM - west.single.rangeStartM, greaterThan(0));
+      expect(east.single.rangeEndM - east.single.rangeStartM, greaterThan(0));
+    });
+
+    test('already-attributed wayIds are skipped', () {
       final way = _fixtureWay();
-      final out = computeCoverageAttribution(
+      final rows = computeCoverageAttribution(
         regionsByLevel: {
           8: [_regionLevel8()],
         },
-        totals: null,
         gzippedTiles: [_gzTile([way])],
         tileBboxes: const [_bbox],
-        intervalsByWayId: const {}, // no driven intervals
+        alreadyAttributedWayIds: {way.wayId},
       );
-
-      final acc = out['151999'];
-      expect(acc, isNotNull);
-      expect(acc!.total, greaterThan(0));
-      expect(acc.driven, 0);
+      expect(rows, isEmpty, reason: 'cached way must not be re-clipped');
     });
 
-    test('null totals → realTotal is null', () {
+    test('level 2 region is never attributed (excluded from levels)', () {
       final way = _fixtureWay();
-      final out = computeCoverageAttribution(
-        regionsByLevel: {
-          8: [_regionLevel8()],
-        },
-        totals: null,
-        gzippedTiles: [_gzTile([way])],
-        tileBboxes: const [_bbox],
-        intervalsByWayId: {way.wayId: [0, 100]},
-      );
-      expect(out['151999']!.realTotal, isNull);
-    });
-
-    test('level 2 region is never attributed (excluded from kComputeAdminLevels)',
-        () {
-      final way = _fixtureWay();
-      final out = computeCoverageAttribution(
+      final rows = computeCoverageAttribution(
         regionsByLevel: {
           2: [_regionLevel2()],
           8: [_regionLevel8()],
         },
-        totals: null,
         gzippedTiles: [_gzTile([way])],
         tileBboxes: const [_bbox],
-        intervalsByWayId: {way.wayId: [0, 100]},
       );
-      expect(out.containsKey('51477'), isFalse,
-          reason: 'level-2 Deutschland must never be written');
-      expect(out.containsKey('151999'), isTrue);
+      expect(rows.any((r) => r.regionId == '51477'), isFalse,
+          reason: 'level-2 Deutschland must never be attributed');
+      expect(rows.any((r) => r.regionId == '151999'), isTrue);
     });
 
-    test('empty tiles → empty result', () {
-      final out = computeCoverageAttribution(
+    test('empty tiles → no rows', () {
+      final rows = computeCoverageAttribution(
         regionsByLevel: {
           8: [_regionLevel8()],
         },
-        totals: null,
         gzippedTiles: const [],
         tileBboxes: const [],
-        intervalsByWayId: const {},
       );
-      expect(out, isEmpty);
+      expect(rows, isEmpty);
     });
 
     test('way outside every region → not attributed', () {
-      // A way far from Kleinheubach (over open sea coords).
       const way = WayCandidate(
         wayId: 999,
         highwayClass: 'residential',
         geometry: [LatLng(10, 10), LatLng(10.001, 10)],
       );
-      final out = computeCoverageAttribution(
+      final rows = computeCoverageAttribution(
         regionsByLevel: {
           8: [_regionLevel8()],
         },
-        totals: null,
         gzippedTiles: [_gzTile([way])],
-        tileBboxes: const [LatLonBbox(minLat: 9, minLon: 9, maxLat: 11, maxLon: 11)],
-        intervalsByWayId: {999: [0, 100]},
+        tileBboxes: const [
+          LatLonBbox(minLat: 9, minLon: 9, maxLat: 11, maxLon: 11),
+        ],
       );
-      expect(out, isEmpty);
+      expect(rows, isEmpty);
     });
   });
 }

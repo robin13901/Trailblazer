@@ -43,13 +43,37 @@ class RegionsScreen extends ConsumerWidget {
   }
 }
 
-class _SearchField extends ConsumerWidget {
+class _SearchField extends ConsumerStatefulWidget {
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_SearchField> createState() => _SearchFieldState();
+}
+
+class _SearchFieldState extends ConsumerState<_SearchField> {
+  final _controller = TextEditingController();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    // Keep the visible text in sync when the provider is reset externally
+    // (e.g. the search is cleared on leaving the Regions tab). Only write to
+    // the controller when the value actually differs to avoid feedback loops
+    // and cursor jumps caused by our own onChanged writes.
+    ref.listen<String>(regionSearchQueryProvider, (previous, next) {
+      if (_controller.text != next) {
+        _controller.text = next;
+      }
+    });
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: TextField(
+        controller: _controller,
+        textCapitalization: TextCapitalization.words,
         decoration: InputDecoration(
           hintText: 'Region suchen …',
           prefixIcon: const Icon(Icons.search),

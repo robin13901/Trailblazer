@@ -44,5 +44,6 @@ class TripsRepositoryPointsSink implements TripPointsSink {
         accuracyMeters: Value(p.accuracyMeters),
         altitudeMeters: Value(p.altitudeMeters),
         motionType: Value(p.motionType),
+        heading: Value(p.headingDegrees),
       );
 }
