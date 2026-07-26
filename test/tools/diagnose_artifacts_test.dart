@@ -14,6 +14,9 @@
 //
 // Run: flutter test test/tools/diagnose_artifacts_test.dart
 
+@Timeout(Duration(minutes: 10))
+library;
+
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
@@ -34,8 +37,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:maplibre_gl/maplibre_gl.dart' show LatLng;
 import 'package:sqlite3/sqlite3.dart';
 
-const _exportPath =
-    r'C:\Users\I551358\Downloads\trailblazer_backup_20260718_1820.trailblazer';
+final String _exportPath = Platform.environment['TRAILBLAZER_EXPORT'] ??
+    r'C:\tmp\trailblazer_live.trailblazer';
 
 void main() {
   if (!File(_exportPath).existsSync()) {
@@ -532,6 +535,92 @@ void main() {
       }
     }
     print('  (clip drops: $clipDrops)');
+
+    // ========================================================================
+    // HIGHWAY DEFECT PROBES (2026-07-26): the three user-reported dual-
+    // carriageway / parallel-road mis-matches. For each seed we snap to the
+    // nearest raw fix, take a radius, and dump every local way with: painted?,
+    // oneway tag, driven/full %, nearest raw fix to each end, and whether a
+    // NEARBY parallel way (fix<=25m) was DROPPED (the wrong-carriageway /
+    // parallel-Landstraße signature). This names the wayIds + oneway tags at
+    // each spot for the baseline.
+    // ========================================================================
+    void probeDefect(String label, double seedLat, double seedLon,
+        double radiusM) {
+      var pLat = seedLat, pLon = seedLon, dBest = double.infinity;
+      for (final fp in allFixPts) {
+        final d = segmentLengthMeters(
+            aLat: seedLat, aLon: seedLon, bLat: fp.latitude, bLon: fp.longitude);
+        if (d < dBest) {
+          dBest = d;
+          pLat = fp.latitude;
+          pLon = fp.longitude;
+        }
+      }
+      double nearestFix(LatLng p) {
+        var m = double.infinity;
+        for (final fp in allFixPts) {
+          final d = segmentLengthMeters(
+              aLat: p.latitude, aLon: p.longitude,
+              bLat: fp.latitude, bLon: fp.longitude);
+          if (d < m) m = d;
+        }
+        return m;
+      }
+
+      final local = <int>[];
+      for (final w in allWaysById.values) {
+        final near = w.geometry.any((p) =>
+            segmentLengthMeters(
+                aLat: p.latitude, aLon: p.longitude, bLat: pLat, bLon: pLon) <=
+            radiusM);
+        if (near) local.add(w.wayId);
+      }
+      local.sort();
+      print('\n===== DEFECT PROBE $label @ ($pLat,$pLon) '
+          'snap=${dBest.toStringAsFixed(0)}m radius=${radiusM.toStringAsFixed(0)}m '
+          '(${local.length} local ways) =====');
+      print('wayId | painted | class | oneway | drivenM/fullM(%) | '
+          'nearestFix(start/mid/end) | ref/name');
+      for (final id in local) {
+        final w = allWaysById[id]!;
+        final geom = w.geometry;
+        final fullM = _fullLen(geom);
+        final painted = unionByWay.containsKey(id);
+        final drivenM = painted ? drivenLengthMeters(unionByWay[id]!) : 0.0;
+        final pct = fullM > 0 ? drivenM / fullM * 100 : 0.0;
+        print('$id | ${painted ? "YES" : "no "} | ${w.highwayClass} | '
+            '${w.oneway.name} | ${drivenM.toStringAsFixed(0)}/'
+            '${fullM.toStringAsFixed(0)}(${pct.toStringAsFixed(0)}%) | '
+            '${nearestFix(geom.first).toStringAsFixed(0)}/'
+            '${nearestFix(geom[geom.length ~/ 2]).toStringAsFixed(0)}/'
+            '${nearestFix(geom.last).toStringAsFixed(0)} | ${w.name ?? "-"}');
+      }
+      // Parallel-carriageway signature: a way driven-near (fix<=25m) but NOT
+      // painted while a neighbour IS painted = the matched-wrong-lane defect.
+      print('  -- driven-near (fix<=25m) but NOT painted (wrong-lane cands) --');
+      var dropped = 0;
+      for (final id in local) {
+        if (unionByWay.containsKey(id)) continue;
+        final w = allWaysById[id]!;
+        var minD = double.infinity;
+        for (final v in w.geometry) {
+          final d = nearestFix(v);
+          if (d < minD) minD = d;
+        }
+        if (minD <= 25) {
+          dropped++;
+          print('    DROPPED $id | ${w.highwayClass} | ${w.oneway.name} | '
+              'fullM ${_fullLen(w.geometry).toStringAsFixed(0)} | '
+              'nearestFix ${minD.toStringAsFixed(0)}m | ${w.name ?? "-"}');
+        }
+      }
+      print('    (dropped-near count: $dropped)');
+    }
+
+    probeDefect('B469_Obernburg', 49.8400, 9.1400, 300);
+    probeDefect('A66_Langenselbold', 50.1800, 9.0500, 400);
+    probeDefect('A45_Wolfgang', 50.1400, 8.9800, 400);
 
     // ========================================================================
     // VALIDATE THE FIX: run the real clipDrivenWays over the DB and assert the

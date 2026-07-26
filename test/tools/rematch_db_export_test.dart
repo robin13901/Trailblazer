@@ -20,6 +20,9 @@
 // Output PNGs land in C:/tmp/rematch_out/ (before_*.png / after_*.png / a
 // combined overview.png). Open them to compare.
 
+@Timeout(Duration(minutes: 10))
+library;
+
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
@@ -40,8 +43,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:maplibre_gl/maplibre_gl.dart' show LatLng;
 import 'package:sqlite3/sqlite3.dart';
 
-const _exportPath =
-    r'C:\Users\I551358\Downloads\trailblazer_backup_20260718_1820.trailblazer';
+final String _exportPath = Platform.environment['TRAILBLAZER_EXPORT'] ??
+    r'C:\tmp\trailblazer_live.trailblazer';
 const _outDir = r'C:\tmp\rematch_out';
 
 void main() {
@@ -266,6 +269,35 @@ void main() {
       centre: roundabout,
       halfSpanMeters: 180,
     );
+
+    // Dedicated defect crops for the three user-reported mis-matches. Wider
+    // spans (600-900m) so a whole-carriageway / parallel-road defect is visible
+    // against the grey road network. Each renders BEFORE (stored chords) and
+    // AFTER (production clipDrivenWays) at the same centre for comparison.
+    const defects = <(String, LatLng, double)>[
+      // B469 near Obernburg: northbound mis-matched onto a parallel Landstraße.
+      ('b469_obernburg', LatLng(49.8400, 9.1400), 700),
+      // A66 near Langenselbold: one carriageway only; A66/A45 interchange.
+      ('a66_langenselbold', LatLng(50.1800, 9.0500), 900),
+      // A45 near Wolfgang (Hanau): one lane / opposite carriageway NE of town.
+      ('a45_wolfgang', LatLng(50.1400, 8.9800), 800),
+    ];
+    for (final (name, centre, span) in defects) {
+      await _renderWindow(
+        '$_outDir/defect_${name}_before.png',
+        segments: allBefore,
+        roads: allRoads,
+        centre: centre,
+        halfSpanMeters: span,
+      );
+      await _renderWindow(
+        '$_outDir/defect_${name}_after.png',
+        segments: prodAfter,
+        roads: allRoads,
+        centre: centre,
+        halfSpanMeters: span,
+      );
+    }
 
     print('Wrote PNGs to $_outDir (${hotspots.length} zoom hotspots)');
     expect(Directory(_outDir).listSync().whereType<File>().length,
