@@ -51,6 +51,21 @@ const double kDirMinSpeedKmh = 8;
 /// dominated by GPS noise, so the direction term is skipped.
 const double kDirMinMoveMeters = 5;
 
+/// HARD-GATE angle (degrees) for the #11 dual-carriageway fix. When the
+/// vehicle's travel direction is known (see [kDirMinSpeedKmh] /
+/// [kDirMinMoveMeters]) AND a candidate is a `oneway`, the candidate is DROPPED
+/// from the trellis outright — not merely down-weighted — if its legal travel
+/// bearing differs from the vehicle's by MORE than this. The soft
+/// `kDirectionWeightLog` reweighting caps at ~5 nats, which cannot overcome the
+/// ~11 nat emission advantage the WRONG (nearer) carriageway of a divided road
+/// enjoys when GPS noise nudges a fix toward it; the hard gate removes the
+/// opposing carriageway (Δθ ≈ 180°) from contention regardless of perp
+/// distance. Set to 120° (not 90°) so derived-bearing noise and legitimate
+/// curves on a single oneway ramp survive — only genuinely near-opposite
+/// candidates are dropped. INERT when the travel bearing is unknown and on
+/// `oneway=no` ways (single carriageways untouched).
+const double kOnewayOppositeGateDegrees = 120;
+
 /// Same-way stickiness bonus (nats) added to a transition that stays on the
 /// same `wayId` as its predecessor. Default 0.0 = no-op (all goldens stay
 /// byte-identical). Exposed as a tuning hook only; do NOT raise it without
@@ -67,6 +82,17 @@ const double kReversalMinMeters = 10;
 /// matcher-side auto-fill (#10) will bridge. Matches the short-connector /
 /// `isFullyCovered` small-way floor used elsewhere in the matcher.
 const double kMaxAutoFillGapMeters = 30;
+
+/// Highway-safe endpoint-touch tolerance (meters) for the #10 DIFFERENT-wayId
+/// degree-2 continuation fill. At highway speed (120 km/h, 1 Hz sampling ≈ 33 m
+/// per fix) the last matched fix before a way boundary can sit well beyond the
+/// 30 m [kMaxAutoFillGapMeters] cap, so the pure degree-2 continuation across a
+/// shared node — where there is provably NO alternative route (a degree-2 node
+/// has no branch) — must accept a larger endpoint shortfall. Passing A→B across
+/// a degree-2 node necessarily traverses the shared node N regardless of the
+/// metric gap, so raising the tolerance here is safe. Degree > 2 interchange
+/// nodes stay conservative (never filled) — the car may have exited via a ramp.
+const double kHighwayEndpointToleranceMeters = 60;
 
 /// Emission log-probability: log p(z | c) for GPS fix `z` observed at a
 /// candidate whose perpendicular distance to the way segment is

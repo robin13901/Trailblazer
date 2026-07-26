@@ -542,14 +542,15 @@ class HmmMatcher {
   ///
   /// * **Same wayId, same direction:** a confidence gap flushed the run and it
   ///   restarted on the same way. If the metric gap `cur.start - prev.end` is
-  ///   in `(0, kMaxAutoFillGapMeters]` AND no branch node (degree > 2) lies
-  ///   strictly inside that meter interval along the way, merge into
-  ///   `[prev.start .. cur.end]`.
+  ///   positive AND no branch node (degree > 2) lies strictly inside that meter
+  ///   interval along the way, merge into `[prev.start .. cur.end]`. There is
+  ///   NO upper size cap (#10 highway fix, 2026-07-26): one OSM way is a single
+  ///   continuous road, so absent a branch node the whole span was driven.
   /// * **Different wayId, same direction, collinear continuation:** the two
   ///   ways meet at a single degree-2 node shared by exactly those two ways
   ///   (no branch), and each interval already reaches the endpoint touching
-  ///   that node (within tolerance). Extend `prev` to its endpoint and `cur`
-  ///   to its start so the junction renders continuously.
+  ///   that node (within [kHighwayEndpointToleranceMeters]). Extend `prev` to
+  ///   its endpoint and `cur` to its start so the junction renders continuously.
   ///
   /// Everything else — direction mismatch, missing/ambiguous topology, a branch
   /// node, or a gap over the threshold — is left untouched (mirrors
@@ -597,7 +598,16 @@ class HmmMatcher {
       final way = waysById[prev.wayId];
       if (way == null || way.geometry.length < 2) return null;
       final gap = cur.startMeters - prev.endMeters;
-      if (!(gap > 0 && gap <= kMaxAutoFillGapMeters)) return null;
+      // #10 highway gap (2026-07-26): the upper cap was removed. A single OSM
+      // way is ONE continuous road; if prev and cur are the same wayId, same
+      // direction, and NO branch node (degree > 2) lies strictly between them,
+      // the vehicle provably drove the whole span — a way cannot be exited
+      // mid-segment. At highway speed a dropped fix leaves a 60-90 m same-way
+      // hole that the old 30 m cap refused to close; the branch-node guard
+      // below makes closing gaps of ANY size safe (an interchange through-node
+      // is degree > 2 and blocks the merge). Keep gap > 0 (adjacent/overlapping
+      // intervals are handled by the caller's union).
+      if (gap <= 0) return null;
       // Refuse to bridge across a branch (degree > 2) inside the gap.
       if (_branchNodeStrictlyBetween(
         way,
@@ -626,7 +636,14 @@ class HmmMatcher {
     final lenP = _polylineLengthMeters(pWay.geometry);
     final lenC = _polylineLengthMeters(cWay.geometry);
     if (lenP <= 0 || lenC <= 0) return null;
-    const tol = kMaxAutoFillGapMeters;
+    // #10 highway continuation (2026-07-26): decoupled from kMaxAutoFillGapMeters.
+    // A degree-2 node has NO alternative route, so passing A→B necessarily
+    // traverses the shared node N regardless of the metric shortfall — at
+    // highway speed the last matched fix before the boundary can sit >30 m
+    // short. Use the highway-safe endpoint tolerance; the degree-2 / {A,B}
+    // topology check below still gates the fill (degree > 2 interchanges never
+    // continue).
+    const tol = kHighwayEndpointToleranceMeters;
 
     // Which endpoint node(s) does each interval already touch (within tol)?
     // Each entry pairs the OSM node id with a flag: true = END node, false =

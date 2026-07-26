@@ -279,11 +279,20 @@ void main() {
     });
 
     // -------------------------------------------------------------------------
-    // Test 7: Confidence gap mid-trace → 2 intervals on way A
+    // Test 7: Confidence gap mid-trace on a single way with NO branch node
+    // between the two runs → #10 (2026-07-26) bridges them into ONE interval.
     // -------------------------------------------------------------------------
+    // BEHAVIOUR CHANGE (#10 highway gap fill): the same-way auto-fill upper
+    // 30 m cap was removed. Way A is a single continuous OSM way and no branch
+    // node (degree > 2 — there are no other ways here, so every node is
+    // degree 1) lies between the two matched runs, so the 120 m hole left by
+    // the dropped fix is provably drivable and is merged into a single interval
+    // spanning the whole driven span. The fix is still DROPPED (unmatched);
+    // only the interval-level bridging changed. Previously this produced 2
+    // intervals; that premise is now contradicted by FIX B #10.
     test(
         '7. confidence gap (fix #3 is 500 m off any way) → '
-        '≥ 2 intervals on way A separated by the drop', () {
+        'dropped, and the same-way runs merge (no branch node between)', () {
       final way = _eastWay();
 
       // Fix 3 is placed 500 m north of the road — well beyond the 150 m
@@ -300,14 +309,15 @@ void main() {
 
       // Verify fix #3 was dropped.
       expect(result.droppedFixCount, greaterThanOrEqualTo(1));
-      // After the gap, a new interval must start → at least 2 intervals.
-      expect(result.intervals.length, greaterThanOrEqualTo(2),
-          reason: 'null gap must split the interval');
+      // #10: no branch node between the runs → bridged into a single interval.
+      expect(result.intervals.length, equals(1),
+          reason: 'same-way gap with no branch node is bridged (#10)');
 
-      // All intervals must be on way A.
-      for (final iv in result.intervals) {
-        expect(iv.wayId, way.wayId);
-      }
+      // The single interval must be on way A and span the full driven range.
+      final iv = result.intervals.single;
+      expect(iv.wayId, way.wayId);
+      expect(iv.startMeters, lessThanOrEqualTo(20.1));
+      expect(iv.endMeters, greaterThanOrEqualTo(259.9));
     });
 
     // -------------------------------------------------------------------------
@@ -934,6 +944,167 @@ void main() {
       expect(aMaxEnd, lessThan(95),
           reason: 'degree-3 junction must block collinear extension — '
               'A end was $aMaxEnd');
+    });
+
+    // #10 highway fix (2026-07-26): the same-way upper gap cap was removed. An
+    // 80 m gap (far over the old 30 m cap) on a single continuous way with NO
+    // branch node between the runs must now merge into one interval.
+    test('same-way 80m gap, no branch node between → merged (cap removed)', () {
+      // Way W: nodes at 0/100/230/330 m. The mid nodes are degree 2 (no other
+      // ways). A confidence gap drops the fixes between ~100 and ~180 (an 80 m
+      // hole). Under the old 30 m cap this stayed split; now it merges.
+      final w = straightWayWithNodes(
+        wayId: 1,
+        nodeIds: const [1000, 1001, 1002, 1003],
+        meterMarks: const [0, 100, 230, 330],
+      );
+      final fixes = [
+        _fix(0, 20),
+        _fix(0, 60, dtSecs: 2),
+        _fix(0, 98, dtSecs: 4), // prev run ends ~98
+        _fix(500, 140, dtSecs: 5), // dropped (off-road)
+        _fix(0, 180, dtSecs: 6), // cur run starts ~180 (gap ~82 m ≫ 30)
+        _fix(0, 250, dtSecs: 8),
+        _fix(0, 320, dtSecs: 10),
+      ];
+
+      final result = _matcher.match(fixes: fixes, ways: [w]);
+      final wIntervals = result.intervals.where((iv) => iv.wayId == 1).toList();
+      expect(wIntervals.length, equals(1),
+          reason: 'an 80 m same-way gap with no branch node must merge '
+              'now that the upper cap is removed');
+      expect(wIntervals.first.startMeters, lessThan(30));
+      expect(wIntervals.first.endMeters, greaterThan(310));
+    });
+
+    test('same-way 80m gap WITH a degree-3 branch inside → NOT merged', () {
+      // Same 80 m gap, but a crossroads (two side roads) attaches at node 1002
+      // (meter 230)... place the branch at node 1001 (meter 100), which lies
+      // strictly inside the [98..180] gap. Degree 3 → the merge is refused even
+      // though the cap is gone.
+      final w = straightWayWithNodes(
+        wayId: 1,
+        nodeIds: const [1000, 1001, 1002, 1003],
+        meterMarks: const [0, 100, 230, 330],
+      );
+      final sideN = WayCandidate(
+        wayId: 2,
+        highwayClass: 'residential',
+        nodeIds: const [1001, 5000],
+        geometry: [_ll(0, 100), _ll(-50, 100)],
+      );
+      final sideS = WayCandidate(
+        wayId: 3,
+        highwayClass: 'residential',
+        nodeIds: const [1001, 5001],
+        geometry: [_ll(0, 100), _ll(50, 100)],
+      );
+      final fixes = [
+        _fix(0, 20),
+        _fix(0, 60, dtSecs: 2),
+        _fix(0, 98, dtSecs: 4), // ends ~98
+        _fix(500, 140, dtSecs: 5), // dropped
+        _fix(0, 180, dtSecs: 6), // starts ~180 (gap ~82 m; branch @100 inside)
+        _fix(0, 250, dtSecs: 8),
+        _fix(0, 320, dtSecs: 10),
+      ];
+
+      final result = _matcher.match(fixes: fixes, ways: [w, sideN, sideS]);
+      final wIntervals = result.intervals.where((iv) => iv.wayId == 1).toList();
+      expect(wIntervals.length, greaterThanOrEqualTo(2),
+          reason: 'a degree-3 branch inside the 80 m gap must still block the '
+              'merge even with no upper cap');
+    });
+
+    // #10 highway fix (2026-07-26): the DIFFERENT-way degree-2 continuation now
+    // tolerates a highway-safe 60 m endpoint shortfall (was 30 m). A 50 m
+    // per-side shortfall at the shared degree-2 node must still bridge.
+    test('different-way degree-2, 50m per-side shortfall → filled (60m tol)',
+        () {
+      // A: 0..200 (nodes 4000,4001,4002), B: 200..400 (nodes 4002,4003,4004),
+      // meeting ONLY at node 4002 (degree 2, ways {1,2}). The matched runs stop
+      // ~50 m short of the junction on each side (A ends ~150, B starts ~250).
+      // Under the old 30 m tolerance neither endpoint counted as touched → no
+      // fill; the 60 m highway tolerance now bridges.
+      final a = WayCandidate(
+        wayId: 1,
+        highwayClass: 'motorway',
+        oneway: OnewayDirection.forward,
+        nodeIds: const [4000, 4001, 4002],
+        geometry: [_ll(0, 0), _ll(0, 100), _ll(0, 200)],
+      );
+      final b = WayCandidate(
+        wayId: 2,
+        highwayClass: 'motorway',
+        oneway: OnewayDirection.forward,
+        nodeIds: const [4002, 4003, 4004],
+        geometry: [_ll(0, 200), _ll(0, 300), _ll(0, 400)],
+      );
+      final fixes = [
+        _fix(0, 20, speed: 120),
+        _fix(0, 90, dtSecs: 2, speed: 120),
+        _fix(0, 150, dtSecs: 4, speed: 120), // A ends ~150 (50 m short of 200)
+        _fix(500, 200, dtSecs: 5, speed: 120), // dropped around the junction
+        _fix(0, 250, dtSecs: 6, speed: 120), // B starts ~250 (50 m past 200)
+        _fix(0, 320, dtSecs: 8, speed: 120),
+        _fix(0, 390, dtSecs: 10, speed: 120),
+      ];
+
+      final result = _matcher.match(fixes: fixes, ways: [a, b]);
+      final aInt = result.intervals.where((iv) => iv.wayId == 1).toList();
+      final bInt = result.intervals.where((iv) => iv.wayId == 2).toList();
+      expect(aInt, isNotEmpty);
+      expect(bInt, isNotEmpty);
+      expect(aInt.map((iv) => iv.endMeters).reduce((x, y) => x > y ? x : y),
+          greaterThan(195),
+          reason: 'A must reach its shared-node endpoint (~200 m) at 60 m tol');
+      expect(bInt.map((iv) => iv.startMeters).reduce((x, y) => x < y ? x : y),
+          lessThan(5),
+          reason: 'B must start at its shared-node endpoint (~0 m) at 60 m tol');
+    });
+
+    test('different-way degree-3 interchange, 50m shortfall → NOT filled', () {
+      // Same 50 m per-side shortfall, but a third way T attaches at the shared
+      // node (degree 3 = interchange). The car may have exited via a ramp →
+      // no fill regardless of the raised tolerance.
+      final a = WayCandidate(
+        wayId: 1,
+        highwayClass: 'motorway',
+        oneway: OnewayDirection.forward,
+        nodeIds: const [4000, 4001, 4002],
+        geometry: [_ll(0, 0), _ll(0, 100), _ll(0, 200)],
+      );
+      final b = WayCandidate(
+        wayId: 2,
+        highwayClass: 'motorway',
+        oneway: OnewayDirection.forward,
+        nodeIds: const [4002, 4003, 4004],
+        geometry: [_ll(0, 200), _ll(0, 300), _ll(0, 400)],
+      );
+      final ramp = WayCandidate(
+        wayId: 3,
+        highwayClass: 'motorway_link',
+        oneway: OnewayDirection.forward,
+        nodeIds: const [4002, 7000],
+        geometry: [_ll(0, 200), _ll(-80, 200)],
+      );
+      final fixes = [
+        _fix(0, 20, speed: 120),
+        _fix(0, 90, dtSecs: 2, speed: 120),
+        _fix(0, 150, dtSecs: 4, speed: 120), // A ends ~150
+        _fix(500, 200, dtSecs: 5, speed: 120), // dropped
+        _fix(0, 250, dtSecs: 6, speed: 120), // B starts ~250
+        _fix(0, 320, dtSecs: 8, speed: 120),
+        _fix(0, 390, dtSecs: 10, speed: 120),
+      ];
+
+      final result = _matcher.match(fixes: fixes, ways: [a, b, ramp]);
+      final aInt = result.intervals.where((iv) => iv.wayId == 1).toList();
+      final aMaxEnd =
+          aInt.map((iv) => iv.endMeters).reduce((x, y) => x > y ? x : y);
+      expect(aMaxEnd, lessThan(195),
+          reason: 'a degree-3 interchange must block the continuation fill '
+              'even at 60 m tolerance — A end was $aMaxEnd');
     });
   });
 }

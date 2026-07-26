@@ -217,4 +217,112 @@ void main() {
       );
     }
   });
+
+  // -------------------------------------------------------------------------
+  // 5. HARD GATE (#11, 2026-07-26): a fix physically CLOSER to the opposing
+  //    (west-bound) carriageway is NOT matched to it — the gate drops the
+  //    near-opposite oneway candidate outright — and IS matched to the correct
+  //    (east-bound) carriageway. With travelBearing null the gate is inert.
+  // -------------------------------------------------------------------------
+  test('5. hard gate drops the opposing carriageway even when it is closer', () {
+    // East-bound carriageway at lat0 (legal East, bearing 90, oneway=forward).
+    // West-bound carriageway ~15 m north (legal West, bearing 270, stored W→E
+    // with oneway=backward). The vehicle drives EAST (heading 90).
+    final eastBound = _ewWay(
+      wayId: 1,
+      lat: _lat0,
+      oneway: OnewayDirection.forward,
+    );
+    final westBound = _ewWay(
+      wayId: 2,
+      lat: _lat15mNorth,
+      oneway: OnewayDirection.backward,
+    );
+    final index = WaySegmentIndex.buildFromWays([eastBound, westBound]);
+    const decoder = ViterbiDecoder();
+
+    // Every fix is nudged 12 m north — PAST the halfway line (7.5 m), so each
+    // fix is perpendicularly CLOSER to the west-bound carriageway (~3 m) than
+    // to the east-bound one (~12 m). A perp-only / soft-only decoder would snap
+    // to the wrong carriageway; the hard gate must keep them east-bound.
+    const noiseNorthDeg = 12 / 111320;
+    final base = DateTime.utc(2026, 7, 25, 12);
+    final fixes = <GpsFix>[
+      for (var i = 0; i < 5; i++)
+        GpsFix(
+          lat: _lat0 + noiseNorthDeg,
+          lon: 9.000 + i * 0.0005,
+          accuracyMeters: 5,
+          speedKmh: 50,
+          headingDegrees: 90, // due East
+          ts: base.add(Duration(seconds: i)),
+        ),
+    ];
+
+    final result = decoder.decode(fixes, index);
+    expect(result, hasLength(5));
+    for (var i = 0; i < 5; i++) {
+      expect(result[i], isNotNull, reason: 'fix $i should match');
+      expect(
+        result[i]!.wayId,
+        equals(1),
+        reason: 'fix $i is closer to the WRONG carriageway but the hard gate '
+            'must drop it; got way ${result[i]!.wayId}',
+      );
+    }
+  });
+
+  // -------------------------------------------------------------------------
+  // 6. HARD GATE INERT when travelBearing is null: the SAME geometry with no
+  //    heading and near-stationary movement (no derived bearing) must fall back
+  //    to pure perp distance → the fix physically closer to the west-bound
+  //    carriageway matches it. Proves the gate never fires without a bearing.
+  // -------------------------------------------------------------------------
+  test('6. hard gate inert with null bearing → nearest carriageway wins', () {
+    final eastBound = _ewWay(
+      wayId: 1,
+      lat: _lat0,
+      oneway: OnewayDirection.forward,
+    );
+    final westBound = _ewWay(
+      wayId: 2,
+      lat: _lat15mNorth,
+      oneway: OnewayDirection.backward,
+    );
+    final index = WaySegmentIndex.buildFromWays([eastBound, westBound]);
+    const decoder = ViterbiDecoder();
+
+    // Near-stationary fixes (< kDirMinMoveMeters apart, speed below threshold)
+    // with NO heading → travelBearing is null for every fix, so BOTH the hard
+    // gate and the soft term are inert. Each fix sits ~3 m south of the
+    // west-bound carriageway (≈3 m from way 2, ≈12 m from the east-bound way
+    // 1). With no direction signal the nearest (west-bound) carriageway wins.
+    const nearWay2Lat = _lat15mNorth - 3 / 111320;
+    final base = DateTime.utc(2026, 7, 25, 12);
+    final fixes = <GpsFix>[
+      for (var i = 0; i < 4; i++)
+        GpsFix(
+          lat: nearWay2Lat,
+          lon: 9.0010 + i * 0.00002, // ~1.4 m steps → below move floor
+          accuracyMeters: 5,
+          speedKmh: 3, // < kDirMinSpeedKmh
+          ts: base.add(Duration(seconds: i)),
+        ),
+    ];
+
+    final result = decoder.decode(fixes, index);
+    expect(result, hasLength(4));
+    // Gate-inert proof: the near OPPOSING-direction carriageway (way 2) is
+    // matched by at least one fix. If the hard gate had fired it would have
+    // dropped way 2 on EVERY fix (its legal West bearing is ~180° from any
+    // eastbound travel) and forced everything onto way 1 — as in test 5. With
+    // no travel bearing the gate is inert, so the nearest carriageway wins.
+    final matchedWays = result.map((s) => s?.wayId).toSet();
+    expect(
+      matchedWays,
+      contains(2),
+      reason: 'null-bearing: gate must be inert, so the nearest (west-bound) '
+          'carriageway is matched at least once; got $matchedWays',
+    );
+  });
 }

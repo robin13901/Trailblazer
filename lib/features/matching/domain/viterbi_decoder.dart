@@ -196,13 +196,29 @@ class ViterbiDecoder {
         }
 
         // #11 DIRECTION TERM (dual-carriageway fix): when the vehicle's travel
-        // direction is known AND the candidate is a oneway, penalize the
-        // candidate by how far its LEGAL travel bearing is from the vehicle's.
-        // Penalty = kDirectionWeightLog * (1 - cos Δθ): 0 when aligned, max
-        // 2*kDirectionWeightLog (5.0 nats) when 180° opposed. A `oneway=no`
-        // candidate contributes NOTHING — this protects single carriageways
-        // and keeps every existing `oneway=no` golden byte-identical. Applied
-        // to the SCORE only; queryTopK is never gated by it.
+        // direction is known AND the candidate is a oneway, reason about how far
+        // the candidate's LEGAL travel bearing is from the vehicle's.
+        //
+        // HARD GATE: when that difference exceeds kOnewayOppositeGateDegrees
+        // (120°) the candidate is the OPPOSING carriageway of a divided road —
+        // its legal direction is ~180° from travel — so it is DROPPED from the
+        // trellis entirely (skipped, no _State added). Scoring alone cannot fix
+        // this: the wrong (nearer) carriageway's emission advantage (~11 nats
+        // when GPS noise nudges a fix toward it) dwarfs the soft term's ~5 nat
+        // cap, so the wrong carriageway would otherwise win regardless. Dropping
+        // it removes it from contention outright. If EVERY candidate is gated
+        // the fix ends up with zero states and is treated as unmatched (null
+        // step) exactly like the empty-candidates path above — never a crash,
+        // never a force-snap.
+        //
+        // SOFT term (Δθ ≤ 120°): the existing -kDirectionWeightLog*(1-cos Δθ)
+        // reweighting is kept for near-aligned candidates (0 when aligned).
+        //
+        // A `oneway=no` candidate is untouched by BOTH the gate and the soft
+        // term (single carriageways, and every existing `oneway=no` golden stays
+        // byte-identical). The gate is also INERT when travelBearing is null
+        // (single-fix starts, low speed, gaps, near-stationary jitter) — the
+        // same guards as the soft term.
         if (travelBearing != null && seg.oneway != OnewayDirection.no) {
           final segFwd = segmentBearingDegrees(
             aLat: seg.aLat,
@@ -214,8 +230,12 @@ class ViterbiDecoder {
             final legal = seg.oneway == OnewayDirection.backward
                 ? (segFwd + 180) % 360
                 : segFwd;
-            final d =
-                angularDifferenceDegrees(travelBearing, legal) * math.pi / 180;
+            final deltaDeg = angularDifferenceDegrees(travelBearing, legal);
+            // HARD DROP: opposing carriageway removed from the trellis.
+            if (deltaDeg > kOnewayOppositeGateDegrees) {
+              continue;
+            }
+            final d = deltaDeg * math.pi / 180;
             emit += -kDirectionWeightLog * (1 - math.cos(d));
           }
         }

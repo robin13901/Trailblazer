@@ -92,7 +92,18 @@ class WaySegmentIndex {
   /// by exact perpendicular metric distance. Ties are broken by
   /// `(wayId, segIdx)` for determinism.
   ///
-  /// Returns fewer than [k] entries when the coarse hit set is smaller than
+  /// The result is DEDUPED BY `wayId`: at most one segment — the nearest — per
+  /// distinct way survives, so each way occupies at most one of the [k] beam
+  /// slots (#11 beam dedupe, 2026-07-26). A single way explodes into many
+  /// segments, so without this collapse the near/wrong carriageway of a divided
+  /// road could fill the entire beam with its own segments and exclude the
+  /// correct (parallel) carriageway from the trellis — the direction term then
+  /// never even runs on it. Collapsing to first-per-wayId over the
+  /// distance-sorted list guarantees both carriageways of a divided road get a
+  /// slot. The (perp asc, wayId, segIdx) ordering is preserved for determinism;
+  /// the first entry seen for a wayId is its nearest segment.
+  ///
+  /// Returns fewer than [k] entries when the deduped hit set is smaller than
   /// [k]. Returns an empty list when [k] ≤ 0.
   List<WaySegment> queryTopK({
     required double lat,
@@ -127,6 +138,16 @@ class WaySegmentIndex {
       if (wc != 0) return wc;
       return a.$1.segIdx.compareTo(b.$1.segIdx);
     });
-    return scored.take(k).map((e) => e.$1).toList(growable: false);
+    // Collapse to the nearest segment per wayId, preserving the sorted order,
+    // then take the first k distinct ways.
+    final seenWays = <int>{};
+    final out = <WaySegment>[];
+    for (final (seg, _) in scored) {
+      if (seenWays.add(seg.wayId)) {
+        out.add(seg);
+        if (out.length == k) break;
+      }
+    }
+    return out;
   }
 }
