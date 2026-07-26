@@ -87,7 +87,16 @@ class AppPrefs {
   /// derived-bearing fallback (from consecutive fixes) supplies direction on
   /// re-match. This bump forces one re-match so all stored trips gain the new
   /// matching. Paired with the recompute bump below.
-  static const int kCurrentMatcherRematchVersion = 8;
+  /// `9` = 2026-07-26 carriageway hard-gate + highway gap-fill: the emission now
+  /// HARD-DROPS a oneway candidate whose legal direction opposes travel by >120°
+  /// (the additive soft term at v8 could not overcome the closer wrong
+  /// carriageway), queryTopK dedupes by wayId so both carriageways get a beam
+  /// slot, and the gap-fill uncaps same-way merges + widens the degree-2
+  /// continuation tolerance to 60 m for highway speeds. v8 already ran + stamped
+  /// on-device, so this bump is REQUIRED to re-match stored trips under the new
+  /// matcher (verified on the live DB: A66 both carriageways 36/69%→100%, A45
+  /// dropped carriageway 0%→100%). Paired with the recompute bump below.
+  static const int kCurrentMatcherRematchVersion = 9;
 
   /// Version stamp of the last coverage-cache recompute migration applied to
   /// this device. Bumped whenever `coverage_cache` needs a one-shot
@@ -124,7 +133,12 @@ class AppPrefs {
   /// attribution table AND rebuilds `coverage_cache` under the corrected
   /// (boundary-splitting, eviction-proof, monotonic) numbers. Paired with the v8
   /// re-match so the repaired intervals feed the new aggregation.
-  static const int kCurrentCoverageRecomputeVersion = 5;
+  /// `6` = 2026-07-26 paired with the v9 re-match (carriageway hard-gate +
+  /// highway gap-fill). The re-match rewrites intervals under the new matcher;
+  /// this bump forces one clean clip-per-region rebuild so coverage_cache
+  /// reflects the corrected carriageway coverage. (v5 already stamped on-device,
+  /// so a bump is required for the recompute to re-run.)
+  static const int kCurrentCoverageRecomputeVersion = 6;
 
   /// Version stamp of the last stuck-fetch recovery migration applied to this
   /// device. Bumped when a one-shot recovery of trips parked by an Overpass
