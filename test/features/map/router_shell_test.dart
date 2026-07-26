@@ -4,6 +4,7 @@ import 'package:auto_explore/core/db/app_database_providers.dart';
 import 'package:auto_explore/features/admin/data/admin_bundle_refresher.dart';
 import 'package:auto_explore/features/admin/data/admin_region_providers.dart';
 import 'package:auto_explore/features/coverage/data/coverage_overlay_providers.dart';
+import 'package:auto_explore/features/coverage/data/coverage_providers.dart';
 import 'package:auto_explore/features/map/data/tile_provider_config.dart';
 import 'package:auto_explore/features/map/presentation/providers/location_permission_provider.dart';
 import 'package:auto_explore/features/map/presentation/providers/map_style_provider.dart';
@@ -15,6 +16,7 @@ import 'package:auto_explore/features/regions/domain/region_coverage.dart';
 import 'package:auto_explore/features/regions/presentation/providers/region_browser_provider.dart';
 import 'package:auto_explore/features/settings/data/backup_service_provider.dart';
 import 'package:auto_explore/features/settings/data/file_platform_provider.dart';
+import 'package:auto_explore/features/startup/data/global_recalc_progress_provider.dart';
 import 'package:auto_explore/features/trips/domain/trip_list_item.dart';
 import 'package:auto_explore/features/trips/presentation/providers/inbox_providers.dart';
 import 'package:auto_explore/features/trips/presentation/widgets/history_empty_state.dart';
@@ -54,6 +56,30 @@ class _FakeAdminBundleRefresher implements AdminBundleRefresher {
 
   @override
   Future<void> refreshFromOverpass() async {}
+}
+
+/// Stub [GlobalRecalcNotifier] that stays null so `GlobalRecalcBanner` renders
+/// nothing. The full [App] runs `_runStartupMigrations()` on the first frame,
+/// which flips this provider to a non-null "Neuberechnung …" state; that state
+/// renders an INDETERMINATE `LinearProgressIndicator` in the banner, whose
+/// forever-repeating animation makes `pumpAndSettle` never settle (the headless
+/// recompute never completes to clear it). Holding the state at null keeps the
+/// banner a `SizedBox.shrink()` — the migration's `start*/clear` calls no-op.
+class _NullGlobalRecalcNotifier extends GlobalRecalcNotifier {
+  @override
+  GlobalRecalcState? build() => null;
+
+  @override
+  void startRematching(int total) {}
+
+  @override
+  void updateRematching(int done, int total) {}
+
+  @override
+  void startRecomputing() {}
+
+  @override
+  void clear() {}
 }
 
 /// Pumps the full [App] with onboarding already complete and all platform
@@ -118,6 +144,15 @@ Future<void> pumpAppAtMapShell(WidgetTester tester) async {
         tripsUnionBoundsProvider.overrideWith(
           (ref) => const Stream.empty(),
         ),
+        // FocusAreaPill → FocusPillNotifier.build() ref.listens
+        // coverageCacheStreamProvider, a Drift .watch() over the in-memory DB.
+        // On dispose Drift schedules a StreamQueryStore cleanup timer, which the
+        // harness flags as a pending timer (same reason tripsUnionBoundsProvider
+        // above is stubbed). Override with an empty stream so no Drift watch
+        // subscription is created.
+        coverageCacheStreamProvider.overrideWith(
+          (ref) => const Stream.empty(),
+        ),
         // SettingsScreen sections that hit platform channels:
         backupServiceProvider.overrideWithValue(FakeBackupService()),
         filePlatformProvider.overrideWithValue(FakeFilePlatform()),
@@ -126,6 +161,11 @@ Future<void> pumpAppAtMapShell(WidgetTester tester) async {
         // the real Overpass HTTP client + path_provider channels.
         adminBundleRefresherProvider
             .overrideWithValue(_FakeAdminBundleRefresher()),
+        // App._runStartupMigrations() sets globalRecalcProgressProvider non-null
+        // on the first frame, which makes GlobalRecalcBanner render an
+        // indeterminate LinearProgressIndicator that animates forever →
+        // pumpAndSettle never settles. Hold it null so the banner stays hidden.
+        globalRecalcProgressProvider.overrideWith(_NullGlobalRecalcNotifier.new),
       ],
       child: const App(),
     ),
