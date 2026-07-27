@@ -903,10 +903,20 @@ void main() {
           reason: 'B must start at its shared-node endpoint (~0 m)');
     });
 
-    test('different-way across a degree-3 shared node → NOT filled', () {
+    // BEHAVIOUR CHANGE (#10 through-intersection bridge, 2026-07-27): a gap
+    // where the vehicle drove STRAIGHT THROUGH a degree-3 junction is now
+    // bridged by Branch 3, gated by the GPS corridor. Previously the degree-2
+    // continuation (Branch 2) refused it and the gap was left as a visible
+    // break; that premise is now contradicted by the through-intersection
+    // bridge. The bridge extends A to the junction node and B from it — it does
+    // NOT paint the side road T (the vehicle never drove it: every fix sits on
+    // the A→B line at y=0, none head south down T). The corridor gate confirms
+    // node 3001 (x=100) sits within 45 m of the bracketing fixes (x=92 / x=108),
+    // so the vehicle provably passed through it.
+    test('different-way across a degree-3 shared node → bridged '
+        '(through-intersection), side road NOT painted', () {
       // A and B meet at node 3001, but a third way T also attaches there
-      // (degree 3). Not a pure continuation → no fill; the near-junction gap
-      // is left as a visible break.
+      // (degree 3). The vehicle drives straight A→through→B.
       final a = WayCandidate(
         wayId: 1,
         highwayClass: 'residential',
@@ -937,13 +947,18 @@ void main() {
 
       final result = _matcher.match(fixes: fixes, ways: [a, b, t]);
       final aInt = result.intervals.where((iv) => iv.wayId == 1).toList();
-      // A must NOT be auto-extended to its full end across the 3-way junction:
-      // its measured span stays short of the endpoint.
-      final aMaxEnd =
-          aInt.map((iv) => iv.endMeters).reduce((x, y) => x > y ? x : y);
-      expect(aMaxEnd, lessThan(95),
-          reason: 'degree-3 junction must block collinear extension — '
-              'A end was $aMaxEnd');
+      final bInt = result.intervals.where((iv) => iv.wayId == 2).toList();
+      // A bridged to the junction node (~100 m); B bridged from it (~0 m).
+      expect(aInt.map((iv) => iv.endMeters).reduce((x, y) => x > y ? x : y),
+          greaterThan(95),
+          reason: 'A bridged to the through-intersection node');
+      expect(bInt.map((iv) => iv.startMeters).reduce((x, y) => x < y ? x : y),
+          lessThan(5),
+          reason: 'B bridged from the through-intersection node');
+      // CORRECTNESS INVARIANT: the side road T must NEVER be painted — the
+      // vehicle demonstrably drove straight through and never onto T.
+      expect(result.intervals.where((iv) => iv.wayId == 3), isEmpty,
+          reason: 'the un-driven side road T must not be painted');
     });
 
     // #10 highway fix (2026-07-26): the same-way upper gap cap was removed. An
@@ -1105,6 +1120,329 @@ void main() {
       expect(aMaxEnd, lessThan(195),
           reason: 'a degree-3 interchange must block the continuation fill '
               'even at 60 m tolerance — A end was $aMaxEnd');
+    });
+  });
+
+  // ===========================================================================
+  // #10 through-intersection gap bridge (2026-07-27)
+  // ===========================================================================
+  //
+  // Branch 3 of `_tryFill`: bridges a gap where the vehicle drove straight
+  // THROUGH a branch node (degree > 2) — which the degree-2 continuation
+  // (Branch 2) refuses — or across a short connector way at such a junction.
+  // The bridge is triple-gated: total length ≤ kMaxBridgeMeters, route ≈
+  // straight-line (kBridgeMaxLengthRatio), and every path node within
+  // kBridgeCorridorMeters of a raw GPS fix. It can only close a genuine
+  // data/rendering gap, never paint a wrong-road excursion.
+  group('through-intersection gap bridge (#10, 2026-07-27)', () {
+    // A short side road hanging off the junction node, forcing degree > 2 so
+    // the degree-2 continuation (Branch 2) cannot fire — a real intersection.
+    WayCandidate sideRoad({
+      required int wayId,
+      required int junctionNodeId,
+      required double junctionEast,
+    }) =>
+        WayCandidate(
+          wayId: wayId,
+          highwayClass: 'residential',
+          nodeIds: [junctionNodeId, 9000 + wayId],
+          geometry: [_ll(0, junctionEast), _ll(50, junctionEast)],
+        );
+
+    // -------------------------------------------------------------------------
+    // 1. BRIDGES a genuine through-intersection gap (degree > 2 shared node).
+    // -------------------------------------------------------------------------
+    test('1. bridges a through-intersection gap (degree>2 shared node)', () {
+      // Way A (0..100) and Way B (100..200) meet at node 101 (x=100). A side
+      // road also attaches at 101 → degree 3, so Branch 2 refuses it. The
+      // vehicle drives straight A→X→B; the fix at the junction is dropped.
+      final wayA = WayCandidate(
+        wayId: 1,
+        highwayClass: 'residential',
+        nodeIds: const [100, 101],
+        geometry: [_ll(0, 0), _ll(0, 100)],
+      );
+      final wayB = WayCandidate(
+        wayId: 2,
+        highwayClass: 'residential',
+        nodeIds: const [101, 102],
+        geometry: [_ll(0, 100), _ll(0, 200)],
+      );
+      final side =
+          sideRoad(wayId: 3, junctionNodeId: 101, junctionEast: 100);
+
+      final fixes = [
+        _fix(0, 20),
+        _fix(0, 80, dtSecs: 2), // A ends ~80 (touches end node 101 within tol)
+        _fix(500, 100, dtSecs: 3), // dropped at the junction
+        _fix(0, 120, dtSecs: 4), // B starts ~20 (touches start node 101)
+        _fix(0, 180, dtSecs: 6),
+      ];
+
+      final result = _matcher.match(fixes: fixes, ways: [wayA, wayB, side]);
+      final aInt = result.intervals.where((iv) => iv.wayId == 1).toList();
+      final bInt = result.intervals.where((iv) => iv.wayId == 2).toList();
+
+      expect(aInt, isNotEmpty, reason: 'A must be matched');
+      expect(bInt, isNotEmpty, reason: 'B must be matched');
+      // A must reach the junction node (full ~100 m); B must start from it (~0).
+      expect(aInt.map((iv) => iv.endMeters).reduce((x, y) => x > y ? x : y),
+          greaterThan(99),
+          reason: 'A bridged to the through-intersection node (~100 m)');
+      expect(bInt.map((iv) => iv.startMeters).reduce((x, y) => x < y ? x : y),
+          lessThan(1),
+          reason: 'B bridged from the through-intersection node (~0 m)');
+      // The side road must NOT be painted.
+      expect(result.intervals.where((iv) => iv.wayId == 3), isEmpty,
+          reason: 'a side road the vehicle never entered must not be painted');
+    });
+
+    // -------------------------------------------------------------------------
+    // 2. BRIDGES across a short intermediate connector way (on-corridor).
+    // -------------------------------------------------------------------------
+    test('2. bridges across a short intermediate connector way', () {
+      // A (0..300, node 100→101 @ x=300). Connector C (300..340, node
+      // 101→103). B (340..440, node 103→104). Vehicle drives straight through;
+      // the fix on the 40 m connector is dropped. C must be painted full.
+      final wayA = WayCandidate(
+        wayId: 1,
+        highwayClass: 'residential',
+        nodeIds: const [100, 101],
+        geometry: [_ll(0, 0), _ll(0, 300)],
+      );
+      final connector = WayCandidate(
+        wayId: 2,
+        highwayClass: 'residential',
+        nodeIds: const [101, 103],
+        geometry: [_ll(0, 300), _ll(0, 340)],
+      );
+      final wayB = WayCandidate(
+        wayId: 3,
+        highwayClass: 'residential',
+        nodeIds: const [103, 104],
+        geometry: [_ll(0, 340), _ll(0, 440)],
+      );
+
+      final fixes = [
+        _fix(0, 100), // A start > tol so A's START endpoint is not "touched"
+        _fix(0, 200, dtSecs: 3),
+        _fix(0, 280, dtSecs: 5), // A ends ~280 (touches end node 101 @300)
+        _fix(500, 320, dtSecs: 6), // dropped on the connector
+        _fix(0, 360, dtSecs: 7), // B starts ~20 (touches start node 103 @340)
+        _fix(0, 420, dtSecs: 9),
+      ];
+
+      final result =
+          _matcher.match(fixes: fixes, ways: [wayA, connector, wayB]);
+      final cInt = result.intervals.where((iv) => iv.wayId == 2).toList();
+
+      expect(cInt, isNotEmpty,
+          reason: 'the intermediate connector must be painted by the bridge');
+      final cSpan = cInt
+          .map((iv) => (iv.endMeters - iv.startMeters).abs())
+          .reduce((x, y) => x > y ? x : y);
+      expect(cSpan, greaterThan(35),
+          reason: 'connector painted ~full 40 m, got $cSpan');
+    });
+
+    // -------------------------------------------------------------------------
+    // 3. REFUSES a wrong-road detour (route ≫ straight-line / over cap).
+    // -------------------------------------------------------------------------
+    test('3. refuses a wrong-road detour (route over kMaxBridgeMeters)', () {
+      // A (0..100) and B (140..240) do NOT share a node. Their loose ends
+      // (node 101 @x=100, node 103 @x=140) are only 40 m apart straight-line
+      // but the only on-road connection is a 340 m detour bowing 150 m north →
+      // unreachable within the 200 m bridge cap. No bridge.
+      final wayA = WayCandidate(
+        wayId: 1,
+        highwayClass: 'residential',
+        nodeIds: const [100, 101],
+        geometry: [_ll(0, 0), _ll(0, 100)],
+      );
+      final detour = WayCandidate(
+        wayId: 2,
+        highwayClass: 'residential',
+        nodeIds: const [101, 501, 502, 103],
+        geometry: [_ll(0, 100), _ll(150, 100), _ll(150, 140), _ll(0, 140)],
+      );
+      final wayB = WayCandidate(
+        wayId: 3,
+        highwayClass: 'residential',
+        nodeIds: const [103, 104],
+        geometry: [_ll(0, 140), _ll(0, 240)],
+      );
+
+      final fixes = [
+        _fix(0, 20),
+        _fix(0, 60, dtSecs: 2),
+        _fix(0, 90, dtSecs: 4), // A ends ~90
+        _fix(500, 120, dtSecs: 5), // dropped
+        _fix(0, 160, dtSecs: 6), // B starts ~20
+        _fix(0, 220, dtSecs: 8),
+      ];
+
+      final result = _matcher.match(fixes: fixes, ways: [wayA, detour, wayB]);
+      // The detour way must NOT be painted, and A must not be extended to its
+      // loose-end node.
+      expect(result.intervals.where((iv) => iv.wayId == 2), isEmpty,
+          reason: 'a detour longer than the bridge cap must not be painted');
+      final aInt = result.intervals.where((iv) => iv.wayId == 1).toList();
+      expect(aInt, isNotEmpty);
+      expect(aInt.map((iv) => iv.endMeters).reduce((x, y) => x > y ? x : y),
+          lessThan(95),
+          reason: 'A must keep its measured span (no bridge over a long detour)');
+      expect(result.intervals.where((iv) => iv.wayId == 3), isNotEmpty,
+          reason: 'B stays a separate interval');
+    });
+
+    // -------------------------------------------------------------------------
+    // 4. REFUSES when the GPS corridor is absent (path node far from all fixes).
+    // -------------------------------------------------------------------------
+    test('4. refuses when a bridge node is off the GPS corridor', () {
+      // A (0..100) → connector C (100..200, mid node 500 @x=150) → B (200..300).
+      // The route (200 m) and length-ratio both PASS, but node 500 @x=150 is
+      // 60 m from the nearest fix (x=90 / x=210) — outside the 45 m corridor —
+      // so the corridor gate refuses the bridge. Guards against inventing road.
+      final wayA = WayCandidate(
+        wayId: 1,
+        highwayClass: 'residential',
+        nodeIds: const [100, 101],
+        geometry: [_ll(0, 0), _ll(0, 100)],
+      );
+      final connector = WayCandidate(
+        wayId: 2,
+        highwayClass: 'residential',
+        nodeIds: const [101, 500, 103],
+        geometry: [_ll(0, 100), _ll(0, 150), _ll(0, 200)],
+      );
+      final wayB = WayCandidate(
+        wayId: 3,
+        highwayClass: 'residential',
+        nodeIds: const [103, 104],
+        geometry: [_ll(0, 200), _ll(0, 300)],
+      );
+
+      final fixes = [
+        _fix(0, 20),
+        _fix(0, 60, dtSecs: 2),
+        _fix(0, 90, dtSecs: 4), // A ends ~90; nearest fix to x=150 is 60 m away
+        _fix(500, 150, dtSecs: 5), // dropped, off-road
+        _fix(0, 210, dtSecs: 6), // B starts ~10; nearest fix to x=150 is 60 m
+        _fix(0, 260, dtSecs: 8),
+        _fix(0, 290, dtSecs: 10),
+      ];
+
+      final result =
+          _matcher.match(fixes: fixes, ways: [wayA, connector, wayB]);
+      // The connector's mid node is off-corridor → no bridge, C not painted.
+      expect(result.intervals.where((iv) => iv.wayId == 2), isEmpty,
+          reason: 'an off-corridor connector node must block the bridge');
+      final aInt = result.intervals.where((iv) => iv.wayId == 1).toList();
+      expect(aInt, isNotEmpty);
+      expect(aInt.map((iv) => iv.endMeters).reduce((x, y) => x > y ? x : y),
+          lessThan(95),
+          reason: 'A must keep its measured span (corridor gate refused)');
+    });
+
+    // -------------------------------------------------------------------------
+    // 5. REFUSES across a direction mismatch (prev.direction != cur.direction).
+    // -------------------------------------------------------------------------
+    test('5. refuses across a direction mismatch', () {
+      // Same degree-3 through-intersection as test 1, but B is driven BACKWARD
+      // (x decreasing). prev='forward', cur='backward' → the top-of-_tryFill
+      // direction gate returns null before Branch 3 is reached. No bridge.
+      final wayA = WayCandidate(
+        wayId: 1,
+        highwayClass: 'residential',
+        nodeIds: const [100, 101],
+        geometry: [_ll(0, 0), _ll(0, 100)],
+      );
+      final wayB = WayCandidate(
+        wayId: 2,
+        highwayClass: 'residential',
+        nodeIds: const [101, 102],
+        geometry: [_ll(0, 100), _ll(0, 200)],
+      );
+      final side =
+          sideRoad(wayId: 3, junctionNodeId: 101, junctionEast: 100);
+
+      final fixes = [
+        _fix(0, 20), // A forward
+        _fix(0, 80, dtSecs: 2),
+        _fix(500, 100, dtSecs: 3), // dropped
+        _fix(0, 180, dtSecs: 4), // B backward: 80 → 20 (decreasing meters)
+        _fix(0, 120, dtSecs: 6),
+      ];
+
+      final result = _matcher.match(fixes: fixes, ways: [wayA, wayB, side]);
+      final aInt = result.intervals.where((iv) => iv.wayId == 1).toList();
+      expect(aInt, isNotEmpty);
+      // A must NOT be extended to the junction node — the direction gate blocks
+      // the bridge entirely.
+      expect(aInt.map((iv) => iv.endMeters).reduce((x, y) => x > y ? x : y),
+          lessThan(95),
+          reason: 'a direction mismatch must block the bridge');
+    });
+
+    // -------------------------------------------------------------------------
+    // 6. NO-OP regression: degree-2 continuation and same-way merge still
+    // behave via Branches 2/1 exactly as before threading `fixes` through.
+    // -------------------------------------------------------------------------
+    test('6. no-op regression: degree-2 continuation still fills (Branch 2)',
+        () {
+      // Two collinear ways meeting at a pure degree-2 node 2001 (no side road).
+      // Branch 2 handles this — Branch 3 must not change the outcome.
+      final a = WayCandidate(
+        wayId: 1,
+        highwayClass: 'residential',
+        nodeIds: const [2000, 2001],
+        geometry: [_ll(0, 0), _ll(0, 100)],
+      );
+      final b = WayCandidate(
+        wayId: 2,
+        highwayClass: 'residential',
+        nodeIds: const [2001, 2002],
+        geometry: [_ll(0, 100), _ll(0, 200)],
+      );
+      final fixes = [
+        _fix(0, 20),
+        _fix(0, 60, dtSecs: 2),
+        _fix(0, 92, dtSecs: 4),
+        _fix(500, 100, dtSecs: 5), // dropped
+        _fix(0, 108, dtSecs: 6),
+        _fix(0, 150, dtSecs: 8),
+        _fix(0, 190, dtSecs: 10),
+      ];
+
+      final result = _matcher.match(fixes: fixes, ways: [a, b]);
+      final aInt = result.intervals.where((iv) => iv.wayId == 1).toList();
+      final bInt = result.intervals.where((iv) => iv.wayId == 2).toList();
+      expect(aInt.map((iv) => iv.endMeters).reduce((x, y) => x > y ? x : y),
+          greaterThan(95),
+          reason: 'A still reaches its shared-node endpoint (Branch 2)');
+      expect(bInt.map((iv) => iv.startMeters).reduce((x, y) => x < y ? x : y),
+          lessThan(5),
+          reason: 'B still starts at its shared-node endpoint (Branch 2)');
+    });
+
+    test('6b. no-op regression: two isolated ways are not bridged', () {
+      // Way A and a far parallel way P that share no node and are 500 m apart.
+      // Branch 3 must not invent a bridge between unrelated intervals.
+      final a = _eastWay();
+      final p = _northOffsetWay(); // 500 m north, disjoint node ids (surrogate)
+      final fixes = [
+        _fix(0, 20),
+        _fix(0, 140, dtSecs: 5),
+        _fix(0, 260, dtSecs: 10),
+        _fix(500, 20, dtSecs: 15),
+        _fix(500, 140, dtSecs: 20),
+        _fix(500, 260, dtSecs: 25),
+      ];
+
+      final result = _matcher.match(fixes: fixes, ways: [a, p]);
+      // Exactly one interval per way — no invented intermediate, no merge.
+      expect(result.intervals.where((iv) => iv.wayId == a.wayId).length, 1);
+      expect(result.intervals.where((iv) => iv.wayId == p.wayId).length, 1);
     });
   });
 }

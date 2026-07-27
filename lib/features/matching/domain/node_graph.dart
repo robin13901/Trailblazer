@@ -47,7 +47,7 @@ class NodeEdge {
 /// [routeDistanceMeters]. All distances are metric (equirectangular
 /// [segmentLengthMeters], consistent with the rest of the matcher).
 class NodeGraph {
-  NodeGraph._(this._adj, this._segLen);
+  NodeGraph._(this._adj, this._segLen, this._nodeLatLon);
 
   /// Build the graph from the same [WayCandidate] list the matcher indexes.
   ///
@@ -59,6 +59,7 @@ class NodeGraph {
   factory NodeGraph.fromWays(List<WayCandidate> ways) {
     final adj = <int, List<NodeEdge>>{};
     final segLen = <(int, int), double>{};
+    final nodeLatLon = <int, (double, double)>{};
     for (final w in ways) {
       for (final s in WaySegment.fromWay(w)) {
         final len = segmentLengthMeters(
@@ -68,6 +69,8 @@ class NodeGraph {
           bLon: s.bLon,
         );
         segLen[(s.wayId, s.segIdx)] = len;
+        nodeLatLon[s.aNodeId] = (s.aLat, s.aLon);
+        nodeLatLon[s.bNodeId] = (s.bLat, s.bLon);
         (adj[s.aNodeId] ??= []).add(
           NodeEdge(
             toNode: s.bNodeId,
@@ -86,7 +89,7 @@ class NodeGraph {
         );
       }
     }
-    return NodeGraph._(adj, segLen);
+    return NodeGraph._(adj, segLen, nodeLatLon);
   }
 
   /// nodeId → outgoing edges.
@@ -95,6 +98,14 @@ class NodeGraph {
   /// (wayId, segIdx) → segment metric length, for adding partial-segment stubs
   /// at the two ends of a route query without recomputing geometry.
   final Map<(int, int), double> _segLen;
+
+  /// nodeId → (lat, lon) of that node, captured while exploding way segments.
+  /// Lets the #10 through-intersection gap bridge (2026-07-27) test a proposed
+  /// bridge path against the raw GPS corridor without re-parsing geometry.
+  final Map<int, (double, double)> _nodeLatLon;
+
+  /// The (lat, lon) of [nodeId], or null when the node is unknown to the graph.
+  (double, double)? nodeLatLon(int nodeId) => _nodeLatLon[nodeId];
 
   /// Metric length of segment (wayId, segIdx), or 0 when unknown.
   double segmentLength(int wayId, int segIdx) => _segLen[(wayId, segIdx)] ?? 0;
@@ -204,5 +215,70 @@ class NodeGraph {
 
     if (best.isFinite && best <= maxMeters) return best;
     return null;
+  }
+
+  /// Bounded shortest on-road node path from [fromNode] to [toNode] (inclusive
+  /// of both endpoints), or null when unreachable within [maxMeters]. Undirected
+  /// (one-way legality is scored elsewhere). Mirrors [routeDistanceMeters]'s
+  /// bounded Dijkstra but tracks predecessors and reconstructs the node id list.
+  List<int>? shortestNodePath(
+    int fromNode,
+    int toNode, {
+    required double maxMeters,
+  }) {
+    if (fromNode == toNode) return [fromNode];
+    if (!_adj.containsKey(fromNode)) return null;
+
+    final dist = HashMap<int, double>();
+    final prev = HashMap<int, int>();
+    final pq = HeapPriorityQueue<(double, int)>(
+      (a, b) => a.$1.compareTo(b.$1),
+    );
+    dist[fromNode] = 0;
+    pq.add((0, fromNode));
+
+    while (pq.isNotEmpty) {
+      final (d, node) = pq.removeFirst();
+      if (d > (dist[node] ?? double.infinity)) continue; // stale
+      if (d > maxMeters) break; // frontier beyond cap — nothing closer remains
+      if (node == toNode) {
+        // Reconstruct by walking predecessors back to the source.
+        final path = <int>[toNode];
+        var cur = toNode;
+        while (cur != fromNode) {
+          final p = prev[cur];
+          if (p == null) return null; // defensive — should not happen
+          path.add(p);
+          cur = p;
+        }
+        return path.reversed.toList();
+      }
+      final edges = _adj[node];
+      if (edges == null) continue;
+      for (final e in edges) {
+        final nd = d + e.lengthMeters;
+        if (nd > maxMeters) continue;
+        final existing = dist[e.toNode];
+        if (existing == null || nd < existing) {
+          dist[e.toNode] = nd;
+          prev[e.toNode] = node;
+          pq.add((nd, e.toNode));
+        }
+      }
+    }
+    return null;
+  }
+
+  /// The shortest edge directly connecting [a]→[b] (adjacent on a path), or null
+  /// if they are not directly connected. Used to map a node path to way segments.
+  NodeEdge? edgeBetween(int a, int b) {
+    final edges = _adj[a];
+    if (edges == null) return null;
+    NodeEdge? best;
+    for (final e in edges) {
+      if (e.toNode != b) continue;
+      if (best == null || e.lengthMeters < best.lengthMeters) best = e;
+    }
+    return best;
   }
 }

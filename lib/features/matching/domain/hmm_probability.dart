@@ -94,6 +94,21 @@ const double kMaxAutoFillGapMeters = 30;
 /// nodes stay conservative (never filled) — the car may have exited via a ramp.
 const double kHighwayEndpointToleranceMeters = 60;
 
+/// #10 through-intersection bridge (2026-07-27): hard upper bound on the total
+/// on-road length a single gap bridge may paint. Genuine data/rendering gaps at
+/// an intersection are short; a wrong-road detour would exceed this.
+const double kMaxBridgeMeters = 200;
+
+/// Max ratio of bridge on-road route length to the straight-line (great-circle)
+/// distance between the two loose-end nodes. A true through-drive has
+/// route ≈ straight-line; a wrong-parallel-road detour has route ≫ straight-line.
+const double kBridgeMaxLengthRatio = 1.6;
+
+/// GPS-corridor tolerance: every node on a proposed bridge path must lie within
+/// this distance of SOME raw GPS fix, else the vehicle never went there and the
+/// bridge is refused. This is the primary guard against inventing undriven road.
+const double kBridgeCorridorMeters = 45;
+
 /// Emission log-probability: log p(z | c) for GPS fix `z` observed at a
 /// candidate whose perpendicular distance to the way segment is
 /// [perpDistMeters]. Assumes zero-mean Gaussian error with std [sigmaM].

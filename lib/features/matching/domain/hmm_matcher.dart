@@ -133,7 +133,7 @@ class HmmMatcher {
     // adjacent intervals on the same way, and close collinear continuations
     // across a degree-2 shared node between two ways. Conservative — see
     // `_fillSmallGaps`. The manual tap-to-fill (DB/UI) half of #10 is separate.
-    final filled = _fillSmallGaps(intervals, waysById, nodeGraph);
+    final filled = _fillSmallGaps(intervals, waysById, nodeGraph, fixes);
 
     final matched = steps.where((s) => s != null).length;
     final dropped = steps.length - matched;
@@ -560,6 +560,7 @@ class HmmMatcher {
     List<DrivenWayIntervalDraft> intervals,
     Map<int, WayCandidate> waysById,
     NodeGraph nodeGraph,
+    List<GpsFix> fixes,
   ) {
     if (intervals.length < 2) return intervals;
     final result = <DrivenWayIntervalDraft>[];
@@ -569,7 +570,7 @@ class HmmMatcher {
         continue;
       }
       final prev = result.last;
-      final repl = _tryFill(prev, cur, waysById, nodeGraph);
+      final repl = _tryFill(prev, cur, waysById, nodeGraph, fixes);
       if (repl != null) {
         result
           ..removeLast()
@@ -590,6 +591,7 @@ class HmmMatcher {
     DrivenWayIntervalDraft cur,
     Map<int, WayCandidate> waysById,
     NodeGraph nodeGraph,
+    List<GpsFix> fixes,
   ) {
     // Must share travel direction — never bridge a reversal (#9 split).
     if (prev.direction != cur.direction) return null;
@@ -684,7 +686,220 @@ class HmmMatcher {
         return [extPrev, extCur];
       }
     }
+
+    // Deterministic: iterate pEnds/cEnds in list order, take the FIRST pair
+    // that passes every gate. The trivial SAME-NODE through-intersection (the
+    // dominant in-town case) is tried in a first pass before the path bridge,
+    // so a short interval whose far endpoint also falls within `tol` cannot
+    // spuriously win a path-based pairing over the real shared node.
+    for (final (pNode, pIsEnd) in pEnds) {
+      for (final (cNode, cIsEnd) in cEnds) {
+        // The trivial through-intersection: prev and cur touch the SAME node,
+        // but Branch 2 skipped it because that node is a branch (degree != 2 or
+        // shared by more than these two ways). The bridge adds no intermediate
+        // way — it just extends prev and cur to that shared node, exactly like
+        // Branch 2 but without the degree-2 requirement. The corridor gate
+        // still demands the node sit near a raw fix, so a wrong turn at the
+        // intersection cannot be painted.
+        if (pNode != cNode) continue;
+        final coord = nodeGraph.nodeLatLon(pNode);
+        if (coord == null) continue;
+        if (!_nodeNearAnyFix(coord, fixes)) continue;
+        final extPrev = DrivenWayIntervalDraft(
+          wayId: prev.wayId,
+          startMeters: pIsEnd ? prev.startMeters : 0,
+          endMeters: pIsEnd ? lenP : prev.endMeters,
+          direction: prev.direction,
+        );
+        final extCur = DrivenWayIntervalDraft(
+          wayId: cur.wayId,
+          startMeters: cIsEnd ? cur.startMeters : 0,
+          endMeters: cIsEnd ? lenC : cur.endMeters,
+          direction: cur.direction,
+        );
+        return [extPrev, extCur];
+      }
+    }
+
+    // Second pass: distinct loose-end nodes bridged by a BOUNDED shortest path
+    // on the road graph, gated so it can only fill a real data/rendering gap and
+    // NEVER a wrong-road excursion:
+    //   * total bridge length ≤ kMaxBridgeMeters,
+    //   * route ≤ max(floor, gcGap * kBridgeMaxLengthRatio) — a true through-
+    //     drive has route ≈ straight-line; a parallel-road detour has
+    //     route ≫ straight-line,
+    //   * EVERY node on the path lies within kBridgeCorridorMeters of some raw
+    //     GPS fix — the primary guard against inventing undriven road.
+    for (final (pNode, pIsEnd) in pEnds) {
+      for (final (cNode, cIsEnd) in cEnds) {
+        if (pNode == cNode) continue; // handled in the first pass
+
+        final path = nodeGraph.shortestNodePath(
+          pNode,
+          cNode,
+          maxMeters: kMaxBridgeMeters,
+        );
+        if (path == null || path.length < 2) continue;
+
+        // Total on-road route length along the reconstructed path.
+        var routeLen = 0.0;
+        var brokenEdge = false;
+        for (var i = 0; i + 1 < path.length; i++) {
+          final e = nodeGraph.edgeBetween(path[i], path[i + 1]);
+          if (e == null) {
+            brokenEdge = true;
+            break;
+          }
+          routeLen += e.lengthMeters;
+        }
+        if (brokenEdge) continue;
+        if (routeLen > kMaxBridgeMeters) continue;
+
+        // Length-ratio gate: a true through-drive has route ≈ straight-line.
+        final pCoord = nodeGraph.nodeLatLon(pNode);
+        final cCoord = nodeGraph.nodeLatLon(cNode);
+        if (pCoord == null || cCoord == null) continue;
+        final gcGap = segmentLengthMeters(
+          aLat: pCoord.$1,
+          aLon: pCoord.$2,
+          bLat: cCoord.$1,
+          bLon: cCoord.$2,
+        );
+        if (routeLen >
+            math.max(kBridgeCorridorMeters, gcGap * kBridgeMaxLengthRatio)) {
+          continue;
+        }
+
+        // Corridor gate: every node on the path must be near a raw GPS fix.
+        var corridorOk = true;
+        for (final n in path) {
+          final c = nodeGraph.nodeLatLon(n);
+          if (c == null || !_nodeNearAnyFix(c, fixes)) {
+            corridorOk = false;
+            break;
+          }
+        }
+        if (!corridorOk) continue;
+
+        // All gates passed — build the replacement interval list: prev extended
+        // to its touched endpoint, each INTERMEDIATE way traversed by the path
+        // (excluding prev.wayId and cur.wayId), then cur extended from its.
+        final intermediates = _bridgeIntermediates(
+          path: path,
+          prevWayId: prev.wayId,
+          curWayId: cur.wayId,
+          direction: prev.direction,
+          waysById: waysById,
+          nodeGraph: nodeGraph,
+        );
+        final extPrev = DrivenWayIntervalDraft(
+          wayId: prev.wayId,
+          startMeters: pIsEnd ? prev.startMeters : 0,
+          endMeters: pIsEnd ? lenP : prev.endMeters,
+          direction: prev.direction,
+        );
+        final extCur = DrivenWayIntervalDraft(
+          wayId: cur.wayId,
+          startMeters: cIsEnd ? cur.startMeters : 0,
+          endMeters: cIsEnd ? lenC : cur.endMeters,
+          direction: cur.direction,
+        );
+        return [extPrev, ...intermediates, extCur];
+      }
+    }
     return null;
+  }
+
+  /// Map a bridge node [path] to the driven meter-range on each INTERMEDIATE
+  /// way it traverses (grouping consecutive path edges by wayId and excluding
+  /// [prevWayId] / [curWayId], which are the bridge's two ends). For a run of
+  /// edges on one intermediate way the covered range spans from the smallest to
+  /// the largest cumulative-meter position of the touched segment endpoints on
+  /// that way — an exact partial range when the path enters/exits mid-way,
+  /// collapsing to the full way when every segment is touched.
+  List<DrivenWayIntervalDraft> _bridgeIntermediates({
+    required List<int> path,
+    required int prevWayId,
+    required int curWayId,
+    required String direction,
+    required Map<int, WayCandidate> waysById,
+    required NodeGraph nodeGraph,
+  }) {
+    final out = <DrivenWayIntervalDraft>[];
+    // Walk the path edges, grouping consecutive edges by wayId.
+    int? runWayId;
+    var runLo = double.infinity;
+    var runHi = double.negativeInfinity;
+
+    void flushRun() {
+      if (runWayId == null) return;
+      if (runWayId != prevWayId && runWayId != curWayId) {
+        final way = waysById[runWayId];
+        if (way != null && way.geometry.length >= 2 && runHi > runLo) {
+          out.add(
+            DrivenWayIntervalDraft(
+              wayId: runWayId!,
+              startMeters: runLo,
+              endMeters: runHi,
+              direction: direction,
+            ),
+          );
+        }
+      }
+      runWayId = null;
+      runLo = double.infinity;
+      runHi = double.negativeInfinity;
+    }
+
+    for (var i = 0; i + 1 < path.length; i++) {
+      final e = nodeGraph.edgeBetween(path[i], path[i + 1]);
+      if (e == null) continue;
+      if (runWayId != null && e.wayId != runWayId) flushRun();
+      runWayId = e.wayId;
+      final way = waysById[e.wayId];
+      if (way != null) {
+        final segStart = _segmentStartMeters(way, e.segIdx);
+        final segEnd = segStart + nodeGraph.segmentLength(e.wayId, e.segIdx);
+        if (segStart < runLo) runLo = segStart;
+        if (segEnd > runHi) runHi = segEnd;
+      }
+    }
+    flushRun();
+    return out;
+  }
+
+  /// Cumulative meters from [way]'s first node to the START of segment
+  /// [segIdx] (the sum of all segment lengths before it). Returns 0 for the
+  /// first segment or a degenerate way.
+  double _segmentStartMeters(WayCandidate way, int segIdx) {
+    final geom = way.geometry;
+    var acc = 0.0;
+    for (var i = 0; i < segIdx && i + 1 < geom.length; i++) {
+      acc += segmentLengthMeters(
+        aLat: geom[i].latitude,
+        aLon: geom[i].longitude,
+        bLat: geom[i + 1].latitude,
+        bLon: geom[i + 1].longitude,
+      );
+    }
+    return acc;
+  }
+
+  /// True when [coord] `(lat, lon)` lies within [kBridgeCorridorMeters] of at
+  /// least one raw GPS [fixes] — the through-intersection bridge's primary
+  /// guard against painting road the vehicle never drove. Early-outs on the
+  /// first fix inside the corridor.
+  bool _nodeNearAnyFix((double, double) coord, List<GpsFix> fixes) {
+    for (final f in fixes) {
+      final d = segmentLengthMeters(
+        aLat: coord.$1,
+        aLon: coord.$2,
+        bLat: f.lat,
+        bLon: f.lon,
+      );
+      if (d <= kBridgeCorridorMeters) return true;
+    }
+    return false;
   }
 
   /// True when a branch node — one where more than two distinct ways meet —
