@@ -774,6 +774,87 @@ void main() {
   });
 
   // ---------------------------------------------------------------------------
+  // Segment-aware one-way check (2026-07-27 — B469 parallel-road defection).
+  //
+  // A fast, DENSELY-SEGMENTED forward-oneway trunk carriageway running beside a
+  // parallel `oneway=no` road. Driving FORWARD along the oneway (higher segIdx),
+  // the projection fraction resets 0→1 at each segment boundary, so the OLD
+  // fraction-only compare saw a negative dfrac on ~half the steps and fired the
+  // −ln(1e6) one-way penalty on the CORRECT road — handing the win to the
+  // penalty-exempt parallel road for kilometres (live trip 18). With the
+  // segment-aware compare (segIdx delta first) forward motion across a boundary
+  // is correctly read as forward, no penalty fires, and the trace stays on the
+  // closer oneway trunk.
+  // ---------------------------------------------------------------------------
+  test('segment-aware oneway: forward on dense oneway trunk beats parallel '
+      'oneway=no road (no phantom penalty)', () {
+    // Oneway trunk (E→W node order, forward = eastward), dense 6-node/5-segment
+    // geometry along lat 49 so consecutive fast fixes cross segment boundaries.
+    const trunkNodes = [10, 11, 12, 13, 14, 15];
+    final trunkGeom = <LatLng>[
+      for (var i = 0; i < 6; i++) LatLng(49, 9 + i * 0.0004),
+    ];
+    final trunkWay = WayCandidate(
+      wayId: 91,
+      geometry: trunkGeom,
+      nodeIds: trunkNodes,
+      highwayClass: 'trunk',
+      oneway: OnewayDirection.forward,
+    );
+    // Parallel bidirectional road ~12 m north, sharing NO nodes (a genuine
+    // separate road, exactly like the B469's parallel unclassified side road).
+    const sideLat = 49 + 12 / 111320; // ~12 m north
+    const sideNodes = [20, 21, 22, 23, 24, 25];
+    final sideWay = WayCandidate(
+      wayId: 92,
+      geometry: <LatLng>[
+        for (var i = 0; i < 6; i++) LatLng(sideLat, 9 + i * 0.0004),
+      ],
+      nodeIds: sideNodes,
+      highwayClass: 'unclassified',
+    );
+
+    final ways = [trunkWay, sideWay];
+    final index = WaySegmentIndex.buildFromWays(ways);
+    final nodeGraph = NodeGraph.fromWays(ways);
+
+    // Fast eastbound trace ON the trunk (lat 49 exactly → 0 m from trunk, ~12 m
+    // from the side road). 8 fixes at ~110 km/h so each fix advances a segment.
+    final fixes = <GpsFix>[
+      for (var i = 0; i < 8; i++)
+        GpsFix(
+          lat: 49,
+          lon: 9 + i * 0.00028,
+          accuracyMeters: 3,
+          speedKmh: 110,
+          ts: DateTime(2026, 7, 27, 12, 0, i),
+        ),
+    ];
+
+    final steps =
+        const ViterbiDecoder().decode(fixes, index, nodeGraph: nodeGraph);
+
+    // Every matched fix must be on the oneway trunk (way 91), forward — the
+    // phantom penalty must NOT push any step onto the parallel side road.
+    for (var i = 0; i < steps.length; i++) {
+      final s = steps[i];
+      expect(s, isNotNull, reason: 'fix $i should match');
+      expect(
+        s!.wayId,
+        91,
+        reason: 'fix $i snapped to way ${s.wayId}; forward motion on a dense '
+            'oneway trunk must not incur the segment-boundary phantom penalty '
+            'that defects onto the parallel oneway=no road',
+      );
+      expect(
+        s.direction,
+        'forward',
+        reason: 'fix $i must read as forward along the oneway trunk',
+      );
+    }
+  });
+
+  // ---------------------------------------------------------------------------
   // Constants group
   // ---------------------------------------------------------------------------
   group('exported constants', () {

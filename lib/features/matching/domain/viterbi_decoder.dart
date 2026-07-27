@@ -333,16 +333,33 @@ class ViterbiDecoder {
           );
 
           // One-way rule: penalize same-wayId transitions that violate
-          // the stored direction. Use an epsilon (0.001) to avoid
-          // floating-point noise triggering the penalty.
+          // the stored direction.
+          //
+          // Progress along a way MUST be measured segIdx-first: the
+          // projection fraction is per-segment and resets 0→1 at every
+          // segment boundary (see `_directionFrom`, which does this
+          // correctly). Comparing raw fractions across a boundary is
+          // sign-random on a fast, densely-segmented trunk road, so the OLD
+          // fraction-only test fired the −ln(1e6) penalty on ~half the
+          // genuinely-forward steps of a oneway trunk. A nearby `oneway=no`
+          // parallel road (exempt from this penalty entirely) then out-scored
+          // the correct carriageway by hundreds of nats and the match defected
+          // onto it for kilometres (live trip 18, B469 near Wörth). Deriving
+          // the sign from segIdx first — and only falling back to the fraction
+          // delta WITHIN one segment — removes the phantom penalty. The epsilon
+          // (0.001) still guards float noise on the same-segment fallback.
           if (pState.segment.wayId == s.segment.wayId) {
-            final dfrac =
-                s.projectionFraction - pState.projectionFraction;
+            final progress = s.segment.segIdx != pState.segment.segIdx
+                // Different segment of the same way: sign of the segIdx delta
+                // is the unambiguous direction of travel (higher = forward).
+                ? (s.segment.segIdx - pState.segment.segIdx).toDouble()
+                // Same segment: the fraction delta is meaningful.
+                : s.projectionFraction - pState.projectionFraction;
             final oneway = s.segment.oneway;
-            if (oneway == OnewayDirection.forward && dfrac < -0.001) {
+            if (oneway == OnewayDirection.forward && progress < -0.001) {
               trans += kOnewayViolationLog;
             } else if (oneway == OnewayDirection.backward &&
-                dfrac > 0.001) {
+                progress > 0.001) {
               trans += kOnewayViolationLog;
             }
             // Same-way stickiness hook (#11): a small bonus for staying on the
