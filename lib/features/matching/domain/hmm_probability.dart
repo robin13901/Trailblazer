@@ -13,6 +13,24 @@ import 'dart:math' as math;
 /// computed at call site in the decoder, not here.
 const double kEmissionSigmaMeters = 4.07;
 
+/// FIX C emission/collapse proximity guard (2026-07-27): the maximum distance
+/// (meters) a SAMPLE of a collapsed interval's own painted geometry may sit
+/// from the raw GPS track before that sample counts as "far". See
+/// [kMaxFarGeometryFraction] for how the far-fraction is used. Set at
+/// ~2*[kEmissionSigmaMeters] plus GPS-noise headroom.
+const double kMaxMatchedGeometryToFixMeters = 15;
+
+/// FIX C: an interval is dropped as a parallel-offset over-match when MORE than
+/// this fraction of its sampled geometry is farther than
+/// [kMaxMatchedGeometryToFixMeters] from the raw GPS track. Measured on live
+/// data the separation is stark: correctly-driven ways have ~0 % of their
+/// geometry far (max ~14 m), while parallel emission over-matches (Obrigheim
+/// Panoramaweg/Münchbergweg, B469 Stockstadt frontage) have 50-100 % far. 0.35
+/// sits well below the 50 % floor of every observed over-match and far above
+/// the 0 % of every genuine drive, so it removes the false positives without
+/// clipping any real (even short/partway) drive.
+const double kMaxFarGeometryFraction = 0.35;
+
 /// Default transition beta (meters). Scale factor on the exponential
 /// penalty for |route_dist - great_circle_dist|. Larger β = more
 /// forgiving of route-vs-crow-fly discrepancies. Golden corpus (05-08)
@@ -71,6 +89,22 @@ const double kOnewayOppositeGateDegrees = 120;
 /// byte-identical). Exposed as a tuning hook only; do NOT raise it without
 /// deliberately regenerating the golden corpus.
 const double kSameWayStickinessLog = 0;
+
+/// Same-ROAD continuation bonus (nats) added to a transition between two
+/// DIFFERENT ways that carry the SAME `ref` (e.g. both "B 469") and are
+/// genuinely routable to each other (routeDist != null). A trunk/Bundesstraße
+/// is chopped into dozens of short same-ref ways, so crossing each seam costs a
+/// small transition penalty; a parallel unref'd frontage road is ONE continuous
+/// way and pays nothing, letting it out-continue the real road at a seam and be
+/// painted alongside it (defect F, B469 near Stockstadt). This bonus offsets one
+/// seam's typical cost so the chopped same-ref corridor behaves as one road —
+/// the user's "a road is one road" continuity. Sized well under emission
+/// differences (comparable to [kDirectionWeightLog]) so it can never snap onto a
+/// genuinely different road: it only applies where the two ways are already
+/// routable (node-connected), and a parallel opposing carriageway is node-
+/// disjoint so `routeDist` is null and the bonus is never reached. Inert for
+/// unref'd ways (ref == null) — the frontage road never matches any B469 ref.
+const double kSameRefContinuationLog = 2;
 
 /// Minimum peak excursion (meters) on a same-way run before an intra-way
 /// direction reversal is allowed to SPLIT the run into two directional

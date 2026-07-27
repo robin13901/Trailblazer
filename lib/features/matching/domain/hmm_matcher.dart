@@ -57,6 +57,14 @@ const double kMinTraversedFractionForExtend = 0.5;
 /// a short connector (whose two ends are >= its full length apart).
 const double kConnectorEndpointToleranceMeters = 12;
 
+/// FIX C: number of sample points across a collapsed interval's driven range
+/// used by the proximity guard (`_intervalNearTrack`). More than 1 (the old
+/// midpoint-only test) so a long parallel-offset way whose midpoint happens to
+/// coincide with the track — but whose body bulges away — is still caught
+/// (Obrigheim's 224 m Münchbergweg). 20 samples ≈ one every few meters on a
+/// town street, cheap and ample resolution.
+const int _kProximitySamples = 20;
+
 /// Orchestrator that maps a raw GPS trace + road-candidate list to a
 /// [MatchResult] containing per-fix [MatchedStep]s and collapsed
 /// [DrivenWayIntervalDraft]s.
@@ -128,7 +136,7 @@ class HmmMatcher {
       onProgress: onProgress,
     );
 
-    final intervals = _collapseToIntervals(steps, waysById);
+    final intervals = _collapseToIntervals(steps, waysById, fixes);
     // #10 matcher-side auto-fill: bridge small NULL/confidence gaps between
     // adjacent intervals on the same way, and close collinear continuations
     // across a degree-2 shared node between two ways. Conservative — see
@@ -175,6 +183,7 @@ class HmmMatcher {
   List<DrivenWayIntervalDraft> _collapseToIntervals(
     List<MatchedStep?> steps,
     Map<int, WayCandidate> waysById,
+    List<GpsFix> fixes,
   ) {
     final out = <DrivenWayIntervalDraft>[];
 
@@ -271,6 +280,24 @@ class HmmMatcher {
             }
           }
         }
+      }
+
+      // FIX C (2026-07-27) emission/collapse proximity guard: the Viterbi
+      // emission can briefly snap a run onto a PARALLEL residential way that
+      // runs tens of meters off the correctly-driven road and shares no node
+      // with it (Obrigheim B27 over-draw). Such a run's own painted geometry
+      // sits far from EVERY raw GPS fix, whereas a genuine (even short/partway)
+      // drive has its geometry right under the fixes. Sample the interval's
+      // driven-range MIDPOINT along the way polyline and DROP the interval when
+      // that midpoint is farther than [kMaxMatchedGeometryToFixMeters] from the
+      // nearest raw fix — the vehicle was never there. Conservative: it removes
+      // the interval outright (never truncates), and legitimately-driven ways
+      // (geometry <8 m from a fix) always pass.
+      final geomWay = waysById[runWayId];
+      if (geomWay != null &&
+          !_intervalNearTrack(geomWay, start, end, fixes)) {
+        runWayId = null;
+        return;
       }
 
       out.add(
@@ -533,6 +560,114 @@ class HmmMatcher {
     return total;
   }
 
+  /// FIX C proximity test: true when enough of [way]'s painted geometry over
+  /// the driven range `[startMeters..endMeters]` lies within
+  /// [kMaxMatchedGeometryToFixMeters] of the raw GPS TRACK (the polyline through
+  /// the consecutive raw [fixes]) — i.e. the vehicle plausibly drove it. Returns
+  /// false (→ drop the interval) when too large a FRACTION of the sampled
+  /// geometry is far from the whole track, the signature of a parallel-offset
+  /// emission over-match.
+  ///
+  /// Samples the driven range at ~[_kProximitySamples] points (not just the
+  /// midpoint — a long offset way can have a midpoint that coincidentally lands
+  /// near the track while the rest bulges away, e.g. Obrigheim's Münchbergweg).
+  /// Measured on the LIVE data the separation is clean: correctly-driven ways
+  /// have ~0 % of their geometry farther than 15 m from the track (max ~14 m),
+  /// while parallel over-match ways have 50-100 % far (mean 20-94 m). Dropping
+  /// when the far-fraction exceeds [kMaxFarGeometryFraction] catches the
+  /// over-match without touching any genuine drive.
+  ///
+  /// Distance is to the TRACK (nearest point on any fix-to-fix segment, or a
+  /// lone fix point for a single-fix trace), NOT the nearest fix VERTEX: real
+  /// 1 Hz GPS fills the track densely so the two agree on live data, but
+  /// hand-authored fixtures space fixes tens of meters apart, so a genuinely-
+  /// driven straight run's sample sits far from either bracketing fix POINT yet
+  /// right ON the track segment between them. Trivially true when there are no
+  /// fixes (defensive) or the geometry is degenerate.
+  bool _intervalNearTrack(
+    WayCandidate way,
+    double startMeters,
+    double endMeters,
+    List<GpsFix> fixes,
+  ) {
+    if (fixes.isEmpty) return true;
+    if (way.geometry.length < 2) return true;
+    final span = endMeters - startMeters;
+    if (span <= 0) {
+      final mid = _pointAtMeters(way.geometry, startMeters);
+      return mid == null || _pointNearTrack(mid, fixes);
+    }
+    var total = 0;
+    var far = 0;
+    for (var k = 0; k <= _kProximitySamples; k++) {
+      final m = startMeters + span * (k / _kProximitySamples);
+      final p = _pointAtMeters(way.geometry, m);
+      if (p == null) continue;
+      total++;
+      if (!_pointNearTrack(p, fixes)) far++;
+    }
+    if (total == 0) return true;
+    return far / total <= kMaxFarGeometryFraction;
+  }
+
+  /// True when [p] lies within [kMaxMatchedGeometryToFixMeters] of the raw GPS
+  /// track (nearest point on any consecutive-fix segment, or a lone fix point).
+  bool _pointNearTrack(LatLng p, List<GpsFix> fixes) {
+    var best = double.infinity;
+    for (final f in fixes) {
+      final d = segmentLengthMeters(
+        aLat: p.latitude,
+        aLon: p.longitude,
+        bLat: f.lat,
+        bLon: f.lon,
+      );
+      if (d < best) best = d;
+      if (best <= kMaxMatchedGeometryToFixMeters) return true;
+    }
+    for (var i = 0; i + 1 < fixes.length; i++) {
+      final d = perpDistanceToSegmentMeters(
+        pLat: p.latitude,
+        pLon: p.longitude,
+        aLat: fixes[i].lat,
+        aLon: fixes[i].lon,
+        bLat: fixes[i + 1].lat,
+        bLon: fixes[i + 1].lon,
+      );
+      if (d < best) best = d;
+      if (best <= kMaxMatchedGeometryToFixMeters) return true;
+    }
+    return best <= kMaxMatchedGeometryToFixMeters;
+  }
+
+  /// The [LatLng] at cumulative arc-length [targetMeters] along the polyline
+  /// [geometry] (linear interpolation within the containing segment), clamped
+  /// to the first/last vertex when [targetMeters] falls outside `[0..length]`.
+  /// Returns null for a degenerate polyline (< 2 points).
+  LatLng? _pointAtMeters(List<LatLng> geometry, double targetMeters) {
+    if (geometry.length < 2) return null;
+    if (targetMeters <= 0) return geometry.first;
+    var acc = 0.0;
+    for (var i = 0; i + 1 < geometry.length; i++) {
+      final segLen = segmentLengthMeters(
+        aLat: geometry[i].latitude,
+        aLon: geometry[i].longitude,
+        bLat: geometry[i + 1].latitude,
+        bLon: geometry[i + 1].longitude,
+      );
+      if (acc + segLen >= targetMeters) {
+        final t = segLen <= 0 ? 0.0 : (targetMeters - acc) / segLen;
+        return LatLng(
+          geometry[i].latitude +
+              (geometry[i + 1].latitude - geometry[i].latitude) * t,
+          geometry[i].longitude +
+              (geometry[i + 1].longitude - geometry[i].longitude) * t,
+        );
+      }
+      acc += segLen;
+    }
+    return geometry.last;
+  }
+
   // ---------------------------------------------------------------------------
   // #10 Matcher-side gap auto-fill (2026-07-25)
   // ---------------------------------------------------------------------------
@@ -593,10 +728,16 @@ class HmmMatcher {
     NodeGraph nodeGraph,
     List<GpsFix> fixes,
   ) {
-    // Must share travel direction — never bridge a reversal (#9 split).
-    if (prev.direction != cur.direction) return null;
-
     if (prev.wayId == cur.wayId) {
+      // FIX B (2026-07-27): the direction-equality guard is SAME-WAY-ONLY. On
+      // ONE road, opposite direction labels mean a genuine reversal (#9 split)
+      // that must never be bridged. But at a TURN between two DIFFERENT ways a
+      // left/right turn legitimately flips the per-way direction label (each
+      // way's direction is the sign of net meters along that individual OSM
+      // way, and a turn drives the two ways in opposite meter senses), so the
+      // guard must NOT apply to the different-wayId branches below — they are
+      // gated instead by degree-2 exclusivity and the corridor check.
+      if (prev.direction != cur.direction) return null;
       final way = waysById[prev.wayId];
       if (way == null || way.geometry.length < 2) return null;
       final gap = cur.startMeters - prev.endMeters;
@@ -686,6 +827,34 @@ class HmmMatcher {
         return [extPrev, extCur];
       }
     }
+
+    // FIX E (2026-07-27) INTERIOR-NODE continuation: two ways can meet at a
+    // node that is INTERIOR to the longer way rather than at its endpoint — a
+    // T/mid-way junction (e.g. Rüdenauer Straße turns onto Am Schloßblick at a
+    // node that is Rüdenauer's vertex 3, meter 97.1, but Am Schloßblick's START
+    // endpoint). Branch 2 only pairs ENDPOINT nodes, so it never fires here and
+    // a short gap is left. When cur touches (within tol) an endpoint node that
+    // coincides with an INTERIOR node of prev whose cumulative meters is within
+    // tol of prev's loose (matched) end, and that shared node is degree-2 shared
+    // by EXACTLY {prev, cur} AND sits on the raw-fix corridor, extend prev only
+    // to that interior node's meters (NOT the full way — the far part beyond the
+    // junction was NOT driven) and extend cur from its endpoint. Symmetric for a
+    // cur-interior / prev-endpoint junction. Same conservative gates as Branch 2
+    // plus the corridor check that guards Branch 3.
+    final repl = _tryInteriorContinuation(
+      prev: prev,
+      cur: cur,
+      pWay: pWay,
+      cWay: cWay,
+      lenP: lenP,
+      lenC: lenC,
+      tol: tol,
+      pEnds: pEnds,
+      cEnds: cEnds,
+      nodeGraph: nodeGraph,
+      fixes: fixes,
+    );
+    if (repl != null) return repl;
 
     // Deterministic: iterate pEnds/cEnds in list order, take the FIRST pair
     // that passes every gate. The trivial SAME-NODE through-intersection (the
@@ -808,6 +977,176 @@ class HmmMatcher {
       }
     }
     return null;
+  }
+
+  /// FIX E helper: attempt an interior-node continuation between [prev] and
+  /// [cur] (different ways). Fires when one way touches the junction at an
+  /// ENDPOINT while the other touches it at an INTERIOR vertex whose cumulative
+  /// meters sits within [tol] of that way's loose (matched) end. Extends the
+  /// interior-side interval only up to the interior node's meters (never past
+  /// the junction), and the endpoint-side interval out to/from its endpoint.
+  /// Returns the replacement pair, or null when no interior junction qualifies.
+  ///
+  /// Gated identically to Branch 2 (shared node degree-2, shared by exactly
+  /// {prev, cur}) plus the raw-fix corridor check.
+  List<DrivenWayIntervalDraft>? _tryInteriorContinuation({
+    required DrivenWayIntervalDraft prev,
+    required DrivenWayIntervalDraft cur,
+    required WayCandidate pWay,
+    required WayCandidate cWay,
+    required double lenP,
+    required double lenC,
+    required double tol,
+    required List<(int nodeId, bool isEnd)> pEnds,
+    required List<(int nodeId, bool isEnd)> cEnds,
+    required NodeGraph nodeGraph,
+    required List<GpsFix> fixes,
+  }) {
+    // Case 1: cur touches an ENDPOINT node that is INTERIOR to prev.
+    final repl1 = _interiorContinuationOneSide(
+      interiorWay: pWay,
+      interiorInterval: prev,
+      interiorLen: lenP,
+      endpointWay: cWay,
+      endpointInterval: cur,
+      endpointLen: lenC,
+      endpointEnds: cEnds,
+      tol: tol,
+      nodeGraph: nodeGraph,
+      fixes: fixes,
+      interiorIsPrev: true,
+    );
+    if (repl1 != null) return repl1;
+
+    // Case 2 (symmetric): prev touches an ENDPOINT node that is INTERIOR to cur.
+    final repl2 = _interiorContinuationOneSide(
+      interiorWay: cWay,
+      interiorInterval: cur,
+      interiorLen: lenC,
+      endpointWay: pWay,
+      endpointInterval: prev,
+      endpointLen: lenP,
+      endpointEnds: pEnds,
+      tol: tol,
+      nodeGraph: nodeGraph,
+      fixes: fixes,
+      interiorIsPrev: false,
+    );
+    return repl2;
+  }
+
+  /// One direction of the FIX E interior-node continuation. [interiorWay] is the
+  /// way the junction is INTERIOR to; [endpointWay] touches the junction at one
+  /// of its endpoints (from [endpointEnds]). Returns the ordered `[prev, cur]`
+  /// replacement (order preserved via [interiorIsPrev]) or null.
+  List<DrivenWayIntervalDraft>? _interiorContinuationOneSide({
+    required WayCandidate interiorWay,
+    required DrivenWayIntervalDraft interiorInterval,
+    required double interiorLen,
+    required WayCandidate endpointWay,
+    required DrivenWayIntervalDraft endpointInterval,
+    required double endpointLen,
+    required List<(int nodeId, bool isEnd)> endpointEnds,
+    required double tol,
+    required NodeGraph nodeGraph,
+    required List<GpsFix> fixes,
+    required bool interiorIsPrev,
+  }) {
+    final interiorNodes = _interiorNodesWithMeters(
+      interiorWay,
+      interiorInterval.startMeters,
+      interiorInterval.endMeters,
+      tol,
+    );
+    if (interiorNodes.isEmpty) return null;
+
+    for (final (eNode, eIsEnd) in endpointEnds) {
+      for (final (iNode, iMeters, extendToEnd) in interiorNodes) {
+        if (eNode != iNode) continue;
+        // Degree-2, shared by EXACTLY these two ways = pure continuation.
+        if (nodeGraph.nodeDegree(iNode) != 2) continue;
+        final ways = nodeGraph.waysAtNode(iNode);
+        if (ways.length != 2 ||
+            !ways.contains(interiorWay.wayId) ||
+            !ways.contains(endpointWay.wayId)) {
+          continue;
+        }
+        // Corridor gate: the shared node must sit near a raw GPS fix.
+        final coord = nodeGraph.nodeLatLon(iNode);
+        if (coord == null || !_nodeNearAnyFix(coord, fixes)) continue;
+
+        // Extend the interior-side interval ONLY to the interior node's meters
+        // (never past the junction — the far part was not driven). extendToEnd
+        // is true when the loose end was the way's END (extend endMeters up to
+        // iMeters), false when it was the START (open startMeters down to
+        // iMeters).
+        final iStart = extendToEnd ? interiorInterval.startMeters : iMeters;
+        final iEnd = extendToEnd ? iMeters : interiorInterval.endMeters;
+        // Defensive: the sidedness guard in _interiorNodesWithMeters should
+        // already ensure iMeters extends the loose end outward, but never emit
+        // an inverted/zero-length draft (would trip the interval_union
+        // assertion). Skip this junction if it would.
+        if (iEnd <= iStart) continue;
+        final extInterior = DrivenWayIntervalDraft(
+          wayId: interiorWay.wayId,
+          startMeters: iStart,
+          endMeters: iEnd,
+          direction: interiorInterval.direction,
+        );
+        // Extend the endpoint-side interval out to/from its touched endpoint.
+        final extEndpoint = DrivenWayIntervalDraft(
+          wayId: endpointWay.wayId,
+          startMeters: eIsEnd ? endpointInterval.startMeters : 0,
+          endMeters: eIsEnd ? endpointLen : endpointInterval.endMeters,
+          direction: endpointInterval.direction,
+        );
+        return interiorIsPrev
+            ? [extInterior, extEndpoint]
+            : [extEndpoint, extInterior];
+      }
+    }
+    return null;
+  }
+
+  /// Enumerate [way]'s INTERIOR vertices (indices 1..len-2) whose cumulative
+  /// meter position is within [tol] of the interval's LOOSE end — either its
+  /// [endMeters] (returned with `extendToEnd == true`) or its [startMeters]
+  /// (`extendToEnd == false`). Each entry is `(nodeId, cumulativeMeters,
+  /// extendToEnd)`. Only the loose end is considered so the junction extends the
+  /// side actually left dangling by the confidence gap.
+  List<(int nodeId, double meters, bool extendToEnd)> _interiorNodesWithMeters(
+    WayCandidate way,
+    double startMeters,
+    double endMeters,
+    double tol,
+  ) {
+    final geom = way.geometry;
+    final out = <(int, double, bool)>[];
+    if (geom.length < 3) return out; // no interior vertices
+    var cum = 0.0;
+    for (var i = 1; i + 1 < geom.length; i++) {
+      cum += segmentLengthMeters(
+        aLat: geom[i - 1].latitude,
+        aLon: geom[i - 1].longitude,
+        bLat: geom[i].latitude,
+        bLon: geom[i].longitude,
+      );
+      // The junction must EXTEND the loose end OUTWARD, never invert or shrink
+      // the interval. A node counts as `nearEnd` only when it sits at OR beyond
+      // endMeters (within tol) so `end → cum` grows the run; `nearStart` only
+      // when it sits at OR below startMeters so `start → cum` opens it. Without
+      // the sidedness guard a node between start and end (e.g. cum 65 for an
+      // interval [100..120] with tol 60) would produce an inverted draft
+      // (start 100 > end 65) and trip the interval_union assertion (live trip 3).
+      final nearEnd = cum >= endMeters && (cum - endMeters) <= tol;
+      final nearStart = cum <= startMeters && (startMeters - cum) <= tol;
+      if (nearEnd) {
+        out.add((_nodeIdAt(way, i), cum, true));
+      } else if (nearStart) {
+        out.add((_nodeIdAt(way, i), cum, false));
+      }
+    }
+    return out;
   }
 
   /// Map a bridge node [path] to the driven meter-range on each INTERMEDIATE

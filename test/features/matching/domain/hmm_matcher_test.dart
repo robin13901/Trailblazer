@@ -1345,12 +1345,22 @@ void main() {
     });
 
     // -------------------------------------------------------------------------
-    // 5. REFUSES across a direction mismatch (prev.direction != cur.direction).
+    // 5. FIX B BEHAVIOUR CHANGE (2026-07-27): a different-way through-
+    // intersection with prev.direction != cur.direction is NOW bridged. FIX B
+    // scoped the direction-equality guard to the SAME-wayId merge (Branch 1)
+    // only; the different-way branches (Branch 2 / Branch 3) proceed regardless
+    // of direction LABEL, because a legitimate turn (or a way digitised in the
+    // reverse node order) flips the per-way direction label even on a straight
+    // through-drive. The junction is on the raw-fix corridor, so the bridge
+    // fires and A is extended to the shared node. Previously the top-of-_tryFill
+    // guard blocked this and A kept its measured span; that premise is now
+    // contradicted by FIX B.
     // -------------------------------------------------------------------------
-    test('5. refuses across a direction mismatch', () {
-      // Same degree-3 through-intersection as test 1, but B is driven BACKWARD
-      // (x decreasing). prev='forward', cur='backward' → the top-of-_tryFill
-      // direction gate returns null before Branch 3 is reached. No bridge.
+    test('5. different-way through-intersection bridges despite direction '
+        'label difference (FIX B)', () {
+      // Same degree-3 through-intersection as test 1, but B is driven with a
+      // DECREASING meter sense (backward label). prev='forward', cur='backward'
+      // → Branch 3 still bridges (the vehicle drove straight through the node).
       final wayA = WayCandidate(
         wayId: 1,
         highwayClass: 'residential',
@@ -1377,11 +1387,15 @@ void main() {
       final result = _matcher.match(fixes: fixes, ways: [wayA, wayB, side]);
       final aInt = result.intervals.where((iv) => iv.wayId == 1).toList();
       expect(aInt, isNotEmpty);
-      // A must NOT be extended to the junction node — the direction gate blocks
-      // the bridge entirely.
+      // A IS extended to the junction node — the direction label difference no
+      // longer blocks a different-way bridge (FIX B).
       expect(aInt.map((iv) => iv.endMeters).reduce((x, y) => x > y ? x : y),
-          lessThan(95),
-          reason: 'a direction mismatch must block the bridge');
+          greaterThan(95),
+          reason: 'FIX B: a different-way through-intersection bridges even '
+              'across a direction-label difference');
+      // The un-driven side road must still never be painted.
+      expect(result.intervals.where((iv) => iv.wayId == 3), isEmpty,
+          reason: 'the un-driven side road must not be painted');
     });
 
     // -------------------------------------------------------------------------
@@ -1443,6 +1457,224 @@ void main() {
       // Exactly one interval per way — no invented intermediate, no merge.
       expect(result.intervals.where((iv) => iv.wayId == a.wayId).length, 1);
       expect(result.intervals.where((iv) => iv.wayId == p.wayId).length, 1);
+    });
+  });
+
+  // ===========================================================================
+  // FIX B — direction-guard scoping (in-town turn gaps, 2026-07-27)
+  // ===========================================================================
+  //
+  // The direction-equality guard in `_tryFill` is legitimate ONLY for the
+  // same-wayId merge (Branch 1), guarding a #9 reversal on ONE road. At a turn
+  // between DIFFERENT ways a left/right turn flips the per-way direction LABEL
+  // (each way's direction is the sign of net meters along that OSM way, and a
+  // turn drives the two ways in opposite meter senses), so the guard must NOT
+  // kill the different-way continuation.
+  group('FIX B direction-guard scoping', () {
+    test('turn between two ways with OPPOSITE direction labels still bridges',
+        () {
+      // A runs east, nodes [1000,1001] at east 0/100; junction at A's END node
+      // 1001 (east 100). B runs south→junction: geometry [(60,100),(0,100)],
+      // nodeIds [1002,1001] → junction is B's END node too. Degree-2 shared
+      // {A,B}. Drive east along A (forward on A, meters increasing) then turn
+      // and drive north AWAY from the junction up B: because B's node order runs
+      // (north→junction), leaving the junction toward the north DECREASES B's
+      // meters → 'backward' label on B. So prev='forward', cur='backward' — yet
+      // a genuine continuous drive. Pre-FIX-B the top-of-_tryFill guard killed
+      // this at every such turn; FIX B lets Branch 2 fire.
+      final wayA = WayCandidate(
+        wayId: 1,
+        highwayClass: 'residential',
+        nodeIds: const [1000, 1001],
+        geometry: [_ll(0, 0), _ll(0, 100)],
+      );
+      final wayB = WayCandidate(
+        wayId: 2,
+        highwayClass: 'residential',
+        nodeIds: const [1002, 1001],
+        geometry: [_ll(60, 100), _ll(0, 100)],
+      );
+      final fixes = [
+        _fix(0, 20),
+        _fix(0, 60, dtSecs: 2),
+        _fix(0, 92, dtSecs: 4), // A near its end (~92, junction @100)
+        _fix(500, 100, dtSecs: 5), // dropped around the junction
+        _fix(8, 100, dtSecs: 6), // on B, ~8 m north of junction (B meter ~52)
+        _fix(50, 100, dtSecs: 8), // further north up B (B meter ~10)
+      ];
+
+      final result = _matcher.match(fixes: fixes, ways: [wayA, wayB]);
+      final aInt = result.intervals.where((iv) => iv.wayId == 1).toList();
+      final bInt = result.intervals.where((iv) => iv.wayId == 2).toList();
+      expect(aInt, isNotEmpty, reason: 'A must be matched');
+      expect(bInt, isNotEmpty, reason: 'B must be matched');
+      // The two arms must have OPPOSITE labels (this is what pre-FIX-B blocked).
+      final dirs = {...aInt.map((iv) => iv.direction), ...bInt.map((iv) => iv.direction)};
+      expect(dirs, containsAll(<String>{'forward', 'backward'}),
+          reason: 'the turn produces opposite per-way direction labels');
+      // A extended to its junction END (~100); B extended to its junction END.
+      expect(aInt.map((iv) => iv.endMeters).reduce((x, y) => x > y ? x : y),
+          greaterThan(95),
+          reason: 'A must reach the shared junction node despite the label diff');
+      expect(bInt.map((iv) => iv.endMeters).reduce((x, y) => x > y ? x : y),
+          greaterThan(55),
+          reason: 'B must reach the shared junction node (its END, ~60 m)');
+    });
+
+    test('genuine reversal on the SAME way is still NOT merged (Branch 1 guard)',
+        () {
+      // A single two-way street driven out and back. The #9 reversal split
+      // produces a 'forward' interval then a 'backward' interval on the SAME
+      // way. Branch 1's direction guard (kept by FIX B) must refuse to merge
+      // them back into one — the two directional legs stay distinct.
+      final way = _eastWay();
+      final fixes = [
+        _fix(0, 20),
+        _fix(0, 120, dtSecs: 3),
+        _fix(0, 220, dtSecs: 6),
+        _fix(0, 270, dtSecs: 9), // peak
+        _fix(0, 200, dtSecs: 12),
+        _fix(0, 100, dtSecs: 15),
+        _fix(0, 20, dtSecs: 18),
+      ];
+
+      final result = _matcher.match(fixes: fixes, ways: [way]);
+      final wayIntervals =
+          result.intervals.where((iv) => iv.wayId == way.wayId).toList();
+      expect(wayIntervals.length, equals(2),
+          reason: 'a same-way reversal must NOT be merged (Branch 1 guard)');
+      expect(wayIntervals[0].direction, equals('forward'));
+      expect(wayIntervals[1].direction, equals('backward'));
+    });
+  });
+
+  // ===========================================================================
+  // FIX E — interior-node continuation (2026-07-27)
+  // ===========================================================================
+  //
+  // Two ways can meet at a node that is INTERIOR to the longer way rather than
+  // at its endpoint (a T/mid-way junction). Branch 2 only pairs ENDPOINT nodes,
+  // so it never fires and a short gap is left. FIX E extends the interior-side
+  // interval ONLY to the interior node's meters (never past the junction — the
+  // far part was not driven) and the endpoint-side interval to/from its
+  // endpoint.
+  group('FIX E interior-node continuation', () {
+    test('junction interior to prev, endpoint of cur → gap closes, far part '
+        'of prev NOT painted', () {
+      // Prev way P: nodes [2000,2001,2002,2003] at meters 0/100/200/300. The
+      // junction is P's INTERIOR node 2002 (meter 200). Cur way C starts at that
+      // node: nodes [2002,3000], geometry [(0,200),(60,200)] heading north.
+      // Degree-2 shared {P,C} at node 2002. Drive east along P to ~meter 190
+      // (loose end near the interior node), gap, then north up C. FIX E extends
+      // P to meter 200 (NOT 300) and C from its start.
+      final wayP = WayCandidate(
+        wayId: 1,
+        highwayClass: 'residential',
+        nodeIds: const [2000, 2001, 2002, 2003],
+        geometry: [_ll(0, 0), _ll(0, 100), _ll(0, 200), _ll(0, 300)],
+      );
+      final wayC = WayCandidate(
+        wayId: 2,
+        highwayClass: 'residential',
+        nodeIds: const [2002, 3000],
+        geometry: [_ll(0, 200), _ll(60, 200)],
+      );
+      final fixes = [
+        _fix(0, 20),
+        _fix(0, 90, dtSecs: 2),
+        _fix(0, 160, dtSecs: 4),
+        _fix(0, 190, dtSecs: 6), // P loose end ~190 (interior node @200)
+        _fix(500, 200, dtSecs: 7), // dropped around the junction
+        _fix(10, 200, dtSecs: 8), // on C, ~10 m north of junction
+        _fix(50, 200, dtSecs: 10), // further north up C
+      ];
+
+      final result = _matcher.match(fixes: fixes, ways: [wayP, wayC]);
+      final pInt = result.intervals.where((iv) => iv.wayId == 1).toList();
+      final cInt = result.intervals.where((iv) => iv.wayId == 2).toList();
+      expect(pInt, isNotEmpty, reason: 'P must be matched');
+      expect(cInt, isNotEmpty, reason: 'C must be matched');
+      final pMaxEnd =
+          pInt.map((iv) => iv.endMeters).reduce((x, y) => x > y ? x : y);
+      // P extends to the interior junction node (~200 m), closing the gap.
+      expect(pMaxEnd, greaterThan(195),
+          reason: 'P must extend to the interior junction node (~200 m)');
+      // CRITICAL: the far part of P beyond the junction (200..300) must NOT be
+      // painted — the vehicle turned off at meter 200.
+      expect(pMaxEnd, lessThan(260),
+          reason: 'P beyond the junction (200..300) must NOT be painted, '
+              'got $pMaxEnd');
+      // C extended from its shared-node start (~0 m).
+      expect(cInt.map((iv) => iv.startMeters).reduce((x, y) => x < y ? x : y),
+          lessThan(5),
+          reason: 'C must start from the shared junction node (~0 m)');
+    });
+  });
+
+  // ===========================================================================
+  // FIX C — emission/collapse proximity guard (2026-07-27)
+  // ===========================================================================
+  //
+  // The Viterbi emission can briefly snap onto a PARALLEL residential way that
+  // runs tens of meters off the correctly-driven road and shares NO node with
+  // it (Obrigheim B27 over-draw). Such an interval's own painted geometry sits
+  // far from EVERY raw fix. FIX C drops an interval whose driven-range midpoint
+  // is farther than kMaxMatchedGeometryToFixMeters (15 m) from the nearest fix,
+  // while a genuine (even short/partway) drive under the fixes (<8 m) is kept.
+  group('FIX C emission proximity guard', () {
+    test('parallel way >15 m off all fixes is dropped; driven way kept', () {
+      // Driven road A runs east at y=0 (fixes right on it, <2 m). Parallel way N
+      // runs 25 m north (y=25), sharing NO node with A. If the decoder snaps any
+      // fix onto N, N's painted geometry midpoint is ~25 m from the nearest raw
+      // fix (>15 m) → dropped by FIX C. A stays.
+      final wayA = WayCandidate(
+        wayId: 1,
+        highwayClass: 'residential',
+        geometry: [_ll(0, 0), _ll(0, 100), _ll(0, 200), _ll(0, 300)],
+      );
+      final wayN = WayCandidate(
+        wayId: 2,
+        highwayClass: 'residential',
+        geometry: [_ll(25, 100), _ll(25, 200)], // 25 m north parallel
+      );
+      final fixes = [
+        _fix(0, 20),
+        _fix(0, 70, dtSecs: 2),
+        _fix(0, 120, dtSecs: 4),
+        _fix(0, 170, dtSecs: 6),
+        _fix(0, 220, dtSecs: 8),
+        _fix(0, 280, dtSecs: 10),
+      ];
+
+      final result = _matcher.match(fixes: fixes, ways: [wayA, wayN]);
+      // A must be painted (its geometry is right under the fixes).
+      expect(result.intervals.where((iv) => iv.wayId == 1), isNotEmpty,
+          reason: 'the genuinely-driven way A must be kept');
+      // N — even if the decoder snapped a fix onto it — must be dropped, because
+      // its painted midpoint is ~25 m from every raw fix.
+      expect(result.intervals.where((iv) => iv.wayId == 2), isEmpty,
+          reason: 'a parallel way whose geometry is >15 m from all fixes must '
+              'be dropped by the proximity guard');
+    });
+
+    test('genuine partway drive (<8 m to fixes) is kept', () {
+      // A single dead-end residential street driven partway. All fixes sit right
+      // on the way (<2 m). The interval midpoint is under the fixes → kept.
+      final way = WayCandidate(
+        wayId: 1,
+        highwayClass: 'residential',
+        geometry: [_ll(0, 0), _ll(0, 100), _ll(0, 200)],
+      );
+      final fixes = [
+        _fix(0, 20),
+        _fix(0, 60, dtSecs: 2),
+        _fix(0, 95, dtSecs: 4), // drove partway (~95 of 200 m)
+      ];
+
+      final result = _matcher.match(fixes: fixes, ways: [way]);
+      final wIntervals = result.intervals.where((iv) => iv.wayId == 1).toList();
+      expect(wIntervals, isNotEmpty,
+          reason: 'a genuine partway drive under the fixes must be kept');
     });
   });
 }

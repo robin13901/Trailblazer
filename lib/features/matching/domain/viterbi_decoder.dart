@@ -366,6 +366,19 @@ class ViterbiDecoder {
             // same way discourages needless cross-way flicker. Default constant
             // is 0.0 → no-op (goldens byte-identical). Tuning hook only.
             trans += kSameWayStickinessLog;
+          } else if (pState.segment.ref != null &&
+              pState.segment.ref == s.segment.ref) {
+            // Same-ROAD continuation (defect F): the two candidates are
+            // DIFFERENT ways but carry the SAME ref (e.g. both "B 469"). A
+            // Bundesstraße/trunk is chopped into dozens of short same-ref ways;
+            // crossing each seam costs the Newson-Krumm |route-gc| penalty,
+            // while a parallel unref'd frontage road is ONE continuous way that
+            // pays nothing and can out-continue the real road at a seam. Reward
+            // staying on the same-ref corridor so the chopped road behaves as
+            // one. Reached only after the routeDist != null guard above, so two
+            // node-disjoint same-ref carriageways (routeDist null → predecessor
+            // skipped) never get it; unref'd ways (ref == null) never match.
+            trans += kSameRefContinuationLog;
           }
 
           final total = pState.totalLogP + trans + s.emissionLogP;
@@ -381,9 +394,17 @@ class ViterbiDecoder {
           // gap-reset / first-step semantics the traceback keys on. Without
           // this reset the state would keep totalLogP = -inf and, if it became
           // the step's sole survivor, poison the whole downstream chain.
+          //
+          // Mark it `viaBrokenReset` so the traceback can prefer a CONNECTED
+          // sibling at the same step: a node-disjoint parallel road (bridge
+          // under-crossing / frontage road) resets to a fresh ~emission score
+          // that would otherwise out-select the correctly-driven chain's
+          // deeply-accumulated total (defects A + F). This flag is NOT set on
+          // the gap-reset / first-step path (those states are legitimate starts).
           s
             ..totalLogP = s.emissionLogP
-            ..backptr = null;
+            ..backptr = null
+            ..viaBrokenReset = true;
         } else {
           s
             ..totalLogP = bestTotal
@@ -491,13 +512,16 @@ class ViterbiDecoder {
       // independently; every matched step is emitted.
       var segHi = hi;
       while (segHi >= lo) {
-        // Best terminal state within [lo..segHi] at segHi.
-        var bestIdx = 0;
-        for (var i = 1; i < trellis[segHi].length; i++) {
-          if (trellis[segHi][i].totalLogP > trellis[segHi][bestIdx].totalLogP) {
-            bestIdx = i;
-          }
-        }
+        // Best terminal state within [lo..segHi] at segHi — CONNECTED-FIRST:
+        // prefer a state that did NOT reset via a broken path (defects A + F).
+        // A node-disjoint parallel road resets to a fresh emission-only total
+        // (~-2.4) that would out-select the correctly-driven chain's deeply
+        // negative accumulated total; preferring a connected terminal keeps the
+        // real road. A broken-reset state may still win, but ONLY when there is
+        // no connected alternative at this step, or the best connected state is
+        // itself below the low-confidence floor (genuinely off-road) — so a
+        // legitimate gap/outage, where every candidate reset, is unaffected.
+        final bestIdx = _bestTerminalIdx(trellis[segHi]);
 
         // Chase back-pointers from segHi toward lo, stopping at a reset (null
         // backptr). `breakStep` is where the chain reset (a fresh sub-track
@@ -526,6 +550,40 @@ class ViterbiDecoder {
     }
 
     return result;
+  }
+
+  /// Pick the best terminal state index in [states] (one trellis step),
+  /// CONNECTED-FIRST: among states that did NOT reset via a broken path, take
+  /// the highest `totalLogP`. A broken-reset state (a node-disjoint parallel
+  /// road that reset to a fresh emission-only score) wins ONLY when there is no
+  /// connected candidate, or the best connected candidate is below the
+  /// low-confidence floor (genuinely off-road). This deterministically removes a
+  /// disjoint under-bridge / frontage road from terminal contention wherever the
+  /// correctly-driven road is in-beam and plausible (defects A + F), while
+  /// staying inert on a genuine gap/outage (there every candidate reset, so no
+  /// connected candidate exists and the rule falls through). Assumes a non-empty
+  /// [states] (the caller only reaches non-empty trellis steps).
+  int _bestTerminalIdx(List<_State> states) {
+    var bestConnected = -1;
+    var bestReset = 0;
+    for (var i = 0; i < states.length; i++) {
+      if (states[i].viaBrokenReset) {
+        if (states[i].totalLogP > states[bestReset].totalLogP) bestReset = i;
+      } else {
+        if (bestConnected < 0 ||
+            states[i].totalLogP > states[bestConnected].totalLogP) {
+          bestConnected = i;
+        }
+      }
+    }
+    if (bestConnected < 0) return bestReset; // no connected candidate → reset
+    // A connected candidate exists: prefer it unless it is itself off-road
+    // (below the low-confidence floor), in which case a reset start is the more
+    // honest terminal.
+    if (states[bestConnected].emissionLogP < kLowConfidenceDropLog) {
+      return bestReset;
+    }
+    return bestConnected;
   }
 
   /// Write a back-chased [chain] of `(step, stateIdx)` cells into [result] in
@@ -630,4 +688,14 @@ class _State {
   /// Index into the previous step's [_State] list. `null` when there is
   /// no predecessor (first step of a sub-track or gap-reset).
   int? backptr;
+
+  /// True only when this state became a fresh start via the BROKEN-PATH reset
+  /// (viterbi_decoder ~:384 — no predecessor was routable within the search
+  /// cap) WHILE other candidates at the same step may have stayed connected.
+  /// Distinct from a legitimate gap-reset / first-step start (those keep this
+  /// false). The traceback prefers connected states over broken-reset ones so a
+  /// node-disjoint parallel road (bridge under-crossing, frontage road) cannot
+  /// out-select the correctly-driven chain on a fresh emission-only score
+  /// (defects A + F, 2026-07-27). Never set on the gap/first-step path.
+  bool viaBrokenReset = false;
 }

@@ -26,6 +26,7 @@ class WaySegment {
     required this.oneway,
     this.aNodeId = 0,
     this.bNodeId = 0,
+    this.ref,
   });
 
   /// OSM way id.
@@ -52,6 +53,13 @@ class WaySegment {
 
   /// Normalized `oneway=` direction for this way.
   final OnewayDirection oneway;
+
+  /// OSM `ref=` tag (e.g. "B 469", "A 66"), or null when the way is unref'd.
+  /// Carried so the decoder can treat consecutive DIFFERENT ways with the SAME
+  /// ref as one continuous road corridor — a chopped-up trunk/Bundesstraße is
+  /// dozens of short same-ref ways, and without this a parallel unref'd frontage
+  /// road (one continuous way) can out-continue it at the seams (defect F).
+  final String? ref;
 
   /// OSM node id of the start node (`geometry[segIdx]`), or a coordinate-hash
   /// surrogate when the source supplied no node ids (see [nodeKeyFor]). Two
@@ -110,6 +118,7 @@ class WaySegment {
           oneway: way.oneway,
           aNodeId: hasIds ? ids[i] : nodeKeyFor(a.latitude, a.longitude),
           bNodeId: hasIds ? ids[i + 1] : nodeKeyFor(b.latitude, b.longitude),
+          ref: way.ref,
         ),
       );
     }

@@ -108,7 +108,22 @@ class AppPrefs {
   /// through-intersection holes without painting undriven roads. Verified on the
   /// live DB (B469/A45/A66 all correct, junctions continuous). This bump forces
   /// one re-match so stored trips gain both. Paired with the recompute bump.
-  static const int kCurrentMatcherRematchVersion = 10;
+  /// `11` = 2026-07-27 six-defect matcher batch (all verified on the live DB at
+  /// the rendered level): (B) the gap-fill direction-equality guard is now
+  /// scoped to the same-wayId merge only, so an in-town TURN between two ways
+  /// (which flips each way's direction label) closes its apex gap; (E) the
+  /// gap-fill now recognises an INTERIOR-node junction (two ways meeting where
+  /// the node is mid-way along the longer way), closing the turn gap it missed;
+  /// (C) a collapsed interval is DROPPED when >35 % of its geometry lies far
+  /// (>15 m) from the raw GPS track — kills the parallel residential over-draw
+  /// (Obrigheim) and the B469-frontage over-paint (Stockstadt, defect F) with
+  /// one geometry-based rule; (A) the traceback now prefers a CONNECTED terminal
+  /// over a broken-path reset, so a node-disjoint under-bridge road can no longer
+  /// out-select the correctly-driven A66 carriageway on a single closer fix
+  /// (closes the gap + drops the wrong paint). A/F use NO speed heuristic and no
+  /// static road-class prior (both explicitly rejected). Re-match rebuilds every
+  /// stored trip under the corrected matcher. Paired with the recompute bump.
+  static const int kCurrentMatcherRematchVersion = 11;
 
   /// Version stamp of the last coverage-cache recompute migration applied to
   /// this device. Bumped whenever `coverage_cache` needs a one-shot
@@ -154,7 +169,12 @@ class AppPrefs {
   /// through-intersection gap bridge). The re-match rewrites intervals; this
   /// bump forces one clip-per-region rebuild so coverage_cache reflects the
   /// corrected B469/A45/A66 carriageways and the newly-closed junction gaps.
-  static const int kCurrentCoverageRecomputeVersion = 7;
+  /// `8` = 2026-07-27 paired with the v11 six-defect batch. The re-match removes
+  /// the parallel over-draw (Obrigheim/Stockstadt) and under-bridge mis-paint
+  /// (A66) and closes the in-town turn gaps (Geislitz/Kleinheubach); this bump
+  /// forces one clip-per-region rebuild so coverage_cache reflects the corrected
+  /// driven set (dropped false-positive km + newly-closed gaps).
+  static const int kCurrentCoverageRecomputeVersion = 8;
 
   /// Version stamp of the last stuck-fetch recovery migration applied to this
   /// device. Bumped when a one-shot recovery of trips parked by an Overpass
