@@ -96,7 +96,19 @@ class AppPrefs {
   /// on-device, so this bump is REQUIRED to re-match stored trips under the new
   /// matcher (verified on the live DB: A66 both carriageways 36/69%→100%, A45
   /// dropped carriageway 0%→100%). Paired with the recompute bump below.
-  static const int kCurrentMatcherRematchVersion = 9;
+  /// `10` = 2026-07-27 segment-aware oneway check + through-intersection gap
+  /// bridge. The oneway-violation penalty compared projectionFraction WITHOUT
+  /// segIdx; that fraction resets 0→1 per segment, so on a fast, densely-
+  /// segmented forward-oneway trunk ~half the genuinely-forward steps wrongly
+  /// incurred kOnewayViolationLog and a parallel `oneway=no` side road (exempt
+  /// from the penalty) out-scored the correct carriageway — the match defected
+  /// onto it for kilometres (live trip 18, B469 near Wörth). Fix: derive the
+  /// direction sign from the segIdx delta first, fraction only within one
+  /// segment. Plus a new corridor-gated shortest-path gap bridge that closes
+  /// through-intersection holes without painting undriven roads. Verified on the
+  /// live DB (B469/A45/A66 all correct, junctions continuous). This bump forces
+  /// one re-match so stored trips gain both. Paired with the recompute bump.
+  static const int kCurrentMatcherRematchVersion = 10;
 
   /// Version stamp of the last coverage-cache recompute migration applied to
   /// this device. Bumped whenever `coverage_cache` needs a one-shot
@@ -138,7 +150,11 @@ class AppPrefs {
   /// this bump forces one clean clip-per-region rebuild so coverage_cache
   /// reflects the corrected carriageway coverage. (v5 already stamped on-device,
   /// so a bump is required for the recompute to re-run.)
-  static const int kCurrentCoverageRecomputeVersion = 6;
+  /// `7` = 2026-07-27 paired with the v10 re-match (segment-aware oneway check +
+  /// through-intersection gap bridge). The re-match rewrites intervals; this
+  /// bump forces one clip-per-region rebuild so coverage_cache reflects the
+  /// corrected B469/A45/A66 carriageways and the newly-closed junction gaps.
+  static const int kCurrentCoverageRecomputeVersion = 7;
 
   /// Version stamp of the last stuck-fetch recovery migration applied to this
   /// device. Bumped when a one-shot recovery of trips parked by an Overpass
