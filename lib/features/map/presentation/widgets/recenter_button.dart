@@ -20,12 +20,14 @@ final _log = Logger('RecenterButton');
 /// so it forms a vertical stack of two identical circles.
 ///
 /// Behavior on tap:
-///   1. Read the last-known device location.
-///   2. Animate the camera to (user, `CameraState.initial.zoom`) over ~500 ms.
-///      Uses the shared default so recenter always returns to the same zoom
-///      as cold-start regardless of where the user zoomed to.
-///   3. Enable MapLibre's `tracking` mode so subsequent GPS ticks
-///      continue to follow the user without further user input.
+///   1. Read the last-known device location (while native tracking is OFF).
+///   2. Animate the camera to (user, `CameraState.recenterZoom`) over ~500 ms.
+///      Tracking is still off here so this animation is the sole camera owner
+///      and the zoom always lands on `recenterZoom` regardless of the prior
+///      zoom — in BOTH directions (zoom-in from far out, zoom-out from close).
+///   3. Only THEN update follow mode + enable MapLibre's `tracking` mode so
+///      subsequent GPS ticks continue to follow the user. Tracking preserves
+///      the zoom just set; it only maintains centering.
 ///
 /// Fail-soft: if step 1 or 2 fails (permission just granted but no fix
 /// yet, GPS cold-start, indoors), the tap reverts follow mode and logs
@@ -62,20 +64,24 @@ class RecenterButton extends ConsumerWidget {
                 ? MyLocationTrackingMode.trackingGps
                 : MyLocationTrackingMode.tracking;
 
-            // Update follow-mode state FIRST so MapWidget's next build
-            // passes the matching myLocationTrackingMode to MapLibreMap.
-            ref.read(cameraStateProvider.notifier).setFollowMode(followMode);
-
             // Read the current user location from the native side.
             // Returns null if no fix is available yet.
             final userLocation = await controller.requestMyLocationLatLng();
 
             if (userLocation != null) {
-              // Plan 04-18 (2026-07-08 drive feedback) + 2026-07-18: recenter
-              // tap ALWAYS animates to CameraState.recenterZoom — a fixed
-              // street-level zoom one level deeper than the cold-start default,
-              // regardless of the current zoom. So the tap is a "reset view":
-              // recenter + zoom-to-fixed-level in one animation.
+              // Plan 04-18 (2026-07-08 drive feedback) + 2026-07-18 + 2026-07-29:
+              // recenter tap ALWAYS animates to CameraState.recenterZoom — a
+              // fixed street-level zoom — regardless of the current zoom. So the
+              // tap is a "reset view": recenter + zoom-to-fixed-level in one
+              // animation.
+              //
+              // ORDER MATTERS (2026-07-29 fix): the zoom animation runs BEFORE
+              // follow mode is enabled. Engaging MyLocationTrackingMode.tracking
+              // first makes the native side the camera owner AT THE CURRENT ZOOM,
+              // which then fights/overrides this animateCamera — so a deep zoom
+              // would only recenter and never zoom back out to recenterZoom.
+              // With tracking still off, this animation is the sole camera owner
+              // and the zoom lands deterministically in both directions.
               await controller.animateCamera(
                 CameraUpdate.newLatLngZoom(
                   userLocation,
@@ -85,9 +91,14 @@ class RecenterButton extends ConsumerWidget {
               );
             }
 
-            // Enable native tracking so the camera continues to follow
-            // subsequent GPS ticks. Safe to call even without a fix —
-            // MapLibre just no-ops until one arrives.
+            // Now update follow-mode state so MapWidget's next build passes the
+            // matching myLocationTrackingMode to MapLibreMap, and enable native
+            // tracking so the camera continues to follow subsequent GPS ticks.
+            // Doing this AFTER the animation means tracking picks up the camera
+            // at recenterZoom and merely maintains centering — it no longer
+            // clobbers the zoom. Safe to call even without a fix — MapLibre just
+            // no-ops until one arrives.
+            ref.read(cameraStateProvider.notifier).setFollowMode(followMode);
             await controller.updateMyLocationTrackingMode(trackingMode);
           } on Object catch (e, st) {
             _log.warning('Recenter failed: $e', e, st);
