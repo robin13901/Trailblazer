@@ -12,6 +12,16 @@ import 'package:maplibre_gl/maplibre_gl.dart';
 
 final _log = Logger('RecenterButton');
 
+/// Duration of the recenter camera animation (pan + zoom to `recenterZoom`).
+///
+/// Kept as a named constant because the native tracking hand-off below is
+/// deliberately scheduled AFTER this same duration — engaging
+/// `MyLocationTrackingMode.tracking` while the animateCamera is still running
+/// makes the native side snap-center immediately (a hard, near-instant pan)
+/// which visually "overtakes" the smooth animation. Waiting the full duration
+/// first lets the animation land, then tracking merely maintains centering.
+const Duration _kRecenterAnimDuration = Duration(milliseconds: 500);
+
 /// Circular glass button — same size as `TripFab`.
 ///
 /// Visible only when the user has panned away from their location
@@ -87,8 +97,16 @@ class RecenterButton extends ConsumerWidget {
                   userLocation,
                   CameraState.recenterZoom,
                 ),
-                duration: const Duration(milliseconds: 500),
+                duration: _kRecenterAnimDuration,
               );
+
+              // Belt-and-braces (2026-07-30): on iOS the awaited animateCamera
+              // can return before the camera has visually finished moving, so
+              // the tracking hand-off below would snap-center mid-animation and
+              // make the pan look near-instant while the zoom lags. Wait the
+              // full animation duration before handing camera ownership to
+              // native tracking, so the smooth animation is never overtaken.
+              await Future<void>.delayed(_kRecenterAnimDuration);
             }
 
             // Now update follow-mode state so MapWidget's next build passes the
