@@ -56,6 +56,31 @@ class DrivenWayIntervalsDao extends DatabaseAccessor<AppDatabase>
         .get();
   }
 
+  /// A strictly-changing revision number that advances on ANY write to
+  /// `driven_way_intervals` (insert, delete, re-match).
+  ///
+  /// `MAX(id)` uses the table's autoincrement PK, which is monotonic and never
+  /// reuses ids — so every insert bumps it, INCLUDING a re-match's delete-then-
+  /// insert (the new rows get fresh higher ids). `COUNT(*)` is added so a pure
+  /// delete (e.g. a trip removed, no reinsert) also changes the value.
+  ///
+  /// **Why this exists (2026-07-30):** the coverage overlay's reactive trigger
+  /// was keyed on `TripsDao.watchUnionBbox()`, whose emitted `LatLngBounds` has
+  /// VALUE equality. A trip driven WITHIN the already-covered union bbox
+  /// re-emits an EQUAL bounds; Riverpod's `ref.watch` then deduplicates it and
+  /// the overlay `async*` never re-resolves — so freshly matched roads did not
+  /// repaint until an app restart (coverage % still updated, because that path
+  /// watches `coverage_cache` directly). Watching THIS monotonic revision
+  /// alongside the bounds guarantees the observed value changes on every
+  /// interval write, closing the dedup gap. Table-write invalidation via
+  /// `readsFrom` is the mechanism — do NOT collapse it to a value-diff.
+  Stream<int> watchRevision() {
+    return customSelect(
+      'SELECT COALESCE(MAX(id), 0) + COUNT(*) AS rev FROM driven_way_intervals',
+      readsFrom: {drivenWayIntervals},
+    ).watchSingle().map((row) => row.read<int>('rev'));
+  }
+
   /// Returns a deduplicated list of all driven way IDs, sorted ascending.
   ///
   /// Convenience query when only the set of wayIds is needed (e.g. to

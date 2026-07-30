@@ -12,8 +12,16 @@
 // Live-refresh chain:
 //   match/re-match writes driven_way_intervals
 //     → TripsDao.watchUnionBbox() re-emits (readsFrom: {trips, drivenWayIntervals})
+//       AND drivenWayIntervalsRevisionProvider advances (monotonic MAX(id)+COUNT)
 //     → coverageOverlayDataProvider re-resolves (parse+clip on a compute isolate)
 //     → CoverageOverlayBridge re-applies the GeoJSON overlay
+//
+// The revision edge (2026-07-30) exists because watchUnionBbox() emits a
+// LatLngBounds with VALUE equality: a trip driven WITHIN the existing union
+// bbox re-emits an EQUAL bounds, which Riverpod deduplicates — so before this
+// fix the overlay only repainted after an app restart (the coverage % still
+// updated, as it watches coverage_cache directly). The strictly-monotonic
+// revision guarantees the observed dependency changes on every interval write.
 //
 // All plain Provider / StreamProvider — no @Riverpod codegen (STATE 01-01).
 
@@ -50,15 +58,35 @@ final tripsUnionBoundsProvider = StreamProvider<LatLngBounds?>((ref) {
   return ref.watch(tripsDaoProvider).watchUnionBbox();
 });
 
+/// Strictly-monotonic revision of `driven_way_intervals` — advances on EVERY
+/// interval write (insert / delete / re-match).
+///
+/// **Why (2026-07-30):** [tripsUnionBoundsProvider] emits a `LatLngBounds` with
+/// VALUE equality. A trip driven WITHIN the already-covered union bbox re-emits
+/// an EQUAL bounds, which Riverpod's `ref.watch` deduplicates — so the overlay
+/// `async*` below never re-resolved and freshly matched roads only appeared
+/// after an app restart. [coverageOverlayDataProvider] additionally watches
+/// this revision so the observed dependency ALWAYS changes on an interval
+/// write, forcing a re-resolve regardless of whether the bbox moved.
+final drivenWayIntervalsRevisionProvider = StreamProvider<int>((ref) {
+  return ref.watch(drivenWayIntervalsDaoProvider).watchRevision();
+});
+
 /// Reactive coverage overlay data for the map: each driven OSM way clipped to
 /// its driven union interval(s), deduped per wayId across all trips.
 ///
-/// Re-resolves whenever [tripsUnionBoundsProvider] emits (interval writes). The
-/// resolver parses + clips on a compute isolate, so no heavy work runs on the
-/// UI isolate here. Yields [CoverageOverlayData.empty] when there are no trips.
+/// Re-resolves whenever [tripsUnionBoundsProvider] emits (bbox change) OR
+/// [drivenWayIntervalsRevisionProvider] advances (any interval write, even when
+/// the union bbox value is unchanged — 2026-07-30 dedup fix). The resolver
+/// parses + clips on a compute isolate, so no heavy work runs on the UI isolate
+/// here. Yields [CoverageOverlayData.empty] when there are no trips.
 final coverageOverlayDataProvider =
     StreamProvider<CoverageOverlayData>((ref) async* {
   final boundsAsync = ref.watch(tripsUnionBoundsProvider);
+  // Watch the interval revision so a same-bbox re-match still re-resolves. We
+  // only need the dependency edge, not the value — reading it registers the
+  // watch; a changed revision re-runs this body.
+  ref.watch(drivenWayIntervalsRevisionProvider);
   final bounds = boundsAsync.value;
   if (bounds == null) {
     yield CoverageOverlayData.empty;
