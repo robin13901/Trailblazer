@@ -144,6 +144,16 @@ Future<void> pumpAppAtMapShell(WidgetTester tester) async {
         tripsUnionBoundsProvider.overrideWith(
           (ref) => const Stream.empty(),
         ),
+        // drivenWayIntervalsRevisionProvider (2026-07-30) is a StreamProvider
+        // wrapping DrivenWayIntervalsDao.watchRevision() — another Drift
+        // .watch() over the in-memory DB, now watched by
+        // coverageOverlayDataProvider. Same pending-timer trap as
+        // tripsUnionBoundsProvider above: Drift schedules a StreamQueryStore
+        // cleanup timer on dispose. Override with an empty stream so no Drift
+        // subscription is ever created here.
+        drivenWayIntervalsRevisionProvider.overrideWith(
+          (ref) => const Stream.empty(),
+        ),
         // FocusAreaPill → FocusPillNotifier.build() ref.listens
         // coverageCacheStreamProvider, a Drift .watch() over the in-memory DB.
         // On dispose Drift schedules a StreamQueryStore cleanup timer, which the
