@@ -123,6 +123,12 @@ class TripsInboxRepository {
       await _intervalsDao.deleteByTrip(tripId);
       // 3. Delete the trip row (cascades trip_points).
       await _tripsDao.deleteTrip(tripId);
+      // 4. Re-populate the coverage-cache rows step 1 just invalidated, from
+      //    the intervals that REMAIN (other trips over the same roads survive).
+      //    Fire-and-forget, mirroring confirmTrip: the delete already committed
+      //    and must never be blocked on recompute. Without this the affected
+      //    region % rows stay empty until the next incidental coverage read.
+      unawaited(_computeService.recompute());
       return const Ok(null);
       // Catches all throwables (Error + Exception) for DomainError.wrap.
       // ignore: avoid_catches_without_on_clauses

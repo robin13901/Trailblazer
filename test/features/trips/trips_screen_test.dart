@@ -9,18 +9,36 @@
 
 import 'dart:typed_data';
 
+import 'package:auto_explore/core/db/app_database.dart';
+import 'package:auto_explore/core/db/daos/driven_way_intervals_dao.dart';
+import 'package:auto_explore/core/errors/result.dart';
+import 'package:auto_explore/features/admin/data/admin_region.dart';
+import 'package:auto_explore/features/admin/data/admin_region_lookup.dart';
+import 'package:auto_explore/features/coverage/data/coverage_cache_dao.dart';
+import 'package:auto_explore/features/coverage/data/coverage_invalidator.dart';
+import 'package:auto_explore/features/matching/data/tile_bbox_math.dart';
+import 'package:auto_explore/features/matching/data/way_candidate_source.dart';
+import 'package:auto_explore/features/matching/domain/way_candidate.dart';
+import 'package:auto_explore/features/regions/data/coverage_compute_job.dart';
+import 'package:auto_explore/features/regions/data/coverage_compute_service.dart';
+import 'package:auto_explore/features/regions/data/region_totals_lookup.dart';
 import 'package:auto_explore/features/trips/data/thumbnail_cache.dart';
 import 'package:auto_explore/features/trips/data/thumbnail_providers.dart';
 import 'package:auto_explore/features/trips/data/thumbnail_renderer.dart';
 import 'package:auto_explore/features/trips/data/trip_place_lookup_providers.dart';
+import 'package:auto_explore/features/trips/data/trips_dao.dart';
+import 'package:auto_explore/features/trips/data/trips_dao_inbox_queries.dart';
+import 'package:auto_explore/features/trips/data/trips_repository_inbox_extensions.dart';
 import 'package:auto_explore/features/trips/domain/trip_list_item.dart';
 import 'package:auto_explore/features/trips/domain/trip_place_lookup.dart';
 import 'package:auto_explore/features/trips/domain/trip_status.dart';
 import 'package:auto_explore/features/trips/presentation/providers/inbox_providers.dart';
 import 'package:auto_explore/features/trips/presentation/trips_screen.dart';
+import 'package:auto_explore/features/trips/presentation/widgets/discard_confirmation_dialog.dart';
 import 'package:auto_explore/features/trips/presentation/widgets/history_empty_state.dart';
 import 'package:auto_explore/features/trips/presentation/widgets/history_row.dart';
 import 'package:auto_explore/features/trips/presentation/widgets/matching_queue_pill.dart';
+import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -42,6 +60,110 @@ class _NoopRenderer extends ThumbnailRenderer {
     required LatLngBounds bbox,
   }) async =>
       Uint8List(0);
+}
+
+/// Trivial [CoverageInvalidator] fake — never exercised (discardTrip is
+/// overridden in [_RecordingInboxRepo]), just satisfies the constructor.
+class _NoopInvalidator implements CoverageInvalidator {
+  @override
+  Future<Result<int>> invalidateForTrip(int tripId) async => const Ok(0);
+  @override
+  Future<Result<int>> invalidateForTripDelete(int tripId) async => const Ok(0);
+  @override
+  Future<Result<int>> invalidateAll() async => const Ok(0);
+}
+
+/// Minimal fake AdminRegionLookup — always returns null (see extensions test).
+class _NullAdminRegionLookup implements AdminRegionLookup {
+  @override
+  Future<void> ensureLoaded() async {}
+  @override
+  Future<AdminRegion?> regionAt(double lat, double lon, int adminLevel) async =>
+      null;
+  @override
+  void invalidate() {}
+  @override
+  AdminRegion? regionByOsmId(int osmId) => null;
+  @override
+  int get regionCount => 0;
+  @override
+  int get bundleLoadCount => 0;
+}
+
+/// Minimal fake WayCandidateSource — always empty (see extensions test).
+class _EmptyWayCandidateSource implements WayCandidateSource {
+  @override
+  Future<List<WayCandidate>> fetchWaysInBbox({
+    required double minLat,
+    required double minLon,
+    required double maxLat,
+    required double maxLon,
+    bool throwOnError = true,
+    Set<TileId>? restrictTiles,
+    bool cacheOnly = false,
+    void Function(int done, int total)? onTileProgress,
+  }) async =>
+      const [];
+
+  @override
+  Future<List<RawTilePayload>> fetchRawTilesInBbox({
+    required double minLat,
+    required double minLon,
+    required double maxLat,
+    required double maxLon,
+    bool throwOnError = true,
+    Set<TileId>? restrictTiles,
+    bool cacheOnly = false,
+    void Function(int done, int total)? onTileProgress,
+  }) async =>
+      const [];
+}
+
+/// Stand-in attribution runner — never invoked (recompute is overridden).
+Future<List<WayRegionAttributionRow>> _unusedCompute(
+  List<Uint8List> gzippedTiles,
+  List<LatLonBbox> tileBboxes,
+  Set<int> alreadyAttributedWayIds,
+) async =>
+    const [];
+
+/// No-op CoverageComputeService (mirrors the stub in the extensions test).
+class _NoopComputeService extends CoverageComputeService {
+  _NoopComputeService(AppDatabase db)
+      : super(
+          intervalsDao: DrivenWayIntervalsDao(db),
+          waySource: _EmptyWayCandidateSource(),
+          regionLookup: _NullAdminRegionLookup(),
+          cacheDao: CoverageCacheDao(db),
+          tripsDao: TripsDao(db),
+          totalsLookup: RegionTotalsLookup(),
+          compute: _unusedCompute,
+        );
+  @override
+  Future<Result<int>> recompute({CoverageRecomputeProgress? onProgress}) async =>
+      const Ok(0);
+}
+
+/// Records the trip id passed to [discardTrip] without touching the DB. The
+/// injected DAOs/invalidator/computeService are never invoked because
+/// discardTrip is overridden.
+class _RecordingInboxRepo extends TripsInboxRepository {
+  _RecordingInboxRepo(AppDatabase db)
+      : super(
+          inboxDao: TripsInboxDao(db),
+          tripsDao: TripsDao(db),
+          intervalsDao: DrivenWayIntervalsDao(db),
+          invalidator: _NoopInvalidator(),
+          computeService: _NoopComputeService(db),
+        );
+
+  final List<int> discarded = <int>[];
+
+  @override
+  Future<Result<void>> discardTrip(int tripId) async {
+    discarded.add(tripId);
+    return const Ok(null);
+  }
 }
 
 TripListItem _item(int id, TripStatus status) => TripListItem(
@@ -66,6 +188,7 @@ Future<void> _pump(
   WidgetTester tester, {
   required List<TripListItem> history,
   int inFlight = 0,
+  TripsInboxRepository? inboxRepo,
 }) async {
   final router = GoRouter(
     initialLocation: '/',
@@ -91,6 +214,8 @@ Future<void> _pump(
           (ref, coords) async =>
               const TripPlaces(startName: 'Aschaffenburg', endName: 'Miltenberg'),
         ),
+        if (inboxRepo != null)
+          tripsInboxRepositoryProvider.overrideWithValue(inboxRepo),
       ],
       child: MaterialApp.router(routerConfig: router),
     ),
@@ -132,5 +257,55 @@ void main() {
     );
     await tester.pump();
     expect(find.byType(MatchingQueuePill), findsOneWidget);
+  });
+
+  testWidgets('long-press → confirm dialog → discardTrip called with trip id', (
+    tester,
+  ) async {
+    final db = AppDatabase(NativeDatabase.memory());
+    addTearDown(db.close);
+    final repo = _RecordingInboxRepo(db);
+
+    await _pump(
+      tester,
+      history: [_item(7, TripStatus.confirmed)],
+      inboxRepo: repo,
+    );
+    await tester.pump();
+
+    await tester.longPress(find.byType(HistoryRow));
+    await tester.pumpAndSettle();
+
+    // The shared discard-confirmation dialog is shown.
+    expect(find.byType(DiscardConfirmationDialog), findsOneWidget);
+
+    // Confirm ("Verwerfen" action in the dialog).
+    await tester.tap(find.widgetWithText(TextButton, 'Verwerfen'));
+    await tester.pumpAndSettle();
+
+    expect(repo.discarded, [7]);
+  });
+
+  testWidgets('long-press → cancel dialog → discardTrip NOT called', (
+    tester,
+  ) async {
+    final db = AppDatabase(NativeDatabase.memory());
+    addTearDown(db.close);
+    final repo = _RecordingInboxRepo(db);
+
+    await _pump(
+      tester,
+      history: [_item(7, TripStatus.confirmed)],
+      inboxRepo: repo,
+    );
+    await tester.pump();
+
+    await tester.longPress(find.byType(HistoryRow));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.widgetWithText(TextButton, 'Abbrechen'));
+    await tester.pumpAndSettle();
+
+    expect(repo.discarded, isEmpty);
   });
 }

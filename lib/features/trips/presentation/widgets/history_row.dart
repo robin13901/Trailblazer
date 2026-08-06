@@ -7,11 +7,17 @@
 //   * pending | pendingRoadData      → "Matching…" + spinner
 //   * confirmed                      → no pill
 // Never shows rejected trips (they are hard-deleted at Discard — CONTEXT
-// deviation from ROADMAP SC4). Tapping the row navigates to /trips/:id.
+// deviation from ROADMAP SC4). Tapping the row opens the trip detail sheet;
+// long-pressing it prompts to delete the trip (INB-04 discard flow, wired back
+// onto the flat history list after the Inbox card was retired 2026-07-13).
 
+import 'package:auto_explore/features/map/presentation/providers/selected_trip_provider.dart';
 import 'package:auto_explore/features/matching/data/match_progress_provider.dart';
+import 'package:auto_explore/features/trips/data/thumbnail_providers.dart';
 import 'package:auto_explore/features/trips/data/trip_place_lookup_providers.dart';
+import 'package:auto_explore/features/trips/data/trips_repository_inbox_extensions.dart';
 import 'package:auto_explore/features/trips/domain/trip_list_item.dart';
+import 'package:auto_explore/features/trips/presentation/widgets/discard_confirmation_dialog.dart';
 import 'package:auto_explore/features/trips/presentation/widgets/trip_card.dart'
     show formatDistance, formatDuration, formatTripDateTime, placeNamesLabel;
 import 'package:auto_explore/features/trips/presentation/widgets/trip_detail_sheet.dart';
@@ -19,16 +25,54 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// One History-list row.
-class HistoryRow extends ConsumerWidget {
+class HistoryRow extends ConsumerStatefulWidget {
   const HistoryRow({required this.item, super.key});
 
   final TripListItem item;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<HistoryRow> createState() => _HistoryRowState();
+}
+
+class _HistoryRowState extends ConsumerState<HistoryRow> {
+  /// Long-press → confirm → hard-delete the trip via the shared discard flow.
+  ///
+  /// Reuses [DiscardConfirmationDialog] + [TripsInboxRepository.discardTrip]
+  /// (the same ordered delete the retired Inbox card used): invalidate coverage
+  /// cache → delete THIS trip's intervals only → delete the trip row → recompute
+  /// from the intervals that remain. Roads also driven by other trips survive;
+  /// the row disappears on its own because the list is a DB stream. Silent on
+  /// success (user request: no toast, no undo).
+  Future<void> _confirmAndDelete() async {
+    final item = widget.item;
+    final confirmed = await DiscardConfirmationDialog.show(context);
+    if (!confirmed || !mounted) return;
+
+    final messenger = ScaffoldMessenger.of(context);
+    // If this trip is currently drawn on the map, drop the selection first so
+    // the map doesn't keep a turquoise line pointing at a deleted trip.
+    if (ref.read(selectedTripProvider) == item.id) {
+      ref.read(selectedTripProvider.notifier).clear();
+    }
+    final repo = ref.read(tripsInboxRepositoryProvider);
+    final cache = ref.read(thumbnailCacheProvider.notifier);
+    final result = await repo.discardTrip(item.id);
+    if (!mounted) return;
+    await result.when(
+      // Clear the cached thumbnail only after the delete is confirmed.
+      ok: (_) async => cache.delete(item.id),
+      err: (e) async =>
+          messenger.showSnackBar(SnackBar(content: Text(e.message))),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final item = widget.item;
     final theme = Theme.of(context);
     return ListTile(
       onTap: () => showTripDetailSheet(context, ref, item),
+      onLongPress: _confirmAndDelete,
       title: _PlaceNames(item: item),
       subtitle: Text(
         '${formatTripDateTime(item.startedAt)} · '
