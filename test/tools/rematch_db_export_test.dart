@@ -2,7 +2,7 @@
 //
 // This is a local visual-diagnostic harness, not production code — relaxed lints.
 // ignore_for_file: cascade_invocations, avoid_multiple_declarations_per_line
-// ignore_for_file: eol_at_end_of_file, avoid_print
+// ignore_for_file: avoid_print
 // ignore_for_file: unnecessary_parenthesis
 //
 // Reproduces the road-matching artifacts from the user's exported database and

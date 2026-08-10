@@ -166,10 +166,12 @@ class _RawGpsRetentionSectionState
 
   String _subtitleFor(int? days) {
     if (days == null) return 'Punkte werden nie automatisch gelöscht.';
-    if (days == 0)
+    if (days == 0) {
       return 'Punkte werden gelöscht, sobald die Fahrt Straßen zugeordnet ist.';
-    if (days == 365)
+    }
+    if (days == 365) {
       return 'Punkte, die älter als 1 Jahr sind, werden beim Fortsetzen gelöscht.';
+    }
     return 'Punkte, die älter als $days Tage sind, werden beim Fortsetzen gelöscht.';
   }
 
