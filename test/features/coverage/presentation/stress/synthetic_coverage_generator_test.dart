@@ -23,8 +23,11 @@ void main() {
     test('all wayIds equal their index', () {
       final ways = syntheticCoverageWays(count: 100);
       for (var i = 0; i < ways.length; i++) {
-        expect(ways[i].wayId, equals(i),
-            reason: 'wayId at index $i should be $i');
+        expect(
+          ways[i].wayId,
+          equals(i),
+          reason: 'wayId at index $i should be $i',
+        );
       }
     });
 
@@ -69,10 +72,14 @@ void main() {
         expect(a[i].datum, equals(b[i].datum));
         expect(a[i].geometry.length, equals(b[i].geometry.length));
         for (var p = 0; p < a[i].geometry.length; p++) {
-          expect(a[i].geometry[p].latitude,
-              closeTo(b[i].geometry[p].latitude, 1e-10));
-          expect(a[i].geometry[p].longitude,
-              closeTo(b[i].geometry[p].longitude, 1e-10));
+          expect(
+            a[i].geometry[p].latitude,
+            closeTo(b[i].geometry[p].latitude, 1e-10),
+          );
+          expect(
+            a[i].geometry[p].longitude,
+            closeTo(b[i].geometry[p].longitude, 1e-10),
+          );
         }
       }
     });
@@ -97,12 +104,14 @@ void main() {
       }
     });
 
-    test('default parameters: count=50000 and seed=42 compiles without error',
-        () {
-      // Smoke-test the default parameter signature — do NOT actually call with
-      // 50k in a unit test. Calling with count: 1 exercises the path.
-      expect(syntheticCoverageWays(count: 1).length, equals(1));
-    });
+    test(
+      'default parameters: count=50000 and seed=42 compiles without error',
+      () {
+        // Smoke-test the default parameter signature — do NOT actually call with
+        // 50k in a unit test. Calling with count: 1 exercises the path.
+        expect(syntheticCoverageWays(count: 1).length, equals(1));
+      },
+    );
   });
 
   group('syntheticCoverageWaysArgs', () {

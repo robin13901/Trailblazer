@@ -29,9 +29,9 @@ class TrackingCapabilityRepository {
 
   /// Persists [capability].
   Future<void> save(TrackingCapability capability) => _prefs.setString(
-        prefsKey,
-        capability == TrackingCapability.manualOnly ? 'manual_only' : 'full_auto',
-      );
+    prefsKey,
+    capability == TrackingCapability.manualOnly ? 'manual_only' : 'full_auto',
+  );
 
   /// Resolves the effective [TrackingCapability] from the three permission
   /// grants that gate background auto-recording.

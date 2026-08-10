@@ -49,11 +49,9 @@ class DiagnosticsMetrics {
 /// not an [OverpassWayCandidateSource], cacheHits/cacheMisses default to 0
 /// and cacheHitRate to null.
 Future<DiagnosticsMetrics> readDiagnosticsMetrics(WidgetRef ref) async {
-  final depth = (await ref
-          .read(appDatabaseProvider)
-          .pendingRoadFetchesDao
-          .listPending())
-      .length;
+  final depth =
+      (await ref.read(appDatabaseProvider).pendingRoadFetchesDao.listPending())
+          .length;
 
   final src = ref.read(wayCandidateSourceProvider);
   final hits = src is OverpassWayCandidateSource ? src.cacheHits : 0;

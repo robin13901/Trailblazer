@@ -85,8 +85,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             value: _showHud,
             onChanged: (v) => _setHudPref(show: v),
           ),
-          if (_showHud)
-            const _DiagnosticsTile(),
+          if (_showHud) const _DiagnosticsTile(),
 
           // ── About ────────────────────────────────────────────────────────
           const Divider(height: 1),

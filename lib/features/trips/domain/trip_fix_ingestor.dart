@@ -210,8 +210,12 @@ class TripFixIngestor {
     if (last != null) {
       final dt = input.ts.difference(last.ts);
       if (dt > gap) {
-        final distToRecovered =
-            haversineMeters(last.lat, last.lon, input.lat, input.lon);
+        final distToRecovered = haversineMeters(
+          last.lat,
+          last.lon,
+          input.lat,
+          input.lon,
+        );
 
         // Build the FixAccepted for the recovered point (used in both branches)
         final recovered = _buildAccepted(input, last, dt.inSeconds.toDouble());
@@ -231,8 +235,9 @@ class TripFixIngestor {
     }
 
     // 5. Accept
-    final dtSeconds =
-        last != null ? input.ts.difference(last.ts).inSeconds.toDouble() : 0.0;
+    final dtSeconds = last != null
+        ? input.ts.difference(last.ts).inSeconds.toDouble()
+        : 0.0;
     final accepted = _buildAccepted(input, last, dtSeconds);
     _acceptFix(input, accepted);
     return accepted;
@@ -258,9 +263,10 @@ class TripFixIngestor {
       _bboxMaxLon,
     );
 
-    final passes = !(durationSeconds < keeperMinSeconds ||
-        _totalDistanceMeters < keeperMinDistanceMeters ||
-        bboxDiagonal < keeperMinBboxDiagonalMeters);
+    final passes =
+        !(durationSeconds < keeperMinSeconds ||
+            _totalDistanceMeters < keeperMinDistanceMeters ||
+            bboxDiagonal < keeperMinBboxDiagonalMeters);
 
     return TripSummaryDraft(
       pointCount: _pointCount,

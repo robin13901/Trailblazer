@@ -69,30 +69,30 @@ String colorToHex(Color color) {
 
 /// A GeoJSON LineString feature from a list of points.
 Map<String, dynamic> _lineStringFeature(List<LatLng> points) => {
-      'type': 'Feature',
-      'geometry': {
-        'type': 'LineString',
-        'coordinates': [
-          for (final p in points) [p.longitude, p.latitude],
-        ],
-      },
-      'properties': <String, dynamic>{},
-    };
+  'type': 'Feature',
+  'geometry': {
+    'type': 'LineString',
+    'coordinates': [
+      for (final p in points) [p.longitude, p.latitude],
+    ],
+  },
+  'properties': <String, dynamic>{},
+};
 
 /// A GeoJSON MultiLineString feature from a list of segments.
 Map<String, dynamic> _multiLineStringFeature(List<List<LatLng>> segments) => {
-      'type': 'Feature',
-      'geometry': {
-        'type': 'MultiLineString',
-        'coordinates': [
-          for (final seg in segments)
-            [
-              for (final p in seg) [p.longitude, p.latitude],
-            ],
+  'type': 'Feature',
+  'geometry': {
+    'type': 'MultiLineString',
+    'coordinates': [
+      for (final seg in segments)
+        [
+          for (final p in seg) [p.longitude, p.latitude],
         ],
-      },
-      'properties': <String, dynamic>{},
-    };
+    ],
+  },
+  'properties': <String, dynamic>{},
+};
 
 /// The overlay-application seam. Overridable in tests via
 /// [tripOverlayApplierProvider] so the raw/matched adds can be recorded

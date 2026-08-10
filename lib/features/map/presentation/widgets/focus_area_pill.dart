@@ -77,8 +77,9 @@ class _FocusAreaPillState extends ConsumerState<FocusAreaPill>
 
     // Best available progress fraction across in-flight trips (0..1), if any.
     final progressMap = ref.watch(matchProgressProvider);
-    final fraction =
-        progressMap.isEmpty ? null : progressMap.values.reduce((a, b) => a > b ? a : b);
+    final fraction = progressMap.isEmpty
+        ? null
+        : progressMap.values.reduce((a, b) => a > b ? a : b);
 
     // Drive the pulse only while computing; stop + reset otherwise.
     if (computing) {
@@ -114,7 +115,8 @@ class _FocusAreaPillState extends ConsumerState<FocusAreaPill>
     }
 
     return Semantics(
-      label: 'Fokusgebiet: $name, ${computing ? subtitle : 'Abdeckung $percent'}',
+      label:
+          'Fokusgebiet: $name, ${computing ? subtitle : 'Abdeckung $percent'}',
       button: true,
       child: GestureDetector(
         onTap: () => unawaited(_openSheet(context, ref)),
@@ -147,8 +149,9 @@ class _FocusAreaPillState extends ConsumerState<FocusAreaPill>
                   name,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.bodyMedium
-                      ?.copyWith(fontWeight: FontWeight.w600),
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
                 Text(
                   subtitle,

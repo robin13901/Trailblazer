@@ -40,8 +40,7 @@ void main() {
   group('emissionLogProb', () {
     // Helper: hand-computed log-normalizer for sigma=4.07
     // logNorm = -0.5 * log(2 * pi * 4.07^2)
-    final logNorm4_07 =
-        -0.5 * math.log(2 * math.pi * 4.07 * 4.07);
+    final logNorm4_07 = -0.5 * math.log(2 * math.pi * 4.07 * 4.07);
 
     // Test 1: perpDist = 0  →  logNorm + 0
     test('perpDist=0, sigma=4.07 ≈ -2.3226 ±1e-6', () {

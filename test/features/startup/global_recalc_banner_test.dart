@@ -35,10 +35,12 @@ Future<void> _pumpBanner(
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
-        globalRecalcProgressProvider
-            .overrideWith(() => _FixedRecalcNotifier(state)),
-        coveragePresetValueProvider
-            .overrideWithValue(CoverageColorPreset.amber),
+        globalRecalcProgressProvider.overrideWith(
+          () => _FixedRecalcNotifier(state),
+        ),
+        coveragePresetValueProvider.overrideWithValue(
+          CoverageColorPreset.amber,
+        ),
       ],
       child: const MaterialApp(
         home: Scaffold(body: Center(child: GlobalRecalcBanner())),
@@ -64,8 +66,9 @@ void main() {
       expect(find.byType(LinearProgressIndicator), findsNothing);
     });
 
-    testWidgets('2. rematching(3, 20) shows Fahrt 3/20 + determinate bar',
-        (tester) async {
+    testWidgets('2. rematching(3, 20) shows Fahrt 3/20 + determinate bar', (
+      tester,
+    ) async {
       await _pumpBanner(
         tester,
         const GlobalRecalcState(
@@ -85,25 +88,30 @@ void main() {
       expect(bar.value, closeTo(3 / 20, 1e-9));
     });
 
-    testWidgets('3. recomputing shows coverage-rebuild text + indeterminate bar',
-        (tester) async {
-      await _pumpBanner(
-        tester,
-        const GlobalRecalcState(phase: GlobalRecalcPhase.recomputing),
-      );
+    testWidgets(
+      '3. recomputing shows coverage-rebuild text + indeterminate bar',
+      (tester) async {
+        await _pumpBanner(
+          tester,
+          const GlobalRecalcState(phase: GlobalRecalcPhase.recomputing),
+        );
 
-      expect(find.textContaining('Abdeckung wird neu berechnet'),
-          findsOneWidget);
+        expect(
+          find.textContaining('Abdeckung wird neu berechnet'),
+          findsOneWidget,
+        );
 
-      // Indeterminate bar: value is null.
-      final bar = tester.widget<LinearProgressIndicator>(
-        find.byType(LinearProgressIndicator),
-      );
-      expect(bar.value, isNull);
-    });
+        // Indeterminate bar: value is null.
+        final bar = tester.widget<LinearProgressIndicator>(
+          find.byType(LinearProgressIndicator),
+        );
+        expect(bar.value, isNull);
+      },
+    );
 
-    testWidgets('4. recomputing(4, 10) shows N/M + determinate bar at 0.4',
-        (tester) async {
+    testWidgets('4. recomputing(4, 10) shows N/M + determinate bar at 0.4', (
+      tester,
+    ) async {
       await _pumpBanner(
         tester,
         const GlobalRecalcState(
@@ -113,8 +121,10 @@ void main() {
         ),
       );
 
-      expect(find.textContaining('Abdeckung wird neu berechnet'),
-          findsOneWidget);
+      expect(
+        find.textContaining('Abdeckung wird neu berechnet'),
+        findsOneWidget,
+      );
       expect(find.textContaining('4/10'), findsOneWidget);
 
       // Determinate bar: value is 4/10.

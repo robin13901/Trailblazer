@@ -124,7 +124,9 @@ class _RegionDetailContent extends ConsumerWidget {
       // this the pill only refreshed once the user manually nudged the map
       // (on-device feedback 2026-07-18). Seed the live camera with the jump
       // target so the pill resolves the just-tapped region on the next frame.
-      ref.read(liveCameraProvider.notifier).update(
+      ref
+          .read(liveCameraProvider.notifier)
+          .update(
             CameraPosition(
               target: LatLng(target.latitude, target.longitude),
               zoom: target.zoom,
@@ -230,16 +232,18 @@ double _zoomForBbox(AdminRegion adm, {double extraTighten = 0.0}) {
   final lonSpan = (adm.bboxMaxLon - adm.bboxMinLon).abs().clamp(1e-6, 360.0);
 
   // Longitude: fraction of the world width the bbox occupies.
-  final lonZoom =
-      _log2((viewportW / worldTile) * (360.0 / lonSpan) * fraction);
+  final lonZoom = _log2((viewportW / worldTile) * (360.0 / lonSpan) * fraction);
 
   // Latitude: use the mercator-projected span so tall regions fit vertically.
   final latRad1 = adm.bboxMinLat * math.pi / 180.0;
   final latRad2 = adm.bboxMaxLat * math.pi / 180.0;
-  final mercSpan =
-      (_mercatorY(latRad2) - _mercatorY(latRad1)).abs().clamp(1e-9, 2 * math.pi);
-  final latZoom =
-      _log2((viewportH / worldTile) * (2 * math.pi / mercSpan) * fraction);
+  final mercSpan = (_mercatorY(latRad2) - _mercatorY(latRad1)).abs().clamp(
+    1e-9,
+    2 * math.pi,
+  );
+  final latZoom = _log2(
+    (viewportH / worldTile) * (2 * math.pi / mercSpan) * fraction,
+  );
 
   final z = math.min(lonZoom, latZoom) + baseTighten + extraTighten;
   return z.clamp(4.0, 15.0);
@@ -273,13 +277,15 @@ class _GlassDetailPanel extends StatelessWidget {
     // Scaffold surface (unlike over a MapLibre PlatformView), but we stay with
     // the same tinted approach for visual consistency and simplicity.
     final tint = isDark ? const Color(0x2A0A1728) : const Color(0x38FFFFFF);
-    final borderColor =
-        isDark ? const Color(0x40FFFFFF) : const Color(0x59FFFFFF);
+    final borderColor = isDark
+        ? const Color(0x40FFFFFF)
+        : const Color(0x59FFFFFF);
 
     return Container(
       decoration: BoxDecoration(
         color: colorScheme.surface.withValues(alpha: 0.97),
-        border: Border.all(color: borderColor),        borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+        border: Border.all(color: borderColor),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
         boxShadow: [
           BoxShadow(color: tint, blurRadius: 24, offset: const Offset(0, -4)),
         ],
@@ -417,9 +423,9 @@ class _StatRow extends StatelessWidget {
     this.valueStyle,
     this.valueWidget,
   }) : assert(
-          value != null || valueWidget != null,
-          'provide value or valueWidget',
-        );
+         value != null || valueWidget != null,
+         'provide value or valueWidget',
+       );
 
   final String label;
   final String? value;

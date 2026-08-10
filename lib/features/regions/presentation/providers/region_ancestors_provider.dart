@@ -51,8 +51,10 @@ const List<int> _ancestorLevels = [4, 6, 8, 9];
 /// The provider's concrete type (`FutureProviderFamily`) is internal to
 /// Riverpod, so the type is left inferred here.
 // ignore: specify_nonobvious_property_types
-final regionAncestorsProvider =
-    FutureProvider.family<List<RegionCrumb>, int>((ref, osmId) async {
+final regionAncestorsProvider = FutureProvider.family<List<RegionCrumb>, int>((
+  ref,
+  osmId,
+) async {
   final lookup = ref.watch(adminRegionLookupProvider);
   await lookup.ensureLoaded();
 

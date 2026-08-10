@@ -53,5 +53,6 @@ class LiveCameraNotifier extends Notifier<LiveCamera?> {
 /// Provider for the latest live camera position.
 ///
 /// Null until the first `onCameraMove` fires after map creation.
-final liveCameraProvider =
-    NotifierProvider<LiveCameraNotifier, LiveCamera?>(LiveCameraNotifier.new);
+final liveCameraProvider = NotifierProvider<LiveCameraNotifier, LiveCamera?>(
+  LiveCameraNotifier.new,
+);

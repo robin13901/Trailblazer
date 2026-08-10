@@ -22,5 +22,6 @@ class SelectedTripNotifier extends Notifier<int?> {
   void clear() => state = null;
 }
 
-final selectedTripProvider =
-    NotifierProvider<SelectedTripNotifier, int?>(SelectedTripNotifier.new);
+final selectedTripProvider = NotifierProvider<SelectedTripNotifier, int?>(
+  SelectedTripNotifier.new,
+);

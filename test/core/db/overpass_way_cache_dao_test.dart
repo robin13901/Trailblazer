@@ -166,8 +166,11 @@ void main() {
       expect(deleted, 2, reason: 'both 0-way tiles purged');
       expect(await dao.getByTile(12, 1, 1), isNull);
       expect(await dao.getByTile(12, 2, 2), isNull);
-      expect(await dao.getByTile(12, 3, 3), isNotNull,
-          reason: 'the real (17-way) tile survives');
+      expect(
+        await dao.getByTile(12, 3, 3),
+        isNotNull,
+        reason: 'the real (17-way) tile survives',
+      );
     });
   });
 }

@@ -55,8 +55,8 @@ class CoverageComputeIsolate {
   CoverageComputeIsolate({
     required AdminBytesLoader loadAdminBytes,
     required TotalsBytesLoader loadTotalsBytes,
-  })  : _loadAdminBytes = loadAdminBytes,
-        _loadTotalsBytes = loadTotalsBytes;
+  }) : _loadAdminBytes = loadAdminBytes,
+       _loadTotalsBytes = loadTotalsBytes;
 
   final AdminBytesLoader _loadAdminBytes;
   final TotalsBytesLoader _loadTotalsBytes;

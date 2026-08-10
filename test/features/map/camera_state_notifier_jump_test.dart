@@ -42,9 +42,7 @@ void main() {
       addTearDown(c.dispose);
 
       // Simulate the user having been in location-follow before jumping.
-      c
-          .read(cameraStateProvider.notifier)
-          .setFollowMode(FollowMode.location);
+      c.read(cameraStateProvider.notifier).setFollowMode(FollowMode.location);
       expect(c.read(cameraStateProvider).followMode, FollowMode.location);
 
       const target = CameraState(

@@ -124,8 +124,7 @@ class _EmptyWayCandidateSource implements WayCandidateSource {
     Set<TileId>? restrictTiles,
     bool cacheOnly = false,
     void Function(int done, int total)? onTileProgress,
-  }) async =>
-      const [];
+  }) async => const [];
 
   @override
   Future<List<RawTilePayload>> fetchRawTilesInBbox({
@@ -137,8 +136,7 @@ class _EmptyWayCandidateSource implements WayCandidateSource {
     Set<TileId>? restrictTiles,
     bool cacheOnly = false,
     void Function(int done, int total)? onTileProgress,
-  }) async =>
-      const [];
+  }) async => const [];
 }
 
 /// Stand-in [CoverageAttributionRunner] — never invoked ([_NoopComputeService]
@@ -147,8 +145,7 @@ Future<List<WayRegionAttributionRow>> _unusedCompute(
   List<Uint8List> gzippedTiles,
   List<LatLonBbox> tileBboxes,
   Set<int> alreadyAttributedWayIds,
-) async =>
-    const [];
+) async => const [];
 
 /// No-op CoverageComputeService — overrides recompute() so that the
 /// fire-and-forget call in confirmTrip completes immediately with Ok(0).
@@ -156,20 +153,21 @@ Future<List<WayRegionAttributionRow>> _unusedCompute(
 /// test/features/regions/data/coverage_compute_service_test.dart.
 class _NoopComputeService extends CoverageComputeService {
   _NoopComputeService(AppDatabase db)
-      : super(
-          intervalsDao: DrivenWayIntervalsDao(db),
-          waySource: _EmptyWayCandidateSource(),
-          regionLookup: _NullAdminRegionLookup(),
-          cacheDao: CoverageCacheDao(db),
-          tripsDao: TripsDao(db),
-          totalsLookup: RegionTotalsLookup(),
-          // recompute() is overridden below, so this runner is never invoked.
-          compute: _unusedCompute,
-        );
+    : super(
+        intervalsDao: DrivenWayIntervalsDao(db),
+        waySource: _EmptyWayCandidateSource(),
+        regionLookup: _NullAdminRegionLookup(),
+        cacheDao: CoverageCacheDao(db),
+        tripsDao: TripsDao(db),
+        totalsLookup: RegionTotalsLookup(),
+        // recompute() is overridden below, so this runner is never invoked.
+        compute: _unusedCompute,
+      );
 
   @override
-  Future<Result<int>> recompute({CoverageRecomputeProgress? onProgress}) async =>
-      const Ok(0);
+  Future<Result<int>> recompute({
+    CoverageRecomputeProgress? onProgress,
+  }) async => const Ok(0);
 }
 
 void main() {
@@ -199,7 +197,9 @@ void main() {
     required TripStatus status,
     bool withBbox = true,
   }) {
-    return db.into(db.trips).insert(
+    return db
+        .into(db.trips)
+        .insert(
           TripsCompanion.insert(
             startedAt: DateTime(2026, 7, 9, 8),
             endedAt: Value(DateTime(2026, 7, 9, 9)),
@@ -215,7 +215,9 @@ void main() {
 
   Future<void> seedIntervals(int tripId, int count) async {
     for (var i = 0; i < count; i++) {
-      await db.into(db.drivenWayIntervals).insert(
+      await db
+          .into(db.drivenWayIntervals)
+          .insert(
             DrivenWayIntervalsCompanion.insert(
               wayId: 1000 + i,
               tripId: Value(tripId),
@@ -228,8 +230,9 @@ void main() {
   }
 
   Future<TripStatus?> statusOf(int tripId) async {
-    final trip = await (db.select(db.trips)..where((t) => t.id.equals(tripId)))
-        .getSingleOrNull();
+    final trip = await (db.select(
+      db.trips,
+    )..where((t) => t.id.equals(tripId))).getSingleOrNull();
     return trip?.status;
   }
 
@@ -266,62 +269,70 @@ void main() {
   }
 
   group('confirmTrip', () {
-    test('flips matched → confirmed AND invalidates once with the tripId',
-        () async {
-      final id = await seedTrip(status: TripStatus.matched);
-      final invalidator = _RecordingInvalidator(log);
-      final repo = buildRepo(invalidator);
+    test(
+      'flips matched → confirmed AND invalidates once with the tripId',
+      () async {
+        final id = await seedTrip(status: TripStatus.matched);
+        final invalidator = _RecordingInvalidator(log);
+        final repo = buildRepo(invalidator);
 
-      final result = await repo.confirmTrip(id);
-      expect(result.isOk, isTrue);
-      expect(await statusOf(id), TripStatus.confirmed);
-      expect(invalidator.lastForTripId, id);
-      expect(
-        log.where((c) => c == 'invalidateForTrip').length,
-        1,
-      );
-    });
+        final result = await repo.confirmTrip(id);
+        expect(result.isOk, isTrue);
+        expect(await statusOf(id), TripStatus.confirmed);
+        expect(invalidator.lastForTripId, id);
+        expect(
+          log.where((c) => c == 'invalidateForTrip').length,
+          1,
+        );
+      },
+    );
 
-    test('invalidator error → status flip STILL succeeds, error swallowed',
-        () async {
-      final id = await seedTrip(status: TripStatus.matched);
-      final invalidator = _RecordingInvalidator(
-        log,
-        result: const Err(UnknownError('boom')),
-      );
-      final repo = buildRepo(invalidator);
+    test(
+      'invalidator error → status flip STILL succeeds, error swallowed',
+      () async {
+        final id = await seedTrip(status: TripStatus.matched);
+        final invalidator = _RecordingInvalidator(
+          log,
+          result: const Err(UnknownError('boom')),
+        );
+        final repo = buildRepo(invalidator);
 
-      final result = await repo.confirmTrip(id);
-      expect(result.isOk, isTrue);
-      expect(await statusOf(id), TripStatus.confirmed);
-    });
+        final result = await repo.confirmTrip(id);
+        expect(result.isOk, isTrue);
+        expect(await statusOf(id), TripStatus.confirmed);
+      },
+    );
 
-    test('non-matched trip: flip is idempotent no-op, invalidator still called',
-        () async {
-      final id = await seedTrip(status: TripStatus.pending);
-      final invalidator = _RecordingInvalidator(log);
-      final repo = buildRepo(invalidator);
+    test(
+      'non-matched trip: flip is idempotent no-op, invalidator still called',
+      () async {
+        final id = await seedTrip(status: TripStatus.pending);
+        final invalidator = _RecordingInvalidator(log);
+        final repo = buildRepo(invalidator);
 
-      final result = await repo.confirmTrip(id);
-      expect(result.isOk, isTrue);
-      // transitionToConfirmed writes confirmed unconditionally; the point
-      // is that the invalidator is invoked regardless (both idempotent).
-      expect(invalidator.lastForTripId, id);
-    });
+        final result = await repo.confirmTrip(id);
+        expect(result.isOk, isTrue);
+        // transitionToConfirmed writes confirmed unconditionally; the point
+        // is that the invalidator is invoked regardless (both idempotent).
+        expect(invalidator.lastForTripId, id);
+      },
+    );
   });
 
   group('discardTrip', () {
-    test('call ordering: invalidateForTripDelete → deleteByTrip → deleteTrip',
-        () async {
-      final id = await seedTrip(status: TripStatus.matched);
-      await seedIntervals(id, 3);
-      final invalidator = _RecordingInvalidator(log);
-      final repo = buildRepo(invalidator);
+    test(
+      'call ordering: invalidateForTripDelete → deleteByTrip → deleteTrip',
+      () async {
+        final id = await seedTrip(status: TripStatus.matched);
+        await seedIntervals(id, 3);
+        final invalidator = _RecordingInvalidator(log);
+        final repo = buildRepo(invalidator);
 
-      final result = await repo.discardTrip(id);
-      expect(result.isOk, isTrue);
-      expect(log, ['invalidateForTripDelete', 'deleteByTrip', 'deleteTrip']);
-    });
+        final result = await repo.discardTrip(id);
+        expect(result.isOk, isTrue);
+        expect(log, ['invalidateForTripDelete', 'deleteByTrip', 'deleteTrip']);
+      },
+    );
 
     test('deletes intervals + trip with no orphans left', () async {
       final id = await seedTrip(status: TripStatus.matched);
@@ -334,38 +345,42 @@ void main() {
       expect(await tripCount(id), 0);
     });
 
-    test('invalidator error → discard STILL deletes (error swallowed)',
-        () async {
-      final id = await seedTrip(status: TripStatus.matched);
-      await seedIntervals(id, 2);
-      final invalidator = _RecordingInvalidator(
-        log,
-        result: const Err(UnknownError('boom')),
-      );
-      final repo = buildRepo(invalidator);
+    test(
+      'invalidator error → discard STILL deletes (error swallowed)',
+      () async {
+        final id = await seedTrip(status: TripStatus.matched);
+        await seedIntervals(id, 2);
+        final invalidator = _RecordingInvalidator(
+          log,
+          result: const Err(UnknownError('boom')),
+        );
+        final repo = buildRepo(invalidator);
 
-      final result = await repo.discardTrip(id);
-      // A cache-invalidation hiccup must NOT strand the card: the delete
-      // proceeds and the trip is gone (regression for the 2026-07-10
-      // "Discard does nothing" report — invalidation was OOM-failing behind
-      // the 43 MB admin parse and aborting the delete).
-      expect(result.isOk, isTrue);
-      expect(await tripCount(id), 0);
-      expect(await orphanIntervalCount(), 0);
-      // The deletes were still issued despite the invalidation error.
-      expect(log, ['invalidateForTripDelete', 'deleteByTrip', 'deleteTrip']);
-    });
+        final result = await repo.discardTrip(id);
+        // A cache-invalidation hiccup must NOT strand the card: the delete
+        // proceeds and the trip is gone (regression for the 2026-07-10
+        // "Discard does nothing" report — invalidation was OOM-failing behind
+        // the 43 MB admin parse and aborting the delete).
+        expect(result.isOk, isTrue);
+        expect(await tripCount(id), 0);
+        expect(await orphanIntervalCount(), 0);
+        // The deletes were still issued despite the invalidation error.
+        expect(log, ['invalidateForTripDelete', 'deleteByTrip', 'deleteTrip']);
+      },
+    );
 
-    test('fail-matched trip (bbox null): invalidator Ok(0), delete completes',
-        () async {
-      final id = await seedTrip(status: TripStatus.matched, withBbox: false);
-      final invalidator = _RecordingInvalidator(log, result: const Ok(0));
-      final repo = buildRepo(invalidator);
+    test(
+      'fail-matched trip (bbox null): invalidator Ok(0), delete completes',
+      () async {
+        final id = await seedTrip(status: TripStatus.matched, withBbox: false);
+        final invalidator = _RecordingInvalidator(log, result: const Ok(0));
+        final repo = buildRepo(invalidator);
 
-      final result = await repo.discardTrip(id);
-      expect(result.isOk, isTrue);
-      expect(await tripCount(id), 0);
-    });
+        final result = await repo.discardTrip(id);
+        expect(result.isOk, isTrue);
+        expect(await tripCount(id), 0);
+      },
+    );
   });
 
   group('stream pass-throughs', () {

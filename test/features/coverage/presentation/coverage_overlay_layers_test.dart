@@ -100,25 +100,27 @@ void main() {
       expect(inputExpr[0], equals('zoom'));
     });
 
-    test('lineWidth has correct zoom stops: z8=2.5, z11=3.0, z13=4.0, z15=5.0, z18=7.0',
-        () {
-      final w = coverageLinePaintExpressions(
-        CoverageColorPreset.amber,
-        Brightness.light,
-      ).lineWidth;
-      // Stops start at index 3: zoom, value, zoom, value, ...
-      // [interpolate, [linear], [zoom], 8, 2.5, 11, 3.0, 13, 4.0, 15, 5.0, 18, 7.0]
-      expect(w[3], equals(8));
-      expect(w[4], closeTo(2.5, 1e-10));
-      expect(w[5], equals(11));
-      expect(w[6], closeTo(3.0, 1e-10));
-      expect(w[7], equals(13));
-      expect(w[8], closeTo(4.0, 1e-10));
-      expect(w[9], equals(15));
-      expect(w[10], closeTo(5.0, 1e-10));
-      expect(w[11], equals(18));
-      expect(w[12], closeTo(7.0, 1e-10));
-    });
+    test(
+      'lineWidth has correct zoom stops: z8=2.5, z11=3.0, z13=4.0, z15=5.0, z18=7.0',
+      () {
+        final w = coverageLinePaintExpressions(
+          CoverageColorPreset.amber,
+          Brightness.light,
+        ).lineWidth;
+        // Stops start at index 3: zoom, value, zoom, value, ...
+        // [interpolate, [linear], [zoom], 8, 2.5, 11, 3.0, 13, 4.0, 15, 5.0, 18, 7.0]
+        expect(w[3], equals(8));
+        expect(w[4], closeTo(2.5, 1e-10));
+        expect(w[5], equals(11));
+        expect(w[6], closeTo(3.0, 1e-10));
+        expect(w[7], equals(13));
+        expect(w[8], closeTo(4.0, 1e-10));
+        expect(w[9], equals(15));
+        expect(w[10], closeTo(5.0, 1e-10));
+        expect(w[11], equals(18));
+        expect(w[12], closeTo(7.0, 1e-10));
+      },
+    );
   });
 
   // -------------------------------------------------------------------------

@@ -19,7 +19,7 @@ import 'package:auto_explore/features/matching/domain/way_candidate.dart';
 
 class FixtureWayCandidateSource implements WayCandidateSource {
   FixtureWayCandidateSource({required List<WayCandidate> ways})
-      : _ways = List.unmodifiable(ways);
+    : _ways = List.unmodifiable(ways);
 
   /// Load a fixture from a gzipped Overpass JSON blob on disk.
   static Future<FixtureWayCandidateSource> fromGzippedOverpassJson(
@@ -88,7 +88,8 @@ class FixtureWayCandidateSource implements WayCandidateSource {
             'type': 'way',
             'id': w.wayId,
             'geometry': [
-              for (final p in w.geometry) {'lat': p.latitude, 'lon': p.longitude},
+              for (final p in w.geometry)
+                {'lat': p.latitude, 'lon': p.longitude},
             ],
             'tags': {'highway': w.highwayClass},
           },

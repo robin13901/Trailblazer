@@ -57,12 +57,12 @@ class OverpassWayCandidateSource implements WayCandidateSource {
     OverpassResponseParser parser = const OverpassResponseParser(),
     DateTime Function() now = DateTime.now,
     int fetchConcurrency = kOverpassFetchConcurrency,
-  })  : _client = client,
-        _cacheDao = cacheDao,
-        _tileMath = tileMath,
-        _parser = parser,
-        _now = now,
-        _fetchConcurrency = fetchConcurrency;
+  }) : _client = client,
+       _cacheDao = cacheDao,
+       _tileMath = tileMath,
+       _parser = parser,
+       _now = now,
+       _fetchConcurrency = fetchConcurrency;
 
   final OverpassClient _client;
   final OverpassWayCacheDao _cacheDao;

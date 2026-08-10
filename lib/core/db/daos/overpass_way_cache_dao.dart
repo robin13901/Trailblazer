@@ -23,11 +23,9 @@ class OverpassWayCacheDao extends DatabaseAccessor<AppDatabase>
 
   /// Read the cache entry for slippy tile (z, x, y). Null on miss.
   Future<OverpassWayCacheData?> getByTile(int z, int x, int y) {
-    return (select(overpassWayCache)
-          ..where(
-            (t) =>
-                t.tileZ.equals(z) & t.tileX.equals(x) & t.tileY.equals(y),
-          ))
+    return (select(overpassWayCache)..where(
+          (t) => t.tileZ.equals(z) & t.tileX.equals(x) & t.tileY.equals(y),
+        ))
         .getSingleOrNull();
   }
 
@@ -57,9 +55,9 @@ class OverpassWayCacheDao extends DatabaseAccessor<AppDatabase>
   /// Delete rows older than 30 days. Returns count deleted.
   Future<int> sweepTtl({DateTime? now}) {
     final cutoff = (now ?? DateTime.now()).subtract(_ttl);
-    return (delete(overpassWayCache)
-          ..where((t) => t.fetchedAt.isSmallerThanValue(cutoff)))
-        .go();
+    return (delete(
+      overpassWayCache,
+    )..where((t) => t.fetchedAt.isSmallerThanValue(cutoff))).go();
   }
 
   /// Delete every cached tile with `way_count == 0`. Returns count deleted.
@@ -95,10 +93,9 @@ class OverpassWayCacheDao extends DatabaseAccessor<AppDatabase>
     if (total <= _lruHighWaterBytes) return;
 
     var running = total;
-    final oldest =
-        await (select(overpassWayCache)
-              ..orderBy([(t) => OrderingTerm.asc(t.fetchedAt)]))
-            .get();
+    final oldest = await (select(
+      overpassWayCache,
+    )..orderBy([(t) => OrderingTerm.asc(t.fetchedAt)])).get();
     for (final row in oldest) {
       if (running <= _lruLowWaterBytes) break;
       await (delete(overpassWayCache)..where(

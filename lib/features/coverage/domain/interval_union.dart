@@ -17,10 +17,10 @@ import 'package:meta/meta.dart';
 @immutable
 class Interval {
   const Interval(this.startMeters, this.endMeters)
-      : assert(
-          endMeters >= startMeters,
-          'endMeters must be >= startMeters',
-        );
+    : assert(
+        endMeters >= startMeters,
+        'endMeters must be >= startMeters',
+      );
 
   final double startMeters;
   final double endMeters;

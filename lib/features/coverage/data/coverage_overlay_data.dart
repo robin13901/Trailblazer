@@ -38,9 +38,7 @@ class CoverageWay {
 
   @override
   bool operator ==(Object other) =>
-      other is CoverageWay &&
-      other.wayId == wayId &&
-      other.datum == datum;
+      other is CoverageWay && other.wayId == wayId && other.datum == datum;
 
   @override
   int get hashCode => Object.hash(wayId, datum);

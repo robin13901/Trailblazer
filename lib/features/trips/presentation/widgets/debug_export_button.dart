@@ -116,8 +116,7 @@ class _SlugPromptDialogState extends State<_SlugPromptDialog> {
           child: const Text('Abbrechen'),
         ),
         TextButton(
-          onPressed: () =>
-              Navigator.of(context).pop(_controller.text.trim()),
+          onPressed: () => Navigator.of(context).pop(_controller.text.trim()),
           child: const Text('Speichern'),
         ),
       ],

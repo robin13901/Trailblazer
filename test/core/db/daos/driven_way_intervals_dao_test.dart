@@ -130,9 +130,9 @@ void main() {
       // matches), but the interval row itself still exists with trip_id NULL.
       expect(await dao.getByTrip(tripId), isEmpty);
 
-      final nullRows = await (db.select(db.drivenWayIntervals)
-            ..where((t) => t.tripId.isNull()))
-          .get();
+      final nullRows = await (db.select(
+        db.drivenWayIntervals,
+      )..where((t) => t.tripId.isNull())).get();
       expect(nullRows, hasLength(1));
       expect(nullRows.first.wayId, 42);
       expect(nullRows.first.tripId, isNull);
@@ -267,64 +267,75 @@ void main() {
     );
 
     group('watchRevision', () {
-      test('advances on insert, delete, and re-match (delete+reinsert)',
-          () async {
-        final tripId = await seedTrip();
-        final ts = DateTime(2026, 7, 30);
+      test(
+        'advances on insert, delete, and re-match (delete+reinsert)',
+        () async {
+          final tripId = await seedTrip();
+          final ts = DateTime(2026, 7, 30);
 
-        // Collect emissions from the revision stream. Broadcast so the
-        // subscription is live before any write.
-        final revisions = <int>[];
-        final sub = dao.watchRevision().listen(revisions.add);
-        // Let the initial (empty-table) emission land: MAX(id) COALESCE 0 +
-        // COUNT 0 == 0.
-        await pumpEventQueue();
-        expect(revisions.last, 0, reason: 'empty table → revision 0');
+          // Collect emissions from the revision stream. Broadcast so the
+          // subscription is live before any write.
+          final revisions = <int>[];
+          final sub = dao.watchRevision().listen(revisions.add);
+          // Let the initial (empty-table) emission land: MAX(id) COALESCE 0 +
+          // COUNT 0 == 0.
+          await pumpEventQueue();
+          expect(revisions.last, 0, reason: 'empty table → revision 0');
 
-        // Insert one interval — revision must strictly increase.
-        await dao.insertBatch([
-          DrivenWayIntervalsCompanion.insert(
-            wayId: 1,
-            tripId: Value(tripId),
-            startMeters: 0,
-            endMeters: 100,
-            matchedAt: Value(ts),
-          ),
-        ]);
-        await pumpEventQueue();
-        final afterInsert = revisions.last;
-        expect(afterInsert, greaterThan(0),
-            reason: 'insert must advance the revision');
+          // Insert one interval — revision must strictly increase.
+          await dao.insertBatch([
+            DrivenWayIntervalsCompanion.insert(
+              wayId: 1,
+              tripId: Value(tripId),
+              startMeters: 0,
+              endMeters: 100,
+              matchedAt: Value(ts),
+            ),
+          ]);
+          await pumpEventQueue();
+          final afterInsert = revisions.last;
+          expect(
+            afterInsert,
+            greaterThan(0),
+            reason: 'insert must advance the revision',
+          );
 
-        // Re-match path: delete the trip's rows then reinsert. Even though the
-        // row COUNT returns to 1, MAX(id) climbs (autoincrement never reuses
-        // ids) so the revision is strictly higher than before — this is the
-        // exact case the 2026-07-30 overlay dedup fix depends on (a same-bbox
-        // re-drive that would otherwise emit an equal LatLngBounds).
-        await dao.deleteByTrip(tripId);
-        await pumpEventQueue();
-        final afterDelete = revisions.last;
-        expect(afterDelete, isNot(afterInsert),
-            reason: 'delete must change the revision');
+          // Re-match path: delete the trip's rows then reinsert. Even though the
+          // row COUNT returns to 1, MAX(id) climbs (autoincrement never reuses
+          // ids) so the revision is strictly higher than before — this is the
+          // exact case the 2026-07-30 overlay dedup fix depends on (a same-bbox
+          // re-drive that would otherwise emit an equal LatLngBounds).
+          await dao.deleteByTrip(tripId);
+          await pumpEventQueue();
+          final afterDelete = revisions.last;
+          expect(
+            afterDelete,
+            isNot(afterInsert),
+            reason: 'delete must change the revision',
+          );
 
-        await dao.insertBatch([
-          DrivenWayIntervalsCompanion.insert(
-            wayId: 1,
-            tripId: Value(tripId),
-            startMeters: 0,
-            endMeters: 100,
-            matchedAt: Value(ts),
-          ),
-        ]);
-        await pumpEventQueue();
-        final afterReinsert = revisions.last;
-        expect(afterReinsert, greaterThan(afterInsert),
+          await dao.insertBatch([
+            DrivenWayIntervalsCompanion.insert(
+              wayId: 1,
+              tripId: Value(tripId),
+              startMeters: 0,
+              endMeters: 100,
+              matchedAt: Value(ts),
+            ),
+          ]);
+          await pumpEventQueue();
+          final afterReinsert = revisions.last;
+          expect(
+            afterReinsert,
+            greaterThan(afterInsert),
             reason:
                 're-match (delete+reinsert) must advance PAST the prior value '
-                'via monotonic MAX(id)');
+                'via monotonic MAX(id)',
+          );
 
-        await sub.cancel();
-      });
+          await sub.cancel();
+        },
+      );
     });
   });
 }

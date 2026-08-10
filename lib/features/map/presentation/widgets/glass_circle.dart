@@ -36,7 +36,8 @@ class GlassCircle extends StatelessWidget {
         ? settings.darkGlassBorder
         : settings.lightGlassBorder;
 
-    final useGlass = settings.platformSupportsBlurOverMap &&
+    final useGlass =
+        settings.platformSupportsBlurOverMap &&
         (!overMap || settings.supportsBlurOverPlatformView);
 
     if (useGlass) {

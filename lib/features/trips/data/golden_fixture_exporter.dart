@@ -53,13 +53,13 @@ class GoldenFixtureExporter {
     required WayCandidateSource waySource,
     required DrivenWayIntervalsDao intervalsDao,
     Future<Directory> Function()? appDocsFactory,
-  })  : _tripsDao = tripsDao,
-        _waySource = waySource,
-        _intervalsDao = intervalsDao,
-        // The plan sketch typed this seam `Directory Function()?`, but
-        // `path_provider`'s resolver is async — so the seam is a
-        // `Future<Directory> Function()`. Tests pass `() async => tempDir`.
-        _appDocsFactory = appDocsFactory ?? getApplicationDocumentsDirectory;
+  }) : _tripsDao = tripsDao,
+       _waySource = waySource,
+       _intervalsDao = intervalsDao,
+       // The plan sketch typed this seam `Directory Function()?`, but
+       // `path_provider`'s resolver is async — so the seam is a
+       // `Future<Directory> Function()`. Tests pass `() async => tempDir`.
+       _appDocsFactory = appDocsFactory ?? getApplicationDocumentsDirectory;
 
   final TripsDao _tripsDao;
   final WayCandidateSource _waySource;

@@ -5,8 +5,7 @@ import 'package:auto_explore/features/trips/domain/trip_fix_input.dart';
 /// All timestamps are anchored to a fixed base to make tests deterministic.
 final _base = DateTime.utc(2026, 7, 5, 8);
 
-DateTime _t(int offsetSeconds) =>
-    _base.add(Duration(seconds: offsetSeconds));
+DateTime _t(int offsetSeconds) => _base.add(Duration(seconds: offsetSeconds));
 
 /// 10 fixes 1 s apart at ~40 km/h (~11.1 m/s), accuracy 8 m.
 /// Path: pure-northward steps along a Frankfurt road, each fix ~11.1 m apart.

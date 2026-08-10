@@ -37,8 +37,9 @@ class TrackingNotifier extends Notifier<TrackingState> {
 /// The singleton Riverpod provider for [TrackingState].
 ///
 /// Wave 3 (Plan 03-06) reads this to wire the FAB and the live-tracking panel.
-final trackingStateProvider =
-    NotifierProvider<TrackingNotifier, TrackingState>(TrackingNotifier.new);
+final trackingStateProvider = NotifierProvider<TrackingNotifier, TrackingState>(
+  TrackingNotifier.new,
+);
 
 /// Live per-fix stream (coordinate + heading), one event per accepted fix
 /// during recording. Passthrough of [TrackingService.liveFixStream].

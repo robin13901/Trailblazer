@@ -61,7 +61,10 @@ void main() {
     await tester.pumpAndSettle(const Duration(seconds: 1));
 
     // Splash resolved into onboarding page 1 (3-page permission ladder).
-    expect(find.textContaining('Standort während der Nutzung von OKF Buddy'), findsOneWidget);
+    expect(
+      find.textContaining('Standort während der Nutzung von OKF Buddy'),
+      findsOneWidget,
+    );
 
     // Tap page 1 Continue.
     await tester.tap(find.text('Weiter').first);
@@ -84,7 +87,10 @@ void main() {
 
     // MapScreen is active — BottomNavShell is the Dart-only landmark.
     expect(find.byType(BottomNavShell), findsOneWidget);
-    expect(find.textContaining('Standort während der Nutzung von OKF Buddy'), findsNothing);
+    expect(
+      find.textContaining('Standort während der Nutzung von OKF Buddy'),
+      findsNothing,
+    );
   });
 
   testWidgets('second launch: skips onboarding, lands on map shell', (

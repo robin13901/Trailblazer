@@ -248,55 +248,58 @@ void main() {
       expect(r[1].wayId, 201);
     });
 
-    test('queryTopK excludes segments beyond radius but inside coarse bbox', () {
-      // Place one segment very close and one that is inside the bbox but
-      // whose exact perp distance exceeds the radius.
-      //
-      // Segment A: directly below the query point (≈ 0.5 m away).
-      // Segment B: placed such that its bbox overlaps the query box but
-      // its nearest point on the polyline is ~50 m away.
-      const queryLat = 49.7000;
-      const queryLon = 9.1000;
+    test(
+      'queryTopK excludes segments beyond radius but inside coarse bbox',
+      () {
+        // Place one segment very close and one that is inside the bbox but
+        // whose exact perp distance exceeds the radius.
+        //
+        // Segment A: directly below the query point (≈ 0.5 m away).
+        // Segment B: placed such that its bbox overlaps the query box but
+        // its nearest point on the polyline is ~50 m away.
+        const queryLat = 49.7000;
+        const queryLon = 9.1000;
 
-      // Segment A is a tiny north-south segment touching the query point.
-      const segAWay = WayCandidate(
-        wayId: 300,
-        geometry: [
-          LatLng(49.6999, 9.1000),
-          LatLng(49.7001, 9.1000),
-        ],
-        highwayClass: 'residential',
-      );
+        // Segment A is a tiny north-south segment touching the query point.
+        const segAWay = WayCandidate(
+          wayId: 300,
+          geometry: [
+            LatLng(49.6999, 9.1000),
+            LatLng(49.7001, 9.1000),
+          ],
+          highwayClass: 'residential',
+        );
 
-      // Segment B runs east-west far from the query in longitude, but its
-      // bbox still overlaps the query bbox (at the same latitude band).
-      // Specifically, one endpoint is within the query bbox but the
-      // near-endpoint is still ~60 m east of the query point.
-      // 60 m at lat 49.7 ≈ 60 / (111320 * cos(49.7°)) ≈ 0.000839°
-      const segBWay = WayCandidate(
-        wayId: 301,
-        geometry: [
-          // Start point is inside bbox (only ~0° offset), but it's more
-          // than 25 m east of the query point at ~8 km/h longitude step.
-          LatLng(49.7000, 9.1004), // ~28 m east at lat 49.7
-          LatLng(49.7000, 9.1020), // farther east
-        ],
-        highwayClass: 'residential',
-      );
+        // Segment B runs east-west far from the query in longitude, but its
+        // bbox still overlaps the query bbox (at the same latitude band).
+        // Specifically, one endpoint is within the query bbox but the
+        // near-endpoint is still ~60 m east of the query point.
+        // 60 m at lat 49.7 ≈ 60 / (111320 * cos(49.7°)) ≈ 0.000839°
+        const segBWay = WayCandidate(
+          wayId: 301,
+          geometry: [
+            // Start point is inside bbox (only ~0° offset), but it's more
+            // than 25 m east of the query point at ~8 km/h longitude step.
+            LatLng(49.7000, 9.1004), // ~28 m east at lat 49.7
+            LatLng(49.7000, 9.1020), // farther east
+          ],
+          highwayClass: 'residential',
+        );
 
-      final farIdx = WaySegmentIndex.buildFromWays([segAWay, segBWay]);
-      final results = farIdx.queryTopK(
-        lat: queryLat,
-        lon: queryLon,
-        radiusMeters: 25,
-        k: 10,
-      );
+        final farIdx = WaySegmentIndex.buildFromWays([segAWay, segBWay]);
+        final results = farIdx.queryTopK(
+          lat: queryLat,
+          lon: queryLon,
+          radiusMeters: 25,
+          k: 10,
+        );
 
-      // Only segment A should be included (B's perp distance > 25 m).
-      final wayIds = results.map((s) => s.wayId).toList();
-      expect(wayIds, contains(300));
-      expect(wayIds, isNot(contains(301)));
-    });
+        // Only segment A should be included (B's perp distance > 25 m).
+        final wayIds = results.map((s) => s.wayId).toList();
+        expect(wayIds, contains(300));
+        expect(wayIds, isNot(contains(301)));
+      },
+    );
 
     // #11 beam dedupe (2026-07-26): a single multi-segment way must occupy at
     // most ONE beam slot so a near way cannot crowd a parallel way out of the
@@ -331,8 +334,11 @@ void main() {
 
       // No wayId appears twice.
       final ids = results.map((s) => s.wayId).toList();
-      expect(ids.toSet().length, equals(ids.length),
-          reason: 'each wayId appears at most once in the beam');
+      expect(
+        ids.toSet().length,
+        equals(ids.length),
+        reason: 'each wayId appears at most once in the beam',
+      );
       // Both distinct ways are represented (parallel way not crowded out).
       expect(ids.toSet(), containsAll(<int>{400, 401}));
       // The near way's single surviving segment is its NEAREST to the query.

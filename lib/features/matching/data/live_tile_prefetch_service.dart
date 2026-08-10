@@ -42,12 +42,12 @@ class LiveTilePrefetchService {
     TileBboxMath tileMath = const TileBboxMath(),
     Duration interval = const Duration(seconds: 45),
     int lagPoints = 15,
-  })  : _source = source,
-        _tripsDao = tripsDao,
-        _connectivity = connectivity,
-        _tileMath = tileMath,
-        _interval = interval,
-        _lagPoints = lagPoints;
+  }) : _source = source,
+       _tripsDao = tripsDao,
+       _connectivity = connectivity,
+       _tileMath = tileMath,
+       _interval = interval,
+       _lagPoints = lagPoints;
 
   final WayCandidateSource _source;
   final TripsDao _tripsDao;

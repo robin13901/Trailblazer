@@ -34,8 +34,7 @@ void main() {
   });
 
   group('resolveCapability (Plan 03-1-02 H5)', () {
-    test(
-        'Android + always.granted + notification.granted + '
+    test('Android + always.granted + notification.granted + '
         'ignoreBatteryOptimizations.granted → fullAuto', () {
       final cap = TrackingCapabilityRepository.resolveCapability(
         always: PermissionStatus.granted,
@@ -46,8 +45,7 @@ void main() {
       expect(cap, TrackingCapability.fullAuto);
     });
 
-    test(
-        'Android + always.granted + notification.granted + '
+    test('Android + always.granted + notification.granted + '
         'ignoreBatteryOptimizations.denied → manualOnly (H5 gap closed)', () {
       final cap = TrackingCapabilityRepository.resolveCapability(
         always: PermissionStatus.granted,
@@ -55,12 +53,14 @@ void main() {
         ignoreBatteryOptimizations: PermissionStatus.denied,
         isAndroidOverride: true,
       );
-      expect(cap, TrackingCapability.manualOnly,
-          reason: 'Samsung dismiss of Adaptive-Battery must degrade capability');
+      expect(
+        cap,
+        TrackingCapability.manualOnly,
+        reason: 'Samsung dismiss of Adaptive-Battery must degrade capability',
+      );
     });
 
-    test(
-        'Android + always.granted + notification.granted + '
+    test('Android + always.granted + notification.granted + '
         'ignoreBatteryOptimizations.permanentlyDenied → manualOnly', () {
       final cap = TrackingCapabilityRepository.resolveCapability(
         always: PermissionStatus.granted,
@@ -71,8 +71,7 @@ void main() {
       expect(cap, TrackingCapability.manualOnly);
     });
 
-    test(
-        'iOS + always.granted + notification.granted (via granted stub) '
+    test('iOS + always.granted + notification.granted (via granted stub) '
         '→ fullAuto (battery-opt argument ignored on iOS)', () {
       final cap = TrackingCapabilityRepository.resolveCapability(
         always: PermissionStatus.granted,
@@ -86,8 +85,7 @@ void main() {
       expect(cap, TrackingCapability.fullAuto);
     });
 
-    test(
-        'Android + always.denied + all others granted → manualOnly '
+    test('Android + always.denied + all others granted → manualOnly '
         '(classic Plan 03-05 path still works)', () {
       final cap = TrackingCapabilityRepository.resolveCapability(
         always: PermissionStatus.denied,
@@ -98,8 +96,7 @@ void main() {
       expect(cap, TrackingCapability.manualOnly);
     });
 
-    test(
-        'Android + always.granted + notification.denied + '
+    test('Android + always.granted + notification.denied + '
         'ignoreBatteryOptimizations.granted → manualOnly', () {
       final cap = TrackingCapabilityRepository.resolveCapability(
         always: PermissionStatus.granted,

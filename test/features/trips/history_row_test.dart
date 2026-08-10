@@ -92,7 +92,9 @@ void main() {
     expect(find.text('Keine Straßen abgeglichen'), findsOneWidget);
 
     // The chip text uses the theme error color.
-    final textWidget = tester.widget<Text>(find.text('Keine Straßen abgeglichen'));
+    final textWidget = tester.widget<Text>(
+      find.text('Keine Straßen abgeglichen'),
+    );
     expect(textWidget.style?.color, AppTheme.light.colorScheme.error);
   });
 

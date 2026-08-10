@@ -38,24 +38,29 @@ void main() {
         geomByWayId: {1: l.geom, 2: n.geom},
         nodesByWayId: {1: l.nodes, 2: n.nodes},
       );
-      expect(out.map((c) => c.wayId), isNot(contains(1)),
-          reason: 'dangling 5m leaf must be dropped as a thorn');
+      expect(
+        out.map((c) => c.wayId),
+        isNot(contains(1)),
+        reason: 'dangling 5m leaf must be dropped as a thorn',
+      );
       expect(out.map((c) => c.wayId), contains(2));
     });
 
-    test('short way with NO node ids is NOT thorn-dropped (fixture fallback)',
-        () {
-      final w = ewWay(lat: 49, lonStart: 9, points: 2, nodeIds: []);
-      final out = clipDrivenWays(
-        unionByWayId: {
-          1: [(0, 5)],
-        },
-        geomByWayId: {1: w.geom},
-        nodesByWayId: {1: const []},
-      );
-      // No positive topology → cannot classify as thorn → keep (old behavior).
-      expect(out.map((c) => c.wayId), contains(1));
-    });
+    test(
+      'short way with NO node ids is NOT thorn-dropped (fixture fallback)',
+      () {
+        final w = ewWay(lat: 49, lonStart: 9, points: 2, nodeIds: []);
+        final out = clipDrivenWays(
+          unionByWayId: {
+            1: [(0, 5)],
+          },
+          geomByWayId: {1: w.geom},
+          nodesByWayId: {1: const []},
+        );
+        // No positive topology → cannot classify as thorn → keep (old behavior).
+        expect(out.map((c) => c.wayId), contains(1));
+      },
+    );
   });
 
   group('clipDrivenWays — connector close', () {
@@ -78,8 +83,11 @@ void main() {
       expect(cSegs, isNotEmpty, reason: 'bridging connector must render');
       final drawn = polylineLengthMeters(cSegs.first.geometry);
       final full = polylineLengthMeters(c.geom);
-      expect(drawn, closeTo(full, full * 0.02),
-          reason: 'bridging connector drawn full-length to close the gap');
+      expect(
+        drawn,
+        closeTo(full, full * 0.02),
+        reason: 'bridging connector drawn full-length to close the gap',
+      );
     });
   });
 
@@ -89,7 +97,12 @@ void main() {
       // interval stops 10m short of A's end; B's starts 10m in. After stitch,
       // A's last point == A.geom.last and B's first == B.geom.first (== node).
       final a = ewWay(lat: 49, lonStart: 9, points: 3, nodeIds: [48, 49, 50]);
-      final b = ewWay(lat: 49, lonStart: 9.002, points: 3, nodeIds: [50, 51, 52]);
+      final b = ewWay(
+        lat: 49,
+        lonStart: 9.002,
+        points: 3,
+        nodeIds: [50, 51, 52],
+      );
       final aFull = polylineLengthMeters(a.geom);
       final out = clipDrivenWays(
         unionByWayId: {
@@ -104,13 +117,23 @@ void main() {
       // A's last point snapped to A.geom.last (the shared node coord); B's
       // first snapped to B.geom.first (same coord). They meet exactly.
       expect(aSeg.geometry.last.latitude, closeTo(a.geom.last.latitude, 1e-9));
-      expect(aSeg.geometry.last.longitude, closeTo(a.geom.last.longitude, 1e-9));
-      expect(bSeg.geometry.first.latitude, closeTo(b.geom.first.latitude, 1e-9));
       expect(
-          bSeg.geometry.first.longitude, closeTo(b.geom.first.longitude, 1e-9));
+        aSeg.geometry.last.longitude,
+        closeTo(a.geom.last.longitude, 1e-9),
+      );
+      expect(
+        bSeg.geometry.first.latitude,
+        closeTo(b.geom.first.latitude, 1e-9),
+      );
+      expect(
+        bSeg.geometry.first.longitude,
+        closeTo(b.geom.first.longitude, 1e-9),
+      );
       // And the two meeting points are identical (shared junction node).
-      expect(aSeg.geometry.last.longitude,
-          closeTo(bSeg.geometry.first.longitude, 1e-9));
+      expect(
+        aSeg.geometry.last.longitude,
+        closeTo(bSeg.geometry.first.longitude, 1e-9),
+      );
     });
   });
 
@@ -119,7 +142,12 @@ void main() {
       // Way M: ~292m (5 pts). Bridges A (start node 60) and B (end node 64),
       // but was only driven in the MIDDLE [75..125]. full > connector cap (80),
       // so CONNECTOR-CLOSE must NOT fire — only the middle ~50m is drawn.
-      final m = ewWay(lat: 49, lonStart: 9, points: 5, nodeIds: [60, 61, 62, 63, 64]);
+      final m = ewWay(
+        lat: 49,
+        lonStart: 9,
+        points: 5,
+        nodeIds: [60, 61, 62, 63, 64],
+      );
       final a = ewWay(lat: 49, lonStart: 8.999, points: 2, nodeIds: [59, 60]);
       final b = ewWay(lat: 49, lonStart: 9.004, points: 2, nodeIds: [64, 65]);
       final out = clipDrivenWays(
@@ -133,12 +161,18 @@ void main() {
       );
       final mSegs = out.where((c) => c.wayId == 1).toList();
       expect(mSegs, isNotEmpty);
-      final drawn =
-          mSegs.fold<double>(0, (a, c) => a + polylineLengthMeters(c.geometry));
+      final drawn = mSegs.fold<double>(
+        0,
+        (a, c) => a + polylineLengthMeters(c.geometry),
+      );
       final full = polylineLengthMeters(m.geom);
-      expect(drawn, lessThan(full * 0.5),
-          reason: 'long bridging way driven mid-span must NOT be full-drawn '
-              '(no over-draw of the undriven ends)');
+      expect(
+        drawn,
+        lessThan(full * 0.5),
+        reason:
+            'long bridging way driven mid-span must NOT be full-drawn '
+            '(no over-draw of the undriven ends)',
+      );
     });
   });
 }

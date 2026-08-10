@@ -97,7 +97,6 @@ class FocusPillNotifier extends Notifier<FocusPillState> {
         _debounce?.cancel();
         _debounce = null;
       })
-
       // Listen to the live camera without triggering a state reset. Using
       // ref.listen keeps the "hold-last-value" contract: the notifier's state
       // is NOT set back to a blank value on each camera change.
@@ -121,7 +120,6 @@ class FocusPillNotifier extends Notifier<FocusPillState> {
           ),
         );
       })
-
       // Listen to accepted GPS fixes. While recording, each fix (re)starts the
       // debounce and resolves the SMALLEST region containing the fix — always
       // finest-level-first so we show "Kleinheubach", not the enclosing
@@ -140,7 +138,6 @@ class FocusPillNotifier extends Notifier<FocusPillState> {
           );
         }
       })
-
       // Listen to coverage_cache writes (recompute deleteAll+upsert). When the
       // numbers for the currently-shown region change, re-resolve the LAST
       // location so the % updates in place — no camera move needed (#8). This
@@ -256,5 +253,6 @@ class FocusPillNotifier extends Notifier<FocusPillState> {
 /// [FocusPillState] that the FocusAreaPill widget renders.
 ///
 /// Plain [NotifierProvider] — no `@Riverpod` codegen.
-final focusPillProvider =
-    NotifierProvider<FocusPillNotifier, FocusPillState>(FocusPillNotifier.new);
+final focusPillProvider = NotifierProvider<FocusPillNotifier, FocusPillState>(
+  FocusPillNotifier.new,
+);

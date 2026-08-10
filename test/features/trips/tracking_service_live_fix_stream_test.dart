@@ -44,42 +44,46 @@ void main() {
   });
 
   group('TrackingService — liveFixStream', () {
-    test('emits one LiveFixSample per accepted fix with matching coordinates',
-        () async {
-      final svc = makeService();
-      await svc.init();
-      await svc.startManual();
+    test(
+      'emits one LiveFixSample per accepted fix with matching coordinates',
+      () async {
+        final svc = makeService();
+        await svc.init();
+        await svc.startManual();
 
-      final samples = <LiveFixSample>[];
-      final sub = svc.liveFixStream.listen(samples.add);
+        final samples = <LiveFixSample>[];
+        final sub = svc.liveFixStream.listen(samples.add);
 
-      // 3 in-vehicle fixes moving north — all accepted (accuracy 5 m << 25 m,
-      // 1 s apart, ~55 m/step).
-      final baseTs = DateTime.now();
-      for (var i = 0; i < 3; i++) {
-        facade.emitFix(FixInput(
-          ts: baseTs.add(Duration(seconds: i + 1)),
-          lat: 52.5200 + i * 0.0005,
-          lon: 13.4050,
-          accuracyMeters: 5,
-          speedMps: 8.33,
-          activityType: 'in_vehicle',
-          uuid: 'uuid-livefix-$i',
-        ));
-        await Future<void>.delayed(Duration.zero);
-      }
-      await Future<void>.delayed(const Duration(milliseconds: 100));
-      await sub.cancel();
+        // 3 in-vehicle fixes moving north — all accepted (accuracy 5 m << 25 m,
+        // 1 s apart, ~55 m/step).
+        final baseTs = DateTime.now();
+        for (var i = 0; i < 3; i++) {
+          facade.emitFix(
+            FixInput(
+              ts: baseTs.add(Duration(seconds: i + 1)),
+              lat: 52.5200 + i * 0.0005,
+              lon: 13.4050,
+              accuracyMeters: 5,
+              speedMps: 8.33,
+              activityType: 'in_vehicle',
+              uuid: 'uuid-livefix-$i',
+            ),
+          );
+          await Future<void>.delayed(Duration.zero);
+        }
+        await Future<void>.delayed(const Duration(milliseconds: 100));
+        await sub.cancel();
 
-      expect(svc.diagnostics.acceptCount, 3);
-      expect(samples, hasLength(3));
-      // Coordinates round-trip verbatim from the accepted fixes.
-      expect(samples[0].lat, closeTo(52.5200, 1e-9));
-      expect(samples[2].lat, closeTo(52.5200 + 2 * 0.0005, 1e-9));
-      expect(samples.every((s) => s.lon == 13.4050), isTrue);
+        expect(svc.diagnostics.acceptCount, 3);
+        expect(samples, hasLength(3));
+        // Coordinates round-trip verbatim from the accepted fixes.
+        expect(samples[0].lat, closeTo(52.5200, 1e-9));
+        expect(samples[2].lat, closeTo(52.5200 + 2 * 0.0005, 1e-9));
+        expect(samples.every((s) => s.lon == 13.4050), isTrue);
 
-      await svc.dispose();
-    });
+        await svc.dispose();
+      },
+    );
 
     test('carries a northbound heading (~0°) after movement', () async {
       final svc = makeService();
@@ -93,15 +97,17 @@ void main() {
       // bearing between consecutive fixes. Moving due north → ~0°/360°.
       final baseTs = DateTime.now();
       for (var i = 0; i < 3; i++) {
-        facade.emitFix(FixInput(
-          ts: baseTs.add(Duration(seconds: i + 1)),
-          lat: 52.5200 + i * 0.0005,
-          lon: 13.4050,
-          accuracyMeters: 5,
-          speedMps: 8.33,
-          activityType: 'in_vehicle',
-          uuid: 'uuid-livefix-hdg-$i',
-        ));
+        facade.emitFix(
+          FixInput(
+            ts: baseTs.add(Duration(seconds: i + 1)),
+            lat: 52.5200 + i * 0.0005,
+            lon: 13.4050,
+            accuracyMeters: 5,
+            speedMps: 8.33,
+            activityType: 'in_vehicle',
+            uuid: 'uuid-livefix-hdg-$i',
+          ),
+        );
         await Future<void>.delayed(Duration.zero);
       }
       await Future<void>.delayed(const Duration(milliseconds: 100));
@@ -112,8 +118,11 @@ void main() {
       expect(heading, isNotNull);
       final norm = heading! % 360.0;
       final closeToNorth = norm < 5.0 || norm > 355.0;
-      expect(closeToNorth, isTrue,
-          reason: 'northbound motion vector should read ~0°, got $norm');
+      expect(
+        closeToNorth,
+        isTrue,
+        reason: 'northbound motion vector should read ~0°, got $norm',
+      );
 
       await svc.dispose();
     });
@@ -128,35 +137,41 @@ void main() {
 
       final baseTs = DateTime.now();
       // Accept, reject (accuracy 500 > 25 m), accept.
-      facade.emitFix(FixInput(
-        ts: baseTs,
-        lat: 52.5200,
-        lon: 13.4050,
-        accuracyMeters: 5,
-        speedMps: 8.33,
-        activityType: 'in_vehicle',
-        uuid: 'uuid-livefix-rej-a',
-      ));
+      facade.emitFix(
+        FixInput(
+          ts: baseTs,
+          lat: 52.5200,
+          lon: 13.4050,
+          accuracyMeters: 5,
+          speedMps: 8.33,
+          activityType: 'in_vehicle',
+          uuid: 'uuid-livefix-rej-a',
+        ),
+      );
       await Future<void>.delayed(Duration.zero);
-      facade.emitFix(FixInput(
-        ts: baseTs.add(const Duration(seconds: 1)),
-        lat: 52.5205,
-        lon: 13.4050,
-        accuracyMeters: 500,
-        speedMps: 8.33,
-        activityType: 'in_vehicle',
-        uuid: 'uuid-livefix-rej-b',
-      ));
+      facade.emitFix(
+        FixInput(
+          ts: baseTs.add(const Duration(seconds: 1)),
+          lat: 52.5205,
+          lon: 13.4050,
+          accuracyMeters: 500,
+          speedMps: 8.33,
+          activityType: 'in_vehicle',
+          uuid: 'uuid-livefix-rej-b',
+        ),
+      );
       await Future<void>.delayed(Duration.zero);
-      facade.emitFix(FixInput(
-        ts: baseTs.add(const Duration(seconds: 2)),
-        lat: 52.5210,
-        lon: 13.4050,
-        accuracyMeters: 5,
-        speedMps: 8.33,
-        activityType: 'in_vehicle',
-        uuid: 'uuid-livefix-rej-c',
-      ));
+      facade.emitFix(
+        FixInput(
+          ts: baseTs.add(const Duration(seconds: 2)),
+          lat: 52.5210,
+          lon: 13.4050,
+          accuracyMeters: 5,
+          speedMps: 8.33,
+          activityType: 'in_vehicle',
+          uuid: 'uuid-livefix-rej-c',
+        ),
+      );
       await Future<void>.delayed(const Duration(milliseconds: 100));
       await sub.cancel();
 

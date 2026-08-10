@@ -87,7 +87,8 @@ const String coverageLayerId = 'coverage_layer';
   String lineColor,
   double lineOpacity,
   List<dynamic> lineWidth,
-}) coverageLinePaintExpressions(
+})
+coverageLinePaintExpressions(
   CoverageColorPreset preset,
   Brightness brightness,
 ) {
@@ -109,11 +110,16 @@ const String coverageLayerId = 'coverage_layer';
     'interpolate',
     <dynamic>['linear'],
     <dynamic>['zoom'],
-    8, 2.5,
-    11, 3.0,
-    13, 4.0,
-    15, 5.0,
-    18, 7.0,
+    8,
+    2.5,
+    11,
+    3.0,
+    13,
+    4.0,
+    15,
+    5.0,
+    18,
+    7.0,
   ];
 
   return (

@@ -101,10 +101,11 @@ class _RawGpsRetentionSectionState
     if (_isShorter(choice, previous)) {
       // Purge immediately after confirmation.
       final messenger = ScaffoldMessenger.of(context);
-      final result =
-          await ref.read(tripsRepositoryProvider).sweepRawGpsRetention(
-                retention: Duration(days: choice ?? 0),
-              );
+      final result = await ref
+          .read(tripsRepositoryProvider)
+          .sweepRawGpsRetention(
+            retention: Duration(days: choice ?? 0),
+          );
       if (!mounted) return;
       result.when(
         ok: (n) => messenger.showSnackBar(
@@ -135,9 +136,9 @@ class _RawGpsRetentionSectionState
         content: Text(
           newDays == 0
               ? 'Alle Roh-Standortpunkte abgeglichener Fahrten werden gelöscht. '
-                  'Abgeglichene Straßen sind nicht betroffen.'
+                    'Abgeglichene Straßen sind nicht betroffen.'
               : 'Roh-Standortpunkte für Fahrten, die älter als $windowLabel sind, werden '
-                  'gelöscht. Abgeglichene Straßen sind nicht betroffen.',
+                    'gelöscht. Abgeglichene Straßen sind nicht betroffen.',
         ),
         actions: [
           TextButton(
@@ -165,8 +166,10 @@ class _RawGpsRetentionSectionState
 
   String _subtitleFor(int? days) {
     if (days == null) return 'Punkte werden nie automatisch gelöscht.';
-    if (days == 0) return 'Punkte werden gelöscht, sobald die Fahrt Straßen zugeordnet ist.';
-    if (days == 365) return 'Punkte, die älter als 1 Jahr sind, werden beim Fortsetzen gelöscht.';
+    if (days == 0)
+      return 'Punkte werden gelöscht, sobald die Fahrt Straßen zugeordnet ist.';
+    if (days == 365)
+      return 'Punkte, die älter als 1 Jahr sind, werden beim Fortsetzen gelöscht.';
     return 'Punkte, die älter als $days Tage sind, werden beim Fortsetzen gelöscht.';
   }
 

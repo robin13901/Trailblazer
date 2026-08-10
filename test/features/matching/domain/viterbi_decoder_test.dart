@@ -105,10 +105,10 @@ List<GpsFix> eastBoundFixes({
 
 /// Single-segment E-W way for trivial tests.
 WayCandidate tinyEW(int wayId) => WayCandidate(
-      wayId: wayId,
-      geometry: const [LatLng(49, 9), LatLng(49, 9.001)],
-      highwayClass: 'residential',
-    );
+  wayId: wayId,
+  geometry: const [LatLng(49, 9), LatLng(49, 9.001)],
+  highwayClass: 'residential',
+);
 
 void main() {
   // ---------------------------------------------------------------------------
@@ -295,23 +295,27 @@ void main() {
 
     // First sub-track: fixes 0..4, 1 second apart.
     for (var i = 0; i < 5; i++) {
-      fixes.add(GpsFix(
-        lat: 49,
-        lon: 9 + i * 0.001,
-        accuracyMeters: 5,
-        speedKmh: 50,
-        ts: baseTime.add(Duration(seconds: i)),
-      ));
+      fixes.add(
+        GpsFix(
+          lat: 49,
+          lon: 9 + i * 0.001,
+          accuracyMeters: 5,
+          speedKmh: 50,
+          ts: baseTime.add(Duration(seconds: i)),
+        ),
+      );
     }
     // Gap: fixes 5..9 are 90 seconds after fix 4 each.
     for (var i = 5; i < 10; i++) {
-      fixes.add(GpsFix(
-        lat: 49,
-        lon: 9.005 + (i - 5) * 0.001,
-        accuracyMeters: 5,
-        speedKmh: 50,
-        ts: baseTime.add(Duration(seconds: 4 + (i - 4) * 90)),
-      ));
+      fixes.add(
+        GpsFix(
+          lat: 49,
+          lon: 9.005 + (i - 5) * 0.001,
+          accuracyMeters: 5,
+          speedKmh: 50,
+          ts: baseTime.add(Duration(seconds: 4 + (i - 4) * 90)),
+        ),
+      );
     }
 
     final result = decoder.decode(fixes, index);
@@ -334,8 +338,7 @@ void main() {
   // first null back-pointer and silently drop every step BEFORE it. The fix
   // re-chases the prefix so ALL matched fixes are written.
   // ---------------------------------------------------------------------------
-  test('7b. mid-subtrack broken-path reset still writes the pre-reset half',
-      () {
+  test('7b. mid-subtrack broken-path reset still writes the pre-reset half', () {
     // Way A: E-W around lon 9.000-9.004 at lat 49.
     final wayA = eastWestWay(
       wayId: 701,
@@ -361,24 +364,28 @@ void main() {
     final fixes = <GpsFix>[];
     // Fixes 0..4 hug way A.
     for (var i = 0; i < 5; i++) {
-      fixes.add(GpsFix(
-        lat: 49,
-        lon: 9.000 + i * 0.001,
-        accuracyMeters: 5,
-        speedKmh: 50,
-        ts: base.add(Duration(seconds: i)),
-      ));
+      fixes.add(
+        GpsFix(
+          lat: 49,
+          lon: 9.000 + i * 0.001,
+          accuracyMeters: 5,
+          speedKmh: 50,
+          ts: base.add(Duration(seconds: i)),
+        ),
+      );
     }
     // Fixes 5..9 hug way B — only 1 s later each (NO time gap → same sub-track),
     // but spatially disconnected so the A→B transition is a broken path.
     for (var i = 5; i < 10; i++) {
-      fixes.add(GpsFix(
-        lat: 49.20,
-        lon: 9.000 + (i - 5) * 0.001,
-        accuracyMeters: 5,
-        speedKmh: 50,
-        ts: base.add(Duration(seconds: i)),
-      ));
+      fixes.add(
+        GpsFix(
+          lat: 49.20,
+          lon: 9.000 + (i - 5) * 0.001,
+          accuracyMeters: 5,
+          speedKmh: 50,
+          ts: base.add(Duration(seconds: i)),
+        ),
+      );
     }
 
     final result = decoder.decode(fixes, index, nodeGraph: nodeGraph);
@@ -387,8 +394,11 @@ void main() {
     // The PRE-reset half (way A, fixes 0..4) must be written — this is exactly
     // what the old traceback dropped.
     for (var i = 0; i < 5; i++) {
-      expect(result[i], isNotNull,
-          reason: 'fix $i on way A must be matched, not dropped');
+      expect(
+        result[i],
+        isNotNull,
+        reason: 'fix $i on way A must be matched, not dropped',
+      );
       expect(result[i]!.wayId, equals(701));
     }
     // The post-reset half (way B) is matched too.
@@ -429,181 +439,196 @@ void main() {
   // ---------------------------------------------------------------------------
   // Test 9: One-way violation — backward motion penalized
   // ---------------------------------------------------------------------------
-  test('9. one-way: backward motion on forward way vs bidirectional parallel', () {
-    // Two parallel ways:
-    //   way 91: oneway=forward, lat 49.0
-    //   way 92: oneway=no,      lat 49.000090 (~10 m north)
-    // Fixes move E→W (backward along way 91's stored node order).
-    final onewayEast = eastWestWay(
-      wayId: 91,
-      latBase: 49,
-      lonStart: 9,
-      lonEnd: 9.01,
-      oneway: OnewayDirection.forward,
-    );
-    final bothWay = eastWestWay(
-      wayId: 92,
-      latBase: 49.000090, // ~10 m north
-      lonStart: 9,
-      lonEnd: 9.01,
-    );
-    final index = WaySegmentIndex.buildFromWays([onewayEast, bothWay]);
-    const decoder = ViterbiDecoder();
-
-    // 3 fixes moving W (decreasing lon) — backward along way 91's node order.
-    final baseTime = DateTime.utc(2026, 7, 8, 12);
-    final fixes = [
-      GpsFix(
-        lat: 49,
-        lon: 9.008,
-        accuracyMeters: 5,
-        speedKmh: 30,
-        ts: baseTime,
-      ),
-      GpsFix(
-        lat: 49,
-        lon: 9.006,
-        accuracyMeters: 5,
-        speedKmh: 30,
-        ts: baseTime.add(const Duration(seconds: 1)),
-      ),
-      GpsFix(
-        lat: 49,
-        lon: 9.004,
-        accuracyMeters: 5,
-        speedKmh: 30,
-        ts: baseTime.add(const Duration(seconds: 2)),
-      ),
-    ];
-
-    final result = decoder.decode(fixes, index);
-    expect(result, hasLength(3));
-
-    // Way 91 has better emission (0 m vs 10 m) but incurs the oneway-
-    // violation penalty on backward-moving transitions.
-    // Accept both outcomes: either the penalty steered to way 92,
-    // OR way 91 won (physically closer) but direction is 'backward'.
-    final wayIds = result.map((s) => s?.wayId).toList();
-    final allOnOneway = wayIds.every((id) => id == 91);
-    if (allOnOneway) {
-      // Way 91 won despite the penalty. Verify direction is labeled correctly.
-      expect(
-        result[1]!.direction,
-        equals('backward'),
-        reason: 'Backward motion on oneway=forward way must be labeled backward',
+  test(
+    '9. one-way: backward motion on forward way vs bidirectional parallel',
+    () {
+      // Two parallel ways:
+      //   way 91: oneway=forward, lat 49.0
+      //   way 92: oneway=no,      lat 49.000090 (~10 m north)
+      // Fixes move E→W (backward along way 91's stored node order).
+      final onewayEast = eastWestWay(
+        wayId: 91,
+        latBase: 49,
+        lonStart: 9,
+        lonEnd: 9.01,
+        oneway: OnewayDirection.forward,
       );
-    } else {
-      // Penalty steered some steps to the bidirectional way.
-      expect(
-        wayIds.any((id) => id == 92),
-        isTrue,
-        reason: 'Oneway penalty should steer some steps to bidirectional way',
+      final bothWay = eastWestWay(
+        wayId: 92,
+        latBase: 49.000090, // ~10 m north
+        lonStart: 9,
+        lonEnd: 9.01,
       );
-    }
-  });
+      final index = WaySegmentIndex.buildFromWays([onewayEast, bothWay]);
+      const decoder = ViterbiDecoder();
+
+      // 3 fixes moving W (decreasing lon) — backward along way 91's node order.
+      final baseTime = DateTime.utc(2026, 7, 8, 12);
+      final fixes = [
+        GpsFix(
+          lat: 49,
+          lon: 9.008,
+          accuracyMeters: 5,
+          speedKmh: 30,
+          ts: baseTime,
+        ),
+        GpsFix(
+          lat: 49,
+          lon: 9.006,
+          accuracyMeters: 5,
+          speedKmh: 30,
+          ts: baseTime.add(const Duration(seconds: 1)),
+        ),
+        GpsFix(
+          lat: 49,
+          lon: 9.004,
+          accuracyMeters: 5,
+          speedKmh: 30,
+          ts: baseTime.add(const Duration(seconds: 2)),
+        ),
+      ];
+
+      final result = decoder.decode(fixes, index);
+      expect(result, hasLength(3));
+
+      // Way 91 has better emission (0 m vs 10 m) but incurs the oneway-
+      // violation penalty on backward-moving transitions.
+      // Accept both outcomes: either the penalty steered to way 92,
+      // OR way 91 won (physically closer) but direction is 'backward'.
+      final wayIds = result.map((s) => s?.wayId).toList();
+      final allOnOneway = wayIds.every((id) => id == 91);
+      if (allOnOneway) {
+        // Way 91 won despite the penalty. Verify direction is labeled correctly.
+        expect(
+          result[1]!.direction,
+          equals('backward'),
+          reason:
+              'Backward motion on oneway=forward way must be labeled backward',
+        );
+      } else {
+        // Penalty steered some steps to the bidirectional way.
+        expect(
+          wayIds.any((id) => id == 92),
+          isTrue,
+          reason: 'Oneway penalty should steer some steps to bidirectional way',
+        );
+      }
+    },
+  );
 
   // ---------------------------------------------------------------------------
   // Test 10: Deterministic output — two runs produce identical results
   // ---------------------------------------------------------------------------
-  test('10. deterministic: two runs on same input produce identical output', () {
-    final way1 = eastWestWay(wayId: 101, latBase: 49, lonStart: 9, lonEnd: 9.01);
-    final way2 = northSouthWay(
-      wayId: 102,
-      lonBase: 9.005,
-      latStart: 48.99,
-      latEnd: 49.01,
-    );
-    final index = WaySegmentIndex.buildFromWays([way1, way2]);
-    const decoder = ViterbiDecoder();
-
-    final fixes = eastBoundFixes(
-      lat: 49,
-      lonStart: 9.001,
-      lonEnd: 9.009,
-      count: 5,
-    );
-
-    final result1 = decoder.decode(fixes, index);
-    final result2 = decoder.decode(fixes, index);
-
-    expect(result1, hasLength(result2.length));
-    for (var i = 0; i < result1.length; i++) {
-      expect(
-        result1[i]?.toString(),
-        equals(result2[i]?.toString()),
-        reason: 'Step $i must be identical across runs',
+  test(
+    '10. deterministic: two runs on same input produce identical output',
+    () {
+      final way1 = eastWestWay(
+        wayId: 101,
+        latBase: 49,
+        lonStart: 9,
+        lonEnd: 9.01,
       );
-    }
-  });
+      final way2 = northSouthWay(
+        wayId: 102,
+        lonBase: 9.005,
+        latStart: 48.99,
+        latEnd: 49.01,
+      );
+      final index = WaySegmentIndex.buildFromWays([way1, way2]);
+      const decoder = ViterbiDecoder();
+
+      final fixes = eastBoundFixes(
+        lat: 49,
+        lonStart: 9.001,
+        lonEnd: 9.009,
+        count: 5,
+      );
+
+      final result1 = decoder.decode(fixes, index);
+      final result2 = decoder.decode(fixes, index);
+
+      expect(result1, hasLength(result2.length));
+      for (var i = 0; i < result1.length; i++) {
+        expect(
+          result1[i]?.toString(),
+          equals(result2[i]?.toString()),
+          reason: 'Step $i must be identical across runs',
+        );
+      }
+    },
+  );
 
   // ---------------------------------------------------------------------------
   // Test 11: Beam width matters — k=5 solves a scenario k=1 cannot
   // ---------------------------------------------------------------------------
-  test('11. beam width: k=5 keeps correct sequence; k=1 only retains nearest', () {
-    // 6 parallel N-S ways at lon 9.0, 9.0001, ..., 9.0005.
-    // Fix 0: lon=9.0     → closest to way 111 (index 0)
-    // Fix 1: lon=9.0002  → closest to way 113 (index 2)
-    // Fix 2: lon=9.0005  → exactly on way 116 (index 5)
-    //
-    // k=5 carries the full beam so way 116 is always a candidate.
-    // k=1 at fix 0 keeps only way 111; at fix 1 it must pick way 113
-    // (the nearest at that step).
-    final ways = List.generate(
-      6,
-      (i) => northSouthWay(
-        wayId: 111 + i,
-        lonBase: 9 + i * 0.0001,
-        latStart: 48.995,
-        latEnd: 49.005,
-      ),
-    );
-    final index = WaySegmentIndex.buildFromWays(ways);
+  test(
+    '11. beam width: k=5 keeps correct sequence; k=1 only retains nearest',
+    () {
+      // 6 parallel N-S ways at lon 9.0, 9.0001, ..., 9.0005.
+      // Fix 0: lon=9.0     → closest to way 111 (index 0)
+      // Fix 1: lon=9.0002  → closest to way 113 (index 2)
+      // Fix 2: lon=9.0005  → exactly on way 116 (index 5)
+      //
+      // k=5 carries the full beam so way 116 is always a candidate.
+      // k=1 at fix 0 keeps only way 111; at fix 1 it must pick way 113
+      // (the nearest at that step).
+      final ways = List.generate(
+        6,
+        (i) => northSouthWay(
+          wayId: 111 + i,
+          lonBase: 9 + i * 0.0001,
+          latStart: 48.995,
+          latEnd: 49.005,
+        ),
+      );
+      final index = WaySegmentIndex.buildFromWays(ways);
 
-    final fixes = [
-      GpsFix(
-        lat: 49,
-        lon: 9,
-        accuracyMeters: 5,
-        speedKmh: 30,
-        ts: DateTime.utc(2026, 7, 8, 12),
-      ),
-      GpsFix(
-        lat: 49,
-        lon: 9.0002,
-        accuracyMeters: 5,
-        speedKmh: 30,
-        ts: DateTime.utc(2026, 7, 8, 12, 0, 1),
-      ),
-      GpsFix(
-        lat: 49,
-        lon: 9.0005,
-        accuracyMeters: 5,
-        speedKmh: 30,
-        ts: DateTime.utc(2026, 7, 8, 12, 0, 2),
-      ),
-    ];
+      final fixes = [
+        GpsFix(
+          lat: 49,
+          lon: 9,
+          accuracyMeters: 5,
+          speedKmh: 30,
+          ts: DateTime.utc(2026, 7, 8, 12),
+        ),
+        GpsFix(
+          lat: 49,
+          lon: 9.0002,
+          accuracyMeters: 5,
+          speedKmh: 30,
+          ts: DateTime.utc(2026, 7, 8, 12, 0, 1),
+        ),
+        GpsFix(
+          lat: 49,
+          lon: 9.0005,
+          accuracyMeters: 5,
+          speedKmh: 30,
+          ts: DateTime.utc(2026, 7, 8, 12, 0, 2),
+        ),
+      ];
 
-    // k=5: fix 2 must match to way 116 (nearest at lon 9.0005).
-    const decoder5 = ViterbiDecoder();
-    final result5 = decoder5.decode(fixes, index);
-    expect(result5, hasLength(3));
-    expect(result5[2], isNotNull);
-    expect(result5[2]!.wayId, equals(116));
+      // k=5: fix 2 must match to way 116 (nearest at lon 9.0005).
+      const decoder5 = ViterbiDecoder();
+      final result5 = decoder5.decode(fixes, index);
+      expect(result5, hasLength(3));
+      expect(result5[2], isNotNull);
+      expect(result5[2]!.wayId, equals(116));
 
-    // k=1: at fix 1 (lon=9.0002), only the nearest is kept → way 113.
-    const decoder1 = ViterbiDecoder(beamWidth: 1);
-    final result1 = decoder1.decode(fixes, index);
-    expect(result1, hasLength(3));
-    expect(result1[1], isNotNull);
-    expect(
-      result1[1]!.wayId,
-      equals(113),
-      reason: 'k=1: at lon=9.0002, nearest candidate is way 113',
-    );
+      // k=1: at fix 1 (lon=9.0002), only the nearest is kept → way 113.
+      const decoder1 = ViterbiDecoder(beamWidth: 1);
+      final result1 = decoder1.decode(fixes, index);
+      expect(result1, hasLength(3));
+      expect(result1[1], isNotNull);
+      expect(
+        result1[1]!.wayId,
+        equals(113),
+        reason: 'k=1: at lon=9.0002, nearest candidate is way 113',
+      );
 
-    // kBeamWidth constant check (MMT-04).
-    expect(kBeamWidth, equals(5), reason: 'MMT-04 requires kBeamWidth = 5');
-  });
+      // kBeamWidth constant check (MMT-04).
+      expect(kBeamWidth, equals(5), reason: 'MMT-04 requires kBeamWidth = 5');
+    },
+  );
 
   // ---------------------------------------------------------------------------
   // Test 12: Result length equals input length
@@ -632,55 +657,62 @@ void main() {
   // ---------------------------------------------------------------------------
   // Test 13: onProgress fires with monotonic processed + final == total
   // ---------------------------------------------------------------------------
-  test('13. onProgress: monotonic increasing processed, final equals total',
-      () {
-    // 300 fixes crosses the 128-fix stride twice (128, 256, 300).
-    const n = 300;
-    final way = eastWestWay(wayId: 13, latBase: 49, lonStart: 9, lonEnd: 9.05);
-    final index = WaySegmentIndex.buildFromWays([way]);
-    const decoder = ViterbiDecoder();
-
-    final fixes = eastBoundFixes(
-      lat: 49,
-      lonStart: 9.0001,
-      lonEnd: 9.049,
-      count: n,
-    );
-
-    final calls = <(int, int)>[];
-    decoder.decode(
-      fixes,
-      index,
-      onProgress: (processed, total) => calls.add((processed, total)),
-    );
-
-    // At least one throttled emission + the final one.
-    expect(calls, isNotEmpty);
-
-    // total is always the fix count.
-    for (final (_, total) in calls) {
-      expect(total, equals(n));
-    }
-
-    // processed is strictly increasing.
-    for (var i = 1; i < calls.length; i++) {
-      expect(
-        calls[i].$1,
-        greaterThan(calls[i - 1].$1),
-        reason: 'processed must be monotonically increasing',
+  test(
+    '13. onProgress: monotonic increasing processed, final equals total',
+    () {
+      // 300 fixes crosses the 128-fix stride twice (128, 256, 300).
+      const n = 300;
+      final way = eastWestWay(
+        wayId: 13,
+        latBase: 49,
+        lonStart: 9,
+        lonEnd: 9.05,
       );
-    }
+      final index = WaySegmentIndex.buildFromWays([way]);
+      const decoder = ViterbiDecoder();
 
-    // processed stays within (0, total].
-    for (final (processed, _) in calls) {
-      expect(processed, greaterThan(0));
-      expect(processed, lessThanOrEqualTo(n));
-    }
+      final fixes = eastBoundFixes(
+        lat: 49,
+        lonStart: 9.0001,
+        lonEnd: 9.049,
+        count: n,
+      );
 
-    // The last emission reports full completion.
-    expect(calls.last.$1, equals(n));
-    expect(calls.last.$2, equals(n));
-  });
+      final calls = <(int, int)>[];
+      decoder.decode(
+        fixes,
+        index,
+        onProgress: (processed, total) => calls.add((processed, total)),
+      );
+
+      // At least one throttled emission + the final one.
+      expect(calls, isNotEmpty);
+
+      // total is always the fix count.
+      for (final (_, total) in calls) {
+        expect(total, equals(n));
+      }
+
+      // processed is strictly increasing.
+      for (var i = 1; i < calls.length; i++) {
+        expect(
+          calls[i].$1,
+          greaterThan(calls[i - 1].$1),
+          reason: 'processed must be monotonically increasing',
+        );
+      }
+
+      // processed stays within (0, total].
+      for (final (processed, _) in calls) {
+        expect(processed, greaterThan(0));
+        expect(processed, lessThanOrEqualTo(n));
+      }
+
+      // The last emission reports full completion.
+      expect(calls.last.$1, equals(n));
+      expect(calls.last.$2, equals(n));
+    },
+  );
 
   test('13b. onProgress null is a no-op and preserves output', () {
     final way = eastWestWay(wayId: 14, latBase: 49, lonStart: 9, lonEnd: 9.01);
@@ -712,66 +744,73 @@ void main() {
   // constant-detour transition (which gave every candidate the same penalty,
   // so the marginally-closer side road won on emission alone).
   // ---------------------------------------------------------------------------
-  test('route-aware: near-junction fix stays on through-road, no side spur', () {
-    // Through-road (E-W) along lat 49, nodes 10-11-12-13-14 (dense).
-    const mainNodes = [10, 11, 12, 13, 14];
-    final mainGeom = <LatLng>[
-      for (var i = 0; i < 5; i++) LatLng(49, 9 + i * 0.0005),
-    ];
-    final mainWay = WayCandidate(
-      wayId: 1,
-      geometry: mainGeom,
-      nodeIds: mainNodes,
-      highwayClass: 'residential',
-    );
-    // Side road (N-S) meeting the main road at node 12 (the middle junction,
-    // at lon 9.0010). It heads NORTH away from the driven line.
-    const sideNodes = [12, 20, 21];
-    const sideWay = WayCandidate(
-      wayId: 2,
-      geometry: [
-        LatLng(49, 9.0010), // shared junction node 12
-        LatLng(49.0004, 9.0010),
-        LatLng(49.0008, 9.0010),
-      ],
-      nodeIds: sideNodes,
-      highwayClass: 'residential',
-    );
-
-    final ways = [mainWay, sideWay];
-    final index = WaySegmentIndex.buildFromWays(ways);
-    final nodeGraph = NodeGraph.fromWays(ways);
-
-    // A straight eastbound trace along the main road, 1 fix/s. The middle fix
-    // (near the junction) is nudged 3 m NORTH — toward the side road — to
-    // simulate GPS noise that would tip a nearest-road decoder onto the spur.
-    const latNudge = 3 / 111320; // ~3 m north
-    final fixes = <GpsFix>[
-      for (var i = 0; i < 5; i++)
-        GpsFix(
-          lat: 49 + (i == 2 ? latNudge : 0.0),
-          lon: 9 + i * 0.0005,
-          accuracyMeters: 5,
-          speedKmh: 30,
-          ts: DateTime(2026, 7, 18, 12, 0, i),
-        ),
-    ];
-
-    final steps =
-        const ViterbiDecoder().decode(fixes, index, nodeGraph: nodeGraph);
-
-    // Every matched fix must be on the through-road (way 1), never the spur.
-    for (var i = 0; i < steps.length; i++) {
-      final s = steps[i];
-      expect(s, isNotNull, reason: 'fix $i should match');
-      expect(
-        s!.wayId,
-        1,
-        reason: 'fix $i snapped to way ${s.wayId}; the near-junction fix must '
-            'stay on the through-road, not spur onto the side road',
+  test(
+    'route-aware: near-junction fix stays on through-road, no side spur',
+    () {
+      // Through-road (E-W) along lat 49, nodes 10-11-12-13-14 (dense).
+      const mainNodes = [10, 11, 12, 13, 14];
+      final mainGeom = <LatLng>[
+        for (var i = 0; i < 5; i++) LatLng(49, 9 + i * 0.0005),
+      ];
+      final mainWay = WayCandidate(
+        wayId: 1,
+        geometry: mainGeom,
+        nodeIds: mainNodes,
+        highwayClass: 'residential',
       );
-    }
-  });
+      // Side road (N-S) meeting the main road at node 12 (the middle junction,
+      // at lon 9.0010). It heads NORTH away from the driven line.
+      const sideNodes = [12, 20, 21];
+      const sideWay = WayCandidate(
+        wayId: 2,
+        geometry: [
+          LatLng(49, 9.0010), // shared junction node 12
+          LatLng(49.0004, 9.0010),
+          LatLng(49.0008, 9.0010),
+        ],
+        nodeIds: sideNodes,
+        highwayClass: 'residential',
+      );
+
+      final ways = [mainWay, sideWay];
+      final index = WaySegmentIndex.buildFromWays(ways);
+      final nodeGraph = NodeGraph.fromWays(ways);
+
+      // A straight eastbound trace along the main road, 1 fix/s. The middle fix
+      // (near the junction) is nudged 3 m NORTH — toward the side road — to
+      // simulate GPS noise that would tip a nearest-road decoder onto the spur.
+      const latNudge = 3 / 111320; // ~3 m north
+      final fixes = <GpsFix>[
+        for (var i = 0; i < 5; i++)
+          GpsFix(
+            lat: 49 + (i == 2 ? latNudge : 0.0),
+            lon: 9 + i * 0.0005,
+            accuracyMeters: 5,
+            speedKmh: 30,
+            ts: DateTime(2026, 7, 18, 12, 0, i),
+          ),
+      ];
+
+      final steps = const ViterbiDecoder().decode(
+        fixes,
+        index,
+        nodeGraph: nodeGraph,
+      );
+
+      // Every matched fix must be on the through-road (way 1), never the spur.
+      for (var i = 0; i < steps.length; i++) {
+        final s = steps[i];
+        expect(s, isNotNull, reason: 'fix $i should match');
+        expect(
+          s!.wayId,
+          1,
+          reason:
+              'fix $i snapped to way ${s.wayId}; the near-junction fix must '
+              'stay on the through-road, not spur onto the side road',
+        );
+      }
+    },
+  );
 
   // ---------------------------------------------------------------------------
   // Segment-aware one-way check (2026-07-27 — B469 parallel-road defection).
@@ -831,8 +870,11 @@ void main() {
         ),
     ];
 
-    final steps =
-        const ViterbiDecoder().decode(fixes, index, nodeGraph: nodeGraph);
+    final steps = const ViterbiDecoder().decode(
+      fixes,
+      index,
+      nodeGraph: nodeGraph,
+    );
 
     // Every matched fix must be on the oneway trunk (way 91), forward — the
     // phantom penalty must NOT push any step onto the parallel side road.
@@ -842,7 +884,8 @@ void main() {
       expect(
         s!.wayId,
         91,
-        reason: 'fix $i snapped to way ${s.wayId}; forward motion on a dense '
+        reason:
+            'fix $i snapped to way ${s.wayId}; forward motion on a dense '
             'oneway trunk must not incur the segment-boundary phantom penalty '
             'that defects onto the parallel oneway=no road',
       );
@@ -859,14 +902,19 @@ void main() {
   // ---------------------------------------------------------------------------
   group('exported constants', () {
     test('kBeamWidth = 5', () => expect(kBeamWidth, equals(5)));
-    test('kGapThresholdSeconds = 60',
-        () => expect(kGapThresholdSeconds, equals(60)));
-    test('kSpeedGuardKmh = 15.0',
-        () => expect(kSpeedGuardKmh, equals(15.0)));
-    test('kRouteSearchCapFloorMeters = 2000',
-        () => expect(kRouteSearchCapFloorMeters, closeTo(2000, 1e-9)));
-    test('kRouteSearchCapFactor = 8',
-        () => expect(kRouteSearchCapFactor, closeTo(8, 1e-9)));
+    test(
+      'kGapThresholdSeconds = 60',
+      () => expect(kGapThresholdSeconds, equals(60)),
+    );
+    test('kSpeedGuardKmh = 15.0', () => expect(kSpeedGuardKmh, equals(15.0)));
+    test(
+      'kRouteSearchCapFloorMeters = 2000',
+      () => expect(kRouteSearchCapFloorMeters, closeTo(2000, 1e-9)),
+    );
+    test(
+      'kRouteSearchCapFactor = 8',
+      () => expect(kRouteSearchCapFactor, closeTo(8, 1e-9)),
+    );
     test('kMotorwayPenaltyLog = -ln(1e6)', () {
       expect(kMotorwayPenaltyLog, closeTo(-math.log(1e6), 1e-6));
     });
@@ -882,9 +930,13 @@ void main() {
         containsAll(['motorway', 'motorway_link', 'trunk', 'trunk_link']),
       );
     });
-    test('kEmissionSigmaMeters = 4.07',
-        () => expect(kEmissionSigmaMeters, equals(4.07)));
-    test('kTransitionBetaMeters = 1.0',
-        () => expect(kTransitionBetaMeters, equals(1.0)));
+    test(
+      'kEmissionSigmaMeters = 4.07',
+      () => expect(kEmissionSigmaMeters, equals(4.07)),
+    );
+    test(
+      'kTransitionBetaMeters = 1.0',
+      () => expect(kTransitionBetaMeters, equals(1.0)),
+    );
   });
 }

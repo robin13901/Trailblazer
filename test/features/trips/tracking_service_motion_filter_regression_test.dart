@@ -54,10 +54,8 @@ void main() {
     await db.close();
   });
 
-  group('TrackingService — H3 regression: startManual bypasses activity gate',
-      () {
-    test(
-        'manual trip accepts a fix when _lastActivityType has never been set '
+  group('TrackingService — H3 regression: startManual bypasses activity gate', () {
+    test('manual trip accepts a fix when _lastActivityType has never been set '
         '(default "unknown")', () async {
       // GIVEN: TrackingService with fake facade; no activity events ever fired.
       //        (_lastActivityType defaults to "unknown", _lastActivityAt=null).
@@ -74,23 +72,29 @@ void main() {
       // Fixture-timestamp discipline (STATE Plan 03-04): use DateTime.now()-
       // relative timestamps so the ingestor's rate-limit / gap logic behaves
       // as it would in production.
-      facade.emitFix(FixInput(
-        ts: DateTime.now(),
-        lat: 52.5200,
-        lon: 13.4050,
-        accuracyMeters: 5,
-        speedMps: 8.33, // ~30 km/h
-        // Deliberately omit activityType — defaults to null, i.e. no
-        // activity classification attached to the fix itself.
-        uuid: 'uuid-h3-unknown-1',
-      ));
+      facade.emitFix(
+        FixInput(
+          ts: DateTime.now(),
+          lat: 52.5200,
+          lon: 13.4050,
+          accuracyMeters: 5,
+          speedMps: 8.33, // ~30 km/h
+          // Deliberately omit activityType — defaults to null, i.e. no
+          // activity classification attached to the fix itself.
+          uuid: 'uuid-h3-unknown-1',
+        ),
+      );
       // Yield to the fake facade's stream controller.
       await Future<void>.delayed(const Duration(milliseconds: 20));
 
       // THEN: fix accepted (acceptCount incremented, state still Recording).
-      expect(svc.diagnostics.acceptCount, 1,
-          reason: 'H3 regression: manual trip must accept fixes '
-              'irrespective of _lastActivityType');
+      expect(
+        svc.diagnostics.acceptCount,
+        1,
+        reason:
+            'H3 regression: manual trip must accept fixes '
+            'irrespective of _lastActivityType',
+      );
       expect(svc.diagnostics.rejectCount, 0);
       expect(svc.currentState, isA<TrackingRecording>());
       expect((svc.currentState as TrackingRecording).pointCount, 1);
@@ -98,8 +102,7 @@ void main() {
       await svc.dispose();
     });
 
-    test(
-        'manual trip accepts a fix even when _lastActivityType is a '
+    test('manual trip accepts a fix even when _lastActivityType is a '
         'non-vehicle value like "on_foot"', () async {
       // GIVEN: activity fires "on_foot" (explicitly non-vehicle), then
       //        startManual — the filter, if it wrongly applied to manual
@@ -115,64 +118,78 @@ void main() {
       await svc.startManual();
       expect(svc.currentState, isA<TrackingRecording>());
 
-      facade.emitFix(FixInput(
-        ts: DateTime.now(),
-        lat: 52.5205,
-        lon: 13.4050,
-        accuracyMeters: 5,
-        speedMps: 8.33,
-        uuid: 'uuid-h3-onfoot-1',
-      ));
+      facade.emitFix(
+        FixInput(
+          ts: DateTime.now(),
+          lat: 52.5205,
+          lon: 13.4050,
+          accuracyMeters: 5,
+          speedMps: 8.33,
+          uuid: 'uuid-h3-onfoot-1',
+        ),
+      );
       await Future<void>.delayed(const Duration(milliseconds: 20));
 
       // THEN: fix accepted regardless of the non-vehicle activity signal.
-      expect(svc.diagnostics.acceptCount, 1,
-          reason: 'H3 regression: activity gate must not apply to manual '
-              'trips even when _lastActivityType is non-vehicle');
+      expect(
+        svc.diagnostics.acceptCount,
+        1,
+        reason:
+            'H3 regression: activity gate must not apply to manual '
+            'trips even when _lastActivityType is non-vehicle',
+      );
       expect((svc.currentState as TrackingRecording).pointCount, 1);
 
       await svc.dispose();
     });
 
     test(
-        'stateStream re-emits TrackingRecording on the first manual accepted '
-        'fix (proof the "unknown" activity path emits, not just start)',
-        () async {
-      // GIVEN: no activity, no motion — pure manual path.
-      final svc = makeService();
-      await svc.init();
+      'stateStream re-emits TrackingRecording on the first manual accepted '
+      'fix (proof the "unknown" activity path emits, not just start)',
+      () async {
+        // GIVEN: no activity, no motion — pure manual path.
+        final svc = makeService();
+        await svc.init();
 
-      final recordingEmissions = <TrackingRecording>[];
-      final sub = svc.stateStream.listen((s) {
-        if (s is TrackingRecording) recordingEmissions.add(s);
-      });
+        final recordingEmissions = <TrackingRecording>[];
+        final sub = svc.stateStream.listen((s) {
+          if (s is TrackingRecording) recordingEmissions.add(s);
+        });
 
-      // WHEN: startManual + one fix.
-      await svc.startManual();
-      facade.emitFix(FixInput(
-        ts: DateTime.now(),
-        lat: 52.5210,
-        lon: 13.4050,
-        accuracyMeters: 5,
-        speedMps: 8.33,
-        uuid: 'uuid-h3-stream-1',
-      ));
-      await Future<void>.delayed(const Duration(milliseconds: 30));
-      await sub.cancel();
+        // WHEN: startManual + one fix.
+        await svc.startManual();
+        facade.emitFix(
+          FixInput(
+            ts: DateTime.now(),
+            lat: 52.5210,
+            lon: 13.4050,
+            accuracyMeters: 5,
+            speedMps: 8.33,
+            uuid: 'uuid-h3-stream-1',
+          ),
+        );
+        await Future<void>.delayed(const Duration(milliseconds: 30));
+        await sub.cancel();
 
-      // THEN: at least two TrackingRecording emissions — one for start
-      //        (pointCount=0) and one for the accepted fix (pointCount=1).
-      //        This proves the acceptance path actually runs, not just the
-      //        start transition.
-      expect(recordingEmissions.length, greaterThanOrEqualTo(2),
-          reason: 'expected start-emission + per-fix emission');
-      expect(recordingEmissions.first.pointCount, 0);
-      expect(recordingEmissions.last.pointCount, 1);
-      expect(recordingEmissions.last.currentSpeedKmh,
-          closeTo(8.33 * 3.6, 0.5));
+        // THEN: at least two TrackingRecording emissions — one for start
+        //        (pointCount=0) and one for the accepted fix (pointCount=1).
+        //        This proves the acceptance path actually runs, not just the
+        //        start transition.
+        expect(
+          recordingEmissions.length,
+          greaterThanOrEqualTo(2),
+          reason: 'expected start-emission + per-fix emission',
+        );
+        expect(recordingEmissions.first.pointCount, 0);
+        expect(recordingEmissions.last.pointCount, 1);
+        expect(
+          recordingEmissions.last.currentSpeedKmh,
+          closeTo(8.33 * 3.6, 0.5),
+        );
 
-      await svc.dispose();
-    });
+        await svc.dispose();
+      },
+    );
 
     // -------------------------------------------------------------------------
     // Plan 06-08: automatic recording removed. Motion while idle must NEVER
@@ -181,37 +198,47 @@ void main() {
     // a fresh in_vehicle signal opens a trip anymore.
     // -------------------------------------------------------------------------
     test(
-        'motion=true while idle never opens a trip (manual-only, Plan 06-08)',
-        () async {
-      // GIVEN: TrackingService in TrackingIdle, no activity events, no manual
-      //        start.
-      final svc = makeService();
-      await svc.init();
-      expect(svc.currentState, isA<TrackingIdle>());
-      expect(svc.diagnostics.lastActivityType, 'unknown');
+      'motion=true while idle never opens a trip (manual-only, Plan 06-08)',
+      () async {
+        // GIVEN: TrackingService in TrackingIdle, no activity events, no manual
+        //        start.
+        final svc = makeService();
+        await svc.init();
+        expect(svc.currentState, isA<TrackingIdle>());
+        expect(svc.diagnostics.lastActivityType, 'unknown');
 
-      // WHEN: motion=true arrives while idle, without any preceding
-      //        in_vehicle activity signal.
-      facade.emitMotion(isMoving: true);
-      await Future<void>.delayed(const Duration(milliseconds: 50));
+        // WHEN: motion=true arrives while idle, without any preceding
+        //        in_vehicle activity signal.
+        facade.emitMotion(isMoving: true);
+        await Future<void>.delayed(const Duration(milliseconds: 50));
 
-      // THEN: state remains Idle — no auto-trip opened.
-      expect(svc.currentState, isA<TrackingIdle>(),
-          reason: 'Plan 06-08: motion=true must never auto-open a trip');
-      expect(svc.diagnostics.currentTripId, isNull);
+        // THEN: state remains Idle — no auto-trip opened.
+        expect(
+          svc.currentState,
+          isA<TrackingIdle>(),
+          reason: 'Plan 06-08: motion=true must never auto-open a trip',
+        );
+        expect(svc.diagnostics.currentTripId, isNull);
 
-      // Even a fresh in_vehicle activity + motion must not open a trip now.
-      facade.emitActivity('in_vehicle');
-      await Future<void>.delayed(const Duration(milliseconds: 10));
-      facade.emitMotion(isMoving: true);
-      await Future<void>.delayed(const Duration(milliseconds: 50));
+        // Even a fresh in_vehicle activity + motion must not open a trip now.
+        facade.emitActivity('in_vehicle');
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+        facade.emitMotion(isMoving: true);
+        await Future<void>.delayed(const Duration(milliseconds: 50));
 
-      expect(svc.currentState, isA<TrackingIdle>(),
-          reason: 'Plan 06-08: even fresh in_vehicle + motion stays Idle');
-      expect(facade.startCalls, 0,
-          reason: 'no speculative FGB start() on motion');
+        expect(
+          svc.currentState,
+          isA<TrackingIdle>(),
+          reason: 'Plan 06-08: even fresh in_vehicle + motion stays Idle',
+        );
+        expect(
+          facade.startCalls,
+          0,
+          reason: 'no speculative FGB start() on motion',
+        );
 
-      await svc.dispose();
-    });
+        await svc.dispose();
+      },
+    );
   });
 }

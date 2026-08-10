@@ -72,9 +72,9 @@ enum CoverageColorPreset {
 
   /// Returns the preset matching [s], falling back to [amber] if no match.
   static CoverageColorPreset fromString(String s) => values.firstWhere(
-        (e) => e.name == s,
-        orElse: () => CoverageColorPreset.amber,
-      );
+    (e) => e.name == s,
+    orElse: () => CoverageColorPreset.amber,
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -100,21 +100,26 @@ extension CoverageColorPresetColors on CoverageColorPreset {
   CoverageColors forBrightness(Brightness brightness) {
     final isDark = brightness == Brightness.dark;
     return switch (this) {
-      CoverageColorPreset.amber => isDark
-          ? const CoverageColors(fullHex: '#FFA726', partialHex: '#FFD54F')
-          : const CoverageColors(fullHex: '#FF8C00', partialHex: '#FFCD6B'),
-      CoverageColorPreset.green => isDark
-          ? const CoverageColors(fullHex: '#4CAF50', partialHex: '#A5D6A7')
-          : const CoverageColors(fullHex: '#2ECC71', partialHex: '#A8E6CF'),
-      CoverageColorPreset.blue => isDark
-          ? const CoverageColors(fullHex: '#42A5F5', partialHex: '#BBDEFB')
-          : const CoverageColors(fullHex: '#2196F3', partialHex: '#90CAF9'),
-      CoverageColorPreset.purple => isDark
-          ? const CoverageColors(fullHex: '#AB47BC', partialHex: '#E1BEE7')
-          : const CoverageColors(fullHex: '#9C27B0', partialHex: '#CE93D8'),
-      CoverageColorPreset.red => isDark
-          ? const CoverageColors(fullHex: '#EF5350', partialHex: '#FFCDD2')
-          : const CoverageColors(fullHex: '#E53935', partialHex: '#FFCDD2'),
+      CoverageColorPreset.amber =>
+        isDark
+            ? const CoverageColors(fullHex: '#FFA726', partialHex: '#FFD54F')
+            : const CoverageColors(fullHex: '#FF8C00', partialHex: '#FFCD6B'),
+      CoverageColorPreset.green =>
+        isDark
+            ? const CoverageColors(fullHex: '#4CAF50', partialHex: '#A5D6A7')
+            : const CoverageColors(fullHex: '#2ECC71', partialHex: '#A8E6CF'),
+      CoverageColorPreset.blue =>
+        isDark
+            ? const CoverageColors(fullHex: '#42A5F5', partialHex: '#BBDEFB')
+            : const CoverageColors(fullHex: '#2196F3', partialHex: '#90CAF9'),
+      CoverageColorPreset.purple =>
+        isDark
+            ? const CoverageColors(fullHex: '#AB47BC', partialHex: '#E1BEE7')
+            : const CoverageColors(fullHex: '#9C27B0', partialHex: '#CE93D8'),
+      CoverageColorPreset.red =>
+        isDark
+            ? const CoverageColors(fullHex: '#EF5350', partialHex: '#FFCDD2')
+            : const CoverageColors(fullHex: '#E53935', partialHex: '#FFCDD2'),
     };
   }
 }

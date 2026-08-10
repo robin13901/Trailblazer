@@ -58,8 +58,7 @@ class _NoopRenderer extends ThumbnailRenderer {
   Future<Uint8List> renderFallback({
     required List<LatLng> polyline,
     required LatLngBounds bbox,
-  }) async =>
-      Uint8List(0);
+  }) async => Uint8List(0);
 }
 
 /// Trivial [CoverageInvalidator] fake — never exercised (discardTrip is
@@ -102,8 +101,7 @@ class _EmptyWayCandidateSource implements WayCandidateSource {
     Set<TileId>? restrictTiles,
     bool cacheOnly = false,
     void Function(int done, int total)? onTileProgress,
-  }) async =>
-      const [];
+  }) async => const [];
 
   @override
   Future<List<RawTilePayload>> fetchRawTilesInBbox({
@@ -115,8 +113,7 @@ class _EmptyWayCandidateSource implements WayCandidateSource {
     Set<TileId>? restrictTiles,
     bool cacheOnly = false,
     void Function(int done, int total)? onTileProgress,
-  }) async =>
-      const [];
+  }) async => const [];
 }
 
 /// Stand-in attribution runner — never invoked (recompute is overridden).
@@ -124,24 +121,24 @@ Future<List<WayRegionAttributionRow>> _unusedCompute(
   List<Uint8List> gzippedTiles,
   List<LatLonBbox> tileBboxes,
   Set<int> alreadyAttributedWayIds,
-) async =>
-    const [];
+) async => const [];
 
 /// No-op CoverageComputeService (mirrors the stub in the extensions test).
 class _NoopComputeService extends CoverageComputeService {
   _NoopComputeService(AppDatabase db)
-      : super(
-          intervalsDao: DrivenWayIntervalsDao(db),
-          waySource: _EmptyWayCandidateSource(),
-          regionLookup: _NullAdminRegionLookup(),
-          cacheDao: CoverageCacheDao(db),
-          tripsDao: TripsDao(db),
-          totalsLookup: RegionTotalsLookup(),
-          compute: _unusedCompute,
-        );
+    : super(
+        intervalsDao: DrivenWayIntervalsDao(db),
+        waySource: _EmptyWayCandidateSource(),
+        regionLookup: _NullAdminRegionLookup(),
+        cacheDao: CoverageCacheDao(db),
+        tripsDao: TripsDao(db),
+        totalsLookup: RegionTotalsLookup(),
+        compute: _unusedCompute,
+      );
   @override
-  Future<Result<int>> recompute({CoverageRecomputeProgress? onProgress}) async =>
-      const Ok(0);
+  Future<Result<int>> recompute({
+    CoverageRecomputeProgress? onProgress,
+  }) async => const Ok(0);
 }
 
 /// Records the trip id passed to [discardTrip] without touching the DB. The
@@ -149,13 +146,13 @@ class _NoopComputeService extends CoverageComputeService {
 /// discardTrip is overridden.
 class _RecordingInboxRepo extends TripsInboxRepository {
   _RecordingInboxRepo(AppDatabase db)
-      : super(
-          inboxDao: TripsInboxDao(db),
-          tripsDao: TripsDao(db),
-          intervalsDao: DrivenWayIntervalsDao(db),
-          invalidator: _NoopInvalidator(),
-          computeService: _NoopComputeService(db),
-        );
+    : super(
+        inboxDao: TripsInboxDao(db),
+        tripsDao: TripsDao(db),
+        intervalsDao: DrivenWayIntervalsDao(db),
+        invalidator: _NoopInvalidator(),
+        computeService: _NoopComputeService(db),
+      );
 
   final List<int> discarded = <int>[];
 
@@ -167,22 +164,22 @@ class _RecordingInboxRepo extends TripsInboxRepository {
 }
 
 TripListItem _item(int id, TripStatus status) => TripListItem(
-      id: id,
-      status: status,
-      startedAt: DateTime(2026, 7, 8, 14, 32),
-      endedAt: DateTime(2026, 7, 8, 15, 14),
-      distanceMeters: 12000,
-      durationSeconds: 30 * 60,
-      startLat: 49.70,
-      startLon: 9.26,
-      endLat: 49.97,
-      endLon: 9.15,
-      intervalCount: 5,
-      bboxMinLat: 49.70,
-      bboxMinLon: 9.15,
-      bboxMaxLat: 49.97,
-      bboxMaxLon: 9.26,
-    );
+  id: id,
+  status: status,
+  startedAt: DateTime(2026, 7, 8, 14, 32),
+  endedAt: DateTime(2026, 7, 8, 15, 14),
+  distanceMeters: 12000,
+  durationSeconds: 30 * 60,
+  startLat: 49.70,
+  startLon: 9.26,
+  endLat: 49.97,
+  endLon: 9.15,
+  intervalCount: 5,
+  bboxMinLat: 49.70,
+  bboxMinLon: 9.15,
+  bboxMaxLat: 49.97,
+  bboxMaxLon: 9.26,
+);
 
 Future<void> _pump(
   WidgetTester tester, {
@@ -211,8 +208,10 @@ Future<void> _pump(
         thumbnailCacheProvider.overrideWith(_NoopThumbnailCache.new),
         thumbnailRendererProvider.overrideWithValue(_NoopRenderer()),
         tripPlacesProvider.overrideWith(
-          (ref, coords) async =>
-              const TripPlaces(startName: 'Aschaffenburg', endName: 'Miltenberg'),
+          (ref, coords) async => const TripPlaces(
+            startName: 'Aschaffenburg',
+            endName: 'Miltenberg',
+          ),
         ),
         if (inboxRepo != null)
           tripsInboxRepositoryProvider.overrideWithValue(inboxRepo),

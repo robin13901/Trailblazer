@@ -39,12 +39,12 @@ class _ControllableTrackingNotifier extends Notifier<TrackingState>
 }
 
 TrackingState _recording() => TrackingRecording(
-      tripId: 1,
-      startedAt: DateTime(2026, 7, 25),
-      distanceMeters: 0,
-      pointCount: 0,
-      manuallyStarted: true,
-    );
+  tripId: 1,
+  startedAt: DateTime(2026, 7, 25),
+  distanceMeters: 0,
+  pointCount: 0,
+  manuallyStarted: true,
+);
 
 void main() {
   testWidgets(
@@ -79,8 +79,11 @@ void main() {
       await tester.pump(); // stopActive() microtask
       await tester.pump(); // rebuild after idle transition
 
-      expect(find.byKey(const ValueKey('finishing')), findsOneWidget,
-          reason: 'spinner shows right after Stop');
+      expect(
+        find.byKey(const ValueKey('finishing')),
+        findsOneWidget,
+        reason: 'spinner shows right after Stop',
+      );
       expect(find.byType(CircularProgressIndicator), findsOneWidget);
 
       // Matching starts (count > 0) — still finishing.
@@ -96,8 +99,11 @@ void main() {
       await tester.pump();
       await tester.pump();
 
-      expect(find.byKey(const ValueKey('finishing')), findsNothing,
-          reason: 'spinner clears once matching done + overlay emitted');
+      expect(
+        find.byKey(const ValueKey('finishing')),
+        findsNothing,
+        reason: 'spinner clears once matching done + overlay emitted',
+      );
       expect(find.byKey(const ValueKey('start')), findsOneWidget);
     },
   );

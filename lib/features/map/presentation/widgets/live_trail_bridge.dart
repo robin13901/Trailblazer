@@ -103,12 +103,20 @@ class _LiveTrailBridgeState extends ConsumerState<LiveTrailBridge> {
       if (_trail.length < 3) return;
       _sourceAdded = true;
       _dispatch(
-        () => applier.addOrUpdate(controller, _renderTrail(), colorHex: _coverageColorHex()),
+        () => applier.addOrUpdate(
+          controller,
+          _renderTrail(),
+          colorHex: _coverageColorHex(),
+        ),
         'addOrUpdate(initial)',
       );
     } else {
       _dispatch(
-        () => applier.addOrUpdate(controller, _renderTrail(), colorHex: _coverageColorHex()),
+        () => applier.addOrUpdate(
+          controller,
+          _renderTrail(),
+          colorHex: _coverageColorHex(),
+        ),
         'addOrUpdate',
       );
     }
@@ -131,7 +139,11 @@ class _LiveTrailBridgeState extends ConsumerState<LiveTrailBridge> {
     final applier = ref.read(liveTrailApplierProvider);
     _sourceAdded = true;
     _dispatch(
-      () => applier.addOrUpdate(controller, _renderTrail(), colorHex: _coverageColorHex()),
+      () => applier.addOrUpdate(
+        controller,
+        _renderTrail(),
+        colorHex: _coverageColorHex(),
+      ),
       'addOrUpdate(re-add)',
     );
   }
@@ -151,14 +163,15 @@ class _LiveTrailBridgeState extends ConsumerState<LiveTrailBridge> {
   /// post-trip. Reads the same preset + platform brightness the overlay uses.
   String _coverageColorHex() {
     final preset = ref.read(coveragePresetValueProvider);
-    final brightness =
-        View.of(context).platformDispatcher.platformBrightness;
+    final brightness = View.of(context).platformDispatcher.platformBrightness;
     return preset.forBrightness(brightness).fullHex;
   }
 
   void _dispatch(Future<void> Function() action, String label) {
-    unawaited(action().catchError((Object e, StackTrace st) {
-      _log.warning('LiveTrailBridge: $label threw — map kept stable.', e, st);
-    }));
+    unawaited(
+      action().catchError((Object e, StackTrace st) {
+        _log.warning('LiveTrailBridge: $label threw — map kept stable.', e, st);
+      }),
+    );
   }
 }

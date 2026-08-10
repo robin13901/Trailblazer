@@ -58,8 +58,7 @@ class TripListItem {
 
   /// A matched trip with zero intervals — the matcher ran but found no
   /// road coverage. The card UI chips "No roads matched".
-  bool get isFailMatched =>
-      status == TripStatus.matched && intervalCount == 0;
+  bool get isFailMatched => status == TripStatus.matched && intervalCount == 0;
 
   /// In-flight = still awaiting or running the matcher pipeline.
   bool get isInFlight =>

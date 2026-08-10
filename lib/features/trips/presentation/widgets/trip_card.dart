@@ -137,8 +137,9 @@ class TripCard extends ConsumerStatefulWidget {
 class _TripCardState extends ConsumerState<TripCard> {
   Future<void> _onKeep() async {
     final messenger = ScaffoldMessenger.of(context);
-    final result =
-        await ref.read(tripsInboxRepositoryProvider).confirmTrip(widget.item.id);
+    final result = await ref
+        .read(tripsInboxRepositoryProvider)
+        .confirmTrip(widget.item.id);
     if (!mounted) return;
     result.when(
       // Silent on success (CONTEXT: Keep is silent, no modal, no toast).

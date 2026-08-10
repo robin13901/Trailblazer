@@ -15,19 +15,18 @@ MatchedStep _onRoad({
   required double snappedLat,
   required double snappedLon,
   int wayId = 1,
-}) =>
-    MatchedStep(
-      wayId: wayId,
-      segIdx: 0,
-      projectionFraction: 0.5,
-      perpDistMeters: 1,
-      emissionLogP: -1,
-      direction: 'forward',
-      highwayClass: 'residential',
-      oneway: OnewayDirection.no,
-      snappedLat: snappedLat,
-      snappedLon: snappedLon,
-    );
+}) => MatchedStep(
+  wayId: wayId,
+  segIdx: 0,
+  projectionFraction: 0.5,
+  perpDistMeters: 1,
+  emissionLogP: -1,
+  direction: 'forward',
+  highwayClass: 'residential',
+  oneway: OnewayDirection.no,
+  snappedLat: snappedLat,
+  snappedLon: snappedLon,
+);
 
 void main() {
   group('coveragePathFromMatch', () {
@@ -133,25 +132,27 @@ void main() {
       ]);
     });
 
-    test('same small gap stays one segment; splitGapMeters override splits it',
-        () {
-      // ~55 m spacing (0.0005° lat ≈ 55 m).
-      final fixes = [
-        [50.0000, 8.0000],
-        [50.0005, 8.0000],
-        [50.0010, 8.0000],
-      ];
-      final steps = <MatchedStep?>[null, null, null];
+    test(
+      'same small gap stays one segment; splitGapMeters override splits it',
+      () {
+        // ~55 m spacing (0.0005° lat ≈ 55 m).
+        final fixes = [
+          [50.0000, 8.0000],
+          [50.0005, 8.0000],
+          [50.0010, 8.0000],
+        ];
+        final steps = <MatchedStep?>[null, null, null];
 
-      // Default 200 m threshold → one run.
-      expect(coveragePathFromMatch(fixes, steps), hasLength(1));
+        // Default 200 m threshold → one run.
+        expect(coveragePathFromMatch(fixes, steps), hasLength(1));
 
-      // Tight 10 m override → every hop splits → no run reaches 2 points.
-      expect(
-        coveragePathFromMatch(fixes, steps, splitGapMeters: 10),
-        isEmpty,
-      );
-    });
+        // Tight 10 m override → every hop splits → no run reaches 2 points.
+        expect(
+          coveragePathFromMatch(fixes, steps, splitGapMeters: 10),
+          isEmpty,
+        );
+      },
+    );
 
     test('single-point run is dropped (needs 2+ points)', () {
       final fixes = [

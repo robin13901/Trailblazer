@@ -33,7 +33,8 @@ class TripsInboxDao extends DatabaseAccessor<AppDatabase> {
   /// back to the live first/last `trip_points` subquery for rows not yet
   /// backfilled — so a trip whose raw points were swept still shows its place
   /// names.
-  String _listQuery(String statusPlaceholders) => '''
+  String _listQuery(String statusPlaceholders) =>
+      '''
 SELECT
   t.id                AS id,
   t.status            AS status,
@@ -122,7 +123,8 @@ WHERE t.id = ?''',
     return customSelect(
       _listQuery(placeholders),
       variables: [
-        for (final s in statuses) Variable.withString(_statusConverter.toSql(s)),
+        for (final s in statuses)
+          Variable.withString(_statusConverter.toSql(s)),
       ],
       readsFrom: {_trips, _points, _intervals},
     ).watch().map((rows) => rows.map(_mapRow).toList());

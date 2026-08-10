@@ -38,12 +38,12 @@ class TripsInboxRepository {
     required CoverageInvalidator invalidator,
     required CoverageComputeService computeService,
     Logger? logger,
-  })  : _inboxDao = inboxDao,
-        _tripsDao = tripsDao,
-        _intervalsDao = intervalsDao,
-        _invalidator = invalidator,
-        _computeService = computeService,
-        _log = logger ?? Logger('TripsInboxRepository');
+  }) : _inboxDao = inboxDao,
+       _tripsDao = tripsDao,
+       _intervalsDao = intervalsDao,
+       _invalidator = invalidator,
+       _computeService = computeService,
+       _log = logger ?? Logger('TripsInboxRepository');
 
   final TripsInboxDao _inboxDao;
   final TripsDao _tripsDao;
@@ -83,7 +83,9 @@ class TripsInboxRepository {
       //    Fire-and-forget: user's Keep must never be blocked on recompute.
       //    If recompute errors, it returns Err internally — swallowed here.
       //    The next confirmTrip / coverage read will re-trigger it.
-      unawaited(_computeService.recompute()); // re-populate cache post-invalidation
+      unawaited(
+        _computeService.recompute(),
+      ); // re-populate cache post-invalidation
       return const Ok(null);
       // Catches all throwables (Error + Exception) for DomainError.wrap.
       // ignore: avoid_catches_without_on_clauses

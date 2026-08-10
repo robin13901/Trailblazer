@@ -28,11 +28,11 @@ class AdminBundleRefresher {
     required AppPrefs appPrefs,
     required AdminRegionLookup lookup,
     Future<Directory> Function()? docsDirLoader,
-  })  : _downloader = downloader,
-        _simplifier = simplifier,
-        _appPrefs = appPrefs,
-        _lookup = lookup,
-        _docsDirLoader = docsDirLoader ?? getApplicationDocumentsDirectory;
+  }) : _downloader = downloader,
+       _simplifier = simplifier,
+       _appPrefs = appPrefs,
+       _lookup = lookup,
+       _docsDirLoader = docsDirLoader ?? getApplicationDocumentsDirectory;
 
   final AdminPolygonDownloader _downloader;
   final AdminPolygonSimplifier _simplifier;

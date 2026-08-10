@@ -68,25 +68,25 @@ class _FakeAdminRegionLookup implements AdminRegionLookup {
 
 /// A tiny closed-ring polygon covering Grebenhain in Hessen (level 8).
 AdminRegion _grebenhainRegion() => const AdminRegion(
-      osmId: 62492,
-      adminLevel: 8,
-      name: 'Grebenhain',
-      bboxMinLat: 50.46,
-      bboxMinLon: 9.33,
-      bboxMaxLat: 50.56,
-      bboxMaxLon: 9.44,
-      polygons: [
-        [
-          [
-            [50.46, 9.33],
-            [50.56, 9.33],
-            [50.56, 9.44],
-            [50.46, 9.44],
-            [50.46, 9.33],
-          ],
-        ],
+  osmId: 62492,
+  adminLevel: 8,
+  name: 'Grebenhain',
+  bboxMinLat: 50.46,
+  bboxMinLon: 9.33,
+  bboxMaxLat: 50.56,
+  bboxMaxLon: 9.44,
+  polygons: [
+    [
+      [
+        [50.46, 9.33],
+        [50.56, 9.33],
+        [50.56, 9.44],
+        [50.46, 9.44],
+        [50.46, 9.33],
       ],
-    );
+    ],
+  ],
+);
 
 /// Builds an in-memory AppDatabase and seeds a coverage_cache row for
 /// [osmId] with 264 m driven / 1000 m total → 26.4%.
@@ -123,12 +123,12 @@ class _FakeTrackingNotifier extends Notifier<TrackingState>
 }
 
 TrackingState _recording() => TrackingRecording(
-      tripId: 1,
-      startedAt: DateTime(2026, 7, 21),
-      distanceMeters: 0,
-      pointCount: 0,
-      manuallyStarted: true,
-    );
+  tripId: 1,
+  startedAt: DateTime(2026, 7, 21),
+  distanceMeters: 0,
+  pointCount: 0,
+  manuallyStarted: true,
+);
 
 /// Builds a ProviderContainer that overrides the lookup + cache providers.
 ///
@@ -167,7 +167,9 @@ ProviderContainer _makeContainer({
 Future<void> _pushCamera(ProviderContainer c) async {
   // Trigger lazy initialization of FocusPillNotifier.
   c.read(focusPillProvider);
-  c.read(liveCameraProvider.notifier).update(
+  c
+      .read(liveCameraProvider.notifier)
+      .update(
         const CameraPosition(
           target: LatLng(50.51, 9.385),
           zoom: 14,
@@ -182,7 +184,9 @@ Future<void> _pushCamera(ProviderContainer c) async {
 /// Call [_pushCamera] first in any test that uses this, so the notifier is
 /// already initialized.
 Future<void> _pushNoRegionCamera(ProviderContainer c) async {
-  c.read(liveCameraProvider.notifier).update(
+  c
+      .read(liveCameraProvider.notifier)
+      .update(
         const CameraPosition(
           target: LatLng(0, 0),
           zoom: 14,
@@ -304,7 +308,9 @@ void main() {
 
         // Country-zoom camera (zoom 4) anywhere; only the L4 probe matters.
         c.read(focusPillProvider);
-        c.read(liveCameraProvider.notifier).update(
+        c
+            .read(liveCameraProvider.notifier)
+            .update(
               const CameraPosition(target: LatLng(51, 10), zoom: 4),
             );
         await Future<void>.delayed(const Duration(milliseconds: 400));
@@ -376,7 +382,9 @@ void main() {
         await Future<void>.delayed(Duration.zero);
         // Even with a country-zoom camera (zoom 4), the recording path must
         // ignore the camera and resolve from the fix, finest-level-first.
-        c.read(liveCameraProvider.notifier).update(
+        c
+            .read(liveCameraProvider.notifier)
+            .update(
               const CameraPosition(target: LatLng(51, 10), zoom: 4),
             );
 
@@ -410,10 +418,12 @@ void main() {
               ),
             ),
             coverageCacheDaoProvider.overrideWithValue(dao),
-            trackingStateProvider
-                .overrideWith(() => _FakeTrackingNotifier(const TrackingIdle())),
-            liveFixProvider
-                .overrideWith((ref) => const Stream<LiveFixSample>.empty()),
+            trackingStateProvider.overrideWith(
+              () => _FakeTrackingNotifier(const TrackingIdle()),
+            ),
+            liveFixProvider.overrideWith(
+              (ref) => const Stream<LiveFixSample>.empty(),
+            ),
           ],
         );
         addTearDown(c.dispose);

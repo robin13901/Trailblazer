@@ -34,8 +34,9 @@ class DrivenWayIntervalsDao extends DatabaseAccessor<AppDatabase>
   }
 
   Future<int> deleteByTrip(int tripId) {
-    return (delete(drivenWayIntervals)..where((t) => t.tripId.equals(tripId)))
-        .go();
+    return (delete(
+      drivenWayIntervals,
+    )..where((t) => t.tripId.equals(tripId))).go();
   }
 
   /// Returns ALL driven-way interval rows, ordered by `wayId` ascending.
@@ -51,9 +52,9 @@ class DrivenWayIntervalsDao extends DatabaseAccessor<AppDatabase>
   /// is way-centric and survives trip lifecycle events by design
   /// (Plan 01-02 FK cascade policy: driven_intervals -> trips SET NULL).
   Future<List<DrivenWayInterval>> getAllIntervals() {
-    return (select(drivenWayIntervals)
-          ..orderBy([(t) => OrderingTerm.asc(t.wayId)]))
-        .get();
+    return (select(
+      drivenWayIntervals,
+    )..orderBy([(t) => OrderingTerm.asc(t.wayId)])).get();
   }
 
   /// A strictly-changing revision number that advances on ANY write to

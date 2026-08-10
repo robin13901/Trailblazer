@@ -141,8 +141,9 @@ Future<void> _pumpPillWithFakes(
         regionTotalsLookupProvider.overrideWithValue(_FakeTotalsLookup()),
         // Not computing → no pulse; avoids pulling the real inbox repo/DB.
         inFlightCountProvider.overrideWith((ref) => Stream.value(0)),
-        coveragePresetValueProvider
-            .overrideWithValue(CoverageColorPreset.amber),
+        coveragePresetValueProvider.overrideWithValue(
+          CoverageColorPreset.amber,
+        ),
       ],
       child: const MaterialApp(
         home: Scaffold(

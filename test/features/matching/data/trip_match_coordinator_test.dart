@@ -52,8 +52,7 @@ class _FakeWayCandidateSource implements WayCandidateSource {
     Set<TileId>? restrictTiles,
     bool cacheOnly = false,
     void Function(int done, int total)? onTileProgress,
-  }) async =>
-      ways;
+  }) async => ways;
 
   @override
   Future<List<RawTilePayload>> fetchRawTilesInBbox({
@@ -75,7 +74,8 @@ class _FakeWayCandidateSource implements WayCandidateSource {
             'type': 'way',
             'id': w.wayId,
             'geometry': [
-              for (final p in w.geometry) {'lat': p.latitude, 'lon': p.longitude},
+              for (final p in w.geometry)
+                {'lat': p.latitude, 'lon': p.longitude},
             ],
             'tags': {'highway': w.highwayClass},
           },
@@ -83,8 +83,15 @@ class _FakeWayCandidateSource implements WayCandidateSource {
     };
     return [
       RawTilePayload(
-        payloadGzip: Uint8List.fromList(gzip.encode(utf8.encode(jsonEncode(envelope)))),
-        bbox: LatLonBbox(minLat: minLat, minLon: minLon, maxLat: maxLat, maxLon: maxLon),
+        payloadGzip: Uint8List.fromList(
+          gzip.encode(utf8.encode(jsonEncode(envelope))),
+        ),
+        bbox: LatLonBbox(
+          minLat: minLat,
+          minLon: minLon,
+          maxLat: maxLat,
+          maxLon: maxLon,
+        ),
       ),
     ];
   }
@@ -134,13 +141,13 @@ class _FakeMatcherIsolate extends MatcherIsolate {
 
 /// A minimal WayCandidate centred at (52.5, 13.4) — Berlin-ish.
 WayCandidate _berlinWay() => const WayCandidate(
-      wayId: 42,
-      highwayClass: 'residential',
-      geometry: [
-        LatLng(52.500, 13.400),
-        LatLng(52.501, 13.401),
-      ],
-    );
+  wayId: 42,
+  highwayClass: 'residential',
+  geometry: [
+    LatLng(52.500, 13.400),
+    LatLng(52.501, 13.401),
+  ],
+);
 
 // ---------------------------------------------------------------------------
 // DB helpers
@@ -154,7 +161,9 @@ Future<int> _insertTripWithBbox(
   double? maxLat = 52.51,
   double? maxLon = 13.42,
 }) async {
-  return db.into(db.trips).insert(
+  return db
+      .into(db.trips)
+      .insert(
         TripsCompanion.insert(
           startedAt: DateTime(2026),
           status: Value(status),
@@ -167,7 +176,9 @@ Future<int> _insertTripWithBbox(
 }
 
 Future<void> _insertTripPoint(AppDatabase db, int tripId, int seq) async {
-  await db.into(db.tripPoints).insert(
+  await db
+      .into(db.tripPoints)
+      .insert(
         TripPointsCompanion.insert(
           tripId: tripId,
           seq: seq,
@@ -181,8 +192,9 @@ Future<void> _insertTripPoint(AppDatabase db, int tripId, int seq) async {
 }
 
 Future<TripStatus> _statusOf(AppDatabase db, int tripId) async {
-  final row =
-      await (db.select(db.trips)..where((t) => t.id.equals(tripId))).getSingle();
+  final row = await (db.select(
+    db.trips,
+  )..where((t) => t.id.equals(tripId))).getSingle();
   return row.status;
 }
 
@@ -213,7 +225,8 @@ void main() {
     _FakeMatcherIsolate? isolate,
   }) {
     final defaultIntervals = cannedResult?.intervals ?? const [];
-    final defaultResult = cannedResult ??
+    final defaultResult =
+        cannedResult ??
         MatchResult(
           steps: const [],
           intervals: defaultIntervals,
@@ -222,8 +235,8 @@ void main() {
         );
     return TripMatchCoordinator(
       source: _FakeWayCandidateSource(ways: ways ?? [_berlinWay()]),
-      matcherIsolate: isolate ??
-          _FakeMatcherIsolate(cannedResult: defaultResult),
+      matcherIsolate:
+          isolate ?? _FakeMatcherIsolate(cannedResult: defaultResult),
       tripsDao: tripsDao,
       tripsRepository: repository,
       intervalsDao: intervalsDao,
@@ -233,64 +246,67 @@ void main() {
   // -------------------------------------------------------------------------
   // Test 1: happy path — pending → matched, intervals written
   // -------------------------------------------------------------------------
-  test('1. onTripReadyForMatching happy path: intervals written, trip matched',
-      () async {
-    // Arrange: trip with bbox + 3 points.
-    final tripId = await _insertTripWithBbox(db);
-    await _insertTripPoint(db, tripId, 1);
-    await _insertTripPoint(db, tripId, 2);
-    await _insertTripPoint(db, tripId, 3);
+  test(
+    '1. onTripReadyForMatching happy path: intervals written, trip matched',
+    () async {
+      // Arrange: trip with bbox + 3 points.
+      final tripId = await _insertTripWithBbox(db);
+      await _insertTripPoint(db, tripId, 1);
+      await _insertTripPoint(db, tripId, 2);
+      await _insertTripPoint(db, tripId, 3);
 
-    // Canned result: 1 interval.
-    const interval = DrivenWayIntervalDraft(
-      wayId: 42,
-      startMeters: 0,
-      endMeters: 50,
-      direction: 'forward',
-    );
-    const canned = MatchResult(
-      steps: [],
-      intervals: [interval],
-      matchedFixCount: 3,
-      droppedFixCount: 0,
-    );
+      // Canned result: 1 interval.
+      const interval = DrivenWayIntervalDraft(
+        wayId: 42,
+        startMeters: 0,
+        endMeters: 50,
+        direction: 'forward',
+      );
+      const canned = MatchResult(
+        steps: [],
+        intervals: [interval],
+        matchedFixCount: 3,
+        droppedFixCount: 0,
+      );
 
-    final coord = buildCoord(ways: [_berlinWay()], cannedResult: canned);
-    await coord.onTripReadyForMatching(tripId);
+      final coord = buildCoord(ways: [_berlinWay()], cannedResult: canned);
+      await coord.onTripReadyForMatching(tripId);
 
-    // Assert: trip is now matched.
-    expect(await _statusOf(db, tripId), TripStatus.matched);
+      // Assert: trip is now matched.
+      expect(await _statusOf(db, tripId), TripStatus.matched);
 
-    // Assert: 1 interval row written.
-    final written = await intervalsDao.getByTrip(tripId);
-    expect(written, hasLength(1));
-    expect(written.first.wayId, 42);
-    expect(written.first.tripId, tripId);
-    expect(written.first.startMeters, 0);
-    expect(written.first.endMeters, 50);
-    expect(written.first.direction, 'forward');
-  });
+      // Assert: 1 interval row written.
+      final written = await intervalsDao.getByTrip(tripId);
+      expect(written, hasLength(1));
+      expect(written.first.wayId, 42);
+      expect(written.first.tripId, tripId);
+      expect(written.first.startMeters, 0);
+      expect(written.first.endMeters, 50);
+      expect(written.first.direction, 'forward');
+    },
+  );
 
   // -------------------------------------------------------------------------
   // Test 2: empty ways → matched, 0 intervals
   // -------------------------------------------------------------------------
-  test('2. onTripReadyForMatching with empty ways: trip matched, 0 intervals',
-      () async {
-    final tripId = await _insertTripWithBbox(db);
-    await _insertTripPoint(db, tripId, 1);
+  test(
+    '2. onTripReadyForMatching with empty ways: trip matched, 0 intervals',
+    () async {
+      final tripId = await _insertTripWithBbox(db);
+      await _insertTripPoint(db, tripId, 1);
 
-    final coord = buildCoord(ways: []);
-    await coord.onTripReadyForMatching(tripId);
+      final coord = buildCoord(ways: []);
+      await coord.onTripReadyForMatching(tripId);
 
-    expect(await _statusOf(db, tripId), TripStatus.matched);
-    expect(await intervalsDao.getByTrip(tripId), isEmpty);
-  });
+      expect(await _statusOf(db, tripId), TripStatus.matched);
+      expect(await intervalsDao.getByTrip(tripId), isEmpty);
+    },
+  );
 
   // -------------------------------------------------------------------------
   // Test 3: empty trip_points → matched, 0 intervals
   // -------------------------------------------------------------------------
-  test(
-      '3. onTripReadyForMatching with empty trip_points: '
+  test('3. onTripReadyForMatching with empty trip_points: '
       'trip matched, 0 intervals', () async {
     final tripId = await _insertTripWithBbox(db);
     // No points inserted.
@@ -305,64 +321,68 @@ void main() {
   // -------------------------------------------------------------------------
   // Test 4: null bbox → matched, 0 intervals
   // -------------------------------------------------------------------------
-  test('4. onTripReadyForMatching with null bbox: trip matched, 0 intervals',
-      () async {
-    final tripId = await _insertTripWithBbox(
-      db,
-      minLat: null,
-      minLon: null,
-      maxLat: null,
-      maxLon: null,
-    );
-    await _insertTripPoint(db, tripId, 1);
+  test(
+    '4. onTripReadyForMatching with null bbox: trip matched, 0 intervals',
+    () async {
+      final tripId = await _insertTripWithBbox(
+        db,
+        minLat: null,
+        minLon: null,
+        maxLat: null,
+        maxLon: null,
+      );
+      await _insertTripPoint(db, tripId, 1);
 
-    final coord = buildCoord(ways: [_berlinWay()]);
-    await coord.onTripReadyForMatching(tripId);
+      final coord = buildCoord(ways: [_berlinWay()]);
+      await coord.onTripReadyForMatching(tripId);
 
-    expect(await _statusOf(db, tripId), TripStatus.matched);
-    expect(await intervalsDao.getByTrip(tripId), isEmpty);
-  });
+      expect(await _statusOf(db, tripId), TripStatus.matched);
+      expect(await intervalsDao.getByTrip(tripId), isEmpty);
+    },
+  );
 
   // -------------------------------------------------------------------------
   // Test 5: cancel deletes already-written intervals
   // -------------------------------------------------------------------------
-  test('5. cancel deletes any intervals already written for the trip',
-      () async {
-    final tripId = await _insertTripWithBbox(db);
-    // Seed 2 intervals directly via DAO.
-    await intervalsDao.insertBatch([
-      DrivenWayIntervalsCompanion.insert(
-        wayId: 1,
-        tripId: Value(tripId),
-        startMeters: 0,
-        endMeters: 10,
-      ),
-      DrivenWayIntervalsCompanion.insert(
-        wayId: 2,
-        tripId: Value(tripId),
-        startMeters: 10,
-        endMeters: 20,
-      ),
-    ]);
-    expect(await intervalsDao.getByTrip(tripId), hasLength(2));
+  test(
+    '5. cancel deletes any intervals already written for the trip',
+    () async {
+      final tripId = await _insertTripWithBbox(db);
+      // Seed 2 intervals directly via DAO.
+      await intervalsDao.insertBatch([
+        DrivenWayIntervalsCompanion.insert(
+          wayId: 1,
+          tripId: Value(tripId),
+          startMeters: 0,
+          endMeters: 10,
+        ),
+        DrivenWayIntervalsCompanion.insert(
+          wayId: 2,
+          tripId: Value(tripId),
+          startMeters: 10,
+          endMeters: 20,
+        ),
+      ]);
+      expect(await intervalsDao.getByTrip(tripId), hasLength(2));
 
-    final fakeIsolate = _FakeMatcherIsolate(
-      cannedResult: const MatchResult(
-        steps: [],
-        intervals: [],
-        matchedFixCount: 0,
-        droppedFixCount: 0,
-      ),
-    );
-    final coord = buildCoord(isolate: fakeIsolate);
-    await coord.cancel(tripId);
+      final fakeIsolate = _FakeMatcherIsolate(
+        cannedResult: const MatchResult(
+          steps: [],
+          intervals: [],
+          matchedFixCount: 0,
+          droppedFixCount: 0,
+        ),
+      );
+      final coord = buildCoord(isolate: fakeIsolate);
+      await coord.cancel(tripId);
 
-    // Intervals should be gone.
-    expect(await intervalsDao.getByTrip(tripId), isEmpty);
-    // Isolate cancel was called.
-    expect(fakeIsolate.cancelCalls, 1);
-    expect(fakeIsolate.cancelledTripId, tripId);
-  });
+      // Intervals should be gone.
+      expect(await intervalsDao.getByTrip(tripId), isEmpty);
+      // Isolate cancel was called.
+      expect(fakeIsolate.cancelCalls, 1);
+      expect(fakeIsolate.cancelledTripId, tripId);
+    },
+  );
 
   // -------------------------------------------------------------------------
   // Test 6: processPending processes all pending trips in FIFO order
@@ -445,8 +465,12 @@ void main() {
       await Future<void>.delayed(Duration.zero);
       await Future<void>.delayed(Duration.zero);
 
-      expect(callbackFiredForTrip, tripId,
-          reason: 'onIntervalsLanded must be called with the tripId that just landed intervals');
+      expect(
+        callbackFiredForTrip,
+        tripId,
+        reason:
+            'onIntervalsLanded must be called with the tripId that just landed intervals',
+      );
     },
   );
 
@@ -480,8 +504,11 @@ void main() {
       await coord.onTripReadyForMatching(tripId);
       await Future<void>.delayed(Duration.zero);
 
-      expect(callbackFired, isFalse,
-          reason: 'no intervals written → callback must not fire');
+      expect(
+        callbackFired,
+        isFalse,
+        reason: 'no intervals written → callback must not fire',
+      );
     },
   );
 
@@ -538,8 +565,11 @@ void main() {
       await Future<void>.delayed(Duration.zero);
       await Future<void>.delayed(Duration.zero);
 
-      expect(callCount, 2,
-          reason: 'coalesce runs the trailing recompute — no update lost');
+      expect(
+        callCount,
+        2,
+        reason: 'coalesce runs the trailing recompute — no update lost',
+      );
     },
   );
 
@@ -600,9 +630,13 @@ void main() {
       await Future<void>.delayed(Duration.zero);
       await Future<void>.delayed(Duration.zero);
 
-      expect(callCount, 0,
-          reason: 'per-trip auto-recompute must be suppressed during the '
-              'one-shot rematch migration');
+      expect(
+        callCount,
+        0,
+        reason:
+            'per-trip auto-recompute must be suppressed during the '
+            'one-shot rematch migration',
+      );
     },
   );
 
@@ -615,8 +649,10 @@ void main() {
     '(suppression is scoped to the migration only)',
     () async {
       // Run a migration first so the suppress flag is toggled true→false.
-      final tMigrate =
-          await _insertTripWithBbox(db, status: TripStatus.confirmed);
+      final tMigrate = await _insertTripWithBbox(
+        db,
+        status: TripStatus.confirmed,
+      );
       await _insertTripPoint(db, tMigrate, 1);
       await _insertTripPoint(db, tMigrate, 2);
       await intervalsDao.insertBatch([
@@ -663,17 +699,20 @@ void main() {
       await Future<void>.delayed(Duration.zero);
       await Future<void>.delayed(Duration.zero);
 
-      expect(liveCallbackFiredForTrip, tLive,
-          reason: 'the normal live path must auto-recompute after the '
-              'migration re-enables it');
+      expect(
+        liveCallbackFiredForTrip,
+        tLive,
+        reason:
+            'the normal live path must auto-recompute after the '
+            'migration re-enables it',
+      );
     },
   );
 
   // -------------------------------------------------------------------------
   // Test 7: rematchAllStoredTrips replaces stored intervals, preserves status
   // -------------------------------------------------------------------------
-  test(
-      '7. rematchAllStoredTrips: replaces old intervals for every stored trip '
+  test('7. rematchAllStoredTrips: replaces old intervals for every stored trip '
       'and does NOT change trip status', () async {
     // Two CONFIRMED trips, each with stale (pre-fix) intervals + raw points.
     final t1 = await _insertTripWithBbox(db, status: TripStatus.confirmed);
@@ -728,8 +767,7 @@ void main() {
   // Test 11: rematchAllStoredTrips invokes onTripDone once per trip with a
   // rising done count and a fixed total (drives the startup recalc banner).
   // -------------------------------------------------------------------------
-  test(
-      '11. rematchAllStoredTrips invokes onTripDone once per trip with rising '
+  test('11. rematchAllStoredTrips invokes onTripDone once per trip with rising '
       'done count', () async {
     final t1 = await _insertTripWithBbox(db, status: TripStatus.confirmed);
     final t2 = await _insertTripWithBbox(db, status: TripStatus.confirmed);
@@ -775,8 +813,7 @@ void main() {
   // Test 12: _rematchOne (via rematchAllStoredTrips) drives the per-trip
   // progress sink to fraction 1 and then clears it, for each trip.
   // -------------------------------------------------------------------------
-  test(
-      '12. rematch emits progressSink(1) then clears it per trip', () async {
+  test('12. rematch emits progressSink(1) then clears it per trip', () async {
     final t1 = await _insertTripWithBbox(db, status: TripStatus.confirmed);
     final t2 = await _insertTripWithBbox(db, status: TripStatus.confirmed);
     for (final t in [t1, t2]) {

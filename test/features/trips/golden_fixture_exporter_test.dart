@@ -48,8 +48,7 @@ class _FakeWaySource implements WayCandidateSource {
     Set<TileId>? restrictTiles,
     bool cacheOnly = false,
     void Function(int done, int total)? onTileProgress,
-  }) async =>
-      ways;
+  }) async => ways;
 
   @override
   Future<List<RawTilePayload>> fetchRawTilesInBbox({
@@ -61,23 +60,22 @@ class _FakeWaySource implements WayCandidateSource {
     Set<TileId>? restrictTiles,
     bool cacheOnly = false,
     void Function(int done, int total)? onTileProgress,
-  }) async =>
-      const [];
+  }) async => const [];
 }
 
 WayCandidate _way(int id) => WayCandidate(
-      wayId: id,
-      geometry: const [
-        LatLng(49.79, 9.18),
-        LatLng(49.80, 9.20),
-        LatLng(49.81, 9.22),
-      ],
-      // Must be Kfz-allowlisted so it survives the corpus parser's filter.
-      highwayClass: 'residential',
-      name: 'Test Straße',
-      oneway: OnewayDirection.forward,
-      maxspeedKmh: 50,
-    );
+  wayId: id,
+  geometry: const [
+    LatLng(49.79, 9.18),
+    LatLng(49.80, 9.20),
+    LatLng(49.81, 9.22),
+  ],
+  // Must be Kfz-allowlisted so it survives the corpus parser's filter.
+  highwayClass: 'residential',
+  name: 'Test Straße',
+  oneway: OnewayDirection.forward,
+  maxspeedKmh: 50,
+);
 
 void main() {
   late AppDatabase db;
@@ -98,7 +96,9 @@ void main() {
     if (tempDir.existsSync()) await tempDir.delete(recursive: true);
   });
 
-  Future<int> seedTrip() => db.into(db.trips).insert(
+  Future<int> seedTrip() => db
+      .into(db.trips)
+      .insert(
         TripsCompanion.insert(
           startedAt: DateTime.utc(2026, 7, 9, 8),
           endedAt: Value(DateTime.utc(2026, 7, 9, 8, 42)),
@@ -109,7 +109,9 @@ void main() {
 
   Future<void> seedPoints(int tripId, int count) async {
     for (var i = 0; i < count; i++) {
-      await db.into(db.tripPoints).insert(
+      await db
+          .into(db.tripPoints)
+          .insert(
             TripPointsCompanion.insert(
               tripId: tripId,
               seq: i,
@@ -123,16 +125,17 @@ void main() {
     }
   }
 
-  Future<void> seedInterval(int tripId, int wayId) =>
-      db.into(db.drivenWayIntervals).insert(
-            DrivenWayIntervalsCompanion.insert(
-              wayId: wayId,
-              tripId: Value(tripId),
-              startMeters: 0,
-              endMeters: 100,
-              matchedAt: Value(DateTime.utc(2026, 7, 9, 10)),
-            ),
-          );
+  Future<void> seedInterval(int tripId, int wayId) => db
+      .into(db.drivenWayIntervals)
+      .insert(
+        DrivenWayIntervalsCompanion.insert(
+          wayId: wayId,
+          tripId: Value(tripId),
+          startMeters: 0,
+          endMeters: 100,
+          matchedAt: Value(DateTime.utc(2026, 7, 9, 10)),
+        ),
+      );
 
   GoldenFixtureExporter buildExporter(List<WayCandidate> ways) =>
       GoldenFixtureExporter(
@@ -158,10 +161,9 @@ void main() {
     expect(File(p.join(dirPath, 'expected_ways.json')).existsSync(), isTrue);
     // No stray .tmp files survive the atomic rename.
     expect(
-      Directory(dirPath)
-          .listSync()
-          .whereType<File>()
-          .where((f) => f.path.endsWith('.tmp')),
+      Directory(
+        dirPath,
+      ).listSync().whereType<File>().where((f) => f.path.endsWith('.tmp')),
       isEmpty,
     );
   });
@@ -209,8 +211,8 @@ void main() {
     expect(bytes[0], 0x1F);
     expect(bytes[1], 0x8B);
     // And it decompresses to a parseable Overpass envelope.
-    final json = jsonDecode(utf8.decode(gzip.decode(bytes)))
-        as Map<String, dynamic>;
+    final json =
+        jsonDecode(utf8.decode(gzip.decode(bytes))) as Map<String, dynamic>;
     expect(json['elements'], isA<List<dynamic>>());
   });
 
@@ -239,46 +241,51 @@ void main() {
     // Plant a stale file that must NOT survive the re-export.
     File(p.join(dirPath, 'stale.txt')).writeAsStringSync('old');
 
-    final dirPath2 =
-        await exporter.export(tripId: tripId, slug: '006_collide');
+    final dirPath2 = await exporter.export(tripId: tripId, slug: '006_collide');
 
     expect(dirPath2, dirPath);
     expect(File(p.join(dirPath, 'stale.txt')).existsSync(), isFalse);
     expect(File(p.join(dirPath, 'gps_trace.json')).existsSync(), isTrue);
   });
 
-  test('round-trip: exported ways.json.gz re-parses through the corpus helper',
-      () async {
-    final tripId = await seedTrip();
-    await seedPoints(tripId, 3);
-    await seedInterval(tripId, 7);
-    await seedInterval(tripId, 9);
-    final exporter = buildExporter([_way(7), _way(9)]);
+  test(
+    'round-trip: exported ways.json.gz re-parses through the corpus helper',
+    () async {
+      final tripId = await seedTrip();
+      await seedPoints(tripId, 3);
+      await seedInterval(tripId, 7);
+      await seedInterval(tripId, 9);
+      final exporter = buildExporter([_way(7), _way(9)]);
 
-    final dirPath = await exporter.export(tripId: tripId, slug: '007_roundtrip');
+      final dirPath = await exporter.export(
+        tripId: tripId,
+        slug: '007_roundtrip',
+      );
 
-    // Re-parse with the EXACT helper golden_corpus_test.dart uses.
-    final source = await FixtureWayCandidateSource.fromGzippedOverpassJson(
-      p.join(dirPath, 'ways.json.gz'),
-    );
-    final ways = await source.fetchWaysInBbox(
-      minLat: 49,
-      minLon: 8,
-      maxLat: 50,
-      maxLon: 10,
-    );
+      // Re-parse with the EXACT helper golden_corpus_test.dart uses.
+      final source = await FixtureWayCandidateSource.fromGzippedOverpassJson(
+        p.join(dirPath, 'ways.json.gz'),
+      );
+      final ways = await source.fetchWaysInBbox(
+        minLat: 49,
+        minLon: 8,
+        maxLat: 50,
+        maxLon: 10,
+      );
 
-    final wayIds = ways.map((w) => w.wayId).toSet();
-    expect(wayIds, isNotEmpty);
-    // Every seeded interval way id is present in the exported candidate set.
-    final expectedRaw =
-        File(p.join(dirPath, 'expected_ways.json')).readAsStringSync();
-    final expectedIds = (jsonDecode(expectedRaw) as List)
-        .cast<Map<String, dynamic>>()
-        .map((e) => e['wayId'] as int)
-        .toSet();
-    expect(wayIds.containsAll(expectedIds), isTrue);
-    // Tags survive the re-emit (proves Path B shape is faithful).
-    expect(ways.first.highwayClass, 'residential');
-  });
+      final wayIds = ways.map((w) => w.wayId).toSet();
+      expect(wayIds, isNotEmpty);
+      // Every seeded interval way id is present in the exported candidate set.
+      final expectedRaw = File(
+        p.join(dirPath, 'expected_ways.json'),
+      ).readAsStringSync();
+      final expectedIds = (jsonDecode(expectedRaw) as List)
+          .cast<Map<String, dynamic>>()
+          .map((e) => e['wayId'] as int)
+          .toSet();
+      expect(wayIds.containsAll(expectedIds), isTrue);
+      // Tags survive the re-emit (proves Path B shape is faithful).
+      expect(ways.first.highwayClass, 'residential');
+    },
+  );
 }

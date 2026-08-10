@@ -27,15 +27,15 @@ const Color kLiveTrailColor = Color(0xFFFF8C00); // amber full (light)
 
 /// GeoJSON LineString feature from [points] ([lng, lat] order, per GeoJSON).
 Map<String, dynamic> liveTrailLineFeature(List<LatLng> points) => {
-      'type': 'Feature',
-      'geometry': {
-        'type': 'LineString',
-        'coordinates': [
-          for (final p in points) [p.longitude, p.latitude],
-        ],
-      },
-      'properties': <String, dynamic>{},
-    };
+  'type': 'Feature',
+  'geometry': {
+    'type': 'LineString',
+    'coordinates': [
+      for (final p in points) [p.longitude, p.latitude],
+    ],
+  },
+  'properties': <String, dynamic>{},
+};
 
 /// Seam for applying the live trail to the map. Overridable in tests.
 abstract class LiveTrailApplier {

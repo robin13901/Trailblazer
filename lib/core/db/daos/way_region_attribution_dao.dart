@@ -58,8 +58,9 @@ class WayRegionAttributionDao extends DatabaseAccessor<AppDatabase>
   /// Delete attribution rows for the given wayIds (cache invalidation).
   Future<int> deleteByWayIds(List<int> wayIds) {
     if (wayIds.isEmpty) return Future.value(0);
-    return (delete(wayRegionAttribution)..where((t) => t.wayId.isIn(wayIds)))
-        .go();
+    return (delete(
+      wayRegionAttribution,
+    )..where((t) => t.wayId.isIn(wayIds))).go();
   }
 
   /// Clear the whole attribution cache (used by the full rebuild path).

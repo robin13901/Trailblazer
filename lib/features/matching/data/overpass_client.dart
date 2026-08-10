@@ -52,14 +52,14 @@ class OverpassClient {
     Duration requestTimeout = const Duration(seconds: 60),
     OverpassResponseParser parser = const OverpassResponseParser(),
     OverpassQueryBuilder queryBuilder = const OverpassQueryBuilder(),
-  })  : _client = client ?? http.Client(),
-        _primary = primaryEndpoint ?? kOverpassPrimaryEndpoint,
-        _fallback = fallbackEndpoint ?? kOverpassFallbackEndpoint,
-        _userAgent = userAgent,
-        _backoff = backoffBuilder ?? _defaultBackoff,
-        _timeout = requestTimeout,
-        _parser = parser,
-        _queryBuilder = queryBuilder;
+  }) : _client = client ?? http.Client(),
+       _primary = primaryEndpoint ?? kOverpassPrimaryEndpoint,
+       _fallback = fallbackEndpoint ?? kOverpassFallbackEndpoint,
+       _userAgent = userAgent,
+       _backoff = backoffBuilder ?? _defaultBackoff,
+       _timeout = requestTimeout,
+       _parser = parser,
+       _queryBuilder = queryBuilder;
 
   final http.Client _client;
   final Uri _primary;

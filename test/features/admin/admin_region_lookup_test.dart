@@ -164,9 +164,9 @@ void main() {
   });
 
   AdminRegionLookup makeLookup() => AdminRegionLookup(
-        bundle: bundle,
-        docsDirLoader: _emptyDocsDir,
-      );
+    bundle: bundle,
+    docsDirLoader: _emptyDocsDir,
+  );
 
   test('regionAt(52.52, 13.405, 4) returns Berlin', () async {
     final lookup = makeLookup();

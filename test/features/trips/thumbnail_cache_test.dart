@@ -15,9 +15,9 @@ final Uint8List _fakePng = Uint8List.fromList(<int>[
 ]);
 
 Uint8List _fakePngBytesFor(int tripId) => Uint8List.fromList(<int>[
-      ..._fakePng,
-      tripId & 0xFF,
-    ]);
+  ..._fakePng,
+  tripId & 0xFF,
+]);
 
 /// Tests for [ThumbnailCache].
 ///
@@ -29,12 +29,12 @@ void main() {
   late ProviderContainer container;
 
   ProviderContainer buildContainer(Directory dir) => ProviderContainer(
-        overrides: [
-          thumbnailDirectoryFactoryProvider.overrideWithValue(
-            () async => dir,
-          ),
-        ],
-      );
+    overrides: [
+      thumbnailDirectoryFactoryProvider.overrideWithValue(
+        () async => dir,
+      ),
+    ],
+  );
 
   setUp(() {
     tempRoot = Directory.systemTemp.createTempSync('thumb_cache_test_');
@@ -49,19 +49,20 @@ void main() {
   });
 
   group('ThumbnailCache', () {
-    test('store persists PNG for tripId and pathFor returns the path',
-        () async {
-      final cache = container.read(thumbnailCacheProvider.notifier);
-      final storedPath = await cache.store(1, _fakePngBytesFor(1));
+    test(
+      'store persists PNG for tripId and pathFor returns the path',
+      () async {
+        final cache = container.read(thumbnailCacheProvider.notifier);
+        final storedPath = await cache.store(1, _fakePngBytesFor(1));
 
-      expect(storedPath, endsWith('${p.separator}1.png'));
-      expect(cache.pathFor(1), storedPath);
-      expect(File(storedPath).existsSync(), isTrue);
-      expect(File(storedPath).lengthSync(), _fakePngBytesFor(1).length);
-    });
+        expect(storedPath, endsWith('${p.separator}1.png'));
+        expect(cache.pathFor(1), storedPath);
+        expect(File(storedPath).existsSync(), isTrue);
+        expect(File(storedPath).lengthSync(), _fakePngBytesFor(1).length);
+      },
+    );
 
-    test('delete removes the on-disk file and drops the index entry',
-        () async {
+    test('delete removes the on-disk file and drops the index entry', () async {
       final cache = container.read(thumbnailCacheProvider.notifier);
       final storedPath = await cache.store(2, _fakePngBytesFor(2));
 
@@ -84,42 +85,45 @@ void main() {
       expect(container.read(thumbnailCacheProvider).paths, isEmpty);
     });
 
-    test('clear removes every cached thumbnail file and clears the index',
-        () async {
-      final cache = container.read(thumbnailCacheProvider.notifier);
-      await cache.store(10, _fakePngBytesFor(10));
-      await cache.store(11, _fakePngBytesFor(11));
+    test(
+      'clear removes every cached thumbnail file and clears the index',
+      () async {
+        final cache = container.read(thumbnailCacheProvider.notifier);
+        await cache.store(10, _fakePngBytesFor(10));
+        await cache.store(11, _fakePngBytesFor(11));
 
-      expect(cache.pathFor(10), isNotNull);
-      expect(cache.pathFor(11), isNotNull);
+        expect(cache.pathFor(10), isNotNull);
+        expect(cache.pathFor(11), isNotNull);
 
-      await cache.clear();
+        await cache.clear();
 
-      expect(container.read(thumbnailCacheProvider).paths, isEmpty);
-      expect(cache.pathFor(10), isNull);
-      expect(cache.pathFor(11), isNull);
+        expect(container.read(thumbnailCacheProvider).paths, isEmpty);
+        expect(cache.pathFor(10), isNull);
+        expect(cache.pathFor(11), isNull);
 
-      // Files gone from disk too.
-      final remaining = tempRoot
-          .listSync()
-          .whereType<File>()
-          .where((f) => f.path.endsWith('.png'))
-          .toList();
-      expect(remaining, isEmpty);
-    });
+        // Files gone from disk too.
+        final remaining = tempRoot
+            .listSync()
+            .whereType<File>()
+            .where((f) => f.path.endsWith('.png'))
+            .toList();
+        expect(remaining, isEmpty);
+      },
+    );
 
     test(
       'reinstantiating the cache with existing files repopulates the index',
       () async {
         // Seed the temp dir directly (as if a prior process had rendered
         // thumbnails).
-        File(p.join(tempRoot.path, '42.png'))
-            .writeAsBytesSync(_fakePngBytesFor(42));
-        File(p.join(tempRoot.path, '43.png'))
-            .writeAsBytesSync(_fakePngBytesFor(43));
+        File(
+          p.join(tempRoot.path, '42.png'),
+        ).writeAsBytesSync(_fakePngBytesFor(42));
+        File(
+          p.join(tempRoot.path, '43.png'),
+        ).writeAsBytesSync(_fakePngBytesFor(43));
         // A non-numeric filename must be ignored.
-        File(p.join(tempRoot.path, 'notrip.png'))
-            .writeAsBytesSync(_fakePng);
+        File(p.join(tempRoot.path, 'notrip.png')).writeAsBytesSync(_fakePng);
         // A non-PNG file must be ignored.
         File(p.join(tempRoot.path, '99.txt')).writeAsStringSync('nope');
 

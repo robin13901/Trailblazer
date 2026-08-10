@@ -49,15 +49,15 @@ class _FakeAdminRegionLookup implements AdminRegionLookup {
 }
 
 AdminRegion _region(int osmId, int level, String name) => AdminRegion(
-      osmId: osmId,
-      adminLevel: level,
-      name: name,
-      bboxMinLat: 0,
-      bboxMinLon: 0,
-      bboxMaxLat: 0,
-      bboxMaxLon: 0,
-      polygons: const [],
-    );
+  osmId: osmId,
+  adminLevel: level,
+  name: name,
+  bboxMinLat: 0,
+  bboxMinLon: 0,
+  bboxMaxLat: 0,
+  bboxMaxLon: 0,
+  polygons: const [],
+);
 
 void main() {
   group('TripPlaceLookup.lookup', () {

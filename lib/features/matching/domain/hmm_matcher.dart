@@ -294,8 +294,7 @@ class HmmMatcher {
       // the interval outright (never truncates), and legitimately-driven ways
       // (geometry <8 m from a fix) always pass.
       final geomWay = waysById[runWayId];
-      if (geomWay != null &&
-          !_intervalNearTrack(geomWay, start, end, fixes)) {
+      if (geomWay != null && !_intervalNearTrack(geomWay, start, end, fixes)) {
         runWayId = null;
         return;
       }
@@ -473,7 +472,11 @@ class HmmMatcher {
   /// [_ConnectorEnd.none] when even that nearest vertex is beyond
   /// [kConnectorEndpointToleranceMeters] (the way does not touch the connector
   /// at all). Coordinate fallback used only when node ids are unavailable.
-  _ConnectorEnd _attachedEnd(WayCandidate way, LatLng startNode, LatLng endNode) {
+  _ConnectorEnd _attachedEnd(
+    WayCandidate way,
+    LatLng startNode,
+    LatLng endNode,
+  ) {
     var dStart = double.infinity;
     var dEnd = double.infinity;
     for (final v in way.geometry) {
@@ -793,11 +796,13 @@ class HmmMatcher {
     // START node — so the extension knows which meter bound to open up.
     final pEnds = <(int nodeId, bool isEnd)>[
       if (prev.startMeters <= tol) (_nodeIdAt(pWay, 0), false),
-      if (lenP - prev.endMeters <= tol) (_nodeIdAt(pWay, pWay.geometry.length - 1), true),
+      if (lenP - prev.endMeters <= tol)
+        (_nodeIdAt(pWay, pWay.geometry.length - 1), true),
     ];
     final cEnds = <(int nodeId, bool isEnd)>[
       if (cur.startMeters <= tol) (_nodeIdAt(cWay, 0), false),
-      if (lenC - cur.endMeters <= tol) (_nodeIdAt(cWay, cWay.geometry.length - 1), true),
+      if (lenC - cur.endMeters <= tol)
+        (_nodeIdAt(cWay, cWay.geometry.length - 1), true),
     ];
 
     for (final (pNode, pIsEnd) in pEnds) {

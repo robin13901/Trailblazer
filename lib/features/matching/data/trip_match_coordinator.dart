@@ -63,14 +63,14 @@ class TripMatchCoordinator {
     MatchProgressSink? progressSink,
     MatchProgressClearSink? progressClearSink,
     OnIntervalsLandedCallback? onIntervalsLanded,
-  })  : _source = source,
-        _isolate = matcherIsolate,
-        _tripsDao = tripsDao,
-        _tripsRepository = tripsRepository,
-        _intervalsDao = intervalsDao,
-        _progressSink = progressSink,
-        _progressClearSink = progressClearSink,
-        _onIntervalsLanded = onIntervalsLanded;
+  }) : _source = source,
+       _isolate = matcherIsolate,
+       _tripsDao = tripsDao,
+       _tripsRepository = tripsRepository,
+       _intervalsDao = intervalsDao,
+       _progressSink = progressSink,
+       _progressClearSink = progressClearSink,
+       _onIntervalsLanded = onIntervalsLanded;
 
   final WayCandidateSource _source;
   final MatcherIsolate _isolate;
@@ -122,10 +122,9 @@ class TripMatchCoordinator {
     await _isolate.start(); // idempotent
 
     // Load the trip row to obtain its bbox.
-    final tripRow = await (
-          _tripsDao.select(_tripsDao.trips)
-            ..where((t) => t.id.equals(tripId))
-        ).getSingleOrNull();
+    final tripRow = await (_tripsDao.select(
+      _tripsDao.trips,
+    )..where((t) => t.id.equals(tripId))).getSingleOrNull();
 
     if (tripRow == null) {
       _log.warning('trip $tripId not found — skipping match');
@@ -433,9 +432,9 @@ class TripMatchCoordinator {
   /// not be re-matched (missing bbox/points/tiles) — in which case the
   /// existing intervals are left untouched rather than wiped.
   Future<bool> _rematchOne(int tripId) async {
-    final tripRow = await (_tripsDao.select(_tripsDao.trips)
-          ..where((t) => t.id.equals(tripId)))
-        .getSingleOrNull();
+    final tripRow = await (_tripsDao.select(
+      _tripsDao.trips,
+    )..where((t) => t.id.equals(tripId))).getSingleOrNull();
     if (tripRow == null) return false;
     if (tripRow.bboxMinLat == null ||
         tripRow.bboxMinLon == null ||

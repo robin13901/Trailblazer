@@ -52,17 +52,17 @@ class _FakeAdminRegionLookup implements AdminRegionLookup {
 }
 
 AdminRegion _region(int osmId, int level, String name) => AdminRegion(
-      osmId: osmId,
-      adminLevel: level,
-      name: name,
-      // Bbox and polygons unused by CoverageInvalidator — the fake
-      // returns pre-canned regions without geometry checks.
-      bboxMinLat: 0,
-      bboxMinLon: 0,
-      bboxMaxLat: 0,
-      bboxMaxLon: 0,
-      polygons: const [],
-    );
+  osmId: osmId,
+  adminLevel: level,
+  name: name,
+  // Bbox and polygons unused by CoverageInvalidator — the fake
+  // returns pre-canned regions without geometry checks.
+  bboxMinLat: 0,
+  bboxMinLon: 0,
+  bboxMaxLat: 0,
+  bboxMaxLon: 0,
+  polygons: const [],
+);
 
 void main() {
   late AppDatabase db;
@@ -85,7 +85,9 @@ void main() {
     required double? maxLat,
     required double? maxLon,
   }) {
-    return db.into(db.trips).insert(
+    return db
+        .into(db.trips)
+        .insert(
           TripsCompanion.insert(
             startedAt: DateTime(2026, 7, 9, 12),
             status: const Value(TripStatus.matched),
@@ -110,52 +112,54 @@ void main() {
   }
 
   group('CoverageInvalidator.invalidateForTrip', () {
-    test('Kleinheubach-ish bbox deletes rows for 4 sampled admin regions',
-        () async {
-      final lookup = _FakeAdminRegionLookup({
-        4: _region(2145268, 4, 'Bayern'),
-        6: _region(62422, 6, 'Landkreis Miltenberg'),
-        8: _region(151999, 8, 'Kleinheubach'),
-        9: _region(444444, 9, 'Kleinheubach Kernort'),
-        10: _region(555555, 10, 'Kleinheubach Ortsteil'),
-      });
-      await seedCoverageRows(const [
-        '2145268',
-        '62422',
-        '151999',
-        '444444',
-        '555555',
-        // unrelated region — must survive
-        'unrelated-region',
-      ]);
-      final tripId = await insertTripWithBbox(
-        minLat: 49.79,
-        minLon: 9.18,
-        maxLat: 49.80,
-        maxLon: 9.20,
-      );
+    test(
+      'Kleinheubach-ish bbox deletes rows for 4 sampled admin regions',
+      () async {
+        final lookup = _FakeAdminRegionLookup({
+          4: _region(2145268, 4, 'Bayern'),
+          6: _region(62422, 6, 'Landkreis Miltenberg'),
+          8: _region(151999, 8, 'Kleinheubach'),
+          9: _region(444444, 9, 'Kleinheubach Kernort'),
+          10: _region(555555, 10, 'Kleinheubach Ortsteil'),
+        });
+        await seedCoverageRows(const [
+          '2145268',
+          '62422',
+          '151999',
+          '444444',
+          '555555',
+          // unrelated region — must survive
+          'unrelated-region',
+        ]);
+        final tripId = await insertTripWithBbox(
+          minLat: 49.79,
+          minLon: 9.18,
+          maxLat: 49.80,
+          maxLon: 9.20,
+        );
 
-      final invalidator = CoverageInvalidator(
-        cacheDao: cacheDao,
-        regionLookup: lookup,
-        tripsDao: tripsDao,
-      );
+        final invalidator = CoverageInvalidator(
+          cacheDao: cacheDao,
+          regionLookup: lookup,
+          tripsDao: tripsDao,
+        );
 
-      final result = await invalidator.invalidateForTrip(tripId);
-      final deleted = result.when(ok: (v) => v, err: (_) => -1);
-      expect(deleted, 5);
+        final result = await invalidator.invalidateForTrip(tripId);
+        final deleted = result.when(ok: (v) => v, err: (_) => -1);
+        expect(deleted, 5);
 
-      expect(await cacheDao.getByRegionId('2145268'), isNull);
-      expect(await cacheDao.getByRegionId('62422'), isNull);
-      expect(await cacheDao.getByRegionId('151999'), isNull);
-      expect(await cacheDao.getByRegionId('444444'), isNull);
-      expect(await cacheDao.getByRegionId('555555'), isNull);
-      expect(await cacheDao.getByRegionId('unrelated-region'), isNotNull);
+        expect(await cacheDao.getByRegionId('2145268'), isNull);
+        expect(await cacheDao.getByRegionId('62422'), isNull);
+        expect(await cacheDao.getByRegionId('151999'), isNull);
+        expect(await cacheDao.getByRegionId('444444'), isNull);
+        expect(await cacheDao.getByRegionId('555555'), isNull);
+        expect(await cacheDao.getByRegionId('unrelated-region'), isNotNull);
 
-      // 5 samples × 5 admin levels = 25 lookup calls (idempotent per
-      // level — dedup happens in the invalidator).
-      expect(lookup.calls, 25);
-    });
+        // 5 samples × 5 admin levels = 25 lookup calls (idempotent per
+        // level — dedup happens in the invalidator).
+        expect(lookup.calls, 25);
+      },
+    );
 
     test('null bbox returns Ok(0), no lookup issued', () async {
       final lookup = _FakeAdminRegionLookup({
@@ -220,36 +224,38 @@ void main() {
       expect(second.when(ok: (v) => v, err: (_) => -1), 0);
     });
 
-    test('AdminRegionLookup returning null at some levels does not crash',
-        () async {
-      final lookup = _FakeAdminRegionLookup({
-        4: _region(1, 4, 'DE'),
-        // 6 + 8 + 9 + 10 return null (Bundesländer only, ocean lookup, etc.)
-        6: null,
-        8: null,
-        9: null,
-        10: null,
-      });
-      await seedCoverageRows(const ['1', '2', '3']);
-      final tripId = await insertTripWithBbox(
-        minLat: 49.79,
-        minLon: 9.18,
-        maxLat: 49.80,
-        maxLon: 9.20,
-      );
+    test(
+      'AdminRegionLookup returning null at some levels does not crash',
+      () async {
+        final lookup = _FakeAdminRegionLookup({
+          4: _region(1, 4, 'DE'),
+          // 6 + 8 + 9 + 10 return null (Bundesländer only, ocean lookup, etc.)
+          6: null,
+          8: null,
+          9: null,
+          10: null,
+        });
+        await seedCoverageRows(const ['1', '2', '3']);
+        final tripId = await insertTripWithBbox(
+          minLat: 49.79,
+          minLon: 9.18,
+          maxLat: 49.80,
+          maxLon: 9.20,
+        );
 
-      final invalidator = CoverageInvalidator(
-        cacheDao: cacheDao,
-        regionLookup: lookup,
-        tripsDao: tripsDao,
-      );
+        final invalidator = CoverageInvalidator(
+          cacheDao: cacheDao,
+          regionLookup: lookup,
+          tripsDao: tripsDao,
+        );
 
-      final result = await invalidator.invalidateForTrip(tripId);
-      expect(result.when(ok: (v) => v, err: (_) => -1), 1);
-      expect(await cacheDao.getByRegionId('1'), isNull);
-      expect(await cacheDao.getByRegionId('2'), isNotNull);
-      expect(await cacheDao.getByRegionId('3'), isNotNull);
-    });
+        final result = await invalidator.invalidateForTrip(tripId);
+        expect(result.when(ok: (v) => v, err: (_) => -1), 1);
+        expect(await cacheDao.getByRegionId('1'), isNull);
+        expect(await cacheDao.getByRegionId('2'), isNotNull);
+        expect(await cacheDao.getByRegionId('3'), isNotNull);
+      },
+    );
   });
 
   group('CoverageInvalidator.invalidateForTripDelete', () {
@@ -281,8 +287,7 @@ void main() {
   });
 
   group('CoverageInvalidator.invalidateAll', () {
-    test('truncates the coverage_cache table and reports the count',
-        () async {
+    test('truncates the coverage_cache table and reports the count', () async {
       final lookup = _FakeAdminRegionLookup(const {});
       await seedCoverageRows(const ['a', 'b', 'c', 'd']);
 

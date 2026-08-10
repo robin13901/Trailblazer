@@ -22,7 +22,8 @@ import 'package:auto_explore/features/trips/presentation/providers/tracking_stat
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:maplibre_gl/maplibre_gl.dart' show LatLng, MapLibreMapController;
+import 'package:maplibre_gl/maplibre_gl.dart'
+    show LatLng, MapLibreMapController;
 
 // ---------------------------------------------------------------------------
 // Recording fake applier
@@ -82,12 +83,12 @@ class _FakeTrackingNotifier extends Notifier<TrackingState>
 }
 
 TrackingRecording _recording() => TrackingRecording(
-      tripId: 1,
-      startedAt: DateTime.now(),
-      distanceMeters: 0,
-      pointCount: 0,
-      manuallyStarted: true,
-    );
+  tripId: 1,
+  startedAt: DateTime.now(),
+  distanceMeters: 0,
+  pointCount: 0,
+  manuallyStarted: true,
+);
 
 LiveFixSample _fix(double lat, double lon) =>
     LiveFixSample(ts: DateTime(2026, 7, 11), lat: lat, lon: lon);
@@ -125,9 +126,9 @@ Future<_Fixture> _pump(WidgetTester tester) async {
 
 void _bumpStyleTick(WidgetTester tester) {
   final element = tester.element(find.byType(LiveTrailBridge));
-  ProviderScope.containerOf(element)
-      .read(mapStyleLoadedTickProvider.notifier)
-      .bump();
+  ProviderScope.containerOf(
+    element,
+  ).read(mapStyleLoadedTickProvider.notifier).bump();
 }
 
 void main() {
@@ -143,8 +144,9 @@ void main() {
       );
     });
 
-    testWidgets('draws one fix behind: no draw until 3 points, renders 2',
-        (tester) async {
+    testWidgets('draws one fix behind: no draw until 3 points, renders 2', (
+      tester,
+    ) async {
       final f = await _pump(tester);
       _bumpStyleTick(tester);
       await tester.pump();
@@ -168,8 +170,9 @@ void main() {
       expect((call as _AddOrUpdateCall).trail, hasLength(2));
     });
 
-    testWidgets('each subsequent fix updates the trail (one fix behind)',
-        (tester) async {
+    testWidgets('each subsequent fix updates the trail (one fix behind)', (
+      tester,
+    ) async {
       final f = await _pump(tester);
       _bumpStyleTick(tester);
       await tester.pump();
@@ -187,8 +190,9 @@ void main() {
       expect(addCalls.last.trail, hasLength(4));
     });
 
-    testWidgets('clears + removes the trail on stop (→ TrackingIdle)',
-        (tester) async {
+    testWidgets('clears + removes the trail on stop (→ TrackingIdle)', (
+      tester,
+    ) async {
       final f = await _pump(tester);
       _bumpStyleTick(tester);
       await tester.pump();

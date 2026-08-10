@@ -8,8 +8,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// Plain `Provider<T>` — no `@Riverpod` codegen (see STATE.md Plan 01-01).
 final trackingCapabilityRepositoryProvider =
     Provider<TrackingCapabilityRepository>(
-  (ref) => TrackingCapabilityRepository(SharedPreferencesAsync()),
-);
+      (ref) => TrackingCapabilityRepository(SharedPreferencesAsync()),
+    );
 
 /// FutureProvider exposing the persisted [TrackingCapability].
 ///

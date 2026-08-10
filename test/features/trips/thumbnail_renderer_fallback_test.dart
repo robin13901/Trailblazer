@@ -36,22 +36,24 @@ void main() {
   }
 
   group('ThumbnailRenderer.renderFallback', () {
-    test('returns a PNG-magic-prefixed Uint8List for a 4-point polyline',
-        () async {
-      final bytes = await renderer().renderFallback(
-        polyline: const [
-          LatLng(52.51, 13.36),
-          LatLng(52.52, 13.38),
-          LatLng(52.53, 13.40),
-          LatLng(52.54, 13.42),
-        ],
-        bbox: berlinBbox,
-      );
+    test(
+      'returns a PNG-magic-prefixed Uint8List for a 4-point polyline',
+      () async {
+        final bytes = await renderer().renderFallback(
+          polyline: const [
+            LatLng(52.51, 13.36),
+            LatLng(52.52, 13.38),
+            LatLng(52.53, 13.40),
+            LatLng(52.54, 13.42),
+          ],
+          bbox: berlinBbox,
+        );
 
-      expect(bytes, isA<Uint8List>());
-      expect(bytes.length, greaterThan(_kPngMagic.length));
-      expect(_startsWithPngMagic(bytes), isTrue);
-    });
+        expect(bytes, isA<Uint8List>());
+        expect(bytes.length, greaterThan(_kPngMagic.length));
+        expect(_startsWithPngMagic(bytes), isTrue);
+      },
+    );
 
     test('empty polyline still produces a valid decode-able PNG', () async {
       final bytes = await renderer().renderFallback(
@@ -68,8 +70,7 @@ void main() {
       expect(img.height, greaterThan(0));
     });
 
-    test('polyline entirely outside bbox still returns a valid PNG',
-        () async {
+    test('polyline entirely outside bbox still returns a valid PNG', () async {
       final bytes = await renderer().renderFallback(
         // Points far south-west of the Berlin bbox — all get clipped.
         polyline: const [
@@ -85,29 +86,30 @@ void main() {
       expect(img.width, greaterThan(0));
     });
 
-    test('two calls with the same input produce byte-identical output',
-        () async {
-      final r = renderer();
-      final a = await r.renderFallback(
-        polyline: const [
-          LatLng(52.51, 13.36),
-          LatLng(52.53, 13.40),
-        ],
-        bbox: berlinBbox,
-      );
-      final b = await r.renderFallback(
-        polyline: const [
-          LatLng(52.51, 13.36),
-          LatLng(52.53, 13.40),
-        ],
-        bbox: berlinBbox,
-      );
+    test(
+      'two calls with the same input produce byte-identical output',
+      () async {
+        final r = renderer();
+        final a = await r.renderFallback(
+          polyline: const [
+            LatLng(52.51, 13.36),
+            LatLng(52.53, 13.40),
+          ],
+          bbox: berlinBbox,
+        );
+        final b = await r.renderFallback(
+          polyline: const [
+            LatLng(52.51, 13.36),
+            LatLng(52.53, 13.40),
+          ],
+          bbox: berlinBbox,
+        );
 
-      expect(a, orderedEquals(b));
-    });
+        expect(a, orderedEquals(b));
+      },
+    );
 
-    test('output PNG decodes to the configured 320x120 raster size',
-        () async {
+    test('output PNG decodes to the configured 320x120 raster size', () async {
       final bytes = await renderer().renderFallback(
         polyline: const [
           LatLng(52.51, 13.36),

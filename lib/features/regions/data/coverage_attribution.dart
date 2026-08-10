@@ -117,7 +117,12 @@ void _clipWayAtLevel({
   for (var i = 0; i < geom.length - 1; i++) {
     final a = geom[i];
     final b = geom[i + 1];
-    final segLen = haversineMeters(a.latitude, a.longitude, b.latitude, b.longitude);
+    final segLen = haversineMeters(
+      a.latitude,
+      a.longitude,
+      b.latitude,
+      b.longitude,
+    );
     final segStart = cursorM;
     final segEnd = cursorM + segLen;
     cursorM = segEnd;

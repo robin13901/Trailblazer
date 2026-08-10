@@ -67,87 +67,110 @@ Uint8List _gzAdminBundle() {
 }
 
 WayCandidate _fixtureWay({int wayId = 100001}) => WayCandidate(
-      wayId: wayId,
-      highwayClass: 'residential',
-      geometry: const [
-        LatLng(49.799, 9.190),
-        LatLng(49.800, 9.190),
-        LatLng(49.801, 9.190),
-      ],
-    );
+  wayId: wayId,
+  highwayClass: 'residential',
+  geometry: const [
+    LatLng(49.799, 9.190),
+    LatLng(49.800, 9.190),
+    LatLng(49.801, 9.190),
+  ],
+);
 
 void main() {
   group('CoverageComputeIsolate', () {
-    test('round-trip: clips a way to its region → one attribution row',
-        () async {
-      final iso = CoverageComputeIsolate(
-        loadAdminBytes: () async => _gzAdminBundle(),
-        loadTotalsBytes: () async => null,
-      );
-      addTearDown(iso.dispose);
-      await iso.start();
+    test(
+      'round-trip: clips a way to its region → one attribution row',
+      () async {
+        final iso = CoverageComputeIsolate(
+          loadAdminBytes: () async => _gzAdminBundle(),
+          loadTotalsBytes: () async => null,
+        );
+        addTearDown(iso.dispose);
+        await iso.start();
 
-      final way = _fixtureWay();
-      final rows = await iso.computeAttribution(
-        gzippedTiles: [_gzTile([way])],
-        tileBboxes: const [_bbox],
-      );
+        final way = _fixtureWay();
+        final rows = await iso.computeAttribution(
+          gzippedTiles: [
+            _gzTile([way]),
+          ],
+          tileBboxes: const [_bbox],
+        );
 
-      expect(rows, hasLength(1));
-      final r = rows.single;
-      expect(r.wayId, way.wayId);
-      expect(r.regionId, '151999');
-      expect(r.adminLevel, 8);
-      expect(r.rangeEndM, greaterThan(r.rangeStartM));
-    }, timeout: const Timeout(Duration(seconds: 30)));
+        expect(rows, hasLength(1));
+        final r = rows.single;
+        expect(r.wayId, way.wayId);
+        expect(r.regionId, '151999');
+        expect(r.adminLevel, 8);
+        expect(r.rangeEndM, greaterThan(r.rangeStartM));
+      },
+      timeout: const Timeout(Duration(seconds: 30)),
+    );
 
-    test('round-trip: already-attributed wayIds are skipped', () async {
-      final iso = CoverageComputeIsolate(
-        loadAdminBytes: () async => _gzAdminBundle(),
-        loadTotalsBytes: () async => null,
-      );
-      addTearDown(iso.dispose);
-      await iso.start();
+    test(
+      'round-trip: already-attributed wayIds are skipped',
+      () async {
+        final iso = CoverageComputeIsolate(
+          loadAdminBytes: () async => _gzAdminBundle(),
+          loadTotalsBytes: () async => null,
+        );
+        addTearDown(iso.dispose);
+        await iso.start();
 
-      final way = _fixtureWay();
-      final rows = await iso.computeAttribution(
-        gzippedTiles: [_gzTile([way])],
-        tileBboxes: const [_bbox],
-        alreadyAttributedWayIds: {way.wayId},
-      );
-      expect(rows, isEmpty);
-    }, timeout: const Timeout(Duration(seconds: 30)));
+        final way = _fixtureWay();
+        final rows = await iso.computeAttribution(
+          gzippedTiles: [
+            _gzTile([way]),
+          ],
+          tileBboxes: const [_bbox],
+          alreadyAttributedWayIds: {way.wayId},
+        );
+        expect(rows, isEmpty);
+      },
+      timeout: const Timeout(Duration(seconds: 30)),
+    );
 
-    test('two concurrent jobs resolve with correctly-keyed results', () async {
-      final iso = CoverageComputeIsolate(
-        loadAdminBytes: () async => _gzAdminBundle(),
-        loadTotalsBytes: () async => null,
-      );
-      addTearDown(iso.dispose);
-      await iso.start();
+    test(
+      'two concurrent jobs resolve with correctly-keyed results',
+      () async {
+        final iso = CoverageComputeIsolate(
+          loadAdminBytes: () async => _gzAdminBundle(),
+          loadTotalsBytes: () async => null,
+        );
+        addTearDown(iso.dispose);
+        await iso.start();
 
-      final wayA = _fixtureWay(wayId: 1);
-      final wayB = _fixtureWay(wayId: 2);
-      final fa = iso.computeAttribution(
-        gzippedTiles: [_gzTile([wayA])],
-        tileBboxes: const [_bbox],
-      );
-      final fb = iso.computeAttribution(
-        gzippedTiles: [_gzTile([wayB])],
-        tileBboxes: const [_bbox],
-      );
-      final results = await Future.wait([fa, fb]);
-      expect(results[0].single.wayId, 1);
-      expect(results[1].single.wayId, 2);
-    }, timeout: const Timeout(Duration(seconds: 30)));
+        final wayA = _fixtureWay(wayId: 1);
+        final wayB = _fixtureWay(wayId: 2);
+        final fa = iso.computeAttribution(
+          gzippedTiles: [
+            _gzTile([wayA]),
+          ],
+          tileBboxes: const [_bbox],
+        );
+        final fb = iso.computeAttribution(
+          gzippedTiles: [
+            _gzTile([wayB]),
+          ],
+          tileBboxes: const [_bbox],
+        );
+        final results = await Future.wait([fa, fb]);
+        expect(results[0].single.wayId, 1);
+        expect(results[1].single.wayId, 2);
+      },
+      timeout: const Timeout(Duration(seconds: 30)),
+    );
 
-    test('start then dispose without hanging (no jobs)', () async {
-      final iso = CoverageComputeIsolate(
-        loadAdminBytes: () async => _gzAdminBundle(),
-        loadTotalsBytes: () async => null,
-      );
-      await iso.start();
-      iso.dispose();
-    }, timeout: const Timeout(Duration(seconds: 30)));
+    test(
+      'start then dispose without hanging (no jobs)',
+      () async {
+        final iso = CoverageComputeIsolate(
+          loadAdminBytes: () async => _gzAdminBundle(),
+          loadTotalsBytes: () async => null,
+        );
+        await iso.start();
+        iso.dispose();
+      },
+      timeout: const Timeout(Duration(seconds: 30)),
+    );
   });
 }

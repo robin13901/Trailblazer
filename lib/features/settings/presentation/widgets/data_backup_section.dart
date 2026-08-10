@@ -39,7 +39,9 @@ class _DataBackupSectionState extends ConsumerState<DataBackupSection> {
 
       switch (r) {
         case Ok(:final value):
-          await ref.read(filePlatformProvider).shareFile(
+          await ref
+              .read(filePlatformProvider)
+              .shareFile(
                 value,
                 subject: 'OKF Buddy Backup',
               );
@@ -114,7 +116,11 @@ class _DataBackupSectionState extends ConsumerState<DataBackupSection> {
           // Validation or I/O failed — live DB is intact (safety-snapshot
           // contract in BackupService).
           messenger.showSnackBar(
-            SnackBar(content: Text('Wiederherstellung fehlgeschlagen: ${error.message}')),
+            SnackBar(
+              content: Text(
+                'Wiederherstellung fehlgeschlagen: ${error.message}',
+              ),
+            ),
           );
       }
     } finally {
@@ -132,7 +138,9 @@ class _DataBackupSectionState extends ConsumerState<DataBackupSection> {
         // Export tile
         ListTile(
           title: const Text('Meine Daten sichern'),
-          subtitle: const Text('Erstellt eine teilbare Kopie all deiner Fahrten & Abdeckung'),
+          subtitle: const Text(
+            'Erstellt eine teilbare Kopie all deiner Fahrten & Abdeckung',
+          ),
           trailing: _exporting
               ? const SizedBox(
                   width: 24,

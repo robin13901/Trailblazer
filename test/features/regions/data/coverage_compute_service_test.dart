@@ -121,8 +121,7 @@ class _FixedWayCandidateSource implements WayCandidateSource {
     Set<TileId>? restrictTiles,
     bool cacheOnly = false,
     void Function(int done, int total)? onTileProgress,
-  }) async =>
-      ways;
+  }) async => ways;
 
   @override
   Future<List<RawTilePayload>> fetchRawTilesInBbox({
@@ -167,8 +166,7 @@ class _MultiTileWayCandidateSource implements WayCandidateSource {
     Set<TileId>? restrictTiles,
     bool cacheOnly = false,
     void Function(int done, int total)? onTileProgress,
-  }) async =>
-      ways;
+  }) async => ways;
 
   @override
   Future<List<RawTilePayload>> fetchRawTilesInBbox({
@@ -215,73 +213,79 @@ class _FakeRegionTotalsLookup extends RegionTotalsLookup {
 
 /// One AdminRegion covering a tiny bbox around Kleinheubach, level 8.
 AdminRegion _regionLevel8({int osmId = 151999}) => AdminRegion(
-      osmId: osmId,
-      adminLevel: 8,
-      name: 'Kleinheubach',
-      bboxMinLat: 49.78,
-      bboxMinLon: 9.17,
-      bboxMaxLat: 49.82,
-      bboxMaxLon: 9.22,
-      polygons: const [
-        [
-          [
-            [49.78, 9.17],
-            [49.82, 9.17],
-            [49.82, 9.22],
-            [49.78, 9.22],
-            [49.78, 9.17],
-          ],
-        ],
+  osmId: osmId,
+  adminLevel: 8,
+  name: 'Kleinheubach',
+  bboxMinLat: 49.78,
+  bboxMinLon: 9.17,
+  bboxMaxLat: 49.82,
+  bboxMaxLon: 9.22,
+  polygons: const [
+    [
+      [
+        [49.78, 9.17],
+        [49.82, 9.17],
+        [49.82, 9.22],
+        [49.78, 9.22],
+        [49.78, 9.17],
       ],
-    );
+    ],
+  ],
+);
 
 /// One AdminRegion at level 2 (Germany). Used to assert level 2 is excluded.
 AdminRegion _regionLevel2({int osmId = 51477}) => AdminRegion(
-      osmId: osmId,
-      adminLevel: 2,
-      name: 'Deutschland',
-      bboxMinLat: 47,
-      bboxMinLon: 5,
-      bboxMaxLat: 55.1,
-      bboxMaxLon: 15.1,
-      polygons: const [
-        [
-          [
-            [47.0, 5.0],
-            [55.1, 5.0],
-            [55.1, 15.1],
-            [47.0, 15.1],
-            [47.0, 5.0],
-          ],
-        ],
+  osmId: osmId,
+  adminLevel: 2,
+  name: 'Deutschland',
+  bboxMinLat: 47,
+  bboxMinLon: 5,
+  bboxMaxLat: 55.1,
+  bboxMaxLon: 15.1,
+  polygons: const [
+    [
+      [
+        [47.0, 5.0],
+        [55.1, 5.0],
+        [55.1, 15.1],
+        [47.0, 15.1],
+        [47.0, 5.0],
       ],
-    );
+    ],
+  ],
+);
 
 /// Straight 3-point way at ~(49.80, 9.19) — inside `_regionLevel8`. Length
 /// ~222 m (0.002° lat).
 WayCandidate _fixtureWay({int wayId = 100001}) => WayCandidate(
-      wayId: wayId,
-      highwayClass: 'residential',
-      geometry: const [
-        LatLng(49.799, 9.190),
-        LatLng(49.800, 9.190),
-        LatLng(49.801, 9.190),
-      ],
-    );
+  wayId: wayId,
+  highwayClass: 'residential',
+  geometry: const [
+    LatLng(49.799, 9.190),
+    LatLng(49.800, 9.190),
+    LatLng(49.801, 9.190),
+  ],
+);
 
 double _wayLen(WayCandidate w) {
   final g = w.geometry;
   var total = 0.0;
   for (var i = 0; i < g.length - 1; i++) {
     total += haversineMeters(
-        g[i].latitude, g[i].longitude, g[i + 1].latitude, g[i + 1].longitude);
+      g[i].latitude,
+      g[i].longitude,
+      g[i + 1].latitude,
+      g[i + 1].longitude,
+    );
   }
   return total;
 }
 
 /// Seed a matched trip with a bbox covering Kleinheubach in [db].
 Future<int> _seedMatchedTrip(AppDatabase db) async {
-  return db.into(db.trips).insert(
+  return db
+      .into(db.trips)
+      .insert(
         TripsCompanion.insert(
           startedAt: DateTime(2026, 7, 11, 8),
           endedAt: Value(DateTime(2026, 7, 11, 9)),
@@ -309,7 +313,9 @@ Future<void> _seedInterval(
   double startMeters = 0,
   double endMeters = 100,
 }) {
-  return db.into(db.drivenWayIntervals).insert(
+  return db
+      .into(db.drivenWayIntervals)
+      .insert(
         DrivenWayIntervalsCompanion.insert(
           wayId: wayId,
           tripId: Value(tripId),
@@ -369,53 +375,61 @@ void main() {
       attributionDao: attributionDao,
       compute: (gzippedTiles, tileBboxes, alreadyAttributedWayIds) async =>
           computeCoverageAttribution(
-        regionsByLevel: regionsByLevel,
-        gzippedTiles: gzippedTiles,
-        tileBboxes: tileBboxes,
-        alreadyAttributedWayIds: alreadyAttributedWayIds,
-      ),
+            regionsByLevel: regionsByLevel,
+            gzippedTiles: gzippedTiles,
+            tileBboxes: tileBboxes,
+            alreadyAttributedWayIds: alreadyAttributedWayIds,
+          ),
     );
   }
 
   group('CoverageComputeService.recompute', () {
-    test('empty DB (no trips, no intervals) → Ok(0), getAllWithCoverage empty',
-        () async {
-      final service = buildService(byLevel: {8: _regionLevel8()});
+    test(
+      'empty DB (no trips, no intervals) → Ok(0), getAllWithCoverage empty',
+      () async {
+        final service = buildService(byLevel: {8: _regionLevel8()});
 
-      final result = await service.recompute();
-      expect(result.isOk, isTrue);
-      expect(result.when(ok: (v) => v, err: (_) => -1), 0);
-      expect(await cacheDao.getAllWithCoverage(), isEmpty);
-    });
+        final result = await service.recompute();
+        expect(result.isOk, isTrue);
+        expect(result.when(ok: (v) => v, err: (_) => -1), 0);
+        expect(await cacheDao.getAllWithCoverage(), isEmpty);
+      },
+    );
 
-    test('trips exist but none matched → null bbox → Ok(0), cache cleared',
-        () async {
-      await db.into(db.trips).insert(
-            TripsCompanion.insert(
-              startedAt: DateTime(2026, 7, 11, 8),
-              status: const Value(TripStatus.recording),
-              manuallyStarted: const Value(true),
-            ),
-          );
-      final service = buildService(byLevel: {8: _regionLevel8()});
+    test(
+      'trips exist but none matched → null bbox → Ok(0), cache cleared',
+      () async {
+        await db
+            .into(db.trips)
+            .insert(
+              TripsCompanion.insert(
+                startedAt: DateTime(2026, 7, 11, 8),
+                status: const Value(TripStatus.recording),
+                manuallyStarted: const Value(true),
+              ),
+            );
+        final service = buildService(byLevel: {8: _regionLevel8()});
 
-      final result = await service.recompute();
-      expect(result.when(ok: (v) => v, err: (_) => -1), 0);
-    });
+        final result = await service.recompute();
+        expect(result.when(ok: (v) => v, err: (_) => -1), 0);
+      },
+    );
 
-    test('regionAt returns null for all levels → Ok(0), no cache rows',
-        () async {
-      final tripId = await _seedMatchedTrip(db);
-      await _seedInterval(db, tripId: tripId, wayId: 100001);
-      final service = buildService(
-        byLevel: {4: null, 6: null, 8: null, 9: null, 10: null},
-        ways: [_fixtureWay()],
-      );
+    test(
+      'regionAt returns null for all levels → Ok(0), no cache rows',
+      () async {
+        final tripId = await _seedMatchedTrip(db);
+        await _seedInterval(db, tripId: tripId, wayId: 100001);
+        final service = buildService(
+          byLevel: {4: null, 6: null, 8: null, 9: null, 10: null},
+          ways: [_fixtureWay()],
+        );
 
-      final result = await service.recompute();
-      expect(result.when(ok: (v) => v, err: (_) => -1), 0);
-      expect(await cacheDao.getAllWithCoverage(), isEmpty);
-    });
+        final result = await service.recompute();
+        expect(result.when(ok: (v) => v, err: (_) => -1), 0);
+        expect(await cacheDao.getAllWithCoverage(), isEmpty);
+      },
+    );
 
     test(
       'one driven way in level-8 region → totalLengthM > 0, drivenLengthM > 0',
@@ -503,37 +517,49 @@ void main() {
       final l2Region = _regionLevel2();
       final l8Region = _regionLevel8();
       final service = buildService(
-        byLevel: {2: l2Region, 4: null, 6: null, 8: l8Region, 9: null, 10: null},
+        byLevel: {
+          2: l2Region,
+          4: null,
+          6: null,
+          8: l8Region,
+          9: null,
+          10: null,
+        },
         ways: [_fixtureWay()],
       );
 
       await service.recompute();
 
       expect(await cacheDao.getByRegionId(l2Region.osmId.toString()), isNull);
-      expect(await cacheDao.getByRegionId(l8Region.osmId.toString()), isNotNull);
-    });
-
-    test('bundled total → real_total_length_m written from RegionTotalsLookup',
-        () async {
-      final tripId = await _seedMatchedTrip(db);
-      await _seedInterval(db, tripId: tripId, wayId: 100001);
-
-      final regionId = _regionLevel8().osmId.toString();
-      const bundledTotal = 62638.0;
-
-      final service = buildService(
-        byLevel: {4: null, 6: null, 8: _regionLevel8(), 9: null, 10: null},
-        ways: [_fixtureWay()],
-        totalsLookup: _FakeRegionTotalsLookup({regionId: bundledTotal}),
+      expect(
+        await cacheDao.getByRegionId(l8Region.osmId.toString()),
+        isNotNull,
       );
-
-      await service.recompute();
-
-      final row = await cacheDao.getByRegionId(regionId);
-      expect(row, isNotNull);
-      expect(row!.realTotalLengthM, bundledTotal);
-      expect(row.totalLengthM, greaterThan(0));
     });
+
+    test(
+      'bundled total → real_total_length_m written from RegionTotalsLookup',
+      () async {
+        final tripId = await _seedMatchedTrip(db);
+        await _seedInterval(db, tripId: tripId, wayId: 100001);
+
+        final regionId = _regionLevel8().osmId.toString();
+        const bundledTotal = 62638.0;
+
+        final service = buildService(
+          byLevel: {4: null, 6: null, 8: _regionLevel8(), 9: null, 10: null},
+          ways: [_fixtureWay()],
+          totalsLookup: _FakeRegionTotalsLookup({regionId: bundledTotal}),
+        );
+
+        await service.recompute();
+
+        final row = await cacheDao.getByRegionId(regionId);
+        expect(row, isNotNull);
+        expect(row!.realTotalLengthM, bundledTotal);
+        expect(row.totalLengthM, greaterThan(0));
+      },
+    );
 
     test('bundled total absent → real_total_length_m null', () async {
       final tripId = await _seedMatchedTrip(db);
@@ -650,8 +676,11 @@ void main() {
         expect(eRow, isNotNull);
         // West credited (driven interval [0,200] falls in its range); East not.
         expect(wRow!.drivenLengthM, greaterThan(0));
-        expect(eRow!.drivenLengthM, 0,
-            reason: 'the driven half does not spill into region B');
+        expect(
+          eRow!.drivenLengthM,
+          0,
+          reason: 'the driven half does not spill into region B',
+        );
         // Totals split the way length across both regions (no double count).
         expect(
           wRow.totalLengthM + eRow.totalLengthM,
@@ -697,8 +726,11 @@ void main() {
         final row = await cacheDao.getByRegionId(regionId);
         expect(row, isNotNull);
         expect(row!.totalLengthM, closeTo(wayLen, 0.01));
-        expect(row.drivenLengthM, closeTo(100, 0.5),
-            reason: 'driven from overlap of [0,100] with [0, wayLen]');
+        expect(
+          row.drivenLengthM,
+          closeTo(100, 0.5),
+          reason: 'driven from overlap of [0,100] with [0, wayLen]',
+        );
       },
     );
 
@@ -739,7 +771,9 @@ void main() {
     );
 
     test('recomputeForTrip with null bbox → Ok(0), no rows written', () async {
-      final tripId = await db.into(db.trips).insert(
+      final tripId = await db
+          .into(db.trips)
+          .insert(
             TripsCompanion.insert(
               startedAt: DateTime(2026, 7, 17, 8),
               manuallyStarted: const Value(true),
@@ -812,8 +846,10 @@ void main() {
       expect(events.last.$1, total);
       // Rose above the start (real progress, not a single jump).
       expect(events.first.$1, 0);
-      expect(events.any((e) => e.$1 > 0 && e.$1 < total) || events.length == 2,
-          isTrue);
+      expect(
+        events.any((e) => e.$1 > 0 && e.$1 < total) || events.length == 2,
+        isTrue,
+      );
     });
 
     // onProgress with no tiles to clip → a single (1, 1) so the banner is never

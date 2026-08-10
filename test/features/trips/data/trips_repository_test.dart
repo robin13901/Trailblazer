@@ -19,25 +19,27 @@ void main() {
   tearDown(() => db.close());
 
   group('TripsRepository', () {
-    test('openTrip → activeTrip returns recording row with null endedAt',
-        () async {
-      final now = DateTime.now();
-      final openResult = await repo.openTrip(
-        startedAt: now,
-        manuallyStarted: true,
-      );
-      expect(openResult.isOk, isTrue);
-      final tripId = openResult.when(ok: (v) => v, err: (_) => -1);
+    test(
+      'openTrip → activeTrip returns recording row with null endedAt',
+      () async {
+        final now = DateTime.now();
+        final openResult = await repo.openTrip(
+          startedAt: now,
+          manuallyStarted: true,
+        );
+        expect(openResult.isOk, isTrue);
+        final tripId = openResult.when(ok: (v) => v, err: (_) => -1);
 
-      final activeTripResult = await repo.activeTrip();
-      expect(activeTripResult.isOk, isTrue);
-      final active = activeTripResult.when(ok: (v) => v, err: (_) => null);
-      expect(active, isNotNull);
-      expect(active!.id, tripId);
-      expect(active.status, TripStatus.recording);
-      expect(active.endedAt, isNull);
-      expect(active.manuallyStarted, isTrue);
-    });
+        final activeTripResult = await repo.activeTrip();
+        expect(activeTripResult.isOk, isTrue);
+        final active = activeTripResult.when(ok: (v) => v, err: (_) => null);
+        expect(active, isNotNull);
+        expect(active!.id, tripId);
+        expect(active.status, TripStatus.recording);
+        expect(active.endedAt, isNull);
+        expect(active.manuallyStarted, isTrue);
+      },
+    );
 
     test('appendPoints then closeTrip → activeTrip returns null', () async {
       final now = DateTime.now();

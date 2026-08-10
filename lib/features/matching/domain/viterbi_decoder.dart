@@ -253,8 +253,7 @@ class ViterbiDecoder {
 
       // Low-confidence drop: if the best emission is below the threshold
       // (extremely far from any road), treat as unmatched.
-      final bestEmit =
-          states.fold<double>(double.negativeInfinity, (m, s) {
+      final bestEmit = states.fold<double>(double.negativeInfinity, (m, s) {
         return s.emissionLogP > m ? s.emissionLogP : m;
       });
       if (bestEmit < kLowConfidenceDropLog) {
@@ -263,8 +262,8 @@ class ViterbiDecoder {
       }
 
       // Check whether this step is a gap-reset or first step.
-      final isGapReset = step > 0 &&
-          _isGap(fixes[step - 1].ts, fix.ts, gapThresholdSeconds);
+      final isGapReset =
+          step > 0 && _isGap(fixes[step - 1].ts, fix.ts, gapThresholdSeconds);
       final hasPrior = step > 0 && trellis[step - 1].isNotEmpty;
 
       if (!hasPrior || isGapReset) {
@@ -358,8 +357,7 @@ class ViterbiDecoder {
             final oneway = s.segment.oneway;
             if (oneway == OnewayDirection.forward && progress < -0.001) {
               trans += kOnewayViolationLog;
-            } else if (oneway == OnewayDirection.backward &&
-                progress > 0.001) {
+            } else if (oneway == OnewayDirection.backward && progress > 0.001) {
               trans += kOnewayViolationLog;
             }
             // Same-way stickiness hook (#11): a small bonus for staying on the

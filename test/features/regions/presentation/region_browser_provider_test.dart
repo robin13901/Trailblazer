@@ -40,8 +40,7 @@ class _FakeLookup implements AdminRegionLookup {
     double lat,
     double lon,
     int adminLevel,
-  ) async =>
-      null; // not called by regionBrowserProvider
+  ) async => null; // not called by regionBrowserProvider
 
   @override
   AdminRegion? regionByOsmId(int osmId) => _byOsmId[osmId];
@@ -61,25 +60,25 @@ class _FakeLookup implements AdminRegionLookup {
 // ---------------------------------------------------------------------------
 
 AdminRegion _region(int osmId, int adminLevel, String name) => AdminRegion(
-      osmId: osmId,
-      adminLevel: adminLevel,
-      name: name,
-      bboxMinLat: 49,
-      bboxMinLon: 9,
-      bboxMaxLat: 50,
-      bboxMaxLon: 10,
-      polygons: const [
-        [
-          [
-            [49, 9],
-            [50, 9],
-            [50, 10],
-            [49, 10],
-            [49, 9],
-          ],
-        ],
+  osmId: osmId,
+  adminLevel: adminLevel,
+  name: name,
+  bboxMinLat: 49,
+  bboxMinLon: 9,
+  bboxMaxLat: 50,
+  bboxMaxLon: 10,
+  polygons: const [
+    [
+      [
+        [49, 9],
+        [50, 9],
+        [50, 10],
+        [49, 10],
+        [49, 9],
       ],
-    );
+    ],
+  ],
+);
 
 Future<void> _upsertRow(
   AppDatabase db, {
@@ -87,7 +86,9 @@ Future<void> _upsertRow(
   required double drivenLengthM,
   required double totalLengthM,
 }) {
-  return db.into(db.coverageCache).insertOnConflictUpdate(
+  return db
+      .into(db.coverageCache)
+      .insertOnConflictUpdate(
         CoverageCacheCompanion.insert(
           regionId: regionId,
           drivenLengthM: Value(drivenLengthM),
@@ -135,10 +136,30 @@ void main() {
       'resolves to %-desc sorted list, level-2 excluded',
       () async {
         // Seed 4 rows: level-8 (60%), level-10 (20%), level-4 (5%), level-2 (90%).
-        await _upsertRow(db, regionId: '1001', drivenLengthM: 600, totalLengthM: 1000);
-        await _upsertRow(db, regionId: '1002', drivenLengthM: 200, totalLengthM: 1000);
-        await _upsertRow(db, regionId: '1003', drivenLengthM: 50, totalLengthM: 1000);
-        await _upsertRow(db, regionId: '1004', drivenLengthM: 900, totalLengthM: 1000);
+        await _upsertRow(
+          db,
+          regionId: '1001',
+          drivenLengthM: 600,
+          totalLengthM: 1000,
+        );
+        await _upsertRow(
+          db,
+          regionId: '1002',
+          drivenLengthM: 200,
+          totalLengthM: 1000,
+        );
+        await _upsertRow(
+          db,
+          regionId: '1003',
+          drivenLengthM: 50,
+          totalLengthM: 1000,
+        );
+        await _upsertRow(
+          db,
+          regionId: '1004',
+          drivenLengthM: 900,
+          totalLengthM: 1000,
+        );
 
         final fakeLookup = _FakeLookup({
           1001: _region(1001, 8, 'Kleinheubach'),
@@ -181,7 +202,9 @@ void main() {
           drivenLengthM: 500,
           totalLengthM: 1000,
         );
-        final fakeLookup = _FakeLookup({3001: _region(3001, 8, 'Kleinheubach')});
+        final fakeLookup = _FakeLookup({
+          3001: _region(3001, 8, 'Kleinheubach'),
+        });
 
         final container = ProviderContainer(
           overrides: [
@@ -195,8 +218,11 @@ void main() {
 
         // First emit: no real total yet — falls back to haversine totalLengthM.
         final first = await _readList(container);
-        expect(first.single.totalLengthM, 1000,
-            reason: 'haversine total used when bundled total absent');
+        expect(
+          first.single.totalLengthM,
+          1000,
+          reason: 'haversine total used when bundled total absent',
+        );
 
         // Write the real (bundled) total — the Drift watch must re-emit on its own.
         await CoverageCacheDao(db).writeRealTotalLength(
@@ -205,10 +231,15 @@ void main() {
           computedAt: DateTime(2026, 7, 14),
         );
 
-        final settled =
-            await _readList(container, until: (r) => r.single.totalLengthM != 1000);
-        expect(settled.single.totalLengthM, 62638,
-            reason: 'bundled real total surfaced reactively after write');
+        final settled = await _readList(
+          container,
+          until: (r) => r.single.totalLengthM != 1000,
+        );
+        expect(
+          settled.single.totalLengthM,
+          62638,
+          reason: 'bundled real total surfaced reactively after write',
+        );
       },
     );
   });
@@ -218,9 +249,24 @@ void main() {
       'starts-with match ranks above contains-anywhere; empty query = full list',
       () async {
         // Seed: 'Kleinheubach' (60%), 'Heubach' (30%), 'Stuttgart' (10%).
-        await _upsertRow(db, regionId: '2001', drivenLengthM: 600, totalLengthM: 1000);
-        await _upsertRow(db, regionId: '2002', drivenLengthM: 300, totalLengthM: 1000);
-        await _upsertRow(db, regionId: '2003', drivenLengthM: 100, totalLengthM: 1000);
+        await _upsertRow(
+          db,
+          regionId: '2001',
+          drivenLengthM: 600,
+          totalLengthM: 1000,
+        );
+        await _upsertRow(
+          db,
+          regionId: '2002',
+          drivenLengthM: 300,
+          totalLengthM: 1000,
+        );
+        await _upsertRow(
+          db,
+          regionId: '2003',
+          drivenLengthM: 100,
+          totalLengthM: 1000,
+        );
 
         final fakeLookup = _FakeLookup({
           2001: _region(2001, 8, 'Kleinheubach'),

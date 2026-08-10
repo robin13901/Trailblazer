@@ -34,12 +34,12 @@ class _FakeTrackingNotifier extends Notifier<TrackingState>
 }
 
 TrackingRecording _recording({double distanceMeters = 0}) => TrackingRecording(
-      tripId: 1,
-      startedAt: DateTime.now(),
-      distanceMeters: distanceMeters,
-      pointCount: 0,
-      manuallyStarted: true,
-    );
+  tripId: 1,
+  startedAt: DateTime.now(),
+  distanceMeters: distanceMeters,
+  pointCount: 0,
+  manuallyStarted: true,
+);
 
 Future<void> _pumpSync(
   WidgetTester tester,

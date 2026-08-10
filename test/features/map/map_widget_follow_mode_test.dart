@@ -142,8 +142,10 @@ void main() {
     testWidgets(
       'FollowMode.locationAndHeading maps to MyLocationTrackingMode.trackingGps',
       (tester) async {
-        final map =
-            await _pumpAndReadMap(tester, FollowMode.locationAndHeading);
+        final map = await _pumpAndReadMap(
+          tester,
+          FollowMode.locationAndHeading,
+        );
         expect(
           map.myLocationTrackingMode,
           MyLocationTrackingMode.trackingGps,

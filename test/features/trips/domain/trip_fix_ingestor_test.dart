@@ -117,7 +117,9 @@ void main() {
     test('goldenParkingLotShuffle: passesKeeperThreshold == false (bbox)', () {
       final ingestor = TripFixIngestor();
       goldenParkingLotShuffle.forEach(ingestor.ingest);
-      final summary = ingestor.finalize(startedAt: goldenParkingLotShuffle.first.ts);
+      final summary = ingestor.finalize(
+        startedAt: goldenParkingLotShuffle.first.ts,
+      );
       expect(summary, isNotNull);
       expect(
         summary!.passesKeeperThreshold,
@@ -126,25 +128,31 @@ void main() {
       );
     });
 
-    test('goldenShortDrive45s: passesKeeperThreshold == false (duration<60s)', () {
-      final ingestor = TripFixIngestor();
-      goldenShortDrive45s.forEach(ingestor.ingest);
-      final summary = ingestor.finalize(startedAt: goldenShortDrive45s.first.ts);
-      expect(summary, isNotNull);
-      expect(
-        summary!.passesKeeperThreshold,
-        isFalse,
-        reason: '45 s trip should fail duration < 60 s keeper check',
-      );
-    });
+    test(
+      'goldenShortDrive45s: passesKeeperThreshold == false (duration<60s)',
+      () {
+        final ingestor = TripFixIngestor();
+        goldenShortDrive45s.forEach(ingestor.ingest);
+        final summary = ingestor.finalize(
+          startedAt: goldenShortDrive45s.first.ts,
+        );
+        expect(summary, isNotNull);
+        expect(
+          summary!.passesKeeperThreshold,
+          isFalse,
+          reason: '45 s trip should fail duration < 60 s keeper check',
+        );
+      },
+    );
 
     test(
       'goldenTinyDistanceCrawl: passesKeeperThreshold == false (distance<100m)',
       () {
         final ingestor = TripFixIngestor();
         goldenTinyDistanceCrawl.forEach(ingestor.ingest);
-        final summary =
-            ingestor.finalize(startedAt: goldenTinyDistanceCrawl.first.ts);
+        final summary = ingestor.finalize(
+          startedAt: goldenTinyDistanceCrawl.first.ts,
+        );
         expect(summary, isNotNull);
         expect(
           summary!.passesKeeperThreshold,
@@ -171,8 +179,9 @@ void main() {
       expect(outcomes.whereType<FixAccepted>().length, equals(10));
       expect(outcomes.whereType<FixRejected>().length, equals(0));
 
-      final summary =
-          ingestor.finalize(startedAt: goldenSuburbanDrive10Fixes.first.ts);
+      final summary = ingestor.finalize(
+        startedAt: goldenSuburbanDrive10Fixes.first.ts,
+      );
       expect(summary, isNotNull);
       expect(summary!.pointCount, equals(10));
       expect(summary.passesKeeperThreshold, isTrue);

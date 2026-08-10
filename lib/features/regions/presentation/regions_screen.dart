@@ -84,10 +84,13 @@ class _SearchFieldState extends ConsumerState<_SearchField> {
             ),
           ),
           filled: true,
-          fillColor: theme.colorScheme.surfaceContainerHighest
-              .withValues(alpha: 0.5),
-          contentPadding:
-              const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          fillColor: theme.colorScheme.surfaceContainerHighest.withValues(
+            alpha: 0.5,
+          ),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: 10,
+          ),
         ),
         onChanged: (value) {
           ref.read(regionSearchQueryProvider.notifier).query = value;
@@ -102,7 +105,9 @@ class _BrowserBody extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return ref.watch(regionBrowserProvider).when(
+    return ref
+        .watch(regionBrowserProvider)
+        .when(
           loading: () => const Center(child: CircularProgressIndicator()),
           error: (e, _) => _ErrorBody(message: '$e'),
           data: (_) {

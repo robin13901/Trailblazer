@@ -10,8 +10,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 /// TripPointsSink contract to the Drift-backed TripsRepository.
 ///
 /// Plain Provider — no @Riverpod codegen (STATE.md 01-01 decision).
-final tripsRepositoryPointsSinkProvider =
-    Provider<TripsRepositoryPointsSink>((ref) {
+final tripsRepositoryPointsSinkProvider = Provider<TripsRepositoryPointsSink>((
+  ref,
+) {
   return TripsRepositoryPointsSink(ref.watch(tripsRepositoryProvider));
 });
 
@@ -20,8 +21,9 @@ final tripsRepositoryPointsSinkProvider =
 /// Warms the Overpass tile cache for the driven-so-far corridor during an
 /// active recording so the trip-end match starts cache-hot. Plain Provider —
 /// no @Riverpod codegen (STATE.md 01-01 decision).
-final liveTilePrefetchServiceProvider =
-    Provider<LiveTilePrefetchService>((ref) {
+final liveTilePrefetchServiceProvider = Provider<LiveTilePrefetchService>((
+  ref,
+) {
   return LiveTilePrefetchService(
     source: ref.watch(wayCandidateSourceProvider),
     tripsDao: ref.watch(tripsDaoProvider),

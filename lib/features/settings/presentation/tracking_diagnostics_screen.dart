@@ -85,8 +85,9 @@ class _TrackingDiagnosticsScreenState
       always: await _safeStatus(perms.statusAlways),
       notification: await _safeStatus(perms.statusNotification),
       activityRecognition: await _safeStatus(perms.statusActivityRecognition),
-      ignoreBatteryOptimizations:
-          await _safeStatus(perms.statusIgnoreBatteryOptimizations),
+      ignoreBatteryOptimizations: await _safeStatus(
+        perms.statusIgnoreBatteryOptimizations,
+      ),
     );
 
     DiagnosticsMetrics? metrics;
@@ -202,8 +203,7 @@ class _TrackingDiagnosticsScreenState
           ListTile(
             dense: true,
             title: const Text('tripId'),
-            trailing:
-                Text(diag.currentTripId?.toString() ?? 'idle'),
+            trailing: Text(diag.currentTripId?.toString() ?? 'idle'),
           ),
           const Divider(height: 1),
           const _SectionHeader('Matcher / cache'),
@@ -265,10 +265,10 @@ class _SectionHeader extends StatelessWidget {
       child: Text(
         title.toUpperCase(),
         style: Theme.of(context).textTheme.labelSmall?.copyWith(
-              color: Theme.of(context).colorScheme.primary,
-              letterSpacing: 1.2,
-              fontWeight: FontWeight.w600,
-            ),
+          color: Theme.of(context).colorScheme.primary,
+          letterSpacing: 1.2,
+          fontWeight: FontWeight.w600,
+        ),
       ),
     );
   }

@@ -21,8 +21,11 @@ void main() {
       );
       // All returned ways are Kfz-allowlisted.
       for (final w in ways) {
-        expect(kfzHighwayClasses.contains(w.highwayClass), isTrue,
-            reason: 'Non-Kfz class leaked: ${w.highwayClass}');
+        expect(
+          kfzHighwayClasses.contains(w.highwayClass),
+          isTrue,
+          reason: 'Non-Kfz class leaked: ${w.highwayClass}',
+        );
       }
       // All returned geometries have >=2 points.
       for (final w in ways) {
@@ -39,8 +42,11 @@ void main() {
         reason: 'Grebenhain 5×5 km bbox should yield >50 Kfz ways',
       );
       for (final w in ways) {
-        expect(kfzHighwayClasses.contains(w.highwayClass), isTrue,
-            reason: 'Non-Kfz class leaked: ${w.highwayClass}');
+        expect(
+          kfzHighwayClasses.contains(w.highwayClass),
+          isTrue,
+          reason: 'Non-Kfz class leaked: ${w.highwayClass}',
+        );
       }
     });
   });
@@ -80,8 +86,7 @@ void main() {
                 '{"lat":${i + 1},"lon":${i + 1}}],"tags":{"highway":"$hw"}}',
           )
           .join(',');
-      final body =
-          '{"version":0.6,"generator":"t","elements":[$elements]}';
+      final body = '{"version":0.6,"generator":"t","elements":[$elements]}';
       final ways = OverpassResponseParser().parseWays(body);
       expect(ways, hasLength(kfzHighwayClasses.length));
       expect(
@@ -184,18 +189,21 @@ void main() {
       expect(ways.single.nodeIds.length, ways.single.geometry.length);
     });
 
-    test('drops nodes when length mismatches geometry (misalignment guard)', () {
-      const body = '''
+    test(
+      'drops nodes when length mismatches geometry (misalignment guard)',
+      () {
+        const body = '''
 {"elements":[
   {"type":"way","id":11,
    "nodes":[100,101],
    "geometry":[{"lat":0,"lon":0},{"lat":1,"lon":1},{"lat":2,"lon":2}],
    "tags":{"highway":"residential"}}
 ]}''';
-      final ways = OverpassResponseParser().parseWays(body);
-      expect(ways.single.nodeIds, isEmpty);
-      expect(ways.single.geometry, hasLength(3));
-    });
+        final ways = OverpassResponseParser().parseWays(body);
+        expect(ways.single.nodeIds, isEmpty);
+        expect(ways.single.geometry, hasLength(3));
+      },
+    );
 
     test('absent nodes array → empty nodeIds (fixture back-compat)', () {
       final ways = _parseOne(highway: 'primary');

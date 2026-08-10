@@ -94,8 +94,9 @@ class _AppState extends ConsumerState<App> with WidgetsBindingObserver {
           .rematchAllStoredTrips(
             onTripDone: recalc.updateRematching,
           );
-      await prefs
-          .setMatcherRematchVersion(AppPrefs.kCurrentMatcherRematchVersion);
+      await prefs.setMatcherRematchVersion(
+        AppPrefs.kCurrentMatcherRematchVersion,
+      );
       _log.info('matcher-rematch migration: done ($n trips reprocessed)');
       return true;
       // Catch every throwable: a cosmetic reprocess must never crash startup.
@@ -142,7 +143,9 @@ class _AppState extends ConsumerState<App> with WidgetsBindingObserver {
       // Thread STAGE-1 clip progress into the banner so it shows a determinate
       // "… N/M" bar instead of a 20-min indeterminate spinner. Progress is
       // tile-coarse (per-way counts can't cross the compute-isolate boundary).
-      final result = await ref.read(coverageComputeServiceProvider).recompute(
+      final result = await ref
+          .read(coverageComputeServiceProvider)
+          .recompute(
             onProgress: recalc.updateRecomputing,
           );
       // recompute() never throws — it returns Result. Only stamp on Ok so a
@@ -248,15 +251,16 @@ class _AppState extends ConsumerState<App> with WidgetsBindingObserver {
   /// crashes the app on resume.
   Future<void> _runRetentionSweepIfNeeded() async {
     try {
-      final days =
-          await ref.read(appPrefsProvider).getRawGpsRetentionDays();
+      final days = await ref.read(appPrefsProvider).getRawGpsRetentionDays();
       if (days == null) {
         // "Forever" — user has opted out of automatic deletion.
         _log.fine('retention sweep skipped (window=forever)');
         return;
       }
       unawaited(
-        ref.read(tripsRepositoryProvider).sweepRawGpsRetention(
+        ref
+            .read(tripsRepositoryProvider)
+            .sweepRawGpsRetention(
               retention: Duration(days: days),
             ),
       );

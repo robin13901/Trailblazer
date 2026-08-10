@@ -63,14 +63,13 @@ final coverageComputeServiceProvider = Provider<CoverageComputeService>((ref) {
     cacheDao: ref.watch(coverageCacheDaoProvider),
     tripsDao: ref.watch(tripsDaoProvider),
     totalsLookup: ref.watch(regionTotalsLookupProvider),
-    attributionDao:
-        WayRegionAttributionDao(ref.watch(appDatabaseProvider)),
+    attributionDao: WayRegionAttributionDao(ref.watch(appDatabaseProvider)),
     compute: (gzippedTiles, tileBboxes, alreadyAttributedWayIds) =>
         isolate.computeAttribution(
-      gzippedTiles: gzippedTiles,
-      tileBboxes: tileBboxes,
-      alreadyAttributedWayIds: alreadyAttributedWayIds,
-    ),
+          gzippedTiles: gzippedTiles,
+          tileBboxes: tileBboxes,
+          alreadyAttributedWayIds: alreadyAttributedWayIds,
+        ),
     ensureComputeReady: isolate.start,
   );
 });

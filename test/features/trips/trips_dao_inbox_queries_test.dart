@@ -34,7 +34,9 @@ void main() {
     double? distanceMeters,
     int? durationSeconds,
   }) {
-    return db.into(db.trips).insert(
+    return db
+        .into(db.trips)
+        .insert(
           TripsCompanion.insert(
             startedAt: DateTime(2026, 7, 9, 8),
             endedAt: Value(endedAt ?? DateTime(2026, 7, 9, 9)),
@@ -71,7 +73,9 @@ void main() {
 
   Future<void> seedIntervals(int tripId, int count) async {
     for (var i = 0; i < count; i++) {
-      await db.into(db.drivenWayIntervals).insert(
+      await db
+          .into(db.drivenWayIntervals)
+          .insert(
             DrivenWayIntervalsCompanion.insert(
               wayId: 1000 + i,
               tripId: Value(tripId),
@@ -156,16 +160,18 @@ void main() {
   });
 
   group('getTripWithIntervalCount', () {
-    test('returns intervalCount == 3 for a matched trip with 3 intervals',
-        () async {
-      final id = await seedTrip(status: TripStatus.matched);
-      await seedIntervals(id, 3);
+    test(
+      'returns intervalCount == 3 for a matched trip with 3 intervals',
+      () async {
+        final id = await seedTrip(status: TripStatus.matched);
+        await seedIntervals(id, 3);
 
-      final item = await inboxDao.getTripWithIntervalCount(id);
-      expect(item, isNotNull);
-      expect(item!.intervalCount, 3);
-      expect(item.isFailMatched, isFalse);
-    });
+        final item = await inboxDao.getTripWithIntervalCount(id);
+        expect(item, isNotNull);
+        expect(item!.intervalCount, 3);
+        expect(item.isFailMatched, isFalse);
+      },
+    );
 
     test('fail-matched trip (0 intervals) → isFailMatched true', () async {
       final id = await seedTrip(status: TripStatus.matched);

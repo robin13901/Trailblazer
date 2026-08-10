@@ -97,6 +97,6 @@ double _polylineLengthMeters(List<LatLng> geometry) {
 }
 
 LatLng _lerpLatLng(LatLng a, LatLng b, double t) => LatLng(
-      a.latitude + (b.latitude - a.latitude) * t,
-      a.longitude + (b.longitude - a.longitude) * t,
-    );
+  a.latitude + (b.latitude - a.latitude) * t,
+  a.longitude + (b.longitude - a.longitude) * t,
+);

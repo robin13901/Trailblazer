@@ -30,5 +30,5 @@ class RegionOutlineNotifier extends Notifier<AdminRegion?> {
 /// The [AdminRegion] whose boundary is drawn on the map, or `null`.
 final regionOutlineProvider =
     NotifierProvider<RegionOutlineNotifier, AdminRegion?>(
-  RegionOutlineNotifier.new,
-);
+      RegionOutlineNotifier.new,
+    );

@@ -14,11 +14,11 @@ import 'package:path_provider/path_provider.dart';
 /// Plain [Provider] — no `@Riverpod` codegen (STATE.md Plan 01-01 decision).
 final thumbnailDirectoryFactoryProvider =
     Provider<Future<Directory> Function()>((ref) {
-  return () async {
-    final docs = await getApplicationDocumentsDirectory();
-    return Directory(p.join(docs.path, 'thumbs'));
-  };
-});
+      return () async {
+        final docs = await getApplicationDocumentsDirectory();
+        return Directory(p.join(docs.path, 'thumbs'));
+      };
+    });
 
 /// Provider for the singleton [ThumbnailCache] notifier.
 ///

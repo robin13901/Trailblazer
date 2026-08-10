@@ -5,18 +5,18 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:maplibre_gl/maplibre_gl.dart' show LatLng;
 
 GpsFix _fix(double lat, double lon) => GpsFix(
-      lat: lat,
-      lon: lon,
-      accuracyMeters: 5,
-      speedKmh: 50,
-      ts: DateTime.fromMillisecondsSinceEpoch(0),
-    );
+  lat: lat,
+  lon: lon,
+  accuracyMeters: 5,
+  speedKmh: 50,
+  ts: DateTime.fromMillisecondsSinceEpoch(0),
+);
 
 WayCandidate _way(int id, List<LatLng> geom) => WayCandidate(
-      wayId: id,
-      geometry: geom,
-      highwayClass: 'residential',
-    );
+  wayId: id,
+  geometry: geom,
+  highwayClass: 'residential',
+);
 
 void main() {
   group('filterWaysToTripCorridor', () {

@@ -161,12 +161,15 @@ void main() {
       expect(segNE.maxLon, 9.110);
     });
 
-    test('SW segment (reversed coords): minLat/maxLat/minLon/maxLon correct', () {
-      expect(segSW.minLat, 49.700);
-      expect(segSW.maxLat, 49.710);
-      expect(segSW.minLon, 9.100);
-      expect(segSW.maxLon, 9.110);
-    });
+    test(
+      'SW segment (reversed coords): minLat/maxLat/minLon/maxLon correct',
+      () {
+        expect(segSW.minLat, 49.700);
+        expect(segSW.maxLat, 49.710);
+        expect(segSW.minLon, 9.100);
+        expect(segSW.maxLon, 9.110);
+      },
+    );
   });
 
   // ---------------------------------------------------------------------------

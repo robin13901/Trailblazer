@@ -22,18 +22,18 @@ import 'fakes/fake_permission_service.dart';
 /// Simple GoRouter for tests — OnboardingScreen at `/onboarding`, a plain
 /// home at `/` that the last page navigates to.
 GoRouter _makeRouter() => GoRouter(
-      initialLocation: '/onboarding',
-      routes: [
-        GoRoute(
-          path: '/onboarding',
-          builder: (_, _) => const OnboardingScreen(),
-        ),
-        GoRoute(
-          path: '/',
-          builder: (_, _) => const Scaffold(body: Text('Home')),
-        ),
-      ],
-    );
+  initialLocation: '/onboarding',
+  routes: [
+    GoRoute(
+      path: '/onboarding',
+      builder: (_, _) => const OnboardingScreen(),
+    ),
+    GoRoute(
+      path: '/',
+      builder: (_, _) => const Scaffold(body: Text('Home')),
+    ),
+  ],
+);
 
 /// Pumps the onboarding flow inside a ProviderScope with injected fakes.
 ///
@@ -53,8 +53,7 @@ Future<FakePermissionService> pumpOnboarding(
     ProviderScope(
       overrides: [
         permissionServiceProvider.overrideWithValue(fakeService),
-        trackingCapabilityRepositoryProvider
-            .overrideWithValue(capabilityRepo),
+        trackingCapabilityRepositoryProvider.overrideWithValue(capabilityRepo),
         onboardingFlagRepositoryProvider.overrideWithValue(flagRepo),
         backgroundGeolocationFacadeProvider.overrideWithValue(geolocation),
       ],
@@ -97,8 +96,9 @@ void main() {
   }
 
   group('OnboardingScreen ladder', () {
-    testWidgets('all-granted path — fullAuto capability + done flag',
-        (tester) async {
+    testWidgets('all-granted path — fullAuto capability + done flag', (
+      tester,
+    ) async {
       final fake = FakePermissionService();
       await pumpOnboarding(
         tester,
@@ -137,8 +137,9 @@ void main() {
       expect(await flagRepo.isDone(), isTrue);
     });
 
-    testWidgets('always-permanentlyDenied — manualOnly (covers !isGranted)',
-        (tester) async {
+    testWidgets('always-permanentlyDenied — manualOnly (covers !isGranted)', (
+      tester,
+    ) async {
       final fake = FakePermissionService(
         alwaysResult: PermissionStatus.permanentlyDenied,
       );
@@ -154,8 +155,9 @@ void main() {
       expect(await capabilityRepo.load(), TrackingCapability.manualOnly);
     });
 
-    testWidgets('always-restricted — manualOnly (covers !isGranted)',
-        (tester) async {
+    testWidgets('always-restricted — manualOnly (covers !isGranted)', (
+      tester,
+    ) async {
       final fake = FakePermissionService(
         alwaysResult: PermissionStatus.restricted,
       );
@@ -172,27 +174,28 @@ void main() {
     });
 
     testWidgets(
-        'Android: notification denied — manualOnly regardless of always',
-        (tester) async {
-      // This test only applies on Android — on other host platforms
-      // Platform.isAndroid is false and the notification status is
-      // never checked (treated as granted). Skip gracefully.
-      if (!Platform.isAndroid) return;
+      'Android: notification denied — manualOnly regardless of always',
+      (tester) async {
+        // This test only applies on Android — on other host platforms
+        // Platform.isAndroid is false and the notification status is
+        // never checked (treated as granted). Skip gracefully.
+        if (!Platform.isAndroid) return;
 
-      final fake = FakePermissionService(
-        notificationResult: PermissionStatus.denied,
-      );
-      await pumpOnboarding(
-        tester,
-        fakeService: fake,
-        capabilityRepo: capabilityRepo,
-        flagRepo: flagRepo,
-      );
+        final fake = FakePermissionService(
+          notificationResult: PermissionStatus.denied,
+        );
+        await pumpOnboarding(
+          tester,
+          fakeService: fake,
+          capabilityRepo: capabilityRepo,
+          flagRepo: flagRepo,
+        );
 
-      await tapAll(tester);
+        await tapAll(tester);
 
-      expect(await capabilityRepo.load(), TrackingCapability.manualOnly);
-    });
+        expect(await capabilityRepo.load(), TrackingCapability.manualOnly);
+      },
+    );
 
     testWidgets('page 1 copy renders', (tester) async {
       final fake = FakePermissionService();
@@ -203,7 +206,10 @@ void main() {
         flagRepo: flagRepo,
       );
 
-      expect(find.textContaining('Standort während der Nutzung'), findsOneWidget);
+      expect(
+        find.textContaining('Standort während der Nutzung'),
+        findsOneWidget,
+      );
     });
 
     testWidgets('page 2 copy renders after page 1', (tester) async {
@@ -218,7 +224,10 @@ void main() {
       await tester.tap(find.text('Weiter').first);
       await tester.pumpAndSettle();
 
-      expect(find.textContaining('Fahrten im Hintergrund aufzeichnen'), findsOneWidget);
+      expect(
+        find.textContaining('Fahrten im Hintergrund aufzeichnen'),
+        findsOneWidget,
+      );
     });
 
     testWidgets('page 3 copy renders after page 2', (tester) async {
@@ -235,8 +244,9 @@ void main() {
       await tester.tap(find.text('Standort im Hintergrund aktivieren'));
       await tester.pumpAndSettle();
 
-      final expectedTitle =
-          Platform.isIOS ? 'Bewegung & Fitness' : 'Benachrichtigungen und Batterie';
+      final expectedTitle = Platform.isIOS
+          ? 'Bewegung & Fitness'
+          : 'Benachrichtigungen und Batterie';
       expect(find.textContaining(expectedTitle), findsOneWidget);
     });
   });

@@ -9,5 +9,5 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 /// Plain `Provider<T>` — no `@Riverpod` codegen (see STATE.md Plan 01-01).
 final backgroundGeolocationFacadeProvider =
     Provider<BackgroundGeolocationFacade>(
-  (ref) => FgbBackgroundGeolocationFacade(),
-);
+      (ref) => FgbBackgroundGeolocationFacade(),
+    );

@@ -53,13 +53,12 @@ String syntheticOverpassJson({
 }
 
 http.Response okJson(String body) => http.Response.bytes(
-      utf8.encode(body),
-      200,
-      headers: {'content-type': 'application/json; charset=utf-8'},
-    );
+  utf8.encode(body),
+  200,
+  headers: {'content-type': 'application/json; charset=utf-8'},
+);
 
-Uint8List gzipUtf8(String s) =>
-    Uint8List.fromList(gzip.encode(utf8.encode(s)));
+Uint8List gzipUtf8(String s) => Uint8List.fromList(gzip.encode(utf8.encode(s)));
 
 void main() {
   const tileMath = TileBboxMath();
@@ -97,11 +96,13 @@ void main() {
       var calls = 0;
       final client = buildClient((req) async {
         calls++;
-        return okJson(syntheticOverpassJson(
-          wayId: 1,
-          lat: centreLat,
-          lon: centreLon,
-        ));
+        return okJson(
+          syntheticOverpassJson(
+            wayId: 1,
+            lat: centreLat,
+            lon: centreLon,
+          ),
+        );
       });
       final source = OverpassWayCandidateSource(
         client: client,
@@ -125,11 +126,13 @@ void main() {
       var calls = 0;
       final client = buildClient((req) async {
         calls++;
-        return okJson(syntheticOverpassJson(
-          wayId: 1,
-          lat: centreLat,
-          lon: centreLon,
-        ));
+        return okJson(
+          syntheticOverpassJson(
+            wayId: 1,
+            lat: centreLat,
+            lon: centreLon,
+          ),
+        );
       });
       final source = OverpassWayCandidateSource(
         client: client,
@@ -156,11 +159,13 @@ void main() {
       var calls = 0;
       final client = buildClient((req) async {
         calls++;
-        return okJson(syntheticOverpassJson(
-          wayId: 1,
-          lat: centreLat,
-          lon: centreLon,
-        ));
+        return okJson(
+          syntheticOverpassJson(
+            wayId: 1,
+            lat: centreLat,
+            lon: centreLon,
+          ),
+        );
       });
       var fakeNow = DateTime(2026);
       final source = OverpassWayCandidateSource(
@@ -205,11 +210,13 @@ void main() {
       var wayIdCounter = 100;
       final client = buildClient((req) async {
         final id = wayIdCounter++;
-        return okJson(syntheticOverpassJson(
-          wayId: id,
-          lat: centreLat,
-          lon: centreLon,
-        ));
+        return okJson(
+          syntheticOverpassJson(
+            wayId: id,
+            lat: centreLat,
+            lon: centreLon,
+          ),
+        );
       });
       final source = OverpassWayCandidateSource(
         client: client,
@@ -231,64 +238,72 @@ void main() {
       expect(cachedTiles, tiles.length);
     });
 
-    test('restrictTiles fetches ONLY the corridor tiles, not the whole bbox',
-        () async {
-      // Multi-tile bbox, but restrict to a single tile → only that tile should
-      // hit the network and be cached (the corridor-fetch win).
-      const bigHalfLon = 0.1;
-      final bboxTiles = tileMath.bboxToZ12Tiles(
-        centreLat - smallHalfLat,
-        centreLon - bigHalfLon,
-        centreLat + smallHalfLat,
-        centreLon + bigHalfLon,
-      );
-      expect(bboxTiles.length, greaterThanOrEqualTo(2));
-      // The centre tile — one of the bbox tiles — is our corridor.
-      final centreTile = TileId(
-        12,
-        tileMath.lonToTileX(centreLon, 12),
-        tileMath.latToTileY(centreLat, 12),
-      );
-      expect(bboxTiles, contains(centreTile));
+    test(
+      'restrictTiles fetches ONLY the corridor tiles, not the whole bbox',
+      () async {
+        // Multi-tile bbox, but restrict to a single tile → only that tile should
+        // hit the network and be cached (the corridor-fetch win).
+        const bigHalfLon = 0.1;
+        final bboxTiles = tileMath.bboxToZ12Tiles(
+          centreLat - smallHalfLat,
+          centreLon - bigHalfLon,
+          centreLat + smallHalfLat,
+          centreLon + bigHalfLon,
+        );
+        expect(bboxTiles.length, greaterThanOrEqualTo(2));
+        // The centre tile — one of the bbox tiles — is our corridor.
+        final centreTile = TileId(
+          12,
+          tileMath.lonToTileX(centreLon, 12),
+          tileMath.latToTileY(centreLat, 12),
+        );
+        expect(bboxTiles, contains(centreTile));
 
-      var calls = 0;
-      var wayIdCounter = 200;
-      final client = buildClient((req) async {
-        calls++;
-        return okJson(syntheticOverpassJson(
-          wayId: wayIdCounter++,
-          lat: centreLat,
-          lon: centreLon,
-        ));
-      });
-      final source = OverpassWayCandidateSource(
-        client: client,
-        cacheDao: cacheDao,
-      );
+        var calls = 0;
+        var wayIdCounter = 200;
+        final client = buildClient((req) async {
+          calls++;
+          return okJson(
+            syntheticOverpassJson(
+              wayId: wayIdCounter++,
+              lat: centreLat,
+              lon: centreLon,
+            ),
+          );
+        });
+        final source = OverpassWayCandidateSource(
+          client: client,
+          cacheDao: cacheDao,
+        );
 
-      final progress = <(int, int)>[];
-      await source.fetchWaysInBbox(
-        minLat: centreLat - smallHalfLat,
-        minLon: centreLon - bigHalfLon,
-        maxLat: centreLat + smallHalfLat,
-        maxLon: centreLon + bigHalfLon,
-        restrictTiles: {centreTile},
-        onTileProgress: (done, total) => progress.add((done, total)),
-      );
+        final progress = <(int, int)>[];
+        await source.fetchWaysInBbox(
+          minLat: centreLat - smallHalfLat,
+          minLon: centreLon - bigHalfLon,
+          maxLat: centreLat + smallHalfLat,
+          maxLon: centreLon + bigHalfLon,
+          restrictTiles: {centreTile},
+          onTileProgress: (done, total) => progress.add((done, total)),
+        );
 
-      expect(calls, 1, reason: 'only the single corridor tile is fetched');
-      // Only the centre tile cached; the others were never requested.
-      for (final t in bboxTiles) {
-        final row = await cacheDao.getByTile(t.z, t.x, t.y);
-        if (t == centreTile) {
-          expect(row, isNotNull);
-        } else {
-          expect(row, isNull, reason: 'non-corridor tile must not be fetched');
+        expect(calls, 1, reason: 'only the single corridor tile is fetched');
+        // Only the centre tile cached; the others were never requested.
+        for (final t in bboxTiles) {
+          final row = await cacheDao.getByTile(t.z, t.x, t.y);
+          if (t == centreTile) {
+            expect(row, isNotNull);
+          } else {
+            expect(
+              row,
+              isNull,
+              reason: 'non-corridor tile must not be fetched',
+            );
+          }
         }
-      }
-      // Progress reported over the restricted total (1), ending at 1/1.
-      expect(progress.last, (1, 1));
-    });
+        // Progress reported over the restricted total (1), ending at 1/1.
+        expect(progress.last, (1, 1));
+      },
+    );
 
     test('overlapping tiles do not double-count the same wayId', () async {
       // Seed two neighbouring cache rows that both contain wayId=42.
@@ -337,25 +352,27 @@ void main() {
       expect(ways.where((w) => w.wayId == 42), hasLength(1));
     });
 
-    test('throwOnError: false returns partial result on network error',
-        () async {
-      final client = buildClient((req) async {
-        return http.Response('kaboom', 500);
-      });
-      final source = OverpassWayCandidateSource(
-        client: client,
-        cacheDao: cacheDao,
-      );
+    test(
+      'throwOnError: false returns partial result on network error',
+      () async {
+        final client = buildClient((req) async {
+          return http.Response('kaboom', 500);
+        });
+        final source = OverpassWayCandidateSource(
+          client: client,
+          cacheDao: cacheDao,
+        );
 
-      final ways = await source.fetchWaysInBbox(
-        minLat: centreLat - smallHalfLat,
-        minLon: centreLon - smallHalfLon,
-        maxLat: centreLat + smallHalfLat,
-        maxLon: centreLon + smallHalfLon,
-        throwOnError: false,
-      );
-      expect(ways, isEmpty);
-    });
+        final ways = await source.fetchWaysInBbox(
+          minLat: centreLat - smallHalfLat,
+          minLon: centreLon - smallHalfLon,
+          maxLat: centreLat + smallHalfLat,
+          maxLon: centreLon + smallHalfLon,
+          throwOnError: false,
+        );
+        expect(ways, isEmpty);
+      },
+    );
 
     test(
       'cacheOnly: never hits network for uncached tiles (returns empty, '
@@ -364,11 +381,13 @@ void main() {
         var calls = 0;
         final client = buildClient((req) async {
           calls++;
-          return okJson(syntheticOverpassJson(
-            wayId: 1,
-            lat: centreLat,
-            lon: centreLon,
-          ));
+          return okJson(
+            syntheticOverpassJson(
+              wayId: 1,
+              lat: centreLat,
+              lon: centreLon,
+            ),
+          );
         });
         final source = OverpassWayCandidateSource(
           client: client,

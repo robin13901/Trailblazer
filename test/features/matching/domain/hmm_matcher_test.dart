@@ -46,9 +46,9 @@ final double _mPerDegLon = _mPerDegLat * 0.6427876097;
 
 /// Convert a local offset in meters to a LatLng relative to the base point.
 LatLng _ll(double northMeters, double eastMeters) => LatLng(
-      _baseLat + northMeters / _mPerDegLat,
-      _baseLon + eastMeters / _mPerDegLon,
-    );
+  _baseLat + northMeters / _mPerDegLat,
+  _baseLon + eastMeters / _mPerDegLon,
+);
 
 /// Build a GpsFix at a local offset from the base point.
 /// Uses a fixed timestamp offset of [dtSecs] seconds from epoch.
@@ -60,14 +60,13 @@ GpsFix _fix(
   int dtSecs = 0,
   double accuracy = 10,
   double speed = 30,
-}) =>
-    GpsFix(
-      lat: _baseLat + northMeters / _mPerDegLat,
-      lon: _baseLon + eastMeters / _mPerDegLon,
-      accuracyMeters: accuracy,
-      speedKmh: speed,
-      ts: DateTime.fromMillisecondsSinceEpoch(dtSecs * 1000, isUtc: true),
-    );
+}) => GpsFix(
+  lat: _baseLat + northMeters / _mPerDegLat,
+  lon: _baseLon + eastMeters / _mPerDegLon,
+  accuracyMeters: accuracy,
+  speedKmh: speed,
+  ts: DateTime.fromMillisecondsSinceEpoch(dtSecs * 1000, isUtc: true),
+);
 
 // ---------------------------------------------------------------------------
 // Shared test ways
@@ -75,38 +74,38 @@ GpsFix _fix(
 
 /// A 4-node way running east along the baseline (y=0), nodes at x=0,100,200,300 m.
 WayCandidate _eastWay({int id = 1}) => WayCandidate(
-      wayId: id,
-      highwayClass: 'residential',
-      geometry: [
-        _ll(0, 0),
-        _ll(0, 100),
-        _ll(0, 200),
-        _ll(0, 300),
-      ],
-    );
+  wayId: id,
+  highwayClass: 'residential',
+  geometry: [
+    _ll(0, 0),
+    _ll(0, 100),
+    _ll(0, 200),
+    _ll(0, 300),
+  ],
+);
 
 /// A 4-node way B running 500 m north of baseline, nodes at x=0,100,200,300 m.
 WayCandidate _northOffsetWay({int id = 2}) => WayCandidate(
-      wayId: id,
-      highwayClass: 'residential',
-      geometry: [
-        _ll(500, 0),
-        _ll(500, 100),
-        _ll(500, 200),
-        _ll(500, 300),
-      ],
-    );
+  wayId: id,
+  highwayClass: 'residential',
+  geometry: [
+    _ll(500, 0),
+    _ll(500, 100),
+    _ll(500, 200),
+    _ll(500, 300),
+  ],
+);
 
 /// A 3-node way running east, nodes at x=0,100,200 m.
 WayCandidate _threeNodeWay({int id = 3}) => WayCandidate(
-      wayId: id,
-      highwayClass: 'residential',
-      geometry: [
-        _ll(0, 0),
-        _ll(0, 100),
-        _ll(0, 200),
-      ],
-    );
+  wayId: id,
+  highwayClass: 'residential',
+  geometry: [
+    _ll(0, 0),
+    _ll(0, 100),
+    _ll(0, 200),
+  ],
+);
 
 // ---------------------------------------------------------------------------
 // HmmMatcher under test
@@ -125,8 +124,7 @@ void main() {
     // -------------------------------------------------------------------------
     // Test 1: Empty fixes → empty MatchResult
     // -------------------------------------------------------------------------
-    test(
-        '1. empty fixes → empty MatchResult '
+    test('1. empty fixes → empty MatchResult '
         '(0 intervals, 0 matched, 0 dropped)', () {
       final result = _matcher.match(fixes: [], ways: [_eastWay()]);
 
@@ -140,28 +138,32 @@ void main() {
     // -------------------------------------------------------------------------
     // Test 2: Empty ways → all fixes dropped
     // -------------------------------------------------------------------------
-    test('2. empty ways → all fixes dropped; intervals empty; steps all null',
-        () {
-      final fixes = [
-        _fix(0, 50),
-        _fix(0, 150, dtSecs: 2),
-      ];
+    test(
+      '2. empty ways → all fixes dropped; intervals empty; steps all null',
+      () {
+        final fixes = [
+          _fix(0, 50),
+          _fix(0, 150, dtSecs: 2),
+        ];
 
-      final result = _matcher.match(fixes: fixes, ways: []);
+        final result = _matcher.match(fixes: fixes, ways: []);
 
-      expect(result.steps.length, 2);
-      expect(result.steps.every((s) => s == null), isTrue,
-          reason: 'all steps should be null when no ways provided');
-      expect(result.intervals, isEmpty);
-      expect(result.matchedFixCount, 0);
-      expect(result.droppedFixCount, 2);
-    });
+        expect(result.steps.length, 2);
+        expect(
+          result.steps.every((s) => s == null),
+          isTrue,
+          reason: 'all steps should be null when no ways provided',
+        );
+        expect(result.intervals, isEmpty);
+        expect(result.matchedFixCount, 0);
+        expect(result.droppedFixCount, 2);
+      },
+    );
 
     // -------------------------------------------------------------------------
     // Test 3: Single fix on a single 3-node way → 1 step, 1 interval point
     // -------------------------------------------------------------------------
-    test(
-        '3. single fix on a 3-node way → 1 step, 1 interval with '
+    test('3. single fix on a 3-node way → 1 step, 1 interval with '
         'start==end, direction==forward', () {
       // Fix at the midpoint of segment 0 (x=50 m from start).
       final fix = _fix(0, 50);
@@ -186,8 +188,7 @@ void main() {
     // -------------------------------------------------------------------------
     // Test 4: 5-fix forward trace → 1 interval, direction='forward'
     // -------------------------------------------------------------------------
-    test(
-        '4. straight 5-fix forward trace along one 4-node way → '
+    test('4. straight 5-fix forward trace along one 4-node way → '
         '1 interval, direction=forward, start < end', () {
       final way = _eastWay();
       // Place fixes at x=20,80,140,200,260 m (all on or very near the road).
@@ -204,20 +205,25 @@ void main() {
       expect(result.matchedFixCount + result.droppedFixCount, fixes.length);
 
       // We expect exactly 1 interval if the trace matched well.
-      expect(result.intervals.length, 1,
-          reason: 'all fixes on same way → 1 interval');
+      expect(
+        result.intervals.length,
+        1,
+        reason: 'all fixes on same way → 1 interval',
+      );
       final iv = result.intervals.first;
       expect(iv.wayId, way.wayId);
       expect(iv.direction, 'forward');
-      expect(iv.startMeters, lessThan(iv.endMeters),
-          reason: 'forward trace: start < end');
+      expect(
+        iv.startMeters,
+        lessThan(iv.endMeters),
+        reason: 'forward trace: start < end',
+      );
     });
 
     // -------------------------------------------------------------------------
     // Test 5: Same trace REVERSED → direction='backward', start < end
     // -------------------------------------------------------------------------
-    test(
-        '5. reversed trace on same 4-node way → '
+    test('5. reversed trace on same 4-node way → '
         'direction=backward, start < end (min/max swap)', () {
       final way = _eastWay();
       // Fixes travel from x=260 back to x=20 m.
@@ -244,8 +250,7 @@ void main() {
     // -------------------------------------------------------------------------
     // Test 6: 10-fix trace: 5 on way A, then 5 on way B → 2 intervals
     // -------------------------------------------------------------------------
-    test(
-        '6. 10-fix trace: 5 fixes on way A then 5 on way B → '
+    test('6. 10-fix trace: 5 fixes on way A then 5 on way B → '
         '2 intervals, one per way', () {
       final wayA = _eastWay();
       final wayB = _northOffsetWay();
@@ -270,8 +275,11 @@ void main() {
       expect(result.matchedFixCount + result.droppedFixCount, fixes.length);
       // Expect at least 2 intervals (one per way). Some fixes may drop
       // but the way-change boundary must produce at least 2 intervals.
-      expect(result.intervals.length, greaterThanOrEqualTo(2),
-          reason: 'way change must produce at least 2 intervals');
+      expect(
+        result.intervals.length,
+        greaterThanOrEqualTo(2),
+        reason: 'way change must produce at least 2 intervals',
+      );
 
       final wayIds = result.intervals.map((iv) => iv.wayId).toSet();
       expect(wayIds, contains(wayA.wayId));
@@ -290,8 +298,7 @@ void main() {
     // spanning the whole driven span. The fix is still DROPPED (unmatched);
     // only the interval-level bridging changed. Previously this produced 2
     // intervals; that premise is now contradicted by FIX B #10.
-    test(
-        '7. confidence gap (fix #3 is 500 m off any way) → '
+    test('7. confidence gap (fix #3 is 500 m off any way) → '
         'dropped, and the same-way runs merge (no branch node between)', () {
       final way = _eastWay();
 
@@ -310,8 +317,11 @@ void main() {
       // Verify fix #3 was dropped.
       expect(result.droppedFixCount, greaterThanOrEqualTo(1));
       // #10: no branch node between the runs → bridged into a single interval.
-      expect(result.intervals.length, equals(1),
-          reason: 'same-way gap with no branch node is bridged (#10)');
+      expect(
+        result.intervals.length,
+        equals(1),
+        reason: 'same-way gap with no branch node is bridged (#10)',
+      );
 
       // The single interval must be on way A and span the full driven range.
       final iv = result.intervals.single;
@@ -326,8 +336,7 @@ void main() {
     // Per Plan 05-05 §Deviations: the merger does NOT split intra-way
     // direction changes. A single interval is produced whose direction is
     // the sign of the net delta (rawFirstMeters → rawLastMeters).
-    test(
-        '8. direction flip mid-way (forward 3, backward 3) → '
+    test('8. direction flip mid-way (forward 3, backward 3) → '
         'no crash; all intervals have start ≤ end; '
         'direction is forward or backward (not both)', () {
       final way = _eastWay();
@@ -359,8 +368,7 @@ void main() {
     // -------------------------------------------------------------------------
     // Test 9: Determinism — two calls with identical inputs → identical outputs
     // -------------------------------------------------------------------------
-    test(
-        '9. determinism: two match() calls with identical inputs → '
+    test('9. determinism: two match() calls with identical inputs → '
         'structurally identical MatchResults', () {
       final way = _eastWay();
       final fixes = [
@@ -381,46 +389,49 @@ void main() {
       // Compare intervals by toString — sufficient for structural equality.
       final iv1 = r1.intervals.map((iv) => iv.toString()).toList();
       final iv2 = r2.intervals.map((iv) => iv.toString()).toList();
-      expect(iv1, iv2,
-          reason: 'identical inputs must produce identical intervals');
+      expect(
+        iv1,
+        iv2,
+        reason: 'identical inputs must produce identical intervals',
+      );
     });
 
     // -------------------------------------------------------------------------
     // Test 10: matchedFixCount + droppedFixCount == fixes.length
     // -------------------------------------------------------------------------
     test(
-        '10. matchedFixCount + droppedFixCount == fixes.length for any input',
-        () {
-      // Case A: all fixes expected to match.
-      final wayA = _eastWay();
-      final fixesA = [
-        _fix(0, 20),
-        _fix(0, 140, dtSecs: 5),
-        _fix(0, 260, dtSecs: 10),
-      ];
-      final rA = _matcher.match(fixes: fixesA, ways: [wayA]);
-      expect(rA.matchedFixCount + rA.droppedFixCount, fixesA.length);
+      '10. matchedFixCount + droppedFixCount == fixes.length for any input',
+      () {
+        // Case A: all fixes expected to match.
+        final wayA = _eastWay();
+        final fixesA = [
+          _fix(0, 20),
+          _fix(0, 140, dtSecs: 5),
+          _fix(0, 260, dtSecs: 10),
+        ];
+        final rA = _matcher.match(fixes: fixesA, ways: [wayA]);
+        expect(rA.matchedFixCount + rA.droppedFixCount, fixesA.length);
 
-      // Case B: all fixes dropped (no ways).
-      final fixesB = [
-        _fix(0, 20),
-        _fix(0, 140, dtSecs: 5),
-      ];
-      final rB = _matcher.match(fixes: fixesB, ways: []);
-      expect(rB.matchedFixCount + rB.droppedFixCount, fixesB.length);
+        // Case B: all fixes dropped (no ways).
+        final fixesB = [
+          _fix(0, 20),
+          _fix(0, 140, dtSecs: 5),
+        ];
+        final rB = _matcher.match(fixes: fixesB, ways: []);
+        expect(rB.matchedFixCount + rB.droppedFixCount, fixesB.length);
 
-      // Case C: mix (one off-road fix).
-      final fixesC = [
-        _fix(0, 20),
-        _fix(500, 140, dtSecs: 5), // off-road
-        _fix(0, 260, dtSecs: 10),
-      ];
-      final rC = _matcher.match(fixes: fixesC, ways: [wayA]);
-      expect(rC.matchedFixCount + rC.droppedFixCount, fixesC.length);
-    });
+        // Case C: mix (one off-road fix).
+        final fixesC = [
+          _fix(0, 20),
+          _fix(500, 140, dtSecs: 5), // off-road
+          _fix(0, 260, dtSecs: 10),
+        ];
+        final rC = _matcher.match(fixes: fixesC, ways: [wayA]);
+        expect(rC.matchedFixCount + rC.droppedFixCount, fixesC.length);
+      },
+    );
 
-    test(
-        '10. pass-through connector (A→B→C, single fix on short B) → '
+    test('10. pass-through connector (A→B→C, single fix on short B) → '
         "B's interval spans its full length, not a zero-length point", () {
       // Three collinear residential ways forming a continuous drive east:
       //   A: x 0..100   B (connector): x 100..120 (20 m)   C: x 120..300
@@ -459,25 +470,29 @@ void main() {
 
       final result = _matcher.match(fixes: fixes, ways: [wayA, wayB, wayC]);
 
-      final bIntervals =
-          result.intervals.where((iv) => iv.wayId == 2).toList();
-      expect(bIntervals, isNotEmpty,
-          reason: 'connector B must produce an interval');
+      final bIntervals = result.intervals.where((iv) => iv.wayId == 2).toList();
+      expect(
+        bIntervals,
+        isNotEmpty,
+        reason: 'connector B must produce an interval',
+      );
       final bLen = bIntervals
           .map((iv) => (iv.endMeters - iv.startMeters).abs())
           .reduce((a, b) => a > b ? a : b);
       // B is ~20 m; the pass-through extension must cover essentially all of
       // it (well above the ~0 the single-fix run would otherwise yield).
-      expect(bLen, greaterThan(15),
-          reason: 'pass-through B should span ~full 20 m, got $bLen');
+      expect(
+        bLen,
+        greaterThan(15),
+        reason: 'pass-through B should span ~full 20 m, got $bLen',
+      );
     });
 
     // -------------------------------------------------------------------------
     // Test 11: over-draw guard — a stray fix on a LONG parallel neighbour
     // must NOT be promoted to full-length (2026-07-10 regression).
     // -------------------------------------------------------------------------
-    test(
-        '11. stray fix on a long parallel neighbour is NOT extended to full '
+    test('11. stray fix on a long parallel neighbour is NOT extended to full '
         'length (over-draw guard)', () {
       // Main road A: 300 m east at y=0. Neighbour N: a 60 m parallel road
       // 8 m to the north (within GPS noise) — LONGER than the 30 m connector
@@ -510,15 +525,18 @@ void main() {
 
       final result = _matcher.match(fixes: fixes, ways: [wayA, wayN]);
 
-      final nIntervals =
-          result.intervals.where((iv) => iv.wayId == 2).toList();
+      final nIntervals = result.intervals.where((iv) => iv.wayId == 2).toList();
       // N may or may not attract the stray fix depending on the decoder, but
       // if it does, its interval must NOT have been extended to full length.
       for (final iv in nIntervals) {
         final span = (iv.endMeters - iv.startMeters).abs();
-        expect(span, lessThan(30),
-            reason: 'neighbour N must keep its measured (tiny) span, not be '
-                'extended to its full 60 m — got $span');
+        expect(
+          span,
+          lessThan(30),
+          reason:
+              'neighbour N must keep its measured (tiny) span, not be '
+              'extended to its full 60 m — got $span',
+        );
       }
     });
 
@@ -527,8 +545,7 @@ void main() {
     // (A→B→A) must NOT be extended to full length (2026-07-10 "triangle at
     // every exit" / side-street-snippet artifacts).
     // -------------------------------------------------------------------------
-    test(
-        '12. short spur off one junction node (A→B→A) is NOT extended '
+    test('12. short spur off one junction node (A→B→A) is NOT extended '
         '(exit-triangle / side-street-stub guard)', () {
       // Main road A runs east at y=0 through x=0..300. A short 18 m stub B
       // dangles NORTH off the junction node at x=150 — an exit ramp or a
@@ -563,15 +580,18 @@ void main() {
 
       final result = _matcher.match(fixes: fixes, ways: [wayA, wayB]);
 
-      final bIntervals =
-          result.intervals.where((iv) => iv.wayId == 2).toList();
+      final bIntervals = result.intervals.where((iv) => iv.wayId == 2).toList();
       // If B attracted the stray fix, its interval must NOT have been extended
       // to full length — entry and exit both attach to B's START node only.
       for (final iv in bIntervals) {
         final span = (iv.endMeters - iv.startMeters).abs();
-        expect(span, lessThan(15),
-            reason: 'spur B (A→B→A off one node) must keep its tiny measured '
-                'span, not be extended to its full 18 m — got $span');
+        expect(
+          span,
+          lessThan(15),
+          reason:
+              'spur B (A→B→A off one node) must keep its tiny measured '
+              'span, not be extended to its full 18 m — got $span',
+        );
       }
     });
 
@@ -583,8 +603,7 @@ void main() {
     // that node. Drive A→(brief dip onto B)→C. entryWay=A, exitWay=C differ, so
     // the "same wayId" guard doesn't catch it — only nearest-endpoint does.
     // -------------------------------------------------------------------------
-    test(
-        '13. distinct entry/exit both nearest the SAME connector endpoint → '
+    test('13. distinct entry/exit both nearest the SAME connector endpoint → '
         'NOT extended (nearest-endpoint spur guard)', () {
       // Junction node at (0,150). Road A comes from the west and ENDS there;
       // road C leaves to the east and STARTS there. Stub B dangles NORTH from
@@ -618,15 +637,20 @@ void main() {
 
       final result = _matcher.match(fixes: fixes, ways: [wayA, wayB, wayC]);
 
-      final bIntervals =
-          result.intervals.where((iv) => iv.wayId == 30).toList();
+      final bIntervals = result.intervals
+          .where((iv) => iv.wayId == 30)
+          .toList();
       // A and C both attach to B's START endpoint (the junction); B's far END
       // (20 m north) was never reached. Must not extend.
       for (final iv in bIntervals) {
         final span = (iv.endMeters - iv.startMeters).abs();
-        expect(span, lessThan(15),
-            reason: 'stub B (A and C both attach to its junction end) must '
-                'keep its tiny span, not be extended to 20 m — got $span');
+        expect(
+          span,
+          lessThan(15),
+          reason:
+              'stub B (A and C both attach to its junction end) must '
+              'keep its tiny span, not be extended to 20 m — got $span',
+        );
       }
     });
 
@@ -638,8 +662,7 @@ void main() {
     // tightening, `coversMajority` alone extended it; the fix requires genuine
     // end-to-end node topology.
     // -------------------------------------------------------------------------
-    test(
-        '14. majority-covered way entered mid-span (not end-to-end) is NOT '
+    test('14. majority-covered way entered mid-span (not end-to-end) is NOT '
         'extended (Dientzenhoferstraße over-draw guard)', () {
       // P: 200 m east at y=0, nodes at meters 0 / 100 / 200.
       final wayP = WayCandidate(
@@ -682,18 +705,27 @@ void main() {
 
       final result = _matcher.match(fixes: fixes, ways: [wayP, wayF, wayE]);
 
-      final pIntervals =
-          result.intervals.where((iv) => iv.wayId == 200).toList();
-      expect(pIntervals, isNotEmpty, reason: 'P should be matched over 100→200');
+      final pIntervals = result.intervals
+          .where((iv) => iv.wayId == 200)
+          .toList();
+      expect(
+        pIntervals,
+        isNotEmpty,
+        reason: 'P should be matched over 100→200',
+      );
       for (final iv in pIntervals) {
         final span = (iv.endMeters - iv.startMeters).abs();
         // Entry attaches to P's MIDDLE node (not an endpoint) → not a genuine
         // end-to-end pass-through → the measured ~100 m span must survive, NOT
         // be auto-completed to the full 200 m (which would over-draw meters
         // 0..100 the vehicle never drove).
-        expect(span, lessThan(150),
-            reason: 'P entered at its middle node must keep its measured '
-                '~100 m span, not be extended to 200 m — got $span');
+        expect(
+          span,
+          lessThan(150),
+          reason:
+              'P entered at its middle node must keep its measured '
+              '~100 m span, not be extended to 200 m — got $span',
+        );
       }
     });
   });
@@ -705,34 +737,41 @@ void main() {
     // A single TWO-WAY street driven out to its far end and back must cover the
     // full driven span — not collapse to a near-zero interval hiding the turn.
     test(
-        'two-way out-and-back 0→~270→0 → coverage spans the full driven length',
-        () {
-      // 300 m two-way street east at y=0. Drive east to ~x=270, then back west
-      // to ~x=20. No time gap, no way change — a pure intra-way reversal.
-      final way = _eastWay();
-      final fixes = [
-        _fix(0, 20),
-        _fix(0, 120, dtSecs: 3),
-        _fix(0, 220, dtSecs: 6),
-        _fix(0, 270, dtSecs: 9), // peak (far end)
-        _fix(0, 200, dtSecs: 12),
-        _fix(0, 100, dtSecs: 15),
-        _fix(0, 20, dtSecs: 18),
-      ];
+      'two-way out-and-back 0→~270→0 → coverage spans the full driven length',
+      () {
+        // 300 m two-way street east at y=0. Drive east to ~x=270, then back west
+        // to ~x=20. No time gap, no way change — a pure intra-way reversal.
+        final way = _eastWay();
+        final fixes = [
+          _fix(0, 20),
+          _fix(0, 120, dtSecs: 3),
+          _fix(0, 220, dtSecs: 6),
+          _fix(0, 270, dtSecs: 9), // peak (far end)
+          _fix(0, 200, dtSecs: 12),
+          _fix(0, 100, dtSecs: 15),
+          _fix(0, 20, dtSecs: 18),
+        ];
 
-      final result = _matcher.match(fixes: fixes, ways: [way]);
-      final wayIntervals =
-          result.intervals.where((iv) => iv.wayId == way.wayId).toList();
-      expect(wayIntervals, isNotEmpty);
-      // Union of all intervals must span essentially the full 20..270 excursion.
-      final minStart =
-          wayIntervals.map((iv) => iv.startMeters).reduce((a, b) => a < b ? a : b);
-      final maxEnd =
-          wayIntervals.map((iv) => iv.endMeters).reduce((a, b) => a > b ? a : b);
-      expect(minStart, lessThan(30));
-      expect(maxEnd, greaterThan(260),
-          reason: 'out-and-back must cover the peak excursion, got $maxEnd');
-    });
+        final result = _matcher.match(fixes: fixes, ways: [way]);
+        final wayIntervals = result.intervals
+            .where((iv) => iv.wayId == way.wayId)
+            .toList();
+        expect(wayIntervals, isNotEmpty);
+        // Union of all intervals must span essentially the full 20..270 excursion.
+        final minStart = wayIntervals
+            .map((iv) => iv.startMeters)
+            .reduce((a, b) => a < b ? a : b);
+        final maxEnd = wayIntervals
+            .map((iv) => iv.endMeters)
+            .reduce((a, b) => a > b ? a : b);
+        expect(minStart, lessThan(30));
+        expect(
+          maxEnd,
+          greaterThan(260),
+          reason: 'out-and-back must cover the peak excursion, got $maxEnd',
+        );
+      },
+    );
 
     test('reversal split → two intervals: forward then backward', () {
       final way = _eastWay();
@@ -747,10 +786,14 @@ void main() {
       ];
 
       final result = _matcher.match(fixes: fixes, ways: [way]);
-      final wayIntervals =
-          result.intervals.where((iv) => iv.wayId == way.wayId).toList();
-      expect(wayIntervals.length, equals(2),
-          reason: 'a genuine reversal splits into two directional intervals');
+      final wayIntervals = result.intervals
+          .where((iv) => iv.wayId == way.wayId)
+          .toList();
+      expect(
+        wayIntervals.length,
+        equals(2),
+        reason: 'a genuine reversal splits into two directional intervals',
+      );
       expect(wayIntervals[0].direction, equals('forward'));
       expect(wayIntervals[1].direction, equals('backward'));
     });
@@ -768,11 +811,15 @@ void main() {
       ];
 
       final result = _matcher.match(fixes: fixes, ways: [way]);
-      final wayIntervals =
-          result.intervals.where((iv) => iv.wayId == way.wayId).toList();
+      final wayIntervals = result.intervals
+          .where((iv) => iv.wayId == way.wayId)
+          .toList();
       expect(wayIntervals.length, equals(1));
       expect(wayIntervals.first.direction, equals('forward'));
-      expect(wayIntervals.first.startMeters, lessThan(wayIntervals.first.endMeters));
+      expect(
+        wayIntervals.first.startMeters,
+        lessThan(wayIntervals.first.endMeters),
+      );
     });
   });
 
@@ -786,13 +833,12 @@ void main() {
       required int wayId,
       required List<int> nodeIds,
       required List<double> meterMarks,
-    }) =>
-        WayCandidate(
-          wayId: wayId,
-          highwayClass: 'residential',
-          nodeIds: nodeIds,
-          geometry: [for (final m in meterMarks) _ll(0, m)],
-        );
+    }) => WayCandidate(
+      wayId: wayId,
+      highwayClass: 'residential',
+      nodeIds: nodeIds,
+      geometry: [for (final m in meterMarks) _ll(0, m)],
+    );
 
     test('same-way small gap over a degree-2 mid node → merged into one', () {
       // Way W: nodes at 0/100/130/200 m. A confidence gap drops the fixes
@@ -816,8 +862,11 @@ void main() {
 
       final result = _matcher.match(fixes: fixes, ways: [w]);
       final wIntervals = result.intervals.where((iv) => iv.wayId == 1).toList();
-      expect(wIntervals.length, equals(1),
-          reason: 'small same-way gap over a degree-2 node must merge');
+      expect(
+        wIntervals.length,
+        equals(1),
+        reason: 'small same-way gap over a degree-2 node must merge',
+      );
       expect(wIntervals.first.startMeters, lessThan(30));
       expect(wIntervals.first.endMeters, greaterThan(190));
     });
@@ -858,8 +907,11 @@ void main() {
 
       final result = _matcher.match(fixes: fixes, ways: [w, sideN, sideS]);
       final wIntervals = result.intervals.where((iv) => iv.wayId == 1).toList();
-      expect(wIntervals.length, greaterThanOrEqualTo(2),
-          reason: 'a degree-3 crossroads inside the gap must block the merge');
+      expect(
+        wIntervals.length,
+        greaterThanOrEqualTo(2),
+        reason: 'a degree-3 crossroads inside the gap must block the merge',
+      );
     });
 
     test('different-way collinear across a degree-2 shared node → filled', () {
@@ -895,12 +947,16 @@ void main() {
       expect(aInt, isNotEmpty);
       expect(bInt, isNotEmpty);
       // A extended to its full 100 m end; B extended to its 0 m start.
-      expect(aInt.map((iv) => iv.endMeters).reduce((x, y) => x > y ? x : y),
-          greaterThan(95),
-          reason: 'A must reach its shared-node endpoint (~100 m)');
-      expect(bInt.map((iv) => iv.startMeters).reduce((x, y) => x < y ? x : y),
-          lessThan(5),
-          reason: 'B must start at its shared-node endpoint (~0 m)');
+      expect(
+        aInt.map((iv) => iv.endMeters).reduce((x, y) => x > y ? x : y),
+        greaterThan(95),
+        reason: 'A must reach its shared-node endpoint (~100 m)',
+      );
+      expect(
+        bInt.map((iv) => iv.startMeters).reduce((x, y) => x < y ? x : y),
+        lessThan(5),
+        reason: 'B must start at its shared-node endpoint (~0 m)',
+      );
     });
 
     // BEHAVIOUR CHANGE (#10 through-intersection bridge, 2026-07-27): a gap
@@ -949,16 +1005,23 @@ void main() {
       final aInt = result.intervals.where((iv) => iv.wayId == 1).toList();
       final bInt = result.intervals.where((iv) => iv.wayId == 2).toList();
       // A bridged to the junction node (~100 m); B bridged from it (~0 m).
-      expect(aInt.map((iv) => iv.endMeters).reduce((x, y) => x > y ? x : y),
-          greaterThan(95),
-          reason: 'A bridged to the through-intersection node');
-      expect(bInt.map((iv) => iv.startMeters).reduce((x, y) => x < y ? x : y),
-          lessThan(5),
-          reason: 'B bridged from the through-intersection node');
+      expect(
+        aInt.map((iv) => iv.endMeters).reduce((x, y) => x > y ? x : y),
+        greaterThan(95),
+        reason: 'A bridged to the through-intersection node',
+      );
+      expect(
+        bInt.map((iv) => iv.startMeters).reduce((x, y) => x < y ? x : y),
+        lessThan(5),
+        reason: 'B bridged from the through-intersection node',
+      );
       // CORRECTNESS INVARIANT: the side road T must NEVER be painted — the
       // vehicle demonstrably drove straight through and never onto T.
-      expect(result.intervals.where((iv) => iv.wayId == 3), isEmpty,
-          reason: 'the un-driven side road T must not be painted');
+      expect(
+        result.intervals.where((iv) => iv.wayId == 3),
+        isEmpty,
+        reason: 'the un-driven side road T must not be painted',
+      );
     });
 
     // #10 highway fix (2026-07-26): the same-way upper gap cap was removed. An
@@ -985,9 +1048,13 @@ void main() {
 
       final result = _matcher.match(fixes: fixes, ways: [w]);
       final wIntervals = result.intervals.where((iv) => iv.wayId == 1).toList();
-      expect(wIntervals.length, equals(1),
-          reason: 'an 80 m same-way gap with no branch node must merge '
-              'now that the upper cap is removed');
+      expect(
+        wIntervals.length,
+        equals(1),
+        reason:
+            'an 80 m same-way gap with no branch node must merge '
+            'now that the upper cap is removed',
+      );
       expect(wIntervals.first.startMeters, lessThan(30));
       expect(wIntervals.first.endMeters, greaterThan(310));
     });
@@ -1026,16 +1093,19 @@ void main() {
 
       final result = _matcher.match(fixes: fixes, ways: [w, sideN, sideS]);
       final wIntervals = result.intervals.where((iv) => iv.wayId == 1).toList();
-      expect(wIntervals.length, greaterThanOrEqualTo(2),
-          reason: 'a degree-3 branch inside the 80 m gap must still block the '
-              'merge even with no upper cap');
+      expect(
+        wIntervals.length,
+        greaterThanOrEqualTo(2),
+        reason:
+            'a degree-3 branch inside the 80 m gap must still block the '
+            'merge even with no upper cap',
+      );
     });
 
     // #10 highway fix (2026-07-26): the DIFFERENT-way degree-2 continuation now
     // tolerates a highway-safe 60 m endpoint shortfall (was 30 m). A 50 m
     // per-side shortfall at the shared degree-2 node must still bridge.
-    test('different-way degree-2, 50m per-side shortfall → filled (60m tol)',
-        () {
+    test('different-way degree-2, 50m per-side shortfall → filled (60m tol)', () {
       // A: 0..200 (nodes 4000,4001,4002), B: 200..400 (nodes 4002,4003,4004),
       // meeting ONLY at node 4002 (degree 2, ways {1,2}). The matched runs stop
       // ~50 m short of the junction on each side (A ends ~150, B starts ~250).
@@ -1070,12 +1140,16 @@ void main() {
       final bInt = result.intervals.where((iv) => iv.wayId == 2).toList();
       expect(aInt, isNotEmpty);
       expect(bInt, isNotEmpty);
-      expect(aInt.map((iv) => iv.endMeters).reduce((x, y) => x > y ? x : y),
-          greaterThan(195),
-          reason: 'A must reach its shared-node endpoint (~200 m) at 60 m tol');
-      expect(bInt.map((iv) => iv.startMeters).reduce((x, y) => x < y ? x : y),
-          lessThan(5),
-          reason: 'B must start at its shared-node endpoint (~0 m) at 60 m tol');
+      expect(
+        aInt.map((iv) => iv.endMeters).reduce((x, y) => x > y ? x : y),
+        greaterThan(195),
+        reason: 'A must reach its shared-node endpoint (~200 m) at 60 m tol',
+      );
+      expect(
+        bInt.map((iv) => iv.startMeters).reduce((x, y) => x < y ? x : y),
+        lessThan(5),
+        reason: 'B must start at its shared-node endpoint (~0 m) at 60 m tol',
+      );
     });
 
     test('different-way degree-3 interchange, 50m shortfall → NOT filled', () {
@@ -1115,11 +1189,16 @@ void main() {
 
       final result = _matcher.match(fixes: fixes, ways: [a, b, ramp]);
       final aInt = result.intervals.where((iv) => iv.wayId == 1).toList();
-      final aMaxEnd =
-          aInt.map((iv) => iv.endMeters).reduce((x, y) => x > y ? x : y);
-      expect(aMaxEnd, lessThan(195),
-          reason: 'a degree-3 interchange must block the continuation fill '
-              'even at 60 m tolerance — A end was $aMaxEnd');
+      final aMaxEnd = aInt
+          .map((iv) => iv.endMeters)
+          .reduce((x, y) => x > y ? x : y);
+      expect(
+        aMaxEnd,
+        lessThan(195),
+        reason:
+            'a degree-3 interchange must block the continuation fill '
+            'even at 60 m tolerance — A end was $aMaxEnd',
+      );
     });
   });
 
@@ -1141,13 +1220,12 @@ void main() {
       required int wayId,
       required int junctionNodeId,
       required double junctionEast,
-    }) =>
-        WayCandidate(
-          wayId: wayId,
-          highwayClass: 'residential',
-          nodeIds: [junctionNodeId, 9000 + wayId],
-          geometry: [_ll(0, junctionEast), _ll(50, junctionEast)],
-        );
+    }) => WayCandidate(
+      wayId: wayId,
+      highwayClass: 'residential',
+      nodeIds: [junctionNodeId, 9000 + wayId],
+      geometry: [_ll(0, junctionEast), _ll(50, junctionEast)],
+    );
 
     // -------------------------------------------------------------------------
     // 1. BRIDGES a genuine through-intersection gap (degree > 2 shared node).
@@ -1168,8 +1246,7 @@ void main() {
         nodeIds: const [101, 102],
         geometry: [_ll(0, 100), _ll(0, 200)],
       );
-      final side =
-          sideRoad(wayId: 3, junctionNodeId: 101, junctionEast: 100);
+      final side = sideRoad(wayId: 3, junctionNodeId: 101, junctionEast: 100);
 
       final fixes = [
         _fix(0, 20),
@@ -1186,15 +1263,22 @@ void main() {
       expect(aInt, isNotEmpty, reason: 'A must be matched');
       expect(bInt, isNotEmpty, reason: 'B must be matched');
       // A must reach the junction node (full ~100 m); B must start from it (~0).
-      expect(aInt.map((iv) => iv.endMeters).reduce((x, y) => x > y ? x : y),
-          greaterThan(99),
-          reason: 'A bridged to the through-intersection node (~100 m)');
-      expect(bInt.map((iv) => iv.startMeters).reduce((x, y) => x < y ? x : y),
-          lessThan(1),
-          reason: 'B bridged from the through-intersection node (~0 m)');
+      expect(
+        aInt.map((iv) => iv.endMeters).reduce((x, y) => x > y ? x : y),
+        greaterThan(99),
+        reason: 'A bridged to the through-intersection node (~100 m)',
+      );
+      expect(
+        bInt.map((iv) => iv.startMeters).reduce((x, y) => x < y ? x : y),
+        lessThan(1),
+        reason: 'B bridged from the through-intersection node (~0 m)',
+      );
       // The side road must NOT be painted.
-      expect(result.intervals.where((iv) => iv.wayId == 3), isEmpty,
-          reason: 'a side road the vehicle never entered must not be painted');
+      expect(
+        result.intervals.where((iv) => iv.wayId == 3),
+        isEmpty,
+        reason: 'a side road the vehicle never entered must not be painted',
+      );
     });
 
     // -------------------------------------------------------------------------
@@ -1232,17 +1316,25 @@ void main() {
         _fix(0, 420, dtSecs: 9),
       ];
 
-      final result =
-          _matcher.match(fixes: fixes, ways: [wayA, connector, wayB]);
+      final result = _matcher.match(
+        fixes: fixes,
+        ways: [wayA, connector, wayB],
+      );
       final cInt = result.intervals.where((iv) => iv.wayId == 2).toList();
 
-      expect(cInt, isNotEmpty,
-          reason: 'the intermediate connector must be painted by the bridge');
+      expect(
+        cInt,
+        isNotEmpty,
+        reason: 'the intermediate connector must be painted by the bridge',
+      );
       final cSpan = cInt
           .map((iv) => (iv.endMeters - iv.startMeters).abs())
           .reduce((x, y) => x > y ? x : y);
-      expect(cSpan, greaterThan(35),
-          reason: 'connector painted ~full 40 m, got $cSpan');
+      expect(
+        cSpan,
+        greaterThan(35),
+        reason: 'connector painted ~full 40 m, got $cSpan',
+      );
     });
 
     // -------------------------------------------------------------------------
@@ -1284,15 +1376,23 @@ void main() {
       final result = _matcher.match(fixes: fixes, ways: [wayA, detour, wayB]);
       // The detour way must NOT be painted, and A must not be extended to its
       // loose-end node.
-      expect(result.intervals.where((iv) => iv.wayId == 2), isEmpty,
-          reason: 'a detour longer than the bridge cap must not be painted');
+      expect(
+        result.intervals.where((iv) => iv.wayId == 2),
+        isEmpty,
+        reason: 'a detour longer than the bridge cap must not be painted',
+      );
       final aInt = result.intervals.where((iv) => iv.wayId == 1).toList();
       expect(aInt, isNotEmpty);
-      expect(aInt.map((iv) => iv.endMeters).reduce((x, y) => x > y ? x : y),
-          lessThan(95),
-          reason: 'A must keep its measured span (no bridge over a long detour)');
-      expect(result.intervals.where((iv) => iv.wayId == 3), isNotEmpty,
-          reason: 'B stays a separate interval');
+      expect(
+        aInt.map((iv) => iv.endMeters).reduce((x, y) => x > y ? x : y),
+        lessThan(95),
+        reason: 'A must keep its measured span (no bridge over a long detour)',
+      );
+      expect(
+        result.intervals.where((iv) => iv.wayId == 3),
+        isNotEmpty,
+        reason: 'B stays a separate interval',
+      );
     });
 
     // -------------------------------------------------------------------------
@@ -1332,16 +1432,23 @@ void main() {
         _fix(0, 290, dtSecs: 10),
       ];
 
-      final result =
-          _matcher.match(fixes: fixes, ways: [wayA, connector, wayB]);
+      final result = _matcher.match(
+        fixes: fixes,
+        ways: [wayA, connector, wayB],
+      );
       // The connector's mid node is off-corridor → no bridge, C not painted.
-      expect(result.intervals.where((iv) => iv.wayId == 2), isEmpty,
-          reason: 'an off-corridor connector node must block the bridge');
+      expect(
+        result.intervals.where((iv) => iv.wayId == 2),
+        isEmpty,
+        reason: 'an off-corridor connector node must block the bridge',
+      );
       final aInt = result.intervals.where((iv) => iv.wayId == 1).toList();
       expect(aInt, isNotEmpty);
-      expect(aInt.map((iv) => iv.endMeters).reduce((x, y) => x > y ? x : y),
-          lessThan(95),
-          reason: 'A must keep its measured span (corridor gate refused)');
+      expect(
+        aInt.map((iv) => iv.endMeters).reduce((x, y) => x > y ? x : y),
+        lessThan(95),
+        reason: 'A must keep its measured span (corridor gate refused)',
+      );
     });
 
     // -------------------------------------------------------------------------
@@ -1373,8 +1480,7 @@ void main() {
         nodeIds: const [101, 102],
         geometry: [_ll(0, 100), _ll(0, 200)],
       );
-      final side =
-          sideRoad(wayId: 3, junctionNodeId: 101, junctionEast: 100);
+      final side = sideRoad(wayId: 3, junctionNodeId: 101, junctionEast: 100);
 
       final fixes = [
         _fix(0, 20), // A forward
@@ -1389,21 +1495,26 @@ void main() {
       expect(aInt, isNotEmpty);
       // A IS extended to the junction node — the direction label difference no
       // longer blocks a different-way bridge (FIX B).
-      expect(aInt.map((iv) => iv.endMeters).reduce((x, y) => x > y ? x : y),
-          greaterThan(95),
-          reason: 'FIX B: a different-way through-intersection bridges even '
-              'across a direction-label difference');
+      expect(
+        aInt.map((iv) => iv.endMeters).reduce((x, y) => x > y ? x : y),
+        greaterThan(95),
+        reason:
+            'FIX B: a different-way through-intersection bridges even '
+            'across a direction-label difference',
+      );
       // The un-driven side road must still never be painted.
-      expect(result.intervals.where((iv) => iv.wayId == 3), isEmpty,
-          reason: 'the un-driven side road must not be painted');
+      expect(
+        result.intervals.where((iv) => iv.wayId == 3),
+        isEmpty,
+        reason: 'the un-driven side road must not be painted',
+      );
     });
 
     // -------------------------------------------------------------------------
     // 6. NO-OP regression: degree-2 continuation and same-way merge still
     // behave via Branches 2/1 exactly as before threading `fixes` through.
     // -------------------------------------------------------------------------
-    test('6. no-op regression: degree-2 continuation still fills (Branch 2)',
-        () {
+    test('6. no-op regression: degree-2 continuation still fills (Branch 2)', () {
       // Two collinear ways meeting at a pure degree-2 node 2001 (no side road).
       // Branch 2 handles this — Branch 3 must not change the outcome.
       final a = WayCandidate(
@@ -1431,12 +1542,16 @@ void main() {
       final result = _matcher.match(fixes: fixes, ways: [a, b]);
       final aInt = result.intervals.where((iv) => iv.wayId == 1).toList();
       final bInt = result.intervals.where((iv) => iv.wayId == 2).toList();
-      expect(aInt.map((iv) => iv.endMeters).reduce((x, y) => x > y ? x : y),
-          greaterThan(95),
-          reason: 'A still reaches its shared-node endpoint (Branch 2)');
-      expect(bInt.map((iv) => iv.startMeters).reduce((x, y) => x < y ? x : y),
-          lessThan(5),
-          reason: 'B still starts at its shared-node endpoint (Branch 2)');
+      expect(
+        aInt.map((iv) => iv.endMeters).reduce((x, y) => x > y ? x : y),
+        greaterThan(95),
+        reason: 'A still reaches its shared-node endpoint (Branch 2)',
+      );
+      expect(
+        bInt.map((iv) => iv.startMeters).reduce((x, y) => x < y ? x : y),
+        lessThan(5),
+        reason: 'B still starts at its shared-node endpoint (Branch 2)',
+      );
     });
 
     test('6b. no-op regression: two isolated ways are not bridged', () {
@@ -1471,8 +1586,7 @@ void main() {
   // turn drives the two ways in opposite meter senses), so the guard must NOT
   // kill the different-way continuation.
   group('FIX B direction-guard scoping', () {
-    test('turn between two ways with OPPOSITE direction labels still bridges',
-        () {
+    test('turn between two ways with OPPOSITE direction labels still bridges', () {
       // A runs east, nodes [1000,1001] at east 0/100; junction at A's END node
       // 1001 (east 100). B runs south→junction: geometry [(60,100),(0,100)],
       // nodeIds [1002,1001] → junction is B's END node too. Degree-2 shared
@@ -1509,43 +1623,59 @@ void main() {
       expect(aInt, isNotEmpty, reason: 'A must be matched');
       expect(bInt, isNotEmpty, reason: 'B must be matched');
       // The two arms must have OPPOSITE labels (this is what pre-FIX-B blocked).
-      final dirs = {...aInt.map((iv) => iv.direction), ...bInt.map((iv) => iv.direction)};
-      expect(dirs, containsAll(<String>{'forward', 'backward'}),
-          reason: 'the turn produces opposite per-way direction labels');
+      final dirs = {
+        ...aInt.map((iv) => iv.direction),
+        ...bInt.map((iv) => iv.direction),
+      };
+      expect(
+        dirs,
+        containsAll(<String>{'forward', 'backward'}),
+        reason: 'the turn produces opposite per-way direction labels',
+      );
       // A extended to its junction END (~100); B extended to its junction END.
-      expect(aInt.map((iv) => iv.endMeters).reduce((x, y) => x > y ? x : y),
-          greaterThan(95),
-          reason: 'A must reach the shared junction node despite the label diff');
-      expect(bInt.map((iv) => iv.endMeters).reduce((x, y) => x > y ? x : y),
-          greaterThan(55),
-          reason: 'B must reach the shared junction node (its END, ~60 m)');
+      expect(
+        aInt.map((iv) => iv.endMeters).reduce((x, y) => x > y ? x : y),
+        greaterThan(95),
+        reason: 'A must reach the shared junction node despite the label diff',
+      );
+      expect(
+        bInt.map((iv) => iv.endMeters).reduce((x, y) => x > y ? x : y),
+        greaterThan(55),
+        reason: 'B must reach the shared junction node (its END, ~60 m)',
+      );
     });
 
-    test('genuine reversal on the SAME way is still NOT merged (Branch 1 guard)',
-        () {
-      // A single two-way street driven out and back. The #9 reversal split
-      // produces a 'forward' interval then a 'backward' interval on the SAME
-      // way. Branch 1's direction guard (kept by FIX B) must refuse to merge
-      // them back into one — the two directional legs stay distinct.
-      final way = _eastWay();
-      final fixes = [
-        _fix(0, 20),
-        _fix(0, 120, dtSecs: 3),
-        _fix(0, 220, dtSecs: 6),
-        _fix(0, 270, dtSecs: 9), // peak
-        _fix(0, 200, dtSecs: 12),
-        _fix(0, 100, dtSecs: 15),
-        _fix(0, 20, dtSecs: 18),
-      ];
+    test(
+      'genuine reversal on the SAME way is still NOT merged (Branch 1 guard)',
+      () {
+        // A single two-way street driven out and back. The #9 reversal split
+        // produces a 'forward' interval then a 'backward' interval on the SAME
+        // way. Branch 1's direction guard (kept by FIX B) must refuse to merge
+        // them back into one — the two directional legs stay distinct.
+        final way = _eastWay();
+        final fixes = [
+          _fix(0, 20),
+          _fix(0, 120, dtSecs: 3),
+          _fix(0, 220, dtSecs: 6),
+          _fix(0, 270, dtSecs: 9), // peak
+          _fix(0, 200, dtSecs: 12),
+          _fix(0, 100, dtSecs: 15),
+          _fix(0, 20, dtSecs: 18),
+        ];
 
-      final result = _matcher.match(fixes: fixes, ways: [way]);
-      final wayIntervals =
-          result.intervals.where((iv) => iv.wayId == way.wayId).toList();
-      expect(wayIntervals.length, equals(2),
-          reason: 'a same-way reversal must NOT be merged (Branch 1 guard)');
-      expect(wayIntervals[0].direction, equals('forward'));
-      expect(wayIntervals[1].direction, equals('backward'));
-    });
+        final result = _matcher.match(fixes: fixes, ways: [way]);
+        final wayIntervals = result.intervals
+            .where((iv) => iv.wayId == way.wayId)
+            .toList();
+        expect(
+          wayIntervals.length,
+          equals(2),
+          reason: 'a same-way reversal must NOT be merged (Branch 1 guard)',
+        );
+        expect(wayIntervals[0].direction, equals('forward'));
+        expect(wayIntervals[1].direction, equals('backward'));
+      },
+    );
   });
 
   // ===========================================================================
@@ -1594,20 +1724,30 @@ void main() {
       final cInt = result.intervals.where((iv) => iv.wayId == 2).toList();
       expect(pInt, isNotEmpty, reason: 'P must be matched');
       expect(cInt, isNotEmpty, reason: 'C must be matched');
-      final pMaxEnd =
-          pInt.map((iv) => iv.endMeters).reduce((x, y) => x > y ? x : y);
+      final pMaxEnd = pInt
+          .map((iv) => iv.endMeters)
+          .reduce((x, y) => x > y ? x : y);
       // P extends to the interior junction node (~200 m), closing the gap.
-      expect(pMaxEnd, greaterThan(195),
-          reason: 'P must extend to the interior junction node (~200 m)');
+      expect(
+        pMaxEnd,
+        greaterThan(195),
+        reason: 'P must extend to the interior junction node (~200 m)',
+      );
       // CRITICAL: the far part of P beyond the junction (200..300) must NOT be
       // painted — the vehicle turned off at meter 200.
-      expect(pMaxEnd, lessThan(260),
-          reason: 'P beyond the junction (200..300) must NOT be painted, '
-              'got $pMaxEnd');
+      expect(
+        pMaxEnd,
+        lessThan(260),
+        reason:
+            'P beyond the junction (200..300) must NOT be painted, '
+            'got $pMaxEnd',
+      );
       // C extended from its shared-node start (~0 m).
-      expect(cInt.map((iv) => iv.startMeters).reduce((x, y) => x < y ? x : y),
-          lessThan(5),
-          reason: 'C must start from the shared junction node (~0 m)');
+      expect(
+        cInt.map((iv) => iv.startMeters).reduce((x, y) => x < y ? x : y),
+        lessThan(5),
+        reason: 'C must start from the shared junction node (~0 m)',
+      );
     });
   });
 
@@ -1648,13 +1788,20 @@ void main() {
 
       final result = _matcher.match(fixes: fixes, ways: [wayA, wayN]);
       // A must be painted (its geometry is right under the fixes).
-      expect(result.intervals.where((iv) => iv.wayId == 1), isNotEmpty,
-          reason: 'the genuinely-driven way A must be kept');
+      expect(
+        result.intervals.where((iv) => iv.wayId == 1),
+        isNotEmpty,
+        reason: 'the genuinely-driven way A must be kept',
+      );
       // N — even if the decoder snapped a fix onto it — must be dropped, because
       // its painted midpoint is ~25 m from every raw fix.
-      expect(result.intervals.where((iv) => iv.wayId == 2), isEmpty,
-          reason: 'a parallel way whose geometry is >15 m from all fixes must '
-              'be dropped by the proximity guard');
+      expect(
+        result.intervals.where((iv) => iv.wayId == 2),
+        isEmpty,
+        reason:
+            'a parallel way whose geometry is >15 m from all fixes must '
+            'be dropped by the proximity guard',
+      );
     });
 
     test('genuine partway drive (<8 m to fixes) is kept', () {
@@ -1673,8 +1820,11 @@ void main() {
 
       final result = _matcher.match(fixes: fixes, ways: [way]);
       final wIntervals = result.intervals.where((iv) => iv.wayId == 1).toList();
-      expect(wIntervals, isNotEmpty,
-          reason: 'a genuine partway drive under the fixes must be kept');
+      expect(
+        wIntervals,
+        isNotEmpty,
+        reason: 'a genuine partway drive under the fixes must be kept',
+      );
     });
   });
 }

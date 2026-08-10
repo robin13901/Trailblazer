@@ -50,8 +50,9 @@ void main() {
       // getRawGpsRetentionDays returns null (forever) — not the default 30.
       final prefs = AppPrefs(SharedPreferencesAsync());
       await prefs.setRawGpsRetentionDays(null);
-      final raw =
-          await SharedPreferencesAsync().getInt(AppPrefs.kRawGpsRetentionDays);
+      final raw = await SharedPreferencesAsync().getInt(
+        AppPrefs.kRawGpsRetentionDays,
+      );
       expect(raw, -1);
     });
   });

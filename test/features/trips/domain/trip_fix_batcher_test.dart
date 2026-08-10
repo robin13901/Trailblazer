@@ -13,12 +13,12 @@ class _FakeSink implements TripPointsSink {
 }
 
 TripPoint _point(int seq) => TripPoint(
-      tripId: 1,
-      seq: seq,
-      ts: DateTime.utc(2026, 7, 5, 8).add(Duration(seconds: seq)),
-      lat: 50 + seq * 0.0001,
-      lon: 9,
-    );
+  tripId: 1,
+  seq: seq,
+  ts: DateTime.utc(2026, 7, 5, 8).add(Duration(seconds: seq)),
+  lat: 50 + seq * 0.0001,
+  lon: 9,
+);
 
 void main() {
   group('TripFixBatcher', () {

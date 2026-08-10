@@ -73,8 +73,9 @@ void main() {
     LiquidGlassSettings.platformBlurEnabled = false;
   });
 
-  testWidgets('renders region cards with name and percent label',
-      (tester) async {
+  testWidgets('renders region cards with name and percent label', (
+    tester,
+  ) async {
     await tester.pumpWidget(_buildApp(regions: _kRegions));
     await tester.pumpAndSettle();
 
@@ -127,7 +128,9 @@ void main() {
     );
   });
 
-  testWidgets('no-match empty state when query returns nothing', (tester) async {
+  testWidgets('no-match empty state when query returns nothing', (
+    tester,
+  ) async {
     await tester.pumpWidget(_buildApp(regions: _kRegions));
     await tester.pumpAndSettle();
 

@@ -15,7 +15,7 @@ import 'package:logging/logging.dart';
 /// STATE.md 01-04 (swallow-and-log at persistence boundaries).
 class TripsRepositoryPointsSink implements TripPointsSink {
   TripsRepositoryPointsSink(this._repo, {Logger? logger})
-      : _log = logger ?? Logger('tracking.points_sink');
+    : _log = logger ?? Logger('tracking.points_sink');
 
   final TripsRepository _repo;
   final Logger _log;
@@ -35,15 +35,15 @@ class TripsRepositoryPointsSink implements TripPointsSink {
   }
 
   TripPointsCompanion _toCompanion(TripPoint p) => TripPointsCompanion(
-        tripId: Value(p.tripId),
-        seq: Value(p.seq),
-        ts: Value(p.ts),
-        lat: Value(p.lat),
-        lon: Value(p.lon),
-        speedKmh: Value(p.speedKmh),
-        accuracyMeters: Value(p.accuracyMeters),
-        altitudeMeters: Value(p.altitudeMeters),
-        motionType: Value(p.motionType),
-        heading: Value(p.headingDegrees),
-      );
+    tripId: Value(p.tripId),
+    seq: Value(p.seq),
+    ts: Value(p.ts),
+    lat: Value(p.lat),
+    lon: Value(p.lon),
+    speedKmh: Value(p.speedKmh),
+    accuracyMeters: Value(p.accuracyMeters),
+    altitudeMeters: Value(p.altitudeMeters),
+    motionType: Value(p.motionType),
+    heading: Value(p.headingDegrees),
+  );
 }

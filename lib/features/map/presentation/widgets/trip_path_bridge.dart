@@ -118,8 +118,10 @@ class _TripPathBridgeState extends ConsumerState<TripPathBridge> {
   }
 
   void _dispatch(Future<void> Function() action, String label) {
-    unawaited(action().catchError((Object e, StackTrace st) {
-      _log.warning('TripPathBridge: $label threw — map kept stable.', e, st);
-    }));
+    unawaited(
+      action().catchError((Object e, StackTrace st) {
+        _log.warning('TripPathBridge: $label threw — map kept stable.', e, st);
+      }),
+    );
   }
 }

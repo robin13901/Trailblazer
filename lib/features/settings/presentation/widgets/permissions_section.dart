@@ -3,7 +3,8 @@ import 'dart:async';
 import 'package:auto_explore/features/onboarding/data/permission_service_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:permission_handler/permission_handler.dart' show PermissionStatus;
+import 'package:permission_handler/permission_handler.dart'
+    show PermissionStatus;
 
 /// Read-only permissions inspector section (SET-03).
 ///
@@ -20,8 +21,7 @@ class PermissionsSection extends ConsumerStatefulWidget {
   const PermissionsSection({super.key});
 
   @override
-  ConsumerState<PermissionsSection> createState() =>
-      _PermissionsSectionState();
+  ConsumerState<PermissionsSection> createState() => _PermissionsSectionState();
 }
 
 class _PermissionsSectionState extends ConsumerState<PermissionsSection>
@@ -58,11 +58,13 @@ class _PermissionsSectionState extends ConsumerState<PermissionsSection>
 
     final always = await _safeStatus(svc.statusAlways);
     final whenInUse = await _safeStatus(svc.statusWhenInUse);
-    final activityRecognition =
-        await _safeStatus(svc.statusActivityRecognition);
+    final activityRecognition = await _safeStatus(
+      svc.statusActivityRecognition,
+    );
     final notification = await _safeStatus(svc.statusNotification);
-    final ignoreBatteryOptimizations =
-        await _safeStatus(svc.statusIgnoreBatteryOptimizations);
+    final ignoreBatteryOptimizations = await _safeStatus(
+      svc.statusIgnoreBatteryOptimizations,
+    );
 
     if (!mounted) return;
     setState(() {
@@ -150,7 +152,9 @@ class _PermissionRung extends StatelessWidget {
           Text(
             statusLabel,
             style: TextStyle(
-              color: dotColor == Colors.transparent ? scheme.onSurfaceVariant : dotColor,
+              color: dotColor == Colors.transparent
+                  ? scheme.onSurfaceVariant
+                  : dotColor,
               fontSize: 13,
             ),
           ),

@@ -158,7 +158,10 @@ class MapLibreRegionOutlineApplier implements RegionOutlineApplier {
   Future<void> remove(MapLibreMapController? controller) async {
     if (controller == null) return;
     // Remove layers before the source; swallow "not found" so it is idempotent.
-    for (final layerId in [regionOutlineLineLayerId, regionOutlineFillLayerId]) {
+    for (final layerId in [
+      regionOutlineLineLayerId,
+      regionOutlineFillLayerId,
+    ]) {
       try {
         await controller.removeLayer(layerId);
       } on Object {

@@ -75,17 +75,19 @@ void main() {
     expect(value, CoverageColorPreset.amber);
   });
 
-  test('coveragePresetValueProvider reflects selected preset after load',
-      () async {
-    final container = makeContainer();
-    addTearDown(container.dispose);
+  test(
+    'coveragePresetValueProvider reflects selected preset after load',
+    () async {
+      final container = makeContainer();
+      addTearDown(container.dispose);
 
-    await container.read(coveragePresetProvider.future);
-    await container
-        .read(coveragePresetProvider.notifier)
-        .select(CoverageColorPreset.blue);
+      await container.read(coveragePresetProvider.future);
+      await container
+          .read(coveragePresetProvider.notifier)
+          .select(CoverageColorPreset.blue);
 
-    final value = container.read(coveragePresetValueProvider);
-    expect(value, CoverageColorPreset.blue);
-  });
+      final value = container.read(coveragePresetValueProvider);
+      expect(value, CoverageColorPreset.blue);
+    },
+  );
 }

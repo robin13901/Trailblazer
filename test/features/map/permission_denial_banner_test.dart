@@ -47,8 +47,9 @@ void main() {
       );
     });
 
-    testWidgets('hidden (SizedBox.shrink) when bannerVisible=false',
-        (tester) async {
+    testWidgets('hidden (SizedBox.shrink) when bannerVisible=false', (
+      tester,
+    ) async {
       await pumpBanner(tester, bannerVisible: false);
       expect(
         find.textContaining('Standort „Immer" aktivieren'),
@@ -66,13 +67,15 @@ void main() {
       expect(fake.openAppSettingsCalls, 1);
     });
 
-    testWidgets('restricted status resolves true via FutureProvider override',
-        (tester) async {
+    testWidgets('restricted status resolves true via FutureProvider override', (
+      tester,
+    ) async {
       // Confirm !isGranted covers restricted.
       // We directly control the FutureProvider value — no need to drive
       // through the real permissionServiceProvider logic.
       // Script the service so the real provider (if evaluated) would return true.
-      final fake = FakePermissionService()..alwaysStatus = PermissionStatus.restricted;
+      final fake = FakePermissionService()
+        ..alwaysStatus = PermissionStatus.restricted;
 
       await pumpBanner(tester, bannerVisible: true, service: fake);
 

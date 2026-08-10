@@ -39,16 +39,16 @@ class PendingRoadFetchesDao extends DatabaseAccessor<AppDatabase>
 
   /// All pending fetches, oldest-first. Empty if none.
   Future<List<PendingRoadFetch>> listPending() {
-    return (select(pendingRoadFetches)
-          ..orderBy([(t) => OrderingTerm.asc(t.createdAt)]))
-        .get();
+    return (select(
+      pendingRoadFetches,
+    )..orderBy([(t) => OrderingTerm.asc(t.createdAt)])).get();
   }
 
   /// Look up the single pending fetch for [tripId], or null.
   Future<PendingRoadFetch?> getByTrip(int tripId) {
-    return (select(pendingRoadFetches)
-          ..where((t) => t.tripId.equals(tripId)))
-        .getSingleOrNull();
+    return (select(
+      pendingRoadFetches,
+    )..where((t) => t.tripId.equals(tripId))).getSingleOrNull();
   }
 
   /// Bump `attempts` by 1 and stamp `lastAttemptAt`. Returns rows updated.
@@ -60,9 +60,9 @@ class PendingRoadFetchesDao extends DatabaseAccessor<AppDatabase>
   /// runs a small select + write under an implicit transaction (single
   /// DAO call) — one extra read per attempt-bump is acceptable per plan.
   Future<int> incrementAttempts(int id, {DateTime? now}) async {
-    final row = await (select(pendingRoadFetches)
-          ..where((t) => t.id.equals(id)))
-        .getSingleOrNull();
+    final row = await (select(
+      pendingRoadFetches,
+    )..where((t) => t.id.equals(id))).getSingleOrNull();
     if (row == null) return 0;
     return (update(pendingRoadFetches)..where((t) => t.id.equals(id))).write(
       PendingRoadFetchesCompanion(
@@ -74,9 +74,9 @@ class PendingRoadFetchesDao extends DatabaseAccessor<AppDatabase>
 
   /// Remove all pending fetches for [tripId]. Returns rows deleted.
   Future<int> removeByTrip(int tripId) {
-    return (delete(pendingRoadFetches)
-          ..where((t) => t.tripId.equals(tripId)))
-        .go();
+    return (delete(
+      pendingRoadFetches,
+    )..where((t) => t.tripId.equals(tripId))).go();
   }
 
   /// Reset the backoff gate on EVERY queued row: `attempts = 0` and

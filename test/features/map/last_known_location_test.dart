@@ -36,8 +36,7 @@ void main() {
       expect(read.longitude, closeTo(13.40, 1e-9));
     });
 
-    test('read returns null when only one coordinate key is present',
-        () async {
+    test('read returns null when only one coordinate key is present', () async {
       // Persist just the latitude key; a partial write must not yield a
       // half-valid location.
       final prefs = SharedPreferencesAsync();

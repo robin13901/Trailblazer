@@ -53,12 +53,12 @@ import 'package:maplibre_gl/maplibre_gl.dart' show LatLng;
 /// synchronous closure. Takes the raw gzipped tiles + parallel bboxes + the set
 /// of wayIds already attributed — exactly the sendable payload of a
 /// [CoverageComputeJob].
-typedef CoverageAttributionRunner
-    = Future<List<WayRegionAttributionRow>> Function(
-  List<Uint8List> gzippedTiles,
-  List<LatLonBbox> tileBboxes,
-  Set<int> alreadyAttributedWayIds,
-);
+typedef CoverageAttributionRunner =
+    Future<List<WayRegionAttributionRow>> Function(
+      List<Uint8List> gzippedTiles,
+      List<LatLonBbox> tileBboxes,
+      Set<int> alreadyAttributedWayIds,
+    );
 
 /// Admin levels attributed during the recompute pass.
 ///
@@ -86,7 +86,6 @@ const int _kProgressTilesPerChunk = 8;
 /// UI can show 100%. Never throws to the callee.
 typedef CoverageRecomputeProgress = void Function(int done, int total);
 
-
 /// Recomputes `coverage_cache` for all admin regions at levels 4/6/8/9/10 via
 /// the durable clip-per-region model.
 ///
@@ -110,16 +109,16 @@ class CoverageComputeService {
     WayRegionAttributionDao? attributionDao,
     Future<void> Function()? ensureComputeReady,
     Logger? logger,
-  })  : _intervalsDao = intervalsDao,
-        _waySource = waySource,
-        _regionLookup = regionLookup,
-        _cacheDao = cacheDao,
-        _tripsDao = tripsDao,
-        _totalsLookup = totalsLookup,
-        _compute = compute,
-        _attributionDao = attributionDao,
-        _ensureComputeReady = ensureComputeReady,
-        _log = logger ?? Logger('CoverageComputeService');
+  }) : _intervalsDao = intervalsDao,
+       _waySource = waySource,
+       _regionLookup = regionLookup,
+       _cacheDao = cacheDao,
+       _tripsDao = tripsDao,
+       _totalsLookup = totalsLookup,
+       _compute = compute,
+       _attributionDao = attributionDao,
+       _ensureComputeReady = ensureComputeReady,
+       _log = logger ?? Logger('CoverageComputeService');
 
   final DrivenWayIntervalsDao _intervalsDao;
   final WayCandidateSource _waySource;
@@ -134,8 +133,7 @@ class CoverageComputeService {
   final WayRegionAttributionDao? _attributionDao;
 
   WayRegionAttributionDao get _attribution =>
-      _attributionDao ??
-      WayRegionAttributionDao(_cacheDao.attachedDatabase);
+      _attributionDao ?? WayRegionAttributionDao(_cacheDao.attachedDatabase);
 
   /// Off-isolate STAGE-1 clip runner (production: the compute isolate's
   /// `computeAttribution`; tests: a synchronous closure).
@@ -225,7 +223,11 @@ class CoverageComputeService {
         // skip set as rows land.
         final skip = <int>{...alreadyAttributed};
         reportProgress(0, totalTiles);
-        for (var start = 0; start < totalTiles; start += _kProgressTilesPerChunk) {
+        for (
+          var start = 0;
+          start < totalTiles;
+          start += _kProgressTilesPerChunk
+        ) {
           final end = math.min(start + _kProgressTilesPerChunk, totalTiles);
           final chunk = rawTiles.sublist(start, end);
           final chunkRows = await _compute(
@@ -313,8 +315,11 @@ class CoverageComputeService {
       total[id] = (total[id] ?? 0) + (row.rangeEndM - row.rangeStartM);
       final ivs = unionByWayId[row.wayId];
       if (ivs != null) {
-        final overlap =
-            overlapLengthMeters(ivs, row.rangeStartM, row.rangeEndM);
+        final overlap = overlapLengthMeters(
+          ivs,
+          row.rangeStartM,
+          row.rangeEndM,
+        );
         if (overlap > 0) driven[id] = (driven[id] ?? 0) + overlap;
       }
     }
@@ -342,9 +347,9 @@ class CoverageComputeService {
 
       // Load trip bbox.
       final db = _tripsDao.attachedDatabase;
-      final tripRow = await (db.select(db.trips)
-            ..where((t) => t.id.equals(tripId)))
-          .getSingleOrNull();
+      final tripRow = await (db.select(
+        db.trips,
+      )..where((t) => t.id.equals(tripId))).getSingleOrNull();
       if (tripRow == null) {
         _log.fine('recomputeForTrip $tripId: trip not found — skipping');
         return const Ok(0);
@@ -353,7 +358,10 @@ class CoverageComputeService {
       final minLon = tripRow.bboxMinLon;
       final maxLat = tripRow.bboxMaxLat;
       final maxLon = tripRow.bboxMaxLon;
-      if (minLat == null || minLon == null || maxLat == null || maxLon == null) {
+      if (minLat == null ||
+          minLon == null ||
+          maxLat == null ||
+          maxLon == null) {
         _log.fine('recomputeForTrip $tripId: no bbox — skipping');
         return const Ok(0);
       }

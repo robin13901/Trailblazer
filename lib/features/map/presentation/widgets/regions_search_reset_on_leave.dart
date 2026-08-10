@@ -37,7 +37,8 @@ class _RegionsSearchResetOnLeaveState
   void didUpdateWidget(RegionsSearchResetOnLeave oldWidget) {
     super.didUpdateWidget(oldWidget);
     // Leaving the Regions tab: previous branch was Regions, next is not.
-    final left = oldWidget.currentIndex == _kRegionsBranchIndex &&
+    final left =
+        oldWidget.currentIndex == _kRegionsBranchIndex &&
         widget.currentIndex != _kRegionsBranchIndex;
     if (!left) return;
     // Defer the provider write out of the build/lifecycle phase — Riverpod

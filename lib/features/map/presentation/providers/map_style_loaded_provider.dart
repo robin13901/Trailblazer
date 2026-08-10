@@ -44,5 +44,6 @@ class StyleTickNotifier extends Notifier<int> {
 /// programmatic sources (RESEARCH Pitfall 1).
 ///
 /// Plain [NotifierProvider] — no `@Riverpod` codegen per STATE 01-01.
-final mapStyleLoadedTickProvider =
-    NotifierProvider<StyleTickNotifier, int>(StyleTickNotifier.new);
+final mapStyleLoadedTickProvider = NotifierProvider<StyleTickNotifier, int>(
+  StyleTickNotifier.new,
+);

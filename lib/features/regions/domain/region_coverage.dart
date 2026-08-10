@@ -26,7 +26,8 @@ String formatPercent(double percent) => '${oneDecimalDe(percent)} %';
 
 /// One-decimal number in German format, e.g. 26.4 -> "26,4". Shared by the
 /// percent label and the km stats so the whole region UI reads German-locale.
-String oneDecimalDe(double value) => value.toStringAsFixed(1).replaceAll('.', ',');
+String oneDecimalDe(double value) =>
+    value.toStringAsFixed(1).replaceAll('.', ',');
 
 /// Formats a kilometre value in German locale with a dynamic precision rule
 /// (user request 2026-07-17):

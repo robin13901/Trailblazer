@@ -80,7 +80,8 @@ class AdminRegion {
       final xi = ring[i][1];
       final yj = ring[j][0];
       final xj = ring[j][1];
-      final intersect = ((yi > lat) != (yj > lat)) &&
+      final intersect =
+          ((yi > lat) != (yj > lat)) &&
           (lon < (xj - xi) * (lat - yi) / ((yj - yi) + 1e-30) + xi);
       if (intersect) inside = !inside;
       j = i;
@@ -221,8 +222,8 @@ class AdminRegion {
 /// distance a point in the cell could have (`d + h*√2`), used as the heap key.
 class _Cell {
   _Cell(this.lat, this.lon, this.h, List<List<double>> ring)
-      : d = _pointToRingDist(lat, lon, ring),
-        _id = _seq++ {
+    : d = _pointToRingDist(lat, lon, ring),
+      _id = _seq++ {
     max = d + h * math.sqrt2;
   }
 

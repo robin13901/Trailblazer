@@ -47,8 +47,9 @@ void main() {
         overrides: [
           trackingDiagnosticsProvider.overrideWithValue(snapshot),
           permissionServiceProvider.overrideWithValue(FakePermissionService()),
-          backgroundGeolocationFacadeProvider
-              .overrideWithValue(FakeBackgroundGeolocationFacade()),
+          backgroundGeolocationFacadeProvider.overrideWithValue(
+            FakeBackgroundGeolocationFacade(),
+          ),
           // Override DB so pendingRoadFetchesDao.listPending() uses in-memory
           // storage instead of real drift_flutter (requires path_provider).
           appDatabaseProvider.overrideWithValue(db),
@@ -68,8 +69,9 @@ void main() {
     await tester.pump();
   }
 
-  testWidgets('renders every diagnostic field from the fixed snapshot',
-      (tester) async {
+  testWidgets('renders every diagnostic field from the fixed snapshot', (
+    tester,
+  ) async {
     final now = DateTime(2026, 7, 6, 12);
     final snapshot = TrackingDiagnostics(
       facadeReadyOutcome: const FacadeReadySuccess(),
@@ -113,8 +115,9 @@ void main() {
     expect(find.text('49.12345, 8.67890'), findsOneWidget);
   });
 
-  testWidgets('idle state: no fix, no trip, empty placeholders',
-      (tester) async {
+  testWidgets('idle state: no fix, no trip, empty placeholders', (
+    tester,
+  ) async {
     const snapshot = TrackingDiagnostics(
       facadeReadyOutcome: FacadeReadyPending(),
       facadeCurrentState: null,

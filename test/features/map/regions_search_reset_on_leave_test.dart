@@ -11,20 +11,22 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 Widget _host(int currentIndex) => ProviderScope(
-      child: Directionality(
-        textDirection: TextDirection.ltr,
-        child: RegionsSearchResetOnLeave(currentIndex: currentIndex),
-      ),
-    );
+  child: Directionality(
+    textDirection: TextDirection.ltr,
+    child: RegionsSearchResetOnLeave(currentIndex: currentIndex),
+  ),
+);
 
 /// Reads the shared query provider from the pumped tree.
-ProviderContainer _containerOf(WidgetTester tester) => ProviderScope.containerOf(
+ProviderContainer _containerOf(WidgetTester tester) =>
+    ProviderScope.containerOf(
       tester.element(find.byType(RegionsSearchResetOnLeave)),
     );
 
 void main() {
-  testWidgets('clears the search query when leaving the Regions tab (2 → 0)',
-      (tester) async {
+  testWidgets('clears the search query when leaving the Regions tab (2 → 0)', (
+    tester,
+  ) async {
     await tester.pumpWidget(_host(2)); // start ON the Regions tab
     final container = _containerOf(tester);
     container.read(regionSearchQueryProvider.notifier).query = 'Kleinheubach';
@@ -39,8 +41,9 @@ void main() {
     expect(container.read(regionSearchQueryProvider), '');
   });
 
-  testWidgets('does NOT clear while staying on the Regions tab (2 → 2)',
-      (tester) async {
+  testWidgets('does NOT clear while staying on the Regions tab (2 → 2)', (
+    tester,
+  ) async {
     await tester.pumpWidget(_host(2));
     final container = _containerOf(tester);
     container.read(regionSearchQueryProvider.notifier).query = 'Bayern';
@@ -51,14 +54,16 @@ void main() {
     expect(container.read(regionSearchQueryProvider), 'Bayern');
   });
 
-  testWidgets('does NOT clear on transitions between non-Regions tabs (0 → 1)',
-      (tester) async {
-    await tester.pumpWidget(_host(0));
-    final container = _containerOf(tester);
-    container.read(regionSearchQueryProvider.notifier).query = 'x';
+  testWidgets(
+    'does NOT clear on transitions between non-Regions tabs (0 → 1)',
+    (tester) async {
+      await tester.pumpWidget(_host(0));
+      final container = _containerOf(tester);
+      container.read(regionSearchQueryProvider.notifier).query = 'x';
 
-    await tester.pumpWidget(_host(1));
+      await tester.pumpWidget(_host(1));
 
-    expect(container.read(regionSearchQueryProvider), 'x');
-  });
+      expect(container.read(regionSearchQueryProvider), 'x');
+    },
+  );
 }

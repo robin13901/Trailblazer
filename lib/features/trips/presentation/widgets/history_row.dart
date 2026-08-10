@@ -145,7 +145,10 @@ class _StatusPill extends ConsumerWidget {
               ),
             ),
             const SizedBox(width: 8),
-            Text('Wird abgeglichen … $percent %', style: theme.textTheme.labelSmall),
+            Text(
+              'Wird abgeglichen … $percent %',
+              style: theme.textTheme.labelSmall,
+            ),
           ],
         );
       }

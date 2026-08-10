@@ -92,17 +92,16 @@ void main() {
         await seedPoints(tripId);
         await seedInterval(tripId, now.subtract(const Duration(days: 40)));
 
-        final deleted = await tripsDao
-            .deleteTripPointsForMatchedTripsOlderThan(
+        final deleted = await tripsDao.deleteTripPointsForMatchedTripsOlderThan(
           now.subtract(const Duration(days: 30)),
         );
         expect(deleted, 3);
 
         // Points gone; trip row itself still exists.
         expect(await tripPointCount(tripId), 0);
-        final trip =
-            await (db.select(db.trips)..where((t) => t.id.equals(tripId)))
-                .getSingleOrNull();
+        final trip = await (db.select(
+          db.trips,
+        )..where((t) => t.id.equals(tripId))).getSingleOrNull();
         expect(trip, isNotNull);
       },
     );
@@ -116,8 +115,7 @@ void main() {
         // Interval is only 10 days old — within the 30-day window.
         await seedInterval(tripId, now.subtract(const Duration(days: 10)));
 
-        final deleted = await tripsDao
-            .deleteTripPointsForMatchedTripsOlderThan(
+        final deleted = await tripsDao.deleteTripPointsForMatchedTripsOlderThan(
           now.subtract(const Duration(days: 30)),
         );
         expect(deleted, 0);
@@ -144,8 +142,7 @@ void main() {
           ),
         ]);
 
-        final deleted = await tripsDao
-            .deleteTripPointsForMatchedTripsOlderThan(
+        final deleted = await tripsDao.deleteTripPointsForMatchedTripsOlderThan(
           now.subtract(const Duration(days: 30)),
         );
         expect(deleted, 0);
@@ -161,13 +158,15 @@ void main() {
 
       final cutoff = now.subtract(const Duration(days: 30));
 
-      final first =
-          await tripsDao.deleteTripPointsForMatchedTripsOlderThan(cutoff);
+      final first = await tripsDao.deleteTripPointsForMatchedTripsOlderThan(
+        cutoff,
+      );
       expect(first, 3);
 
       // Second call: points already gone → 0 rows deleted.
-      final second =
-          await tripsDao.deleteTripPointsForMatchedTripsOlderThan(cutoff);
+      final second = await tripsDao.deleteTripPointsForMatchedTripsOlderThan(
+        cutoff,
+      );
       expect(second, 0);
     });
   });

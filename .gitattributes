@@ -1,0 +1,20 @@
+# Normalize line endings: all text files use LF in the repository.
+# dart format (on Linux CI) always writes LF; keeping LF in the repo
+# prevents CRLF/LF diffs that cause "Verify formatting" to fail on CI.
+* text=auto eol=lf
+
+# Binaries – never touch their bytes
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.db  binary
+*.sqlite binary
+*.fgb binary
+*.gz  binary
+*.zip binary
+*.jar binary
+*.aar binary
+*.so  binary
+*.dylib binary

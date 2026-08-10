@@ -94,8 +94,9 @@ final connectivitySeamProvider = Provider<ConnectivitySeam>(
 /// Passes [tripMatchCoordinatorProvider] so the fetch coordinator can invoke
 /// the Phase 5 match pipeline immediately after each trip transitions to
 /// `pending` (fire-and-forget, unawaited).
-final tripRoadFetchCoordinatorProvider =
-    Provider<TripRoadFetchCoordinator>((ref) {
+final tripRoadFetchCoordinatorProvider = Provider<TripRoadFetchCoordinator>((
+  ref,
+) {
   return TripRoadFetchCoordinator(
     source: ref.watch(wayCandidateSourceProvider),
     pendingDao: ref.watch(appDatabaseProvider).pendingRoadFetchesDao,

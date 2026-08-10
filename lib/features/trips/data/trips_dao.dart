@@ -22,21 +22,19 @@ class TripsDao extends DatabaseAccessor<AppDatabase> {
   Future<int> openTrip({
     required DateTime startedAt,
     required bool manuallyStarted,
-  }) =>
-      into(trips).insert(
-        TripsCompanion.insert(
-          startedAt: startedAt,
-          status: const Value(TripStatus.recording),
-          manuallyStarted: Value(manuallyStarted),
-        ),
-      );
+  }) => into(trips).insert(
+    TripsCompanion.insert(
+      startedAt: startedAt,
+      status: const Value(TripStatus.recording),
+      manuallyStarted: Value(manuallyStarted),
+    ),
+  );
 
   /// Batch-insert GPS point rows for [tripId].
   Future<void> appendPointsBatch(
     int tripId,
     List<TripPointsCompanion> points,
-  ) =>
-      batch((b) => b.insertAll(tripPoints, points));
+  ) => batch((b) => b.insertAll(tripPoints, points));
 
   /// Close [tripId] by writing summary fields and flipping status.
   ///
@@ -48,23 +46,22 @@ class TripsDao extends DatabaseAccessor<AppDatabase> {
     int tripId,
     TripSummary s, {
     TripStatus status = TripStatus.pending,
-  }) =>
-      (update(trips)..where((t) => t.id.equals(tripId))).write(
-        TripsCompanion(
-          endedAt: Value(s.endedAt),
-          durationSeconds: Value(s.durationSeconds),
-          distanceMeters: Value(s.distanceMeters),
-          avgSpeedKmh: Value(s.avgSpeedKmh),
-          maxSpeedKmh: Value(s.maxSpeedKmh),
-          pointCount: Value(s.pointCount),
-          bboxMinLat: Value(s.bboxMinLat),
-          bboxMinLon: Value(s.bboxMinLon),
-          bboxMaxLat: Value(s.bboxMaxLat),
-          bboxMaxLon: Value(s.bboxMaxLon),
-          autoStopped: Value(s.autoStopped),
-          status: Value(status),
-        ),
-      );
+  }) => (update(trips)..where((t) => t.id.equals(tripId))).write(
+    TripsCompanion(
+      endedAt: Value(s.endedAt),
+      durationSeconds: Value(s.durationSeconds),
+      distanceMeters: Value(s.distanceMeters),
+      avgSpeedKmh: Value(s.avgSpeedKmh),
+      maxSpeedKmh: Value(s.maxSpeedKmh),
+      pointCount: Value(s.pointCount),
+      bboxMinLat: Value(s.bboxMinLat),
+      bboxMinLon: Value(s.bboxMinLon),
+      bboxMaxLat: Value(s.bboxMaxLat),
+      bboxMaxLon: Value(s.bboxMaxLon),
+      autoStopped: Value(s.autoStopped),
+      status: Value(status),
+    ),
+  );
 
   /// Delete [tripId] and its points (CASCADE on trip_points FK).
   Future<void> deleteTrip(int tripId) =>
@@ -76,7 +73,7 @@ class TripsDao extends DatabaseAccessor<AppDatabase> {
   /// survive later raw-GPS retention deletion of `trip_points`. No-op if the
   /// trip has no points. Mirrors the v6→v7 migration backfill.
   Future<void> backfillEndpoints(int tripId) => customUpdate(
-        '''
+    '''
 UPDATE trips SET
   start_lat = (SELECT lat FROM trip_points WHERE trip_id = ?1 ORDER BY seq ASC  LIMIT 1),
   start_lon = (SELECT lon FROM trip_points WHERE trip_id = ?1 ORDER BY seq ASC  LIMIT 1),
@@ -84,10 +81,10 @@ UPDATE trips SET
   end_lon   = (SELECT lon FROM trip_points WHERE trip_id = ?1 ORDER BY seq DESC LIMIT 1)
 WHERE id = ?1
   AND EXISTS (SELECT 1 FROM trip_points WHERE trip_id = ?1)''',
-        variables: [Variable.withInt(tripId)],
-        updates: {trips},
-        updateKind: UpdateKind.update,
-      );
+    variables: [Variable.withInt(tripId)],
+    updates: {trips},
+    updateKind: UpdateKind.update,
+  );
 
   /// Flip [tripId] to [TripStatus.pendingRoadData] — used by the 04-15 trip
   /// road-fetch coordinator after a trip stops but BEFORE the Overpass road
@@ -133,11 +130,10 @@ WHERE id = ?1
       ..addColumns([trips.coveragePathJson])
       ..where(trips.coveragePathJson.isNotNull());
     return query.watch().map(
-          (rows) => [
-            for (final r in rows)
-              r.read(trips.coveragePathJson) ?? '',
-          ]..removeWhere((s) => s.isEmpty),
-        );
+      (rows) => [
+        for (final r in rows) r.read(trips.coveragePathJson) ?? '',
+      ]..removeWhere((s) => s.isEmpty),
+    );
   }
 
   /// All trips with `status == TripStatus.pending`, ordered by `endedAt`
@@ -270,7 +266,10 @@ WHERE status IN ('matched', 'confirmed')''',
       final minLon = row.readNullable<double>('min_lon');
       final maxLat = row.readNullable<double>('max_lat');
       final maxLon = row.readNullable<double>('max_lon');
-      if (minLat == null || minLon == null || maxLat == null || maxLon == null) {
+      if (minLat == null ||
+          minLon == null ||
+          maxLat == null ||
+          maxLon == null) {
         return null;
       }
       return LatLngBounds(

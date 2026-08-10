@@ -46,8 +46,10 @@ Future<Uint8List?> loadRegionTotalsBytes({AssetBundle? bundle}) async {
   final resolvedBundle = bundle ?? rootBundle;
   try {
     final byteData = await resolvedBundle.load(kRegionTotalsAssetPath);
-    return byteData.buffer
-        .asUint8List(byteData.offsetInBytes, byteData.lengthInBytes);
+    return byteData.buffer.asUint8List(
+      byteData.offsetInBytes,
+      byteData.lengthInBytes,
+    );
   } on Object {
     // Asset absent (deferred PBF checkpoint not yet run).
     return null;
@@ -62,8 +64,7 @@ Future<Uint8List?> loadRegionTotalsBytes({AssetBundle? bundle}) async {
 /// calls nothing at construction time; the CoverageComputeService calls
 /// ensureLoaded() as part of its recompute() warm-up sequence.
 class RegionTotalsLookup {
-  RegionTotalsLookup({AssetBundle? bundle})
-      : _bundle = bundle ?? rootBundle;
+  RegionTotalsLookup({AssetBundle? bundle}) : _bundle = bundle ?? rootBundle;
 
   final AssetBundle _bundle;
 

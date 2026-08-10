@@ -46,7 +46,11 @@ void main() {
 
   group('TileBboxMath.tileToBbox', () {
     test('round-trips a known Berlin tile within ±0.001°', () {
-      final t = TileId(12, math.lonToTileX(13.405, 12), math.latToTileY(52.52, 12));
+      final t = TileId(
+        12,
+        math.lonToTileX(13.405, 12),
+        math.latToTileY(52.52, 12),
+      );
       final b = math.tileToBbox(t);
       // The tile should CONTAIN the point (52.52, 13.405).
       expect(b.minLat, lessThanOrEqualTo(52.52 + 1e-6));
@@ -127,25 +131,27 @@ void main() {
       );
     });
 
-    test('samples along a sparse segment so no intermediate tile is skipped',
-        () {
-      // Two points ~40 km apart with nothing in between: naive per-point
-      // tiling would yield only the 2 endpoint tiles, leaving a hole. The
-      // along-segment sampling must fill the tiles the straight line crosses.
-      const a = (lat: 49.25, lon: 8.644);
-      const b = (lat: 49.60, lon: 8.644); // due north, ~39 km
-      final sampled = math.tilesForPath(const [a, b]);
-      // The straight south→north line crosses every y-tile row between the two
-      // endpoints at that x; assert we got more than just the 2 endpoints.
-      expect(sampled.length, greaterThan(2));
-      // Endpoints are always present.
-      expect(
-        sampled,
-        containsAll(<TileId>{
-          TileId(12, math.lonToTileX(a.lon, 12), math.latToTileY(a.lat, 12)),
-          TileId(12, math.lonToTileX(b.lon, 12), math.latToTileY(b.lat, 12)),
-        }),
-      );
-    });
+    test(
+      'samples along a sparse segment so no intermediate tile is skipped',
+      () {
+        // Two points ~40 km apart with nothing in between: naive per-point
+        // tiling would yield only the 2 endpoint tiles, leaving a hole. The
+        // along-segment sampling must fill the tiles the straight line crosses.
+        const a = (lat: 49.25, lon: 8.644);
+        const b = (lat: 49.60, lon: 8.644); // due north, ~39 km
+        final sampled = math.tilesForPath(const [a, b]);
+        // The straight south→north line crosses every y-tile row between the two
+        // endpoints at that x; assert we got more than just the 2 endpoints.
+        expect(sampled.length, greaterThan(2));
+        // Endpoints are always present.
+        expect(
+          sampled,
+          containsAll(<TileId>{
+            TileId(12, math.lonToTileX(a.lon, 12), math.latToTileY(a.lat, 12)),
+            TileId(12, math.lonToTileX(b.lon, 12), math.latToTileY(b.lat, 12)),
+          }),
+        );
+      },
+    );
   });
 }

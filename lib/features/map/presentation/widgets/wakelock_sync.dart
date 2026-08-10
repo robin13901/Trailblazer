@@ -59,8 +59,11 @@ class WakelockSync extends ConsumerWidget {
           await WakelockPlus.disable();
         }
       } on Object catch (e, st) {
-        _log.warning('Wakelock ${enable ? 'enable' : 'disable'} failed: $e', e,
-            st);
+        _log.warning(
+          'Wakelock ${enable ? 'enable' : 'disable'} failed: $e',
+          e,
+          st,
+        );
       }
     }());
   }

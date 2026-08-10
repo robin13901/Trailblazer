@@ -68,7 +68,9 @@ Future<int> _seedTrip(
   AppDatabase db, {
   required TripStatus status,
 }) {
-  return db.into(db.trips).insert(
+  return db
+      .into(db.trips)
+      .insert(
         TripsCompanion.insert(
           startedAt: DateTime(2026, 7, 9, 8),
           endedAt: Value(DateTime(2026, 7, 9, 8, 42)),
@@ -91,7 +93,9 @@ Future<void> _seedPoints(AppDatabase db, int tripId) async {
     (49.81, 9.22),
   ];
   for (var i = 0; i < coords.length; i++) {
-    await db.into(db.tripPoints).insert(
+    await db
+        .into(db.tripPoints)
+        .insert(
           TripPointsCompanion.insert(
             tripId: tripId,
             seq: i,
@@ -110,7 +114,9 @@ Future<void> _seedInterval(
   double startMeters = 0,
   double endMeters = 100,
 }) {
-  return db.into(db.drivenWayIntervals).insert(
+  return db
+      .into(db.drivenWayIntervals)
+      .insert(
         DrivenWayIntervalsCompanion.insert(
           wayId: wayId,
           tripId: Value(tripId),
@@ -122,14 +128,14 @@ Future<void> _seedInterval(
 }
 
 WayCandidate _way(int id) => WayCandidate(
-      wayId: id,
-      geometry: const [
-        LatLng(49.79, 9.18),
-        LatLng(49.80, 9.20),
-        LatLng(49.81, 9.22),
-      ],
-      highwayClass: 'residential',
-    );
+  wayId: id,
+  geometry: const [
+    LatLng(49.79, 9.18),
+    LatLng(49.80, 9.20),
+    LatLng(49.81, 9.22),
+  ],
+  highwayClass: 'residential',
+);
 
 void main() {
   group('loadTripDetailData', () {
@@ -148,90 +154,98 @@ void main() {
 
     tearDown(() => db.close());
 
-    test('fail-matched (0 intervals): no matched segments, no network call',
-        () async {
-      final tripId = await _seedTrip(db, status: TripStatus.matched);
-      await _seedPoints(db, tripId);
-      // A source that would throw if called — proves it is NOT called.
-      final source = _FakeWaySource(throwError: true);
+    test(
+      'fail-matched (0 intervals): no matched segments, no network call',
+      () async {
+        final tripId = await _seedTrip(db, status: TripStatus.matched);
+        await _seedPoints(db, tripId);
+        // A source that would throw if called — proves it is NOT called.
+        final source = _FakeWaySource(throwError: true);
 
-      final data = await loadTripDetailData(
-        tripId: tripId,
-        inboxDao: inboxDao,
-        tripsDao: tripsDao,
-        intervalsDao: intervalsDao,
-        waySource: source,
-      );
+        final data = await loadTripDetailData(
+          tripId: tripId,
+          inboxDao: inboxDao,
+          tripsDao: tripsDao,
+          intervalsDao: intervalsDao,
+          waySource: source,
+        );
 
-      expect(data.item.isFailMatched, isTrue);
-      expect(data.matchedSegments, isEmpty);
-      expect(data.offline, isFalse);
-      expect(data.rawPolyline.length, 3);
-    });
+        expect(data.item.isFailMatched, isTrue);
+        expect(data.matchedSegments, isEmpty);
+        expect(data.offline, isFalse);
+        expect(data.rawPolyline.length, 3);
+      },
+    );
 
-    test('non-fail: raw polyline + matched segments + matched fraction',
-        () async {
-      final tripId = await _seedTrip(db, status: TripStatus.confirmed);
-      await _seedPoints(db, tripId);
-      await _seedInterval(db, tripId, wayId: 1, endMeters: 50);
-      final source = _FakeWaySource(ways: [_way(1)]);
+    test(
+      'non-fail: raw polyline + matched segments + matched fraction',
+      () async {
+        final tripId = await _seedTrip(db, status: TripStatus.confirmed);
+        await _seedPoints(db, tripId);
+        await _seedInterval(db, tripId, wayId: 1, endMeters: 50);
+        final source = _FakeWaySource(ways: [_way(1)]);
 
-      final data = await loadTripDetailData(
-        tripId: tripId,
-        inboxDao: inboxDao,
-        tripsDao: tripsDao,
-        intervalsDao: intervalsDao,
-        waySource: source,
-      );
+        final data = await loadTripDetailData(
+          tripId: tripId,
+          inboxDao: inboxDao,
+          tripsDao: tripsDao,
+          intervalsDao: intervalsDao,
+          waySource: source,
+        );
 
-      expect(data.offline, isFalse);
-      expect(data.rawPolyline.length, 3);
-      expect(data.matchedSegments, isNotEmpty);
-      expect(data.matchedWayCount, 1);
-      expect(data.matchedFraction, isNotNull);
-      expect(data.matchedFraction, greaterThan(0));
-    });
+        expect(data.offline, isFalse);
+        expect(data.rawPolyline.length, 3);
+        expect(data.matchedSegments, isNotEmpty);
+        expect(data.matchedWayCount, 1);
+        expect(data.matchedFraction, isNotNull);
+        expect(data.matchedFraction, greaterThan(0));
+      },
+    );
 
-    test('offline: way source throws → offline, matched skipped, raw kept',
-        () async {
-      final tripId = await _seedTrip(db, status: TripStatus.confirmed);
-      await _seedPoints(db, tripId);
-      await _seedInterval(db, tripId, wayId: 1);
-      final source = _FakeWaySource(throwError: true);
+    test(
+      'offline: way source throws → offline, matched skipped, raw kept',
+      () async {
+        final tripId = await _seedTrip(db, status: TripStatus.confirmed);
+        await _seedPoints(db, tripId);
+        await _seedInterval(db, tripId, wayId: 1);
+        final source = _FakeWaySource(throwError: true);
 
-      final data = await loadTripDetailData(
-        tripId: tripId,
-        inboxDao: inboxDao,
-        tripsDao: tripsDao,
-        intervalsDao: intervalsDao,
-        waySource: source,
-      );
+        final data = await loadTripDetailData(
+          tripId: tripId,
+          inboxDao: inboxDao,
+          tripsDao: tripsDao,
+          intervalsDao: intervalsDao,
+          waySource: source,
+        );
 
-      expect(data.offline, isTrue);
-      expect(data.matchedSegments, isEmpty);
-      expect(data.matchedFraction, isNull);
-      expect(data.rawPolyline.length, 3);
-    });
+        expect(data.offline, isTrue);
+        expect(data.matchedSegments, isEmpty);
+        expect(data.matchedFraction, isNull);
+        expect(data.rawPolyline.length, 3);
+      },
+    );
 
-    test('offline: empty ways while intervals exist → offline fallback',
-        () async {
-      final tripId = await _seedTrip(db, status: TripStatus.confirmed);
-      await _seedPoints(db, tripId);
-      await _seedInterval(db, tripId, wayId: 1);
-      // Source succeeds but returns nothing (cache-expired scenario).
-      final source = _FakeWaySource();
+    test(
+      'offline: empty ways while intervals exist → offline fallback',
+      () async {
+        final tripId = await _seedTrip(db, status: TripStatus.confirmed);
+        await _seedPoints(db, tripId);
+        await _seedInterval(db, tripId, wayId: 1);
+        // Source succeeds but returns nothing (cache-expired scenario).
+        final source = _FakeWaySource();
 
-      final data = await loadTripDetailData(
-        tripId: tripId,
-        inboxDao: inboxDao,
-        tripsDao: tripsDao,
-        intervalsDao: intervalsDao,
-        waySource: source,
-      );
+        final data = await loadTripDetailData(
+          tripId: tripId,
+          inboxDao: inboxDao,
+          tripsDao: tripsDao,
+          intervalsDao: intervalsDao,
+          waySource: source,
+        );
 
-      expect(data.offline, isTrue);
-      expect(data.matchedSegments, isEmpty);
-    });
+        expect(data.offline, isTrue);
+        expect(data.matchedSegments, isEmpty);
+      },
+    );
 
     test('missing trip throws DatabaseError (route stability)', () async {
       final source = _FakeWaySource();

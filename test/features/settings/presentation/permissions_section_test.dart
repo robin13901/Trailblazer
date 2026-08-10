@@ -32,7 +32,9 @@ void main() {
       expect(find.text('Batterieoptimierung'), findsOneWidget);
     });
 
-    testWidgets('shows correct statuses for mixed configuration', (tester) async {
+    testWidgets('shows correct statuses for mixed configuration', (
+      tester,
+    ) async {
       // Always=granted, whenInUse=granted, notification=granted (defaults),
       // activityRecognition=denied, ignoreBatteryOptimizations=permanentlyDenied.
       final fake = FakePermissionService()
@@ -61,8 +63,9 @@ void main() {
       expect(find.text('permanentlyDenied'), findsOneWidget);
     });
 
-    testWidgets('shows "granted" when all permissions are granted',
-        (tester) async {
+    testWidgets('shows "granted" when all permissions are granted', (
+      tester,
+    ) async {
       // All defaults are granted; force-set the status-override fields too.
       final fake = FakePermissionService()
         ..activityRecognitionStatus = PermissionStatus.granted

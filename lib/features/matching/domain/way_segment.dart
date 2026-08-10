@@ -142,9 +142,7 @@ class WaySegment {
   /// Structural equality by (wayId, segIdx).
   @override
   bool operator ==(Object other) =>
-      other is WaySegment &&
-      other.wayId == wayId &&
-      other.segIdx == segIdx;
+      other is WaySegment && other.wayId == wayId && other.segIdx == segIdx;
 
   @override
   int get hashCode => Object.hash(wayId, segIdx);

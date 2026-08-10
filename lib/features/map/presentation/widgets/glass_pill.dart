@@ -49,7 +49,8 @@ class GlassPill extends StatelessWidget {
 
     // Real glass requires (a) the startup G1 flag AND (b) — when layered over
     // the map — a platform whose backdrop can sample the MapLibre PlatformView.
-    final useGlass = settings.platformSupportsBlurOverMap &&
+    final useGlass =
+        settings.platformSupportsBlurOverMap &&
         (!overMap || settings.supportsBlurOverPlatformView);
 
     if (useGlass) {

@@ -76,8 +76,7 @@ class _NoopRenderer extends ThumbnailRenderer {
   Future<Uint8List> renderFallback({
     required List<LatLng> polyline,
     required LatLngBounds bbox,
-  }) async =>
-      Uint8List(0);
+  }) async => Uint8List(0);
 }
 
 TripListItem _item({
@@ -121,15 +120,16 @@ void main() {
   // the public export surface, so the type is left inferred.
   // ignore: always_declare_return_types
   overrides({
-    TripPlaces places =
-        const TripPlaces(startName: 'Miltenberg', endName: 'Aschaffenburg'),
-  }) =>
-      [
-        tripsInboxRepositoryProvider.overrideWithValue(repo),
-        thumbnailCacheProvider.overrideWith(() => cache),
-        thumbnailRendererProvider.overrideWithValue(_NoopRenderer()),
-        tripPlacesProvider.overrideWith((ref, coords) async => places),
-      ];
+    TripPlaces places = const TripPlaces(
+      startName: 'Miltenberg',
+      endName: 'Aschaffenburg',
+    ),
+  }) => [
+    tripsInboxRepositoryProvider.overrideWithValue(repo),
+    thumbnailCacheProvider.overrideWith(() => cache),
+    thumbnailRendererProvider.overrideWithValue(_NoopRenderer()),
+    tripPlacesProvider.overrideWith((ref, coords) async => places),
+  ];
 
   Future<void> pumpCard(
     WidgetTester tester,
@@ -138,8 +138,7 @@ void main() {
   }) async {
     await tester.pumpWidget(
       ProviderScope(
-        overrides:
-            places == null ? overrides() : overrides(places: places),
+        overrides: places == null ? overrides() : overrides(places: places),
         child: MaterialApp(
           home: Scaffold(body: TripCard(item: item)),
         ),

@@ -59,15 +59,21 @@ Future<void> pumpMapScreen(WidgetTester tester) async {
           (ref) => Stream.value(CoverageOverlayData.empty),
         ),
         coveragePresetProvider.overrideWith(_FakeCoveragePresetNotifier.new),
-        coveragePresetValueProvider
-            .overrideWithValue(CoverageColorPreset.amber),
+        coveragePresetValueProvider.overrideWithValue(
+          CoverageColorPreset.amber,
+        ),
         // Live-nav (LiveTrailBridge + TrackingCameraSync road-snap) is mounted
         // in MapScreen. Override the live-fix stream, trail applier, and way
         // source so this test needs no real TrackingService / DB / network.
-        liveFixProvider.overrideWith((ref) => const Stream<LiveFixSample>.empty()),
-        liveTrailApplierProvider.overrideWithValue(const _NoopLiveTrailApplier()),
-        wayCandidateSourceProvider
-            .overrideWithValue(FixtureWayCandidateSource(ways: const [])),
+        liveFixProvider.overrideWith(
+          (ref) => const Stream<LiveFixSample>.empty(),
+        ),
+        liveTrailApplierProvider.overrideWithValue(
+          const _NoopLiveTrailApplier(),
+        ),
+        wayCandidateSourceProvider.overrideWithValue(
+          FixtureWayCandidateSource(ways: const []),
+        ),
         // FocusAreaPill (new on this branch) watches inFlightCountProvider and,
         // via FocusPillNotifier.build(), ref.listens coverageCacheStreamProvider.
         // Both chains hit the real Drift DB (tripsInboxRepositoryProvider /
@@ -147,8 +153,7 @@ class _FakeTrackingNotifier extends Notifier<TrackingState>
 ///
 /// Injected via coveragePresetProvider override so glass_shell_layout_test
 /// avoids the SharedPreferences platform channel.
-class _FakeCoveragePresetNotifier
-    extends AsyncNotifier<CoverageColorPreset>
+class _FakeCoveragePresetNotifier extends AsyncNotifier<CoverageColorPreset>
     implements CoveragePresetNotifier {
   @override
   Future<CoverageColorPreset> build() async => CoverageColorPreset.amber;
@@ -218,7 +223,8 @@ void main() {
           tester.element(find.byType(MapScreen)),
         );
         final fake =
-            container.read(trackingStateProvider.notifier) as _FakeTrackingNotifier;
+            container.read(trackingStateProvider.notifier)
+                as _FakeTrackingNotifier;
 
         // Directly invoke the FAB's onTap via its GestureDetector's
         // callback — geometric `tap()` misses on the 800x600 test surface

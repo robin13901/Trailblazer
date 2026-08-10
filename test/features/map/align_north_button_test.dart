@@ -77,8 +77,9 @@ void main() {
       (tester) async {
         await _pumpAlignNorth(tester);
 
-        final transform =
-            tester.widget<Transform>(find.byType(Transform).first);
+        final transform = tester.widget<Transform>(
+          find.byType(Transform).first,
+        );
         // Transform.rotate constructs a rotation matrix; the entry
         // storage[0] is cos(angle). angle=0 → cos=1.
         expect(transform.transform.storage[0], closeTo(1, 1e-6));
@@ -90,8 +91,9 @@ void main() {
       (tester) async {
         await _pumpAlignNorth(tester, bearing: 90);
 
-        final transform =
-            tester.widget<Transform>(find.byType(Transform).first);
+        final transform = tester.widget<Transform>(
+          find.byType(Transform).first,
+        );
         // For angle = -pi/2, cos(angle) = 0, sin(angle) = -1.
         // Rotation matrix storage: [cos, sin, 0, 0, -sin, cos, ...].
         expect(transform.transform.storage[0], closeTo(0, 1e-6));

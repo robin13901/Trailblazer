@@ -21,8 +21,9 @@ final coverageCacheDaoProvider = Provider<CoverageCacheDao>((ref) {
 /// recompute without a camera move — it `ref.listen`s this to refresh the
 /// shown region's % as soon as new numbers land. The regions tab keeps its own
 /// private copy of the same watch.
-final coverageCacheStreamProvider =
-    StreamProvider<List<CoverageCacheData>>((ref) {
+final coverageCacheStreamProvider = StreamProvider<List<CoverageCacheData>>((
+  ref,
+) {
   return ref.watch(coverageCacheDaoProvider).watchAllWithCoverage();
 });
 

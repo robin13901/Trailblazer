@@ -114,7 +114,9 @@ class _TripDetailContent extends ConsumerWidget {
 
       // Update the focus pill immediately (it watches liveCameraProvider, not
       // cameraStateProvider) — same reasoning as the region sheet.
-      ref.read(liveCameraProvider.notifier).update(
+      ref
+          .read(liveCameraProvider.notifier)
+          .update(
             CameraPosition(
               target: LatLng(target.latitude, target.longitude),
               zoom: target.zoom,
@@ -168,8 +170,7 @@ class _TripDetailContent extends ConsumerWidget {
 /// A [CameraState] centering on the trip bbox with a fitted zoom, follow-mode
 /// OFF so the remounting map's GPS tracking doesn't snap away from the trip.
 CameraState _cameraForBounds(LatLngBounds bounds) {
-  final centerLat =
-      (bounds.southwest.latitude + bounds.northeast.latitude) / 2;
+  final centerLat = (bounds.southwest.latitude + bounds.northeast.latitude) / 2;
   final centerLon =
       (bounds.southwest.longitude + bounds.northeast.longitude) / 2;
   return CameraState(
@@ -194,16 +195,17 @@ double _zoomForBounds(LatLngBounds bounds) {
   final lonSpan = (bounds.northeast.longitude - bounds.southwest.longitude)
       .abs()
       .clamp(1e-6, 360.0);
-  final lonZoom =
-      _log2((viewportW / worldTile) * (360.0 / lonSpan) * fraction);
+  final lonZoom = _log2((viewportW / worldTile) * (360.0 / lonSpan) * fraction);
 
   final latRad1 = bounds.southwest.latitude * math.pi / 180.0;
   final latRad2 = bounds.northeast.latitude * math.pi / 180.0;
-  final mercSpan = (_mercatorY(latRad2) - _mercatorY(latRad1))
-      .abs()
-      .clamp(1e-9, 2 * math.pi);
-  final latZoom =
-      _log2((viewportH / worldTile) * (2 * math.pi / mercSpan) * fraction);
+  final mercSpan = (_mercatorY(latRad2) - _mercatorY(latRad1)).abs().clamp(
+    1e-9,
+    2 * math.pi,
+  );
+  final latZoom = _log2(
+    (viewportH / worldTile) * (2 * math.pi / mercSpan) * fraction,
+  );
 
   return math.min(lonZoom, latZoom).clamp(4.0, 16.0);
 }
@@ -232,8 +234,9 @@ class _GlassDetailPanel extends ConsumerWidget {
     final isDark = theme.brightness == Brightness.dark;
 
     final tint = isDark ? const Color(0x2A0A1728) : const Color(0x38FFFFFF);
-    final borderColor =
-        isDark ? const Color(0x40FFFFFF) : const Color(0x59FFFFFF);
+    final borderColor = isDark
+        ? const Color(0x40FFFFFF)
+        : const Color(0x59FFFFFF);
 
     return Container(
       decoration: BoxDecoration(
@@ -280,8 +283,7 @@ class _GlassDetailPanel extends ConsumerWidget {
                 const SizedBox(height: 12),
                 _StatRow(
                   label: 'Ø-Tempo',
-                  value:
-                      formatSpeed(item.distanceMeters, item.durationSeconds),
+                  value: formatSpeed(item.distanceMeters, item.durationSeconds),
                   valueStyle: theme.textTheme.bodyLarge,
                 ),
                 const SizedBox(height: 12),
@@ -331,8 +333,8 @@ class _TripTitle extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final style = Theme.of(context).textTheme.headlineSmall?.copyWith(
-          fontWeight: FontWeight.w600,
-        );
+      fontWeight: FontWeight.w600,
+    );
 
     if (item.startLat == null ||
         item.startLon == null ||

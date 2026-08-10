@@ -34,7 +34,9 @@ Future<void> pumpPanel(WidgetTester tester, TrackingState initial) async {
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
-        trackingStateProvider.overrideWith(() => _FakeTrackingNotifier(initial)),
+        trackingStateProvider.overrideWith(
+          () => _FakeTrackingNotifier(initial),
+        ),
       ],
       child: const MaterialApp(
         home: Scaffold(
@@ -61,56 +63,60 @@ void main() {
     });
 
     testWidgets(
-        'recording state: shows elapsed/distance/speed inside a GlassPill', (
-      tester,
-    ) async {
-      final startedAt = DateTime.now().subtract(const Duration(minutes: 1));
-      await pumpPanel(
+      'recording state: shows elapsed/distance/speed inside a GlassPill',
+      (
         tester,
-        TrackingRecording(
-          tripId: 1,
-          startedAt: startedAt,
-          distanceMeters: 1500,
-          pointCount: 10,
-          manuallyStarted: true,
-          currentSpeedKmh: 42,
-        ),
-      );
+      ) async {
+        final startedAt = DateTime.now().subtract(const Duration(minutes: 1));
+        await pumpPanel(
+          tester,
+          TrackingRecording(
+            tripId: 1,
+            startedAt: startedAt,
+            distanceMeters: 1500,
+            pointCount: 10,
+            manuallyStarted: true,
+            currentSpeedKmh: 42,
+          ),
+        );
 
-      // The pill shows the speed segment (no "Aufnahme" prefix anymore).
-      expect(find.textContaining('42 km/h'), findsOneWidget);
-      // Distance is formatted with the shared German helper: comma decimal
-      // separator (1500 m → "1,5 km"), matching every other distance in the app.
-      expect(find.textContaining('1,5 km'), findsOneWidget);
-    });
+        // The pill shows the speed segment (no "Aufnahme" prefix anymore).
+        expect(find.textContaining('42 km/h'), findsOneWidget);
+        // Distance is formatted with the shared German helper: comma decimal
+        // separator (1500 m → "1,5 km"), matching every other distance in the app.
+        expect(find.textContaining('1,5 km'), findsOneWidget);
+      },
+    );
 
     testWidgets(
-        'recording state: panel rebuilds after pump(2s) — timer fires', (
-      tester,
-    ) async {
-      // Start 62 s ago so initial render shows ~01:02.
-      final startedAt = DateTime.now().subtract(const Duration(seconds: 62));
-      await pumpPanel(
+      'recording state: panel rebuilds after pump(2s) — timer fires',
+      (
         tester,
-        TrackingRecording(
-          tripId: 1,
-          startedAt: startedAt,
-          distanceMeters: 0,
-          pointCount: 0,
-          manuallyStarted: true,
-        ),
-      );
+      ) async {
+        // Start 62 s ago so initial render shows ~01:02.
+        final startedAt = DateTime.now().subtract(const Duration(seconds: 62));
+        await pumpPanel(
+          tester,
+          TrackingRecording(
+            tripId: 1,
+            startedAt: startedAt,
+            distanceMeters: 0,
+            pointCount: 0,
+            manuallyStarted: true,
+          ),
+        );
 
-      // Panel is visible.
-      expect(find.textContaining('km/h'), findsOneWidget);
+        // Panel is visible.
+        expect(find.textContaining('km/h'), findsOneWidget);
 
-      // Advance timer by 2 seconds — the periodic Timer should fire twice.
-      // We only verify that no exception is thrown and the panel is still
-      // present (DateTime.now() in tests may not advance enough in wall-clock
-      // to change MM:SS, but the rebuild cycle itself must not crash).
-      await tester.pump(const Duration(seconds: 2));
+        // Advance timer by 2 seconds — the periodic Timer should fire twice.
+        // We only verify that no exception is thrown and the panel is still
+        // present (DateTime.now() in tests may not advance enough in wall-clock
+        // to change MM:SS, but the rebuild cycle itself must not crash).
+        await tester.pump(const Duration(seconds: 2));
 
-      expect(find.textContaining('km/h'), findsOneWidget);
-    });
+        expect(find.textContaining('km/h'), findsOneWidget);
+      },
+    );
   });
 }

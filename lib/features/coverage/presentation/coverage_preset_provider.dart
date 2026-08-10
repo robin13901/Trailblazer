@@ -34,8 +34,8 @@ class CoveragePresetNotifier extends AsyncNotifier<CoverageColorPreset> {
 /// use [coveragePresetValueProvider] instead.
 final coveragePresetProvider =
     AsyncNotifierProvider<CoveragePresetNotifier, CoverageColorPreset>(
-  CoveragePresetNotifier.new,
-);
+      CoveragePresetNotifier.new,
+    );
 
 // ---------------------------------------------------------------------------
 // Synchronous convenience provider
@@ -48,6 +48,5 @@ final coveragePresetProvider =
 /// Used by the map bridge and the UI to avoid async boilerplate in widgets
 /// that do not need loading/error state.
 final coveragePresetValueProvider = Provider<CoverageColorPreset>(
-  (ref) =>
-      ref.watch(coveragePresetProvider).value ?? CoverageColorPreset.amber,
+  (ref) => ref.watch(coveragePresetProvider).value ?? CoverageColorPreset.amber,
 );

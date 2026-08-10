@@ -77,8 +77,10 @@ Future<void> main() async {
     );
   }
   final mapLanguage = resolveMapLanguage(Platform.localeName);
-  _log.info('Map labels language: $mapLanguage '
-      '(from platform locale ${Platform.localeName})');
+  _log.info(
+    'Map labels language: $mapLanguage '
+    '(from platform locale ${Platform.localeName})',
+  );
   final tileProviderConfig = TileProviderConfig(
     lightStyle: MapTilerStyle.dataviz,
     darkStyle: MapTilerStyle.datavizDark,

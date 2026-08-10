@@ -14,8 +14,7 @@ class OverpassWayCache extends Table {
   IntColumn get tileZ => integer()();
   IntColumn get tileX => integer()();
   IntColumn get tileY => integer()();
-  DateTimeColumn get fetchedAt =>
-      dateTime().withDefault(currentDateAndTime)();
+  DateTimeColumn get fetchedAt => dateTime().withDefault(currentDateAndTime)();
   IntColumn get wayCount => integer()();
   BlobColumn get payloadGzip => blob()();
   IntColumn get payloadBytes => integer()();

@@ -27,7 +27,8 @@ class LiveTrackingPanel extends ConsumerWidget {
       builder: (context, now) {
         final dist = formatDistance(state.distanceMeters);
         final spd = state.currentSpeedKmh?.round().toString() ?? '—';
-        final text = '${_formatElapsed(state.duration(now))} · $dist · $spd km/h';
+        final text =
+            '${_formatElapsed(state.duration(now))} · $dist · $spd km/h';
 
         return GlassPill(
           overMap: true,

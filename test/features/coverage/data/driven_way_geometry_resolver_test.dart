@@ -71,8 +71,7 @@ class _FakeWayCandidateSource implements WayCandidateSource {
     Set<TileId>? restrictTiles,
     bool cacheOnly = false,
     void Function(int done, int total)? onTileProgress,
-  }) async =>
-      ways;
+  }) async => ways;
 
   @override
   Future<List<RawTilePayload>> fetchRawTilesInBbox({
@@ -122,9 +121,9 @@ WayCandidate _straightWay(int wayId, {double lat = 49, double lon = 9}) {
 
 /// Nominal bounds used as the union bbox argument to `resolve()`.
 LatLngBounds get _dummyBounds => LatLngBounds(
-      southwest: const LatLng(49, 9),
-      northeast: const LatLng(50, 10),
-    );
+  southwest: const LatLng(49, 9),
+  northeast: const LatLng(50, 10),
+);
 
 // ---------------------------------------------------------------------------
 // Test setup helpers
@@ -143,9 +142,9 @@ Future<int> _seedMatchedTrip(
     startedAt: DateTime.now(),
     manuallyStarted: true,
   );
-  await (dao.attachedDatabase.update(dao.trips)
-        ..where((t) => t.id.equals(tripId)))
-      .write(
+  await (dao.attachedDatabase.update(
+    dao.trips,
+  )..where((t) => t.id.equals(tripId))).write(
     TripsCompanion(
       endedAt: Value(DateTime.now().add(const Duration(minutes: 5))),
       durationSeconds: const Value(300),
@@ -274,8 +273,11 @@ void main() {
         final maxLat = way.geometry
             .map((p) => p.latitude)
             .reduce((a, b) => a > b ? a : b);
-        expect(maxLat, lessThan(49.0015),
-            reason: 'partial drive must not paint the whole way');
+        expect(
+          maxLat,
+          lessThan(49.0015),
+          reason: 'partial drive must not paint the whole way',
+        );
       },
     );
 

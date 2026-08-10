@@ -27,7 +27,7 @@ abstract class ConnectivitySeam {
 /// the HTTP layer (Overpass client's retry/fallback).
 class ConnectivityPlusSeam implements ConnectivitySeam {
   ConnectivityPlusSeam({Connectivity? connectivity})
-      : _connectivity = connectivity ?? Connectivity();
+    : _connectivity = connectivity ?? Connectivity();
 
   final Connectivity _connectivity;
 

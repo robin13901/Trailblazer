@@ -42,5 +42,5 @@ class MatchProgressNotifier extends Notifier<Map<int, double>> {
 /// `HistoryRow`.
 final matchProgressProvider =
     NotifierProvider<MatchProgressNotifier, Map<int, double>>(
-  MatchProgressNotifier.new,
-);
+      MatchProgressNotifier.new,
+    );

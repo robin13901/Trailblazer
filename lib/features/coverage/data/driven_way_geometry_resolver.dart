@@ -45,8 +45,8 @@ class DrivenWayGeometryResolver {
   DrivenWayGeometryResolver({
     required DrivenWayIntervalsDao intervalsDao,
     required WayCandidateSource waySource,
-  })  : _intervalsDao = intervalsDao,
-        _waySource = waySource;
+  }) : _intervalsDao = intervalsDao,
+       _waySource = waySource;
 
   final DrivenWayIntervalsDao _intervalsDao;
   final WayCandidateSource _waySource;
@@ -283,7 +283,8 @@ List<CoverageWay> clipDrivenWays({
 
     // NORMAL-CLIP: clip each union interval; node-id-gated stitch on the
     // outermost interval ends only.
-    final sorted = [...intervals]..sort((a, b) {
+    final sorted = [...intervals]
+      ..sort((a, b) {
         final la = a.$1 < a.$2 ? a.$1 : a.$2;
         final lb = b.$1 < b.$2 ? b.$1 : b.$2;
         return la.compareTo(lb);

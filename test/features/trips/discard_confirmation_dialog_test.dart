@@ -75,8 +75,9 @@ void main() {
         matching: find.byType(TextButton),
       ),
     );
-    final resolvedColor = discardButton.style?.foregroundColor
-        ?.resolve(<WidgetState>{});
+    final resolvedColor = discardButton.style?.foregroundColor?.resolve(
+      <WidgetState>{},
+    );
     expect(resolvedColor, theme.colorScheme.error);
   });
 }

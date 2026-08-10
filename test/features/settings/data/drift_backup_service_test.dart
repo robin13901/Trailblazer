@@ -238,62 +238,67 @@ void main() {
 
   // ── Group 2: VACUUM INTO round-trip ───────────────────────────────────────
   group('VACUUM INTO round-trip (core SC1 guarantee)', () {
-    test('backup file has no -wal/-shm sidecar and preserves row counts',
-        () async {
-      final (sourceDb, sourceDir) = await _openTempFileDb();
-      addTearDown(() async {
-        await sourceDb.close();
-        await sourceDir.delete(recursive: true);
-      });
-
-      await _seedData(sourceDb, trips: 3, pointsPerTrip: 4);
-
-      // VACUUM INTO a separate temp output path.
-      final backupDir =
-          await Directory.systemTemp.createTemp('tb_backup_out_');
-      addTearDown(() => backupDir.delete(recursive: true));
-      final backupPath = '${backupDir.path}/backup.trailblazer';
-      await sourceDb.customStatement('VACUUM INTO ?', [backupPath]);
-
-      // Assert: no -wal/-shm sidecars on the backup output.
-      expect(
-        File('$backupPath-wal').existsSync(),
-        isFalse,
-        reason: 'VACUUM INTO must not produce a -wal sidecar',
-      );
-      expect(
-        File('$backupPath-shm').existsSync(),
-        isFalse,
-        reason: 'VACUUM INTO must not produce a -shm sidecar',
-      );
-
-      // Open backup as a second Drift DB and verify row counts match.
-      final backupDb = AppDatabase(NativeDatabase(File(backupPath)));
-      addTearDown(backupDb.close);
-      await backupDb.customSelect('SELECT 1').getSingle(); // trigger beforeOpen
-
-      Future<int> count(AppDatabase d, String table) async {
-        final row =
-            await d.customSelect('SELECT COUNT(*) AS c FROM $table').getSingle();
-        return row.read<int>('c');
-      }
-
-      expect(
-        await count(backupDb, 'trips'),
-        equals(await count(sourceDb, 'trips')),
-      );
-      expect(
-        await count(backupDb, 'trip_points'),
-        equals(await count(sourceDb, 'trip_points')),
-      );
-      expect(
-        await count(backupDb, 'driven_way_intervals'),
-        equals(await count(sourceDb, 'driven_way_intervals')),
-      );
-    });
-
     test(
-        'validateBackup on a real VACUUM INTO output returns '
+      'backup file has no -wal/-shm sidecar and preserves row counts',
+      () async {
+        final (sourceDb, sourceDir) = await _openTempFileDb();
+        addTearDown(() async {
+          await sourceDb.close();
+          await sourceDir.delete(recursive: true);
+        });
+
+        await _seedData(sourceDb, trips: 3, pointsPerTrip: 4);
+
+        // VACUUM INTO a separate temp output path.
+        final backupDir = await Directory.systemTemp.createTemp(
+          'tb_backup_out_',
+        );
+        addTearDown(() => backupDir.delete(recursive: true));
+        final backupPath = '${backupDir.path}/backup.trailblazer';
+        await sourceDb.customStatement('VACUUM INTO ?', [backupPath]);
+
+        // Assert: no -wal/-shm sidecars on the backup output.
+        expect(
+          File('$backupPath-wal').existsSync(),
+          isFalse,
+          reason: 'VACUUM INTO must not produce a -wal sidecar',
+        );
+        expect(
+          File('$backupPath-shm').existsSync(),
+          isFalse,
+          reason: 'VACUUM INTO must not produce a -shm sidecar',
+        );
+
+        // Open backup as a second Drift DB and verify row counts match.
+        final backupDb = AppDatabase(NativeDatabase(File(backupPath)));
+        addTearDown(backupDb.close);
+        await backupDb
+            .customSelect('SELECT 1')
+            .getSingle(); // trigger beforeOpen
+
+        Future<int> count(AppDatabase d, String table) async {
+          final row = await d
+              .customSelect('SELECT COUNT(*) AS c FROM $table')
+              .getSingle();
+          return row.read<int>('c');
+        }
+
+        expect(
+          await count(backupDb, 'trips'),
+          equals(await count(sourceDb, 'trips')),
+        );
+        expect(
+          await count(backupDb, 'trip_points'),
+          equals(await count(sourceDb, 'trip_points')),
+        );
+        expect(
+          await count(backupDb, 'driven_way_intervals'),
+          equals(await count(sourceDb, 'driven_way_intervals')),
+        );
+      },
+    );
+
+    test('validateBackup on a real VACUUM INTO output returns '
         'BackupValid(kCurrentSchemaVersion)', () async {
       final (db, dir) = await _openTempFileDb();
       addTearDown(() async {
@@ -302,8 +307,9 @@ void main() {
       });
       await _seedData(db, pointsPerTrip: 2);
 
-      final backupDir =
-          await Directory.systemTemp.createTemp('tb_validate_out_');
+      final backupDir = await Directory.systemTemp.createTemp(
+        'tb_validate_out_',
+      );
       addTearDown(() => backupDir.delete(recursive: true));
       final backupPath = '${backupDir.path}/export.trailblazer';
       await db.customStatement('VACUUM INTO ?', [backupPath]);
@@ -320,75 +326,80 @@ void main() {
 
   // ── Group 3: restore rejects invalid file (live DB untouched) ─────────────
   group('restore: invalid backup rejected before touching live DB', () {
-    test('validateBackup on bad file returns BackupInvalid; source row count unchanged',
-        () async {
-      final (liveDb, liveDir) = await _openTempFileDb();
-      addTearDown(() async {
-        await liveDb.close();
-        await liveDir.delete(recursive: true);
-      });
-      await _seedData(liveDb);
+    test(
+      'validateBackup on bad file returns BackupInvalid; source row count unchanged',
+      () async {
+        final (liveDb, liveDir) = await _openTempFileDb();
+        addTearDown(() async {
+          await liveDb.close();
+          await liveDir.delete(recursive: true);
+        });
+        await _seedData(liveDb);
 
-      // Confirm source has 2 trips.
-      final before = await liveDb
-          .customSelect('SELECT COUNT(*) AS c FROM trips')
-          .getSingle();
-      expect(before.read<int>('c'), equals(2));
+        // Confirm source has 2 trips.
+        final before = await liveDb
+            .customSelect('SELECT COUNT(*) AS c FROM trips')
+            .getSingle();
+        expect(before.read<int>('c'), equals(2));
 
-      // Build an invalid backup file (random bytes).
-      final badDir = await Directory.systemTemp.createTemp('tb_bad_backup_');
-      addTearDown(() => badDir.delete(recursive: true));
-      final badPath = '${badDir.path}/bad.trailblazer';
-      File(badPath).writeAsBytesSync(
-        Uint8List.fromList(List.generate(64, (i) => i)),
-      );
+        // Build an invalid backup file (random bytes).
+        final badDir = await Directory.systemTemp.createTemp('tb_bad_backup_');
+        addTearDown(() => badDir.delete(recursive: true));
+        final badPath = '${badDir.path}/bad.trailblazer';
+        File(badPath).writeAsBytesSync(
+          Uint8List.fromList(List.generate(64, (i) => i)),
+        );
 
-      final service = _buildService(liveDb);
-      final validation = await service.validateBackup(badPath);
-      expect(
-        validation,
-        isA<BackupInvalid>(),
-        reason: 'corrupt file must be rejected',
-      );
+        final service = _buildService(liveDb);
+        final validation = await service.validateBackup(badPath);
+        expect(
+          validation,
+          isA<BackupInvalid>(),
+          reason: 'corrupt file must be rejected',
+        );
 
-      // Live DB must still have all rows (not touched by validate).
-      final after = await liveDb
-          .customSelect('SELECT COUNT(*) AS c FROM trips')
-          .getSingle();
-      expect(
-        after.read<int>('c'),
-        equals(2),
-        reason: 'live DB must be untouched when validation fails',
-      );
-    });
+        // Live DB must still have all rows (not touched by validate).
+        final after = await liveDb
+            .customSelect('SELECT COUNT(*) AS c FROM trips')
+            .getSingle();
+        expect(
+          after.read<int>('c'),
+          equals(2),
+          reason: 'live DB must be untouched when validation fails',
+        );
+      },
+    );
 
-    test('restore returns Err(StorageError) for a corrupt backup file', () async {
-      final (liveDb, liveDir) = await _openTempFileDb();
-      addTearDown(() async {
-        await liveDb.close();
-        await liveDir.delete(recursive: true);
-      });
-      await _seedData(liveDb, trips: 1);
+    test(
+      'restore returns Err(StorageError) for a corrupt backup file',
+      () async {
+        final (liveDb, liveDir) = await _openTempFileDb();
+        addTearDown(() async {
+          await liveDb.close();
+          await liveDir.delete(recursive: true);
+        });
+        await _seedData(liveDb, trips: 1);
 
-      final badDir = await Directory.systemTemp.createTemp('tb_bad_backup2_');
-      addTearDown(() => badDir.delete(recursive: true));
-      final badPath = '${badDir.path}/bad.trailblazer';
-      File(badPath).writeAsBytesSync(
-        Uint8List.fromList(List.generate(64, (i) => i)),
-      );
+        final badDir = await Directory.systemTemp.createTemp('tb_bad_backup2_');
+        addTearDown(() => badDir.delete(recursive: true));
+        final badPath = '${badDir.path}/bad.trailblazer';
+        File(badPath).writeAsBytesSync(
+          Uint8List.fromList(List.generate(64, (i) => i)),
+        );
 
-      final service = _buildService(liveDb);
-      final result = await service.restore(badPath);
-      expect(result.isErr, isTrue);
-      expect(
-        (result as Err<void>).error as StorageError,
-        isA<StorageError>(),
-      );
-      expect(
-        (result.error as StorageError).message,
-        contains('Invalid backup'),
-      );
-    });
+        final service = _buildService(liveDb);
+        final result = await service.restore(badPath);
+        expect(result.isErr, isTrue);
+        expect(
+          (result as Err<void>).error as StorageError,
+          isA<StorageError>(),
+        );
+        expect(
+          (result.error as StorageError).message,
+          contains('Invalid backup'),
+        );
+      },
+    );
   });
 
   // ── Group 4: Result type contract ─────────────────────────────────────────

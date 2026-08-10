@@ -93,10 +93,12 @@ void main() {
     });
 
     test('light and dark return distinct fullHex values', () {
-      final light =
-          CoverageColorPreset.amber.forBrightness(Brightness.light).fullHex;
-      final dark =
-          CoverageColorPreset.amber.forBrightness(Brightness.dark).fullHex;
+      final light = CoverageColorPreset.amber
+          .forBrightness(Brightness.light)
+          .fullHex;
+      final dark = CoverageColorPreset.amber
+          .forBrightness(Brightness.dark)
+          .fullHex;
       expect(light, isNot(equals(dark)));
     });
   });
@@ -167,15 +169,17 @@ void main() {
           );
         });
 
-        test('${preset.name} ${brightness.name} partialHex is valid #RRGGBB',
-            () {
-          final colors = preset.forBrightness(brightness);
-          expect(
-            colors.partialHex,
-            matches(hexPattern),
-            reason: '${preset.name} ${brightness.name} partialHex',
-          );
-        });
+        test(
+          '${preset.name} ${brightness.name} partialHex is valid #RRGGBB',
+          () {
+            final colors = preset.forBrightness(brightness);
+            expect(
+              colors.partialHex,
+              matches(hexPattern),
+              reason: '${preset.name} ${brightness.name} partialHex',
+            );
+          },
+        );
       }
     }
   });

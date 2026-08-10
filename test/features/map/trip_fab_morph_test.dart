@@ -83,13 +83,15 @@ void main() {
     ) async {
       await _pumpFab(
         tester,
-        _FakeTrackingNotifier(TrackingRecording(
-          tripId: 1,
-          startedAt: DateTime.now(),
-          distanceMeters: 0,
-          pointCount: 0,
-          manuallyStarted: true,
-        )),
+        _FakeTrackingNotifier(
+          TrackingRecording(
+            tripId: 1,
+            startedAt: DateTime.now(),
+            distanceMeters: 0,
+            pointCount: 0,
+            manuallyStarted: true,
+          ),
+        ),
       );
 
       expect(find.byKey(const ValueKey('stop')), findsOneWidget);
@@ -101,13 +103,15 @@ void main() {
     ) async {
       await _pumpFab(
         tester,
-        _FakeTrackingNotifier(TrackingRecording(
-          tripId: 1,
-          startedAt: DateTime.now(),
-          distanceMeters: 0,
-          pointCount: 0,
-          manuallyStarted: true,
-        )),
+        _FakeTrackingNotifier(
+          TrackingRecording(
+            tripId: 1,
+            startedAt: DateTime.now(),
+            distanceMeters: 0,
+            pointCount: 0,
+            manuallyStarted: true,
+          ),
+        ),
       );
 
       expect(
@@ -125,13 +129,15 @@ void main() {
     ) async {
       await _pumpFab(
         tester,
-        _FakeTrackingNotifier(TrackingRecording(
-          tripId: 1,
-          startedAt: DateTime.now(),
-          distanceMeters: 0,
-          pointCount: 0,
-          manuallyStarted: true,
-        )),
+        _FakeTrackingNotifier(
+          TrackingRecording(
+            tripId: 1,
+            startedAt: DateTime.now(),
+            distanceMeters: 0,
+            pointCount: 0,
+            manuallyStarted: true,
+          ),
+        ),
       );
 
       // Find the Container inside the _StopVariant via its key.
@@ -163,13 +169,15 @@ void main() {
     });
 
     testWidgets('tap in recording calls stopActive once', (tester) async {
-      final fake = _FakeTrackingNotifier(TrackingRecording(
-        tripId: 1,
-        startedAt: DateTime.now(),
-        distanceMeters: 0,
-        pointCount: 0,
-        manuallyStarted: true,
-      ));
+      final fake = _FakeTrackingNotifier(
+        TrackingRecording(
+          tripId: 1,
+          startedAt: DateTime.now(),
+          distanceMeters: 0,
+          pointCount: 0,
+          manuallyStarted: true,
+        ),
+      );
       await _pumpFab(tester, fake);
 
       final gd = tester.widget<GestureDetector>(

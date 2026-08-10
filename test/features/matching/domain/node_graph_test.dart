@@ -38,8 +38,16 @@ void main() {
       // Segment 0 of way 1 is node 10→11. Fractions 0.2 and 0.8 along it.
       final segLen = g.segmentLength(1, 0);
       final d = g.routeDistanceMeters(
-        fromWayId: 1, fromSegIdx: 0, fromFraction: 0.2, fromANode: 10, fromBNode: 11,
-        toWayId: 1, toSegIdx: 0, toFraction: 0.8, toANode: 10, toBNode: 11,
+        fromWayId: 1,
+        fromSegIdx: 0,
+        fromFraction: 0.2,
+        fromANode: 10,
+        fromBNode: 11,
+        toWayId: 1,
+        toSegIdx: 0,
+        toFraction: 0.8,
+        toANode: 10,
+        toBNode: 11,
         maxMeters: 5000,
       );
       expect(d, isNotNull);
@@ -52,8 +60,16 @@ void main() {
       final seg1 = g.segmentLength(1, 1);
       // Start at end of seg0 (frac 1.0 → node 11), end at end of seg1 (node 12).
       final d = g.routeDistanceMeters(
-        fromWayId: 1, fromSegIdx: 0, fromFraction: 1, fromANode: 10, fromBNode: 11,
-        toWayId: 1, toSegIdx: 1, toFraction: 1, toANode: 11, toBNode: 12,
+        fromWayId: 1,
+        fromSegIdx: 0,
+        fromFraction: 1,
+        fromANode: 10,
+        fromBNode: 11,
+        toWayId: 1,
+        toSegIdx: 1,
+        toFraction: 1,
+        toANode: 11,
+        toBNode: 12,
         maxMeters: 5000,
       );
       expect(d, isNotNull);
@@ -64,8 +80,16 @@ void main() {
       final g = NodeGraph.fromWays([mainWay, sideWay]);
       // From main way near junction (node 11) to side way's far end (node 21).
       final d = g.routeDistanceMeters(
-        fromWayId: 1, fromSegIdx: 0, fromFraction: 1, fromANode: 10, fromBNode: 11,
-        toWayId: 2, toSegIdx: 1, toFraction: 1, toANode: 11, toBNode: 21,
+        fromWayId: 1,
+        fromSegIdx: 0,
+        fromFraction: 1,
+        fromANode: 10,
+        fromBNode: 11,
+        toWayId: 2,
+        toSegIdx: 1,
+        toFraction: 1,
+        toANode: 11,
+        toBNode: 21,
         maxMeters: 5000,
       );
       expect(d, isNotNull, reason: 'shared node 11 links the two ways');
@@ -81,8 +105,16 @@ void main() {
       );
       final g = NodeGraph.fromWays([mainWay, isolated]);
       final d = g.routeDistanceMeters(
-        fromWayId: 1, fromSegIdx: 0, fromFraction: 0.5, fromANode: 10, fromBNode: 11,
-        toWayId: 3, toSegIdx: 0, toFraction: 0.5, toANode: 30, toBNode: 31,
+        fromWayId: 1,
+        fromSegIdx: 0,
+        fromFraction: 0.5,
+        fromANode: 10,
+        fromBNode: 11,
+        toWayId: 3,
+        toSegIdx: 0,
+        toFraction: 0.5,
+        toANode: 30,
+        toBNode: 31,
         maxMeters: 5000,
       );
       expect(d, isNull);
@@ -91,8 +123,16 @@ void main() {
     test('reachable but beyond maxMeters cap → null', () {
       final g = NodeGraph.fromWays([mainWay, sideWay]);
       final d = g.routeDistanceMeters(
-        fromWayId: 1, fromSegIdx: 0, fromFraction: 0, fromANode: 10, fromBNode: 11,
-        toWayId: 2, toSegIdx: 1, toFraction: 1, toANode: 11, toBNode: 21,
+        fromWayId: 1,
+        fromSegIdx: 0,
+        fromFraction: 0,
+        fromANode: 10,
+        fromBNode: 11,
+        toWayId: 2,
+        toSegIdx: 1,
+        toFraction: 1,
+        toANode: 11,
+        toBNode: 21,
         maxMeters: 1, // absurdly tight
       );
       expect(d, isNull);
@@ -135,10 +175,16 @@ void main() {
       final farKey = _surrogate(49.701, 9.101);
       final nearMainKey = _surrogate(49.700, 9.100);
       final d = g.routeDistanceMeters(
-        fromWayId: 1, fromSegIdx: 0, fromFraction: 1,
-        fromANode: nearMainKey, fromBNode: junctionKey,
-        toWayId: 2, toSegIdx: 1, toFraction: 1,
-        toANode: junctionKey, toBNode: farKey,
+        fromWayId: 1,
+        fromSegIdx: 0,
+        fromFraction: 1,
+        fromANode: nearMainKey,
+        fromBNode: junctionKey,
+        toWayId: 2,
+        toSegIdx: 1,
+        toFraction: 1,
+        toANode: junctionKey,
+        toBNode: farKey,
         maxMeters: 5000,
       );
       expect(d, isNotNull);

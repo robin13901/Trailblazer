@@ -169,13 +169,16 @@ Future<void> pumpAppAtMapShell(WidgetTester tester) async {
         permissionServiceProvider.overrideWithValue(FakePermissionService()),
         // DataManagementSection calls adminBundleRefresherProvider — avoid
         // the real Overpass HTTP client + path_provider channels.
-        adminBundleRefresherProvider
-            .overrideWithValue(_FakeAdminBundleRefresher()),
+        adminBundleRefresherProvider.overrideWithValue(
+          _FakeAdminBundleRefresher(),
+        ),
         // App._runStartupMigrations() sets globalRecalcProgressProvider non-null
         // on the first frame, which makes GlobalRecalcBanner render an
         // indeterminate LinearProgressIndicator that animates forever →
         // pumpAndSettle never settles. Hold it null so the banner stays hidden.
-        globalRecalcProgressProvider.overrideWith(_NullGlobalRecalcNotifier.new),
+        globalRecalcProgressProvider.overrideWith(
+          _NullGlobalRecalcNotifier.new,
+        ),
       ],
       child: const App(),
     ),
@@ -255,7 +258,9 @@ void main() {
       // RegionsScreen (08-05) replaced the stub — shows the empty-state
       // message when no regions have been driven yet.
       expect(
-        find.text('Noch keine befahrenen Regionen.\nFahre eine Strecke, um Regionen zu sehen.'),
+        find.text(
+          'Noch keine befahrenen Regionen.\nFahre eine Strecke, um Regionen zu sehen.',
+        ),
         findsOneWidget,
       );
       expect(find.byType(FocusAreaPill), findsNothing);

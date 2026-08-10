@@ -73,9 +73,9 @@ Future<int> _seedMatchedTrip(
     startedAt: DateTime.now(),
     manuallyStarted: true,
   );
-  await (dao.attachedDatabase.update(dao.trips)
-        ..where((t) => t.id.equals(tripId)))
-      .write(
+  await (dao.attachedDatabase.update(
+    dao.trips,
+  )..where((t) => t.id.equals(tripId))).write(
     TripsCompanion(
       endedAt: Value(DateTime.now().add(const Duration(minutes: 5))),
       durationSeconds: const Value(300),
@@ -187,8 +187,11 @@ void main() {
       // seeded bbox (async* re-runs when bounds go null → non-null).
       await pumpUntil(() => resolver.resolveCalls >= 1);
       final callsAfterFirst = resolver.resolveCalls;
-      expect(callsAfterFirst, greaterThanOrEqualTo(1),
-          reason: 'overlay must resolve once the union bbox is available');
+      expect(
+        callsAfterFirst,
+        greaterThanOrEqualTo(1),
+        reason: 'overlay must resolve once the union bbox is available',
+      );
       expect(resolver.lastBounds!.southwest.latitude, closeTo(49, 1e-6));
 
       // Now write NEW intervals for tripB — union bbox is UNCHANGED (tripB has
@@ -217,27 +220,31 @@ void main() {
     },
   );
 
-  test('resolves empty (no resolve call) when there are no matched trips',
-      () async {
-    final (:container, :resolver) = wire();
-    addTearDown(container.dispose);
+  test(
+    'resolves empty (no resolve call) when there are no matched trips',
+    () async {
+      final (:container, :resolver) = wire();
+      addTearDown(container.dispose);
 
-    final sub = container.listen(
-      coverageOverlayDataProvider,
-      (_, _) {},
-      fireImmediately: true,
-    );
-    addTearDown(sub.close);
+      final sub = container.listen(
+        coverageOverlayDataProvider,
+        (_, _) {},
+        fireImmediately: true,
+      );
+      addTearDown(sub.close);
 
-    // No trips → bounds stream stays null → async* yields empty, resolve()
-    // is never invoked (the bounds == null short-circuit).
-    await pumpUntil(() => container.read(coverageOverlayDataProvider).hasValue);
-    expect(
-      container.read(coverageOverlayDataProvider).value,
-      equals(CoverageOverlayData.empty),
-    );
-    expect(resolver.resolveCalls, 0);
-  });
+      // No trips → bounds stream stays null → async* yields empty, resolve()
+      // is never invoked (the bounds == null short-circuit).
+      await pumpUntil(
+        () => container.read(coverageOverlayDataProvider).hasValue,
+      );
+      expect(
+        container.read(coverageOverlayDataProvider).value,
+        equals(CoverageOverlayData.empty),
+      );
+      expect(resolver.resolveCalls, 0);
+    },
+  );
 }
 
 // Minimal stand-in; resolve() is overridden so no method here is ever called.

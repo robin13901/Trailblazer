@@ -28,8 +28,10 @@ typedef TripPlacesCoords = ({
 /// The provider's concrete type (`FutureProviderFamily`) is internal to
 /// Riverpod, so the type is left inferred here.
 // ignore: specify_nonobvious_property_types
-final tripPlacesProvider =
-    FutureProvider.family<TripPlaces, TripPlacesCoords>((ref, coords) async {
+final tripPlacesProvider = FutureProvider.family<TripPlaces, TripPlacesCoords>((
+  ref,
+  coords,
+) async {
   final lookup = ref.watch(tripPlaceLookupProvider);
   return lookup.lookup(
     startLat: coords.startLat,

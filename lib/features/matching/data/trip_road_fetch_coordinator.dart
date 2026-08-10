@@ -58,16 +58,16 @@ class TripRoadFetchCoordinator {
     TripMatchCoordinator? matchCoordinator,
     MatchProgressSink? progressSink,
     MatchProgressClearSink? progressClearSink,
-  })  : _source = source,
-        _pendingDao = pendingDao,
-        _repository = repository,
-        _connectivity = connectivity,
-        _tripsDao = tripsDao,
-        _tileMath = tileMath,
-        _now = now ?? DateTime.now,
-        _matchCoordinator = matchCoordinator,
-        _progressSink = progressSink,
-        _progressClearSink = progressClearSink;
+  }) : _source = source,
+       _pendingDao = pendingDao,
+       _repository = repository,
+       _connectivity = connectivity,
+       _tripsDao = tripsDao,
+       _tileMath = tileMath,
+       _now = now ?? DateTime.now,
+       _matchCoordinator = matchCoordinator,
+       _progressSink = progressSink,
+       _progressClearSink = progressClearSink;
 
   final WayCandidateSource _source;
   final PendingRoadFetchesDao _pendingDao;
@@ -342,6 +342,5 @@ class TripRoadFetchCoordinator {
 
   bool _isEmptyBbox(
     ({double minLat, double minLon, double maxLat, double maxLon}) b,
-  ) =>
-      b.minLat == 0 && b.maxLat == 0 && b.minLon == 0 && b.maxLon == 0;
+  ) => b.minLat == 0 && b.maxLat == 0 && b.minLon == 0 && b.maxLon == 0;
 }

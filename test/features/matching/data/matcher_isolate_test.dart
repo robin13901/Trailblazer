@@ -79,9 +79,9 @@ final double _mPerDegLon = _mPerDegLat * 0.6427876097;
 
 /// Convert a local offset in meters to a LatLng relative to the base point.
 LatLng _ll(double northMeters, double eastMeters) => LatLng(
-      _baseLat + northMeters / _mPerDegLat,
-      _baseLon + eastMeters / _mPerDegLon,
-    );
+  _baseLat + northMeters / _mPerDegLat,
+  _baseLon + eastMeters / _mPerDegLon,
+);
 
 /// Build a [GpsFix] at a local offset from the base point.
 GpsFix _fix(
@@ -90,14 +90,13 @@ GpsFix _fix(
   int dtSecs = 0,
   double accuracy = 10,
   double speed = 30,
-}) =>
-    GpsFix(
-      lat: _baseLat + northMeters / _mPerDegLat,
-      lon: _baseLon + eastMeters / _mPerDegLon,
-      accuracyMeters: accuracy,
-      speedKmh: speed,
-      ts: DateTime.fromMillisecondsSinceEpoch(dtSecs * 1000, isUtc: true),
-    );
+}) => GpsFix(
+  lat: _baseLat + northMeters / _mPerDegLat,
+  lon: _baseLon + eastMeters / _mPerDegLon,
+  accuracyMeters: accuracy,
+  speedKmh: speed,
+  ts: DateTime.fromMillisecondsSinceEpoch(dtSecs * 1000, isUtc: true),
+);
 
 // ---------------------------------------------------------------------------
 // Shared test ways
@@ -105,35 +104,35 @@ GpsFix _fix(
 
 /// A simple 2-node east-running way: 100 m long.
 WayCandidate _simpleWay({int id = 1}) => WayCandidate(
-      wayId: id,
-      highwayClass: 'residential',
-      geometry: [_ll(0, 0), _ll(0, 100)],
-    );
+  wayId: id,
+  highwayClass: 'residential',
+  geometry: [_ll(0, 0), _ll(0, 100)],
+);
 
 /// A 4-node way running east along the baseline (y=0),
 /// nodes at x=0,100,200,300 m.
 WayCandidate _eastWay({int id = 1}) => WayCandidate(
-      wayId: id,
-      highwayClass: 'residential',
-      geometry: [
-        _ll(0, 0),
-        _ll(0, 100),
-        _ll(0, 200),
-        _ll(0, 300),
-      ],
-    );
+  wayId: id,
+  highwayClass: 'residential',
+  geometry: [
+    _ll(0, 0),
+    _ll(0, 100),
+    _ll(0, 200),
+    _ll(0, 300),
+  ],
+);
 
 /// A 4-node way running 500 m north of baseline, nodes at x=0,100,200,300 m.
 WayCandidate _northOffsetWay({int id = 2}) => WayCandidate(
-      wayId: id,
-      highwayClass: 'residential',
-      geometry: [
-        _ll(500, 0),
-        _ll(500, 100),
-        _ll(500, 200),
-        _ll(500, 300),
-      ],
-    );
+  wayId: id,
+  highwayClass: 'residential',
+  geometry: [
+    _ll(500, 0),
+    _ll(500, 100),
+    _ll(500, 200),
+    _ll(500, 300),
+  ],
+);
 
 // ---------------------------------------------------------------------------
 // Tests
@@ -204,13 +203,17 @@ void main() {
         final futureA = iso.match(
           tripId: 10,
           fixes: fixesA,
-          gzippedTiles: [_gzTile([wayA])],
+          gzippedTiles: [
+            _gzTile([wayA]),
+          ],
           tileBboxes: [_testBbox],
         );
         final futureB = iso.match(
           tripId: 20,
           fixes: fixesB,
-          gzippedTiles: [_gzTile([wayB])],
+          gzippedTiles: [
+            _gzTile([wayB]),
+          ],
           tileBboxes: [_testBbox],
         );
 
@@ -222,15 +225,21 @@ void main() {
         // Job A: at least one fix matched; all intervals on wayId=1.
         expect(resultA.matchedFixCount, greaterThan(0));
         for (final interval in resultA.intervals) {
-          expect(interval.wayId, 1,
-              reason: 'Job A intervals should be on wayId=1');
+          expect(
+            interval.wayId,
+            1,
+            reason: 'Job A intervals should be on wayId=1',
+          );
         }
 
         // Job B: at least one fix matched; all intervals on wayId=2.
         expect(resultB.matchedFixCount, greaterThan(0));
         for (final interval in resultB.intervals) {
-          expect(interval.wayId, 2,
-              reason: 'Job B intervals should be on wayId=2');
+          expect(
+            interval.wayId,
+            2,
+            reason: 'Job B intervals should be on wayId=2',
+          );
         }
       },
     );
@@ -262,7 +271,9 @@ void main() {
             _fix(0, 150, dtSecs: 1),
             _fix(0, 250, dtSecs: 2),
           ],
-          gzippedTiles: [_gzTile([_eastWay()])],
+          gzippedTiles: [
+            _gzTile([_eastWay()]),
+          ],
           tileBboxes: [_testBbox],
         );
 
@@ -272,7 +283,9 @@ void main() {
             _fix(0, 50),
             _fix(0, 150, dtSecs: 1),
           ],
-          gzippedTiles: [_gzTile([_eastWay()])],
+          gzippedTiles: [
+            _gzTile([_eastWay()]),
+          ],
           tileBboxes: [_testBbox],
         );
 
@@ -299,7 +312,8 @@ void main() {
           expect(
             thrownError,
             isA<MatcherCancelledException>(),
-            reason: 'When the future throws, it must be MatcherCancelledException',
+            reason:
+                'When the future throws, it must be MatcherCancelledException',
           );
         }
       },
@@ -324,15 +338,16 @@ void main() {
           geometry: [_ll(0, 0), _ll(0, 3000)],
         );
         final fixes = <GpsFix>[
-          for (var i = 0; i < 300; i++)
-            _fix(0, 10.0 + i * 10, dtSecs: i),
+          for (var i = 0; i < 300; i++) _fix(0, 10.0 + i * 10, dtSecs: i),
         ];
 
         final calls = <(int, int)>[];
         final result = await iso.match(
           tripId: 1,
           fixes: fixes,
-          gzippedTiles: [_gzTile([way])],
+          gzippedTiles: [
+            _gzTile([way]),
+          ],
           tileBboxes: [_testBbox],
           onProgress: (processed, total) => calls.add((processed, total)),
         );

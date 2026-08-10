@@ -68,8 +68,9 @@ class RecenterButton extends ConsumerWidget {
             // → MyLocationTrackingMode.tracking).
             final isRecording =
                 ref.read(trackingStateProvider) is TrackingRecording;
-            final followMode =
-                isRecording ? FollowMode.locationAndHeading : FollowMode.location;
+            final followMode = isRecording
+                ? FollowMode.locationAndHeading
+                : FollowMode.location;
             final trackingMode = isRecording
                 ? MyLocationTrackingMode.trackingGps
                 : MyLocationTrackingMode.tracking;

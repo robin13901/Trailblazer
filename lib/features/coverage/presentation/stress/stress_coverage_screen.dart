@@ -98,7 +98,9 @@ class _StressCoverageScreenState extends ConsumerState<StressCoverageScreen> {
 
     // Apply through the PRODUCTION applier — this is the whole point of the
     // stress test: validate the real render path, not a bespoke one.
-    await ref.read(coverageOverlayApplierProvider).apply(
+    await ref
+        .read(coverageOverlayApplierProvider)
+        .apply(
           controller,
           data: data,
           preset: CoverageColorPreset.amber,
@@ -176,13 +178,13 @@ class _BannerOverlay extends StatelessWidget {
     final passLabel = p90Ms == 0
         ? 'MEASURING...'
         : passes
-            ? 'PASS'
-            : 'FAIL';
+        ? 'PASS'
+        : 'FAIL';
     final passColor = p90Ms == 0
         ? Colors.grey
         : passes
-            ? Colors.green
-            : Colors.red;
+        ? Colors.green
+        : Colors.red;
 
     return Container(
       color: Colors.black.withValues(alpha: 0.75),

@@ -288,8 +288,8 @@ class _MapWidgetState extends ConsumerState<MapWidget>
         // persisted last-known location [_seed] (issue #5b) so the map opens
         // where the user last was — Berlin (widget.initialTarget) is only the
         // ultimate fallback when nothing was ever persisted.
-        initialCameraPosition: (cameraState.latitude != 0 ||
-                cameraState.longitude != 0)
+        initialCameraPosition:
+            (cameraState.latitude != 0 || cameraState.longitude != 0)
             ? CameraPosition(
                 target: LatLng(cameraState.latitude, cameraState.longitude),
                 zoom: cameraState.zoom,
@@ -317,7 +317,8 @@ class _MapWidgetState extends ConsumerState<MapWidget>
         // the compass 20-90°). Use the plain dot + accuracy ring while
         // heading-locked; keep the compass cone only in north-up modes where
         // it still conveys useful orientation.
-        myLocationRenderMode: (locationEnabled &&
+        myLocationRenderMode:
+            (locationEnabled &&
                 cameraState.followMode != FollowMode.locationAndHeading)
             ? MyLocationRenderMode.compass
             : MyLocationRenderMode.normal,
@@ -423,7 +424,8 @@ class _MapWidgetState extends ConsumerState<MapWidget>
         onCameraIdle: () {
           if (!mounted) return;
           final phase = WidgetsBinding.instance.schedulerPhase;
-          final safe = phase == SchedulerPhase.idle ||
+          final safe =
+              phase == SchedulerPhase.idle ||
               phase == SchedulerPhase.postFrameCallbacks;
           if (!safe) return;
           final pos = ref.read(mapControllerProvider)?.cameraPosition;

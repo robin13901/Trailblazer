@@ -75,8 +75,7 @@ class _TripFabState extends ConsumerState<TripFab> {
     // Evaluate finishing readiness only while idle + finishing.
     if (_finishing && state is TrackingIdle) {
       final inFlight = ref.watch(inFlightCountProvider).value ?? 0;
-      final overlayReady =
-          ref.watch(coverageOverlayDataProvider).hasValue;
+      final overlayReady = ref.watch(coverageOverlayDataProvider).hasValue;
 
       if (inFlight > 0) {
         // Matching is running — remember we saw it so a later 0 means "done".
@@ -110,7 +109,9 @@ class _TripFabState extends ConsumerState<TripFab> {
     };
 
     final child = switch (state) {
-      _ when showFinishing => const _FinishingVariant(key: ValueKey('finishing')),
+      _ when showFinishing => const _FinishingVariant(
+        key: ValueKey('finishing'),
+      ),
       TrackingIdle() => const _StartVariant(key: ValueKey('start')),
       TrackingRecording() => const _StopVariant(key: ValueKey('stop')),
     };

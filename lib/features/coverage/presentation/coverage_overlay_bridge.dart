@@ -107,12 +107,15 @@ class _CoverageOverlayBridgeState extends ConsumerState<CoverageOverlayBridge> {
         (_, next) {
           final data = next.value;
           if (data != null && _styleReady) {
-            _scheduleApply(context, data, ref.read(coveragePresetValueProvider));
+            _scheduleApply(
+              context,
+              data,
+              ref.read(coveragePresetValueProvider),
+            );
             _sourceAdded = true;
           }
         },
       )
-
       // Listen for preset changes (Settings picker → live recolor).
       ..listen<CoverageColorPreset>(
         coveragePresetValueProvider,
@@ -174,12 +177,12 @@ class _CoverageOverlayBridgeState extends ConsumerState<CoverageOverlayBridge> {
             brightness: brightness,
           )
           .catchError((Object e, StackTrace st) {
-        _log.warning(
-          'CoverageOverlayBridge: apply() threw — map kept stable.',
-          e,
-          st,
-        );
-      }),
+            _log.warning(
+              'CoverageOverlayBridge: apply() threw — map kept stable.',
+              e,
+              st,
+            );
+          }),
     );
   }
 
@@ -203,12 +206,12 @@ class _CoverageOverlayBridgeState extends ConsumerState<CoverageOverlayBridge> {
             brightness: brightness,
           )
           .catchError((Object e, StackTrace st) {
-        _log.warning(
-          'CoverageOverlayBridge: updateColors() threw — map kept stable.',
-          e,
-          st,
-        );
-      }),
+            _log.warning(
+              'CoverageOverlayBridge: updateColors() threw — map kept stable.',
+              e,
+              st,
+            );
+          }),
     );
   }
 }

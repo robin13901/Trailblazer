@@ -114,9 +114,9 @@ class _BannerContent extends StatelessWidget {
                 child: Text(
                   'Standort „Immer" aktivieren — zum Öffnen der Einstellungen tippen',
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        fontWeight: FontWeight.w500,
-                        color: const Color(0xFF3E2C00),
-                      ),
+                    fontWeight: FontWeight.w500,
+                    color: const Color(0xFF3E2C00),
+                  ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),

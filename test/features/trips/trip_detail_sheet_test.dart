@@ -13,22 +13,22 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 
 TripListItem _item({int id = 7}) => TripListItem(
-      id: id,
-      status: TripStatus.confirmed,
-      startedAt: DateTime(2026, 7, 8, 14, 32),
-      endedAt: DateTime(2026, 7, 8, 15, 14),
-      distanceMeters: 28400,
-      durationSeconds: 42 * 60,
-      startLat: 49.70,
-      startLon: 9.26,
-      endLat: 49.97,
-      endLon: 9.15,
-      intervalCount: 5,
-      bboxMinLat: 49.70,
-      bboxMinLon: 9.15,
-      bboxMaxLat: 49.97,
-      bboxMaxLon: 9.26,
-    );
+  id: id,
+  status: TripStatus.confirmed,
+  startedAt: DateTime(2026, 7, 8, 14, 32),
+  endedAt: DateTime(2026, 7, 8, 15, 14),
+  distanceMeters: 28400,
+  durationSeconds: 42 * 60,
+  startLat: 49.70,
+  startLon: 9.26,
+  endLat: 49.97,
+  endLon: 9.15,
+  intervalCount: 5,
+  bboxMinLat: 49.70,
+  bboxMinLon: 9.15,
+  bboxMaxLat: 49.97,
+  bboxMaxLon: 9.26,
+);
 
 // Riverpod override list type is not cleanly nameable.
 // ignore: specify_nonobvious_property_types
@@ -76,8 +76,9 @@ Future<ProviderContainer> _openSheet(
 }
 
 void main() {
-  testWidgets('sheet shows duration / distance / avg-speed stats',
-      (tester) async {
+  testWidgets('sheet shows duration / distance / avg-speed stats', (
+    tester,
+  ) async {
     await _openSheet(tester, _item());
 
     expect(find.text('Dauer'), findsOneWidget);
@@ -99,8 +100,9 @@ void main() {
     expect(find.text('Ziel'), findsOneWidget);
   });
 
-  testWidgets('"Auf Karte anzeigen" sets selectedTripProvider to the trip id',
-      (tester) async {
+  testWidgets('"Auf Karte anzeigen" sets selectedTripProvider to the trip id', (
+    tester,
+  ) async {
     final container = await _openSheet(tester, _item(id: 42));
     expect(container.read(selectedTripProvider), isNull);
 

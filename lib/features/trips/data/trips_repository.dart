@@ -180,8 +180,7 @@ class TripsRepository {
   ///
   /// Returns a raw stream — the caller handles errors via StreamBuilder /
   /// Riverpod's AsyncValue machinery.
-  Stream<List<TripPoint>> watchPoints(int tripId) =>
-      _dao.watchPoints(tripId);
+  Stream<List<TripPoint>> watchPoints(int tripId) => _dao.watchPoints(tripId);
 
   /// 30-day raw-GPS retention sweep (MMT-10). Deletes trip_points rows
   /// for trips whose matched intervals are all older than [retention].

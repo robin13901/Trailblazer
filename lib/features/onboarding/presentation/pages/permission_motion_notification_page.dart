@@ -93,12 +93,12 @@ class _PermissionMotionNotificationPageState
       title: isIOS ? 'Bewegung & Fitness' : 'Benachrichtigungen und Batterie',
       body: isIOS
           ? 'Der Bewegungs- & Fitness-Sensor von iOS hilft, Fahren von Gehen zu '
-              'unterscheiden — das macht die automatische Erkennung intelligenter.'
+                'unterscheiden — das macht die automatische Erkennung intelligenter.'
           : 'OKF Buddy zeigt während der Aufnahme eine dauerhafte '
-              'Benachrichtigung an (Android braucht dies, um das Tracking am '
-              'Leben zu halten). Es bittet Android außerdem, die '
-              'Batterieoptimierung zu ignorieren, damit das Betriebssystem das '
-              'Tracking nicht mitten in der Fahrt beendet.',
+                'Benachrichtigung an (Android braucht dies, um das Tracking am '
+                'Leben zu halten). Es bittet Android außerdem, die '
+                'Batterieoptimierung zu ignorieren, damit das Betriebssystem das '
+                'Tracking nicht mitten in der Fahrt beendet.',
       primaryLabel: isIOS ? 'Weiter' : 'Aktivieren',
       onPrimary: _busy ? () {} : _onPrimary,
     );

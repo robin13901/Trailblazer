@@ -92,7 +92,10 @@ bool _wayTouchesCorridor(WayCandidate way, Set<int> occupied) {
   for (var i = 0; i < geom.length; i++) {
     final p = geom[i];
     if (occupied.contains(
-      _cellKey((p.latitude / _cellDeg).floor(), (p.longitude / _cellDeg).floor()),
+      _cellKey(
+        (p.latitude / _cellDeg).floor(),
+        (p.longitude / _cellDeg).floor(),
+      ),
     )) {
       return true;
     }
@@ -100,7 +103,12 @@ bool _wayTouchesCorridor(WayCandidate way, Set<int> occupied) {
     // skipped when both endpoints sit just outside the corridor.
     if (i + 1 < geom.length) {
       final q = geom[i + 1];
-      final segMeters = _approxMeters(p.latitude, p.longitude, q.latitude, q.longitude);
+      final segMeters = _approxMeters(
+        p.latitude,
+        p.longitude,
+        q.latitude,
+        q.longitude,
+      );
       if (segMeters > _sampleSpacingMeters) {
         final steps = (segMeters / _sampleSpacingMeters).ceil();
         for (var s = 1; s < steps; s++) {

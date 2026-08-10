@@ -155,8 +155,7 @@ double emissionLogProb({
   if (sigmaM <= 0) return double.negativeInfinity;
   // log(1 / (sqrt(2pi) * sigma)) - d^2 / (2 * sigma^2)
   final logNormalizer = -0.5 * math.log(2 * math.pi * sigmaM * sigmaM);
-  final exponent =
-      -(perpDistMeters * perpDistMeters) / (2 * sigmaM * sigmaM);
+  final exponent = -(perpDistMeters * perpDistMeters) / (2 * sigmaM * sigmaM);
   return logNormalizer + exponent;
 }
 

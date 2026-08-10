@@ -119,22 +119,23 @@ void main() {
       expect(find.byType(Switch), findsOneWidget);
     });
 
-    testWidgets(
-        'Tracking diagnostics tile is hidden when HUD toggle is OFF',
-        (tester) async {
+    testWidgets('Tracking diagnostics tile is hidden when HUD toggle is OFF', (
+      tester,
+    ) async {
       await pumpScreen(tester);
       // Default state: HUD toggle OFF → diagnostics tile hidden.
       expect(find.text('Tracking-Diagnose'), findsNothing);
     });
 
     testWidgets(
-        'Tracking diagnostics tile appears when HUD toggle is turned ON',
-        (tester) async {
-      await pumpScreen(tester);
-      // Toggle the switch ON.
-      await tester.tap(find.byType(Switch));
-      await tester.pumpAndSettle();
-      expect(find.text('Tracking-Diagnose'), findsOneWidget);
-    });
+      'Tracking diagnostics tile appears when HUD toggle is turned ON',
+      (tester) async {
+        await pumpScreen(tester);
+        // Toggle the switch ON.
+        await tester.tap(find.byType(Switch));
+        await tester.pumpAndSettle();
+        expect(find.text('Tracking-Diagnose'), findsOneWidget);
+      },
+    );
   });
 }

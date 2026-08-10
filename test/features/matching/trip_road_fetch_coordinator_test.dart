@@ -92,7 +92,9 @@ class FakeConnectivitySeam implements ConnectivitySeam {
 }
 
 Future<int> _insertRecordingTrip(AppDatabase db) async {
-  return db.into(db.trips).insert(
+  return db
+      .into(db.trips)
+      .insert(
         TripsCompanion.insert(
           startedAt: DateTime(2026),
           status: const Value(TripStatus.recording),
@@ -101,8 +103,9 @@ Future<int> _insertRecordingTrip(AppDatabase db) async {
 }
 
 Future<TripStatus> _statusOf(AppDatabase db, int tripId) async {
-  final row = await (db.select(db.trips)..where((t) => t.id.equals(tripId)))
-      .getSingle();
+  final row = await (db.select(
+    db.trips,
+  )..where((t) => t.id.equals(tripId))).getSingle();
   return row.status;
 }
 
@@ -147,15 +150,13 @@ void main() {
       connectivity: connectivity,
       tripsDao: tripsDao,
       now: now,
-      progressSink: (tripId, frac) =>
-          (progressLog[tripId] ??= []).add(frac),
+      progressSink: (tripId, frac) => (progressLog[tripId] ??= []).add(frac),
       progressClearSink: (tripId) => (progressLog[tripId] ??= []).add(null),
     );
   }
 
   group('TripRoadFetchCoordinator.onTripStopped', () {
-    test('online: source is called and trip transitions to pending',
-        () async {
+    test('online: source is called and trip transitions to pending', () async {
       final tripId = await _insertRecordingTrip(db);
       connectivity.online = true;
       final coord = buildCoord();
@@ -168,8 +169,7 @@ void main() {
       expect(pending, isEmpty);
     });
 
-    test('offline: source is NOT called and pending row is enqueued',
-        () async {
+    test('offline: source is NOT called and pending row is enqueued', () async {
       final tripId = await _insertRecordingTrip(db);
       connectivity.online = false;
       final coord = buildCoord();
@@ -184,25 +184,26 @@ void main() {
       expect(pending.first.bboxMinLat, bbox.minLat);
     });
 
-    test('online + fetch throws → enqueued, stays in pendingRoadData',
-        () async {
-      final tripId = await _insertRecordingTrip(db);
-      connectivity.online = true;
-      source.shouldThrow = true;
-      final coord = buildCoord();
+    test(
+      'online + fetch throws → enqueued, stays in pendingRoadData',
+      () async {
+        final tripId = await _insertRecordingTrip(db);
+        connectivity.online = true;
+        source.shouldThrow = true;
+        final coord = buildCoord();
 
-      await coord.onTripStopped(tripId, bbox: bbox);
+        await coord.onTripStopped(tripId, bbox: bbox);
 
-      expect(source.calls, 1);
-      expect(await _statusOf(db, tripId), TripStatus.pendingRoadData);
-      final pending = await pendingDao.listPending();
-      expect(pending, hasLength(1));
-    });
+        expect(source.calls, 1);
+        expect(await _statusOf(db, tripId), TripStatus.pendingRoadData);
+        final pending = await pendingDao.listPending();
+        expect(pending, hasLength(1));
+      },
+    );
   });
 
   group('TripRoadFetchCoordinator.drainQueue', () {
-    test('successful fetch removes pending row and flips to pending',
-        () async {
+    test('successful fetch removes pending row and flips to pending', () async {
       final tripId = await _insertRecordingTrip(db);
       await tripsDao.transitionToPendingRoadData(tripId);
       await pendingDao.enqueue(
@@ -221,8 +222,7 @@ void main() {
       expect(await pendingDao.listPending(), isEmpty);
     });
 
-    test('failed fetch increments attempts and stamps lastAttemptAt',
-        () async {
+    test('failed fetch increments attempts and stamps lastAttemptAt', () async {
       final tripId = await _insertRecordingTrip(db);
       await tripsDao.transitionToPendingRoadData(tripId);
       await pendingDao.enqueue(
@@ -248,37 +248,39 @@ void main() {
       expect(await _statusOf(db, tripId), TripStatus.pendingRoadData);
     });
 
-    test('backoff: 4-min-old row with attempts=0 is NOT retried (5m delay)',
-        () async {
-      final tripId = await _insertRecordingTrip(db);
-      await tripsDao.transitionToPendingRoadData(tripId);
-      // Enqueue then bump attempts to 1 with lastAttemptAt = t0 - 4m so the
-      // 5-minute backoff for attempts=1 still gates the retry.
-      final id = await pendingDao.enqueue(
-        tripId: tripId,
-        minLat: bbox.minLat,
-        minLon: bbox.minLon,
-        maxLat: bbox.maxLat,
-        maxLon: bbox.maxLon,
-      );
-      final t0 = DateTime(2026, 7, 8, 12);
-      // First attempt happened 4 minutes ago — attempts is now 1, so the
-      // relevant backoff is delays[1] = 30 min. We use 4 min elapsed to
-      // stay under both delays[0]=5m and delays[1]=30m.
-      await pendingDao.incrementAttempts(
-        id,
-        now: t0.subtract(const Duration(minutes: 4)),
-      );
-      final coord = buildCoord(now: () => t0);
+    test(
+      'backoff: 4-min-old row with attempts=0 is NOT retried (5m delay)',
+      () async {
+        final tripId = await _insertRecordingTrip(db);
+        await tripsDao.transitionToPendingRoadData(tripId);
+        // Enqueue then bump attempts to 1 with lastAttemptAt = t0 - 4m so the
+        // 5-minute backoff for attempts=1 still gates the retry.
+        final id = await pendingDao.enqueue(
+          tripId: tripId,
+          minLat: bbox.minLat,
+          minLon: bbox.minLon,
+          maxLat: bbox.maxLat,
+          maxLon: bbox.maxLon,
+        );
+        final t0 = DateTime(2026, 7, 8, 12);
+        // First attempt happened 4 minutes ago — attempts is now 1, so the
+        // relevant backoff is delays[1] = 30 min. We use 4 min elapsed to
+        // stay under both delays[0]=5m and delays[1]=30m.
+        await pendingDao.incrementAttempts(
+          id,
+          now: t0.subtract(const Duration(minutes: 4)),
+        );
+        final coord = buildCoord(now: () => t0);
 
-      await coord.drainQueue();
+        await coord.drainQueue();
 
-      expect(source.calls, 0, reason: 'backoff has not elapsed');
-      // Row still there; attempts unchanged.
-      final pending = await pendingDao.listPending();
-      expect(pending, hasLength(1));
-      expect(pending.first.attempts, 1);
-    });
+        expect(source.calls, 0, reason: 'backoff has not elapsed');
+        // Row still there; attempts unchanged.
+        final pending = await pendingDao.listPending();
+        expect(pending, hasLength(1));
+        expect(pending.first.attempts, 1);
+      },
+    );
 
     test('drain abandons row after 5 attempts', () async {
       final tripId = await _insertRecordingTrip(db);
@@ -317,47 +319,51 @@ void main() {
   });
 
   group('enqueue-first (orphan-proofing)', () {
-    test('online: a queue row exists DURING the fetch, removed after success',
-        () async {
-      final tripId = await _insertRecordingTrip(db);
-      connectivity.online = true;
-      var rowSeenDuringFetch = false;
-      source.duringFetch = () async {
-        rowSeenDuringFetch = await pendingDao.getByTrip(tripId) != null;
-      };
-      final coord = buildCoord();
+    test(
+      'online: a queue row exists DURING the fetch, removed after success',
+      () async {
+        final tripId = await _insertRecordingTrip(db);
+        connectivity.online = true;
+        var rowSeenDuringFetch = false;
+        source.duringFetch = () async {
+          rowSeenDuringFetch = await pendingDao.getByTrip(tripId) != null;
+        };
+        final coord = buildCoord();
 
-      await coord.onTripStopped(tripId, bbox: bbox);
+        await coord.onTripStopped(tripId, bbox: bbox);
 
-      expect(
-        rowSeenDuringFetch,
-        isTrue,
-        reason: 'row must be enqueued BEFORE the network attempt',
-      );
-      // Success → row cleaned up, trip advanced.
-      expect(await pendingDao.listPending(), isEmpty);
-      expect(await _statusOf(db, tripId), TripStatus.pending);
-    });
+        expect(
+          rowSeenDuringFetch,
+          isTrue,
+          reason: 'row must be enqueued BEFORE the network attempt',
+        );
+        // Success → row cleaned up, trip advanced.
+        expect(await pendingDao.listPending(), isEmpty);
+        expect(await _statusOf(db, tripId), TripStatus.pending);
+      },
+    );
 
-    test('mid-fetch death leaves a drainable row (no throw, never resolves)',
-        () async {
-      // Simulate a process death: the fetch "hangs" (row already enqueued),
-      // and onTripStopped never completes. The queue row must survive so the
-      // next drainQueue recovers it.
-      final tripId = await _insertRecordingTrip(db);
-      connectivity.online = true;
-      final hang = Completer<void>();
-      source.duringFetch = () => hang.future; // never resolves
-      final coord = buildCoord();
+    test(
+      'mid-fetch death leaves a drainable row (no throw, never resolves)',
+      () async {
+        // Simulate a process death: the fetch "hangs" (row already enqueued),
+        // and onTripStopped never completes. The queue row must survive so the
+        // next drainQueue recovers it.
+        final tripId = await _insertRecordingTrip(db);
+        connectivity.online = true;
+        final hang = Completer<void>();
+        source.duringFetch = () => hang.future; // never resolves
+        final coord = buildCoord();
 
-      // Fire and DON'T await — mimics the app dying mid-fetch.
-      unawaited(coord.onTripStopped(tripId, bbox: bbox));
-      await Future<void>.delayed(Duration.zero); // let it reach the fetch
+        // Fire and DON'T await — mimics the app dying mid-fetch.
+        unawaited(coord.onTripStopped(tripId, bbox: bbox));
+        await Future<void>.delayed(Duration.zero); // let it reach the fetch
 
-      final pending = await pendingDao.listPending();
-      expect(pending, hasLength(1), reason: 'orphan-proof: row persists');
-      expect(await _statusOf(db, tripId), TripStatus.pendingRoadData);
-    });
+        final pending = await pendingDao.listPending();
+        expect(pending, hasLength(1), reason: 'orphan-proof: row persists');
+        expect(await _statusOf(db, tripId), TripStatus.pendingRoadData);
+      },
+    );
 
     test('does not double-enqueue when a row already exists', () async {
       final tripId = await _insertRecordingTrip(db);
@@ -424,19 +430,21 @@ void main() {
   });
 
   group('progress feedback', () {
-    test('forwards tile progress as a rising fraction, cleared on handoff',
-        () async {
-      final tripId = await _insertRecordingTrip(db);
-      connectivity.online = true;
-      source.progressSteps = const [(1, 4), (2, 4), (3, 4), (4, 4)];
-      final coord = buildCoord();
+    test(
+      'forwards tile progress as a rising fraction, cleared on handoff',
+      () async {
+        final tripId = await _insertRecordingTrip(db);
+        connectivity.online = true;
+        source.progressSteps = const [(1, 4), (2, 4), (3, 4), (4, 4)];
+        final coord = buildCoord();
 
-      await coord.onTripStopped(tripId, bbox: bbox);
+        await coord.onTripStopped(tripId, bbox: bbox);
 
-      final log = progressLog[tripId]!;
-      // Fractions then a trailing null (clear at fetch→match handoff).
-      expect(log, [0.25, 0.5, 0.75, 1.0, null]);
-    });
+        final log = progressLog[tripId]!;
+        // Fractions then a trailing null (clear at fetch→match handoff).
+        expect(log, [0.25, 0.5, 0.75, 1.0, null]);
+      },
+    );
   });
 
   group('reconcileOrphanedPendingRoadData', () {

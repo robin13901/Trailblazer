@@ -75,33 +75,33 @@ class _NullMapControllerNotifier extends MapControllerNotifier {
 }
 
 TripListItem _item(int id) => TripListItem(
-      id: id,
-      status: TripStatus.confirmed,
-      startedAt: DateTime(2026, 7, 9, 8),
-      endedAt: DateTime(2026, 7, 9, 8, 42),
-      distanceMeters: 28400,
-      durationSeconds: 42 * 60,
-      startLat: 49.79,
-      startLon: 9.18,
-      endLat: 49.81,
-      endLon: 9.22,
-      intervalCount: 1,
-    );
+  id: id,
+  status: TripStatus.confirmed,
+  startedAt: DateTime(2026, 7, 9, 8),
+  endedAt: DateTime(2026, 7, 9, 8, 42),
+  distanceMeters: 28400,
+  durationSeconds: 42 * 60,
+  startLat: 49.79,
+  startLon: 9.18,
+  endLat: 49.81,
+  endLon: 9.22,
+  intervalCount: 1,
+);
 
 TripDetailData _data(int id) => TripDetailData(
-      item: _item(id),
-      rawPolyline: const [LatLng(49.79, 9.18), LatLng(49.81, 9.22)],
-      matchedSegments: const [
-        [LatLng(49.79, 9.18), LatLng(49.80, 9.20)],
-      ],
-      bounds: LatLngBounds(
-        southwest: const LatLng(49.79, 9.18),
-        northeast: const LatLng(49.81, 9.22),
-      ),
-      matchedWayCount: 1,
-      matchedFraction: 0.5,
-      offline: false,
-    );
+  item: _item(id),
+  rawPolyline: const [LatLng(49.79, 9.18), LatLng(49.81, 9.22)],
+  matchedSegments: const [
+    [LatLng(49.79, 9.18), LatLng(49.80, 9.20)],
+  ],
+  bounds: LatLngBounds(
+    southwest: const LatLng(49.79, 9.18),
+    northeast: const LatLng(49.81, 9.22),
+  ),
+  matchedWayCount: 1,
+  matchedFraction: 0.5,
+  offline: false,
+);
 
 Future<_FakeTripOverlayApplier> _pump(
   WidgetTester tester, {
@@ -114,7 +114,9 @@ Future<_FakeTripOverlayApplier> _pump(
       overrides: [
         tripOverlayApplierProvider.overrideWithValue(fake),
         mapControllerProvider.overrideWith(_NullMapControllerNotifier.new),
-        tripDetailDataProvider(tripId).overrideWith((ref) async => _data(tripId)),
+        tripDetailDataProvider(
+          tripId,
+        ).overrideWith((ref) async => _data(tripId)),
       ],
       child: MaterialApp(
         theme: ThemeData(brightness: brightness),
@@ -126,8 +128,8 @@ Future<_FakeTripOverlayApplier> _pump(
 }
 
 ProviderContainer _container(WidgetTester tester) => ProviderScope.containerOf(
-      tester.element(find.byType(TripPathBridge)),
-    );
+  tester.element(find.byType(TripPathBridge)),
+);
 
 void main() {
   group('TripPathBridge', () {
@@ -142,8 +144,9 @@ void main() {
       );
     });
 
-    testWidgets('show → addMatchedIntervalLayers with dark turquoise',
-        (tester) async {
+    testWidgets('show → addMatchedIntervalLayers with dark turquoise', (
+      tester,
+    ) async {
       final fake = await _pump(tester, brightness: Brightness.dark);
       _container(tester).read(selectedTripProvider.notifier).show(7);
       await tester.pumpAndSettle();
@@ -179,8 +182,9 @@ void main() {
       );
     });
 
-    testWidgets('style-load tick re-adds while a trip is shown (Pitfall 1)',
-        (tester) async {
+    testWidgets('style-load tick re-adds while a trip is shown (Pitfall 1)', (
+      tester,
+    ) async {
       final fake = await _pump(tester, brightness: Brightness.dark);
       final container = _container(tester);
       container.read(selectedTripProvider.notifier).show(7);
@@ -197,8 +201,9 @@ void main() {
       );
     });
 
-    testWidgets('style-load tick does NOT add when no trip is selected',
-        (tester) async {
+    testWidgets('style-load tick does NOT add when no trip is selected', (
+      tester,
+    ) async {
       final fake = await _pump(tester, brightness: Brightness.dark);
       _container(tester).read(mapStyleLoadedTickProvider.notifier).bump();
       await tester.pumpAndSettle();

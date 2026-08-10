@@ -10,7 +10,8 @@ double haversineMeters(
   const earthRadiusMeters = 6371000.0;
   final dLat = _deg2rad(lat2 - lat1);
   final dLon = _deg2rad(lon2 - lon1);
-  final a = math.sin(dLat / 2) * math.sin(dLat / 2) +
+  final a =
+      math.sin(dLat / 2) * math.sin(dLat / 2) +
       math.cos(_deg2rad(lat1)) *
           math.cos(_deg2rad(lat2)) *
           math.sin(dLon / 2) *
@@ -40,7 +41,8 @@ double bearingDegrees(
   final phi2 = _deg2rad(lat2);
   final dLambda = _deg2rad(lon2 - lon1);
   final y = math.sin(dLambda) * math.cos(phi2);
-  final x = math.cos(phi1) * math.sin(phi2) -
+  final x =
+      math.cos(phi1) * math.sin(phi2) -
       math.sin(phi1) * math.cos(phi2) * math.cos(dLambda);
   final theta = math.atan2(y, x);
   // Normalise -180..180 → 0..360.

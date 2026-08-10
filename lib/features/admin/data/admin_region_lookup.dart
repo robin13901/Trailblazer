@@ -59,8 +59,10 @@ Future<Uint8List> loadAdminBundleBytes({
     // Fall through to bundled asset.
   }
   final byteData = await resolvedBundle.load(assetPath);
-  return byteData.buffer
-      .asUint8List(byteData.offsetInBytes, byteData.lengthInBytes);
+  return byteData.buffer.asUint8List(
+    byteData.offsetInBytes,
+    byteData.lengthInBytes,
+  );
 }
 
 /// Locates the containing admin region for a given `(lat, lon, adminLevel)`.
@@ -69,9 +71,9 @@ class AdminRegionLookup {
     AssetBundle? bundle,
     String assetPath = kAdminBundleAssetPath,
     Future<Directory> Function()? docsDirLoader,
-  })  : _bundle = bundle ?? rootBundle,
-        _assetPath = assetPath,
-        _docsDirLoader = docsDirLoader ?? getApplicationDocumentsDirectory;
+  }) : _bundle = bundle ?? rootBundle,
+       _assetPath = assetPath,
+       _docsDirLoader = docsDirLoader ?? getApplicationDocumentsDirectory;
 
   final AssetBundle _bundle;
   final String _assetPath;

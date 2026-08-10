@@ -57,16 +57,16 @@ class TrackingService {
     Duration notificationInterval = const Duration(seconds: 30),
     TripRoadFetchCoordinator? roadFetchCoordinator,
     LiveTilePrefetchService? tilePrefetch,
-  })  : _facade = facade,
-        _repository = repository,
-        _pointsSink = pointsSink,
-        _ingestorFactory = ingestorFactory,
-        _autoStopDwell = autoStopDwell,
-        _resumeWindow = resumeWindow,
-        _resumeRadiusMeters = resumeRadiusMeters,
-        _notificationInterval = notificationInterval,
-        _roadFetchCoordinator = roadFetchCoordinator,
-        _tilePrefetch = tilePrefetch;
+  }) : _facade = facade,
+       _repository = repository,
+       _pointsSink = pointsSink,
+       _ingestorFactory = ingestorFactory,
+       _autoStopDwell = autoStopDwell,
+       _resumeWindow = resumeWindow,
+       _resumeRadiusMeters = resumeRadiusMeters,
+       _notificationInterval = notificationInterval,
+       _roadFetchCoordinator = roadFetchCoordinator,
+       _tilePrefetch = tilePrefetch;
 
   final BackgroundGeolocationFacade _facade;
   final TripsRepository _repository;
@@ -222,16 +222,24 @@ class TrackingService {
   /// fire on every cold start). For fresh starts the call is deferred until the
   /// user first engages tracking via [startManual] or the auto-trip path.
   Future<void> init() async {
-    _locSub = _facade.onLocation.listen(_onLocation, onError: (Object e) {
-      _log.severe('onLocation error', e);
-    });
-    _motionSub = _facade.onMotionChange.listen(_onMotionChange, onError: (Object e) {
-      _log.severe('onMotionChange error', e);
-    });
-    _activitySub =
-        _facade.onActivityChange.listen(_onActivityChange, onError: (Object e) {
-      _log.severe('onActivityChange error', e);
-    });
+    _locSub = _facade.onLocation.listen(
+      _onLocation,
+      onError: (Object e) {
+        _log.severe('onLocation error', e);
+      },
+    );
+    _motionSub = _facade.onMotionChange.listen(
+      _onMotionChange,
+      onError: (Object e) {
+        _log.severe('onMotionChange error', e);
+      },
+    );
+    _activitySub = _facade.onActivityChange.listen(
+      _onActivityChange,
+      onError: (Object e) {
+        _log.severe('onActivityChange error', e);
+      },
+    );
 
     // Cold-start hydration — unpack Result<Trip?> without async callback inside
     // when() to avoid discarded-future lint.
@@ -337,13 +345,15 @@ class TrackingService {
         _lastAcceptedFix = null;
         _ingestor = _ingestorFactory();
         _batcher = TripFixBatcher(tripId: id, sink: _pointsSink);
-        _emitState(TrackingRecording(
-          tripId: id,
-          startedAt: now,
-          distanceMeters: 0,
-          pointCount: 0,
-          manuallyStarted: true,
-        ));
+        _emitState(
+          TrackingRecording(
+            tripId: id,
+            startedAt: now,
+            distanceMeters: 0,
+            pointCount: 0,
+            manuallyStarted: true,
+          ),
+        );
         _startNotificationTicker();
         _startFlushTicker();
         _tilePrefetch?.start(id);
@@ -470,12 +480,14 @@ class TrackingService {
         );
         // Live per-fix broadcast for the dashed trail + road-snap heading.
         // Fire-and-forget on a broadcast controller — no-op when unlistened.
-        _liveFixController.add(LiveFixSample(
-          ts: outcome.ts,
-          lat: outcome.lat,
-          lon: outcome.lon,
-          headingDegrees: _currentHeading,
-        ));
+        _liveFixController.add(
+          LiveFixSample(
+            ts: outcome.ts,
+            lat: outcome.lat,
+            lon: outcome.lon,
+            headingDegrees: _currentHeading,
+          ),
+        );
         // Batcher.add is async but we don't await here — the method returns
         // Future<void> which means the batcher auto-flush may happen later.
         // We use unawaited intentionally; errors are swallowed by the sink.
@@ -484,15 +496,17 @@ class TrackingService {
         // Update state with fresh stats from the ingestor.
         final current = _currentState;
         if (current is TrackingRecording) {
-          _emitState(TrackingRecording(
-            tripId: tripId,
-            startedAt: current.startedAt,
-            distanceMeters: _ingestor!.totalDistanceMeters,
-            pointCount: _ingestor!.pointCount,
-            manuallyStarted: current.manuallyStarted,
-            currentSpeedKmh: outcome.speedKmh,
-            headingDegrees: _currentHeading,
-          ));
+          _emitState(
+            TrackingRecording(
+              tripId: tripId,
+              startedAt: current.startedAt,
+              distanceMeters: _ingestor!.totalDistanceMeters,
+              pointCount: _ingestor!.pointCount,
+              manuallyStarted: current.manuallyStarted,
+              currentSpeedKmh: outcome.speedKmh,
+              headingDegrees: _currentHeading,
+            ),
+          );
         }
 
       case FixRejected():
@@ -521,7 +535,9 @@ class TrackingService {
     await _batcher?.flush();
 
     // 2. Finalize the old ingestor.
-    final summary = _ingestor?.finalize(startedAt: _tripStartedAt ?? DateTime.now());
+    final summary = _ingestor?.finalize(
+      startedAt: _tripStartedAt ?? DateTime.now(),
+    );
 
     // 3. Close or delete the old trip.
     if (summary != null && summary.passesKeeperThreshold) {
@@ -547,9 +563,12 @@ class TrackingService {
         tripSummary,
         status: closeStatus,
       );
-      closeResult.when(ok: (_) {}, err: (e) {
-        _log.severe('closeTrip failed on split: ${e.message}');
-      });
+      closeResult.when(
+        ok: (_) {},
+        err: (e) {
+          _log.severe('closeTrip failed on split: ${e.message}');
+        },
+      );
       final coord = _roadFetchCoordinator;
       if (coord != null) {
         unawaited(
@@ -566,9 +585,12 @@ class TrackingService {
       }
     } else {
       final deleteResult = await _repository.deleteTrip(oldTripId);
-      deleteResult.when(ok: (_) {}, err: (e) {
-        _log.severe('deleteTrip failed on split: ${e.message}');
-      });
+      deleteResult.when(
+        ok: (_) {},
+        err: (e) {
+          _log.severe('deleteTrip failed on split: ${e.message}');
+        },
+      );
     }
 
     // 4. Open a new trip.
@@ -602,13 +624,15 @@ class TrackingService {
         );
         _onLocation(recoveredInput);
 
-        _emitState(TrackingRecording(
-          tripId: newId,
-          startedAt: now,
-          distanceMeters: 0,
-          pointCount: 0,
-          manuallyStarted: false,
-        ));
+        _emitState(
+          TrackingRecording(
+            tripId: newId,
+            startedAt: now,
+            distanceMeters: 0,
+            pointCount: 0,
+            manuallyStarted: false,
+          ),
+        );
       },
       err: (e) {
         _log.severe('openTrip failed on split: ${e.message}');
@@ -634,20 +658,23 @@ class TrackingService {
 
         // Resume-window check: if we had a pending stop and we're in vehicle,
         // cancel the timer and resume if within radius.
-        if (_pendingStopAt != null &&
-            _lastActivityType == 'in_vehicle') {
+        if (_pendingStopAt != null && _lastActivityType == 'in_vehicle') {
           final stopFix = _pendingStopFix;
           final currentFix = _lastAcceptedFix;
           if (stopFix != null && currentFix != null) {
             final dist = haversineMeters(
-              stopFix.lat, stopFix.lon,
-              currentFix.lat, currentFix.lon,
+              stopFix.lat,
+              stopFix.lon,
+              currentFix.lat,
+              currentFix.lon,
             );
             if (dist <= _resumeRadiusMeters) {
               _cancelDwellTimers();
               _pendingStopAt = null;
               _pendingStopFix = null;
-              _log.fine('resume window: in_vehicle motion within radius → trip continues');
+              _log.fine(
+                'resume window: in_vehicle motion within radius → trip continues',
+              );
             }
           }
         }
@@ -686,14 +713,18 @@ class TrackingService {
         final currentFix = _lastAcceptedFix;
         if (stopFix != null && currentFix != null) {
           final dist = haversineMeters(
-            stopFix.lat, stopFix.lon,
-            currentFix.lat, currentFix.lon,
+            stopFix.lat,
+            stopFix.lon,
+            currentFix.lat,
+            currentFix.lon,
           );
           if (dist <= _resumeRadiusMeters) {
             _cancelDwellTimers();
             _pendingStopAt = null;
             _pendingStopFix = null;
-            _log.fine('resume window: in_vehicle activity within radius → trip continues');
+            _log.fine(
+              'resume window: in_vehicle activity within radius → trip continues',
+            );
           }
         }
       }
@@ -731,7 +762,10 @@ class TrackingService {
   // Helpers
   // ---------------------------------------------------------------------------
 
-  Future<void> _finalizeAndClose(int tripId, {required bool autoStopped}) async {
+  Future<void> _finalizeAndClose(
+    int tripId, {
+    required bool autoStopped,
+  }) async {
     final ingestor = _ingestor;
     final startedAt = _tripStartedAt;
 
@@ -860,9 +894,11 @@ class TrackingService {
       final km = (s.distanceMeters / 1000).toStringAsFixed(1);
       final spd = s.currentSpeedKmh?.round().toString() ?? '—';
       // Fire-and-forget — errors logged inside the facade.
-      unawaited(_facade.setNotificationText(
-        'Aufnahme · $timeStr · $km km · $spd km/h',
-      ));
+      unawaited(
+        _facade.setNotificationText(
+          'Aufnahme · $timeStr · $km km · $spd km/h',
+        ),
+      );
     });
   }
 

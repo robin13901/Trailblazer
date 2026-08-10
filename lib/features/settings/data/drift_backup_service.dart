@@ -55,7 +55,9 @@ class DriftBackupService implements BackupService {
     } on DomainError catch (e) {
       return Err(e);
     } on FileSystemException catch (e, st) {
-      return Err(StorageError('Backup I/O failed: $e', cause: e, stackTrace: st));
+      return Err(
+        StorageError('Backup I/O failed: $e', cause: e, stackTrace: st),
+      );
     } on Object catch (e, st) {
       return Err(
         DatabaseError('Backup failed: $e', cause: e, stackTrace: st),
@@ -131,8 +133,7 @@ class DriftBackupService implements BackupService {
 
       // Step 2: Safety snapshot of the current DB.
       // If anything goes wrong mid-swap the user still has their data here.
-      final safetyPath =
-          p.join(tempDir.path, 'pre_restore_safety.trailblazer');
+      final safetyPath = p.join(tempDir.path, 'pre_restore_safety.trailblazer');
       final currentDb = _ref.read(appDatabaseProvider);
       await currentDb.customStatement('VACUUM INTO ?', [safetyPath]);
 
@@ -161,7 +162,9 @@ class DriftBackupService implements BackupService {
     } on DomainError catch (e) {
       return Err(e);
     } on FileSystemException catch (e, st) {
-      return Err(StorageError('Restore I/O failed: $e', cause: e, stackTrace: st));
+      return Err(
+        StorageError('Restore I/O failed: $e', cause: e, stackTrace: st),
+      );
     } on Object catch (e, st) {
       return Err(DatabaseError('Restore failed: $e', cause: e, stackTrace: st));
     }

@@ -48,8 +48,9 @@ class SearchQueryNotifier extends Notifier<String> {
 }
 
 /// Provider for the current search text. Empty string = no filter.
-final regionSearchQueryProvider =
-    NotifierProvider<SearchQueryNotifier, String>(SearchQueryNotifier.new);
+final regionSearchQueryProvider = NotifierProvider<SearchQueryNotifier, String>(
+  SearchQueryNotifier.new,
+);
 
 // ---------------------------------------------------------------------------
 // Browser list providers
@@ -59,8 +60,7 @@ final regionSearchQueryProvider =
 /// the Drift `.watch()` in its own StreamProvider (rather than `yield*`-ing it
 /// from an `async*` body) mirrors the proven `coveragePathsProvider` pattern
 /// and keeps the join provider below simple + synchronous per emit.
-final _coverageRowsProvider =
-    StreamProvider<List<CoverageCacheData>>((ref) {
+final _coverageRowsProvider = StreamProvider<List<CoverageCacheData>>((ref) {
   return ref.watch(coverageCacheDaoProvider).watchAllWithCoverage();
 });
 
@@ -77,12 +77,15 @@ final _coverageRowsProvider =
 ///
 /// The one-time `ensureLoaded()` is awaited before the first emit;
 /// `regionByOsmId` is synchronous, so each emit maps synchronously.
-final regionBrowserProvider =
-    StreamProvider<List<RegionCoverage>>((ref) async* {
+final regionBrowserProvider = StreamProvider<List<RegionCoverage>>((
+  ref,
+) async* {
   final lookup = ref.watch(adminRegionLookupProvider);
   await lookup.ensureLoaded(); // main isolate — RESEARCH Pitfall 1
   final rows = ref.watch(_coverageRowsProvider).value;
-  yield rows == null ? const <RegionCoverage>[] : _buildRegionList(rows, lookup);
+  yield rows == null
+      ? const <RegionCoverage>[]
+      : _buildRegionList(rows, lookup);
 });
 
 /// Joins raw `coverage_cache` rows with admin geometry into the sorted
@@ -125,7 +128,8 @@ List<RegionCoverage> _buildRegionList(
 ///   starts-with match ranks above contains-anywhere; empty query = full list.
 /// Each sub-list is already %-descending from [regionBrowserProvider].
 final regionBrowserFilteredProvider = Provider<List<RegionCoverage>>((ref) {
-  final all = ref.watch(regionBrowserProvider).value ?? const <RegionCoverage>[];
+  final all =
+      ref.watch(regionBrowserProvider).value ?? const <RegionCoverage>[];
   final q = ref.watch(regionSearchQueryProvider).trim().toLowerCase();
   if (q.isEmpty) return all;
   final starts = <RegionCoverage>[];

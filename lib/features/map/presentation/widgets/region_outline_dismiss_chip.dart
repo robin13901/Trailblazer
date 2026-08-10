@@ -42,8 +42,9 @@ class RegionOutlineDismissChip extends ConsumerWidget {
               const SizedBox(width: 6),
               Text(
                 'Umriss ausblenden',
-                style: theme.textTheme.bodyMedium
-                    ?.copyWith(fontWeight: FontWeight.w600),
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ],
           ),

@@ -17,7 +17,6 @@ class RegionSheetOpenNotifier extends Notifier<bool> {
   set isOpen(bool open) => state = open;
 }
 
-final regionSheetOpenProvider =
-    NotifierProvider<RegionSheetOpenNotifier, bool>(
+final regionSheetOpenProvider = NotifierProvider<RegionSheetOpenNotifier, bool>(
   RegionSheetOpenNotifier.new,
 );

@@ -39,46 +39,48 @@ class FgbBackgroundGeolocationFacade implements BackgroundGeolocationFacade {
   Future<void> ready() async {
     if (_ready) return;
     try {
-      await bg.BackgroundGeolocation.ready(bg.Config(
-        // Accuracy & fix rate
-        desiredAccuracy: bg.Config.DESIRED_ACCURACY_HIGH,
-        distanceFilter: 0,
-        locationUpdateInterval: 1000,
-        fastestLocationUpdateInterval: 1000,
-        // Lifecycle — Plan 06-08: manual-only recording. FGB is started only
-        // for the duration of a manual trip and stopped on stopActive(), so
-        // there is no idle foreground-service notification and no motion-wake
-        // when the user is not recording.
-        //   stopOnTerminate: true  → the service does not survive app kill
-        //                            (no resurrection to record silently).
-        //   startOnBoot: false     → the service does not auto-start on device
-        //                            boot / motion (no spurious walk trips).
-        //   enableHeadless: false  → headless was only needed for auto-wake;
-        //                            manual trips run with the app alive.
-        stopOnTerminate: true,
-        startOnBoot: false,
-        enableHeadless: false,
-        // Android FGS notification (iOS shows the blue location bar; text is
-        // not customisable on iOS — this config is Android-only in effect)
-        notification: bg.Notification(
-          title: 'OKF Buddy',
-          text: 'Aufnahme · 00:00 · 0,0 km · — km/h',
-          channelName: 'Fahrtaufzeichnung',
-          channelId: 'trailblazer.tracking',
-          priority: bg.NotificationPriority.low,
-          smallIcon: 'mipmap/ic_launcher',
-          sticky: true,
+      await bg.BackgroundGeolocation.ready(
+        bg.Config(
+          // Accuracy & fix rate
+          desiredAccuracy: bg.Config.DESIRED_ACCURACY_HIGH,
+          distanceFilter: 0,
+          locationUpdateInterval: 1000,
+          fastestLocationUpdateInterval: 1000,
+          // Lifecycle — Plan 06-08: manual-only recording. FGB is started only
+          // for the duration of a manual trip and stopped on stopActive(), so
+          // there is no idle foreground-service notification and no motion-wake
+          // when the user is not recording.
+          //   stopOnTerminate: true  → the service does not survive app kill
+          //                            (no resurrection to record silently).
+          //   startOnBoot: false     → the service does not auto-start on device
+          //                            boot / motion (no spurious walk trips).
+          //   enableHeadless: false  → headless was only needed for auto-wake;
+          //                            manual trips run with the app alive.
+          stopOnTerminate: true,
+          startOnBoot: false,
+          enableHeadless: false,
+          // Android FGS notification (iOS shows the blue location bar; text is
+          // not customisable on iOS — this config is Android-only in effect)
+          notification: bg.Notification(
+            title: 'OKF Buddy',
+            text: 'Aufnahme · 00:00 · 0,0 km · — km/h',
+            channelName: 'Fahrtaufzeichnung',
+            channelId: 'trailblazer.tracking',
+            priority: bg.NotificationPriority.low,
+            smallIcon: 'mipmap/ic_launcher',
+            sticky: true,
+          ),
+          // iOS: show the blue background-location indicator bar
+          showsBackgroundLocationIndicator: true,
+          pausesLocationUpdatesAutomatically: false,
+          // Logging
+          // NOTE: FGB's `debug: true` plays audible diagnostic tones on every
+          // location fix, motion change, and activity change. Off unconditionally
+          // — the HUD (Plan 3.1-01) is the visual replacement.
+          debug: false,
+          logLevel: bg.Config.LOG_LEVEL_VERBOSE,
         ),
-        // iOS: show the blue background-location indicator bar
-        showsBackgroundLocationIndicator: true,
-        pausesLocationUpdatesAutomatically: false,
-        // Logging
-        // NOTE: FGB's `debug: true` plays audible diagnostic tones on every
-        // location fix, motion change, and activity change. Off unconditionally
-        // — the HUD (Plan 3.1-01) is the visual replacement.
-        debug: false,
-        logLevel: bg.Config.LOG_LEVEL_VERBOSE,
-      ));
+      );
 
       bg.BackgroundGeolocation.onLocation(
         (loc) {
@@ -90,17 +92,21 @@ class FgbBackgroundGeolocationFacade implements BackgroundGeolocationFacade {
         (_) {},
       );
       bg.BackgroundGeolocation.onMotionChange((loc) {
-        _motions.add(MotionChange(
-          isMoving: loc.isMoving,
-          ts: _parseTimestamp(loc.timestamp),
-        ));
+        _motions.add(
+          MotionChange(
+            isMoving: loc.isMoving,
+            ts: _parseTimestamp(loc.timestamp),
+          ),
+        );
       });
       bg.BackgroundGeolocation.onActivityChange((e) {
-        _activities.add(ActivityChange(
-          activityType: e.activity,
-          confidence: e.confidence,
-          ts: DateTime.now(),
-        ));
+        _activities.add(
+          ActivityChange(
+            activityType: e.activity,
+            confidence: e.confidence,
+            ts: DateTime.now(),
+          ),
+        );
       });
       _ready = true;
       _readyOutcome = const FacadeReadySuccess();
@@ -125,10 +131,9 @@ class FgbBackgroundGeolocationFacade implements BackgroundGeolocationFacade {
       // (e.g. while stationary) — map any negative/out-of-range value to
       // null so TrackingService can fall back to the computed motion-vector
       // bearing (Plan 06-07).
-      headingDegrees:
-          loc.coords.heading >= 0 && loc.coords.heading <= 360
-              ? loc.coords.heading
-              : null,
+      headingDegrees: loc.coords.heading >= 0 && loc.coords.heading <= 360
+          ? loc.coords.heading
+          : null,
       altitudeMeters: loc.coords.altitude,
       activityType: loc.activity.type,
       uuid: loc.uuid,
@@ -161,9 +166,11 @@ class FgbBackgroundGeolocationFacade implements BackgroundGeolocationFacade {
 
   @override
   Future<void> setNotificationText(String text) async {
-    await bg.BackgroundGeolocation.setConfig(bg.Config(
-      notification: bg.Notification(title: 'OKF Buddy', text: text),
-    ));
+    await bg.BackgroundGeolocation.setConfig(
+      bg.Config(
+        notification: bg.Notification(title: 'OKF Buddy', text: text),
+      ),
+    );
   }
 
   @override

@@ -14,15 +14,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 AdminRegion _region() => const AdminRegion(
-      osmId: 1,
-      adminLevel: 8,
-      name: 'Test',
-      bboxMinLat: 48,
-      bboxMinLon: 11,
-      bboxMaxLat: 49,
-      bboxMaxLon: 12,
-      polygons: [],
-    );
+  osmId: 1,
+  adminLevel: 8,
+  name: 'Test',
+  bboxMinLat: 48,
+  bboxMinLon: 11,
+  bboxMaxLat: 49,
+  bboxMaxLon: 12,
+  polygons: [],
+);
 
 Future<void> _pump(WidgetTester tester) async {
   await tester.pumpWidget(
@@ -35,8 +35,8 @@ Future<void> _pump(WidgetTester tester) async {
 }
 
 ProviderContainer _container(WidgetTester tester) => ProviderScope.containerOf(
-      tester.element(find.byType(RegionOutlineDismissChip)),
-    );
+  tester.element(find.byType(RegionOutlineDismissChip)),
+);
 
 void main() {
   setUp(() {

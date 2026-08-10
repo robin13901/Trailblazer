@@ -248,7 +248,9 @@ class AppPrefs {
   /// when no value has been persisted yet.
   Future<CoverageColorPreset> getCoveragePreset() async {
     final s = await _prefs.getString(kCoveragePreset);
-    return s == null ? CoverageColorPreset.amber : CoverageColorPreset.fromString(s);
+    return s == null
+        ? CoverageColorPreset.amber
+        : CoverageColorPreset.fromString(s);
   }
 
   /// Persists [p] as the user-chosen coverage color preset.

@@ -87,8 +87,11 @@ void main() {
 
     test('result is never empty (pill never blank)', () {
       for (final zoom in [0.0, 3.0, 6.0, 9.0, 11.0, 13.0, 15.0, 20.0]) {
-        expect(fallbackLevelsFrom(zoom), isNotEmpty,
-            reason: 'zoom $zoom produced empty fallback list');
+        expect(
+          fallbackLevelsFrom(zoom),
+          isNotEmpty,
+          reason: 'zoom $zoom produced empty fallback list',
+        );
       }
     });
   });

@@ -12,30 +12,28 @@ List<List<double>> _square({
   required double minLon,
   required double maxLat,
   required double maxLon,
-}) =>
-    [
-      [minLat, minLon],
-      [minLat, maxLon],
-      [maxLat, maxLon],
-      [maxLat, minLon],
-      [minLat, minLon],
-    ];
+}) => [
+  [minLat, minLon],
+  [minLat, maxLon],
+  [maxLat, maxLon],
+  [maxLat, minLon],
+  [minLat, minLon],
+];
 
 AdminRegion _region({
   required List<List<List<List<double>>>> polygons,
   int osmId = 111,
   int level = 8,
-}) =>
-    AdminRegion(
-      osmId: osmId,
-      adminLevel: level,
-      name: 'Test',
-      bboxMinLat: 0,
-      bboxMinLon: 0,
-      bboxMaxLat: 1,
-      bboxMaxLon: 1,
-      polygons: polygons,
-    );
+}) => AdminRegion(
+  osmId: osmId,
+  adminLevel: level,
+  name: 'Test',
+  bboxMinLat: 0,
+  bboxMinLon: 0,
+  bboxMaxLat: 1,
+  bboxMaxLon: 1,
+  polygons: polygons,
+);
 
 void main() {
   group('buildRegionOutlineFeature', () {
@@ -146,7 +144,8 @@ void main() {
         ],
       );
       final props =
-          buildRegionOutlineFeature(region)['properties'] as Map<String, dynamic>;
+          buildRegionOutlineFeature(region)['properties']
+              as Map<String, dynamic>;
       expect(props['osm_id'], equals(987654));
     });
   });

@@ -86,10 +86,8 @@ void main() {
       overrides: [
         appDatabaseProvider.overrideWithValue(db),
         backgroundGeolocationFacadeProvider.overrideWithValue(fakeFacade),
-        wayCandidateSourceProvider
-            .overrideWithValue(_NoopWayCandidateSource()),
-        connectivitySeamProvider
-            .overrideWithValue(_AlwaysOnlineConnectivity()),
+        wayCandidateSourceProvider.overrideWithValue(_NoopWayCandidateSource()),
+        connectivitySeamProvider.overrideWithValue(_AlwaysOnlineConnectivity()),
       ],
     );
   });
@@ -106,21 +104,22 @@ void main() {
       expect(state, isA<TrackingIdle>());
     });
 
-    test('startManual() → state TrackingRecording, facade.moving == true',
-        () async {
-      final state = container.read(trackingStateProvider);
-      expect(state, isA<TrackingIdle>());
-
-      await container.read(trackingStateProvider.notifier).startManual();
-      // Allow stream to propagate.
-      await Future<void>.delayed(const Duration(milliseconds: 10));
-
-      expect(container.read(trackingStateProvider), isA<TrackingRecording>());
-      expect(fakeFacade.moving, isTrue);
-    });
-
     test(
-        'stopActive() on empty trip (no fixes) → '
+      'startManual() → state TrackingRecording, facade.moving == true',
+      () async {
+        final state = container.read(trackingStateProvider);
+        expect(state, isA<TrackingIdle>());
+
+        await container.read(trackingStateProvider.notifier).startManual();
+        // Allow stream to propagate.
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+
+        expect(container.read(trackingStateProvider), isA<TrackingRecording>());
+        expect(fakeFacade.moving, isTrue);
+      },
+    );
+
+    test('stopActive() on empty trip (no fixes) → '
         'state Idle, trips table empty (deleted)', () async {
       await container.read(trackingStateProvider.notifier).startManual();
       await Future<void>.delayed(const Duration(milliseconds: 10));
@@ -136,8 +135,7 @@ void main() {
       expect(tripRows, isEmpty);
     });
 
-    test(
-        'stopActive() after 65 fixes → '
+    test('stopActive() after 65 fixes → '
         'state Idle, trips table has 1 row with status=matched', () async {
       await container.read(trackingStateProvider.notifier).startManual();
       await Future<void>.delayed(const Duration(milliseconds: 10));

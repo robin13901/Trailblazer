@@ -24,8 +24,7 @@ class TrackingDurationTicker extends StatefulWidget {
   final Widget Function(BuildContext context, DateTime now) builder;
 
   @override
-  State<TrackingDurationTicker> createState() =>
-      _TrackingDurationTickerState();
+  State<TrackingDurationTicker> createState() => _TrackingDurationTickerState();
 }
 
 class _TrackingDurationTickerState extends State<TrackingDurationTicker> {

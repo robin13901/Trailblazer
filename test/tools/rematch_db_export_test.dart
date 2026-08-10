@@ -43,7 +43,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:maplibre_gl/maplibre_gl.dart' show LatLng;
 import 'package:sqlite3/sqlite3.dart';
 
-final String _exportPath = Platform.environment['TRAILBLAZER_EXPORT'] ??
+final String _exportPath =
+    Platform.environment['TRAILBLAZER_EXPORT'] ??
     r'C:\tmp\trailblazer_live.trailblazer';
 const _outDir = r'C:\tmp\rematch_out';
 
@@ -135,8 +136,8 @@ void main() {
           GpsFix(
             lat: p['lat'] as double,
             lon: p['lon'] as double,
-            accuracyMeters: (p['accuracy_meters'] as num?)?.toDouble() ??
-                double.nan,
+            accuracyMeters:
+                (p['accuracy_meters'] as num?)?.toDouble() ?? double.nan,
             speedKmh: (p['speed_kmh'] as num?)?.toDouble() ?? 0.0,
             ts: DateTime.fromMillisecondsSinceEpoch(
               (p['ts'] as int) * 1000,
@@ -173,10 +174,12 @@ void main() {
         }
       }
 
-      print('trip $tripId: ${fixes.length} fixes → '
-          '${result.intervals.length} intervals, '
-          '${result.matchedFixCount} matched / ${result.droppedFixCount} '
-          'dropped; before=${before.length} segs, after=${after.length} segs');
+      print(
+        'trip $tripId: ${fixes.length} fixes → '
+        '${result.intervals.length} intervals, '
+        '${result.matchedFixCount} matched / ${result.droppedFixCount} '
+        'dropped; before=${before.length} segs, after=${after.length} segs',
+      );
 
       allBefore.addAll(before);
       // Accumulate the cross-trip union so the overview AFTER can be rendered
@@ -200,8 +203,11 @@ void main() {
     }
 
     // Combined overview across all trips.
-    await _renderPolylines('$_outDir/overview_before.png', allBefore,
-        const Color(0xFFFFA500));
+    await _renderPolylines(
+      '$_outDir/overview_before.png',
+      allBefore,
+      const Color(0xFFFFA500),
+    );
 
     // AFTER overview via the REAL production render (clipDrivenWays): cross-trip
     // union per wayId → thorn-drop + connector-close + node-stitch. This is
@@ -224,8 +230,11 @@ void main() {
       nodesByWayId: prodNodes,
     );
     final prodAfter = [for (final c in prodRendered) c.geometry];
-    await _renderPolylines('$_outDir/overview_after.png', prodAfter,
-        const Color(0xFFFFA500));
+    await _renderPolylines(
+      '$_outDir/overview_after.png',
+      prodAfter,
+      const Color(0xFFFFA500),
+    );
 
     // Auto-locate the worst BEFORE artifacts (sharp direction reversals — the
     // triangle/fan/spur signature) and render tight before/after crops there,
@@ -300,8 +309,10 @@ void main() {
     }
 
     print('Wrote PNGs to $_outDir (${hotspots.length} zoom hotspots)');
-    expect(Directory(_outDir).listSync().whereType<File>().length,
-        greaterThan(0));
+    expect(
+      Directory(_outDir).listSync().whereType<File>().length,
+      greaterThan(0),
+    );
   });
 }
 
@@ -358,7 +369,8 @@ Future<void> _renderPolylines(
     ..strokeJoin = StrokeJoin.round;
 
   for (final seg in segments) {
-    final pathObj = Path()..moveTo(project(seg.first).dx, project(seg.first).dy);
+    final pathObj = Path()
+      ..moveTo(project(seg.first).dx, project(seg.first).dy);
     for (var i = 1; i < seg.length; i++) {
       final o = project(seg[i]);
       pathObj.lineTo(o.dx, o.dy);
@@ -398,10 +410,14 @@ List<LatLng> _findSpikes(List<List<LatLng>> segments, {int maxSpots = 4}) {
   for (final s in scored) {
     if (out.length >= maxSpots) break;
     // Keep hotspots spatially separated (~200 m).
-    final tooClose = out.any((o) =>
-        _hyp((o.longitude - s.$2.longitude) * 73000,
-            (o.latitude - s.$2.latitude) * 111320) <
-        200);
+    final tooClose = out.any(
+      (o) =>
+          _hyp(
+            (o.longitude - s.$2.longitude) * 73000,
+            (o.latitude - s.$2.latitude) * 111320,
+          ) <
+          200,
+    );
     if (!tooClose) out.add(s.$2);
   }
   return out;
@@ -496,4 +512,3 @@ Future<void> _renderWindow(
 }
 
 double _cosDeg(double deg) => math.cos(deg * math.pi / 180.0);
-

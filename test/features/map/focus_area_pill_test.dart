@@ -36,8 +36,9 @@ Future<void> _pumpPill(
         // Not computing → normal (non-pulsing) border; avoids the real inbox
         // repo/DB (#8 wiring watches inFlightCount + preset).
         inFlightCountProvider.overrideWith((ref) => Stream.value(0)),
-        coveragePresetValueProvider
-            .overrideWithValue(CoverageColorPreset.amber),
+        coveragePresetValueProvider.overrideWithValue(
+          CoverageColorPreset.amber,
+        ),
       ],
       child: const MaterialApp(
         home: Scaffold(

@@ -299,7 +299,9 @@ class MapScreen extends ConsumerWidget {
                   : _chromeRowTopInset + 56 + _chromeGap,
               left: 0,
               right: 0,
-              child: const SafeArea(child: Center(child: TripPathDismissChip())),
+              child: const SafeArea(
+                child: Center(child: TripPathDismissChip()),
+              ),
             ),
 
             // Top-right glass align-north button — mirrors the top-left
@@ -483,9 +485,7 @@ class _RecenterOrEmpty extends ConsumerWidget {
       // so it does not flicker: it shows exactly when follow != locationAndHeading.
       final headingUpActive =
           cameraState.followMode == FollowMode.locationAndHeading;
-      return headingUpActive
-          ? const SizedBox.shrink()
-          : const RecenterButton();
+      return headingUpActive ? const SizedBox.shrink() : const RecenterButton();
     }
 
     // Not recording: keep the existing behavior — hide while passively

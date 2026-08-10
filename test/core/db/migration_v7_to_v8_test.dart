@@ -43,38 +43,40 @@ void main() {
       expect(tables, hasLength(1));
     });
 
-    test('preserves existing trip_points and defaults heading to null',
-        () async {
-      // Seed at v7 via the raw schema DB so the insert does not open
-      // AppDatabase and prematurely run the v8 migration.
-      final schema = await verifier.schemaAt(7);
+    test(
+      'preserves existing trip_points and defaults heading to null',
+      () async {
+        // Seed at v7 via the raw schema DB so the insert does not open
+        // AppDatabase and prematurely run the v8 migration.
+        final schema = await verifier.schemaAt(7);
 
-      schema.rawDatabase.execute(
-        'INSERT INTO trips (id, started_at, status) '
-        "VALUES (1, 1000, 'confirmed')",
-      );
-      schema.rawDatabase.execute(
-        'INSERT INTO trip_points (trip_id, seq, ts, lat, lon, speed_kmh) '
-        'VALUES (1, 0, 1000, 49.700, 9.000, 42.0)',
-      );
+        schema.rawDatabase.execute(
+          'INSERT INTO trips (id, started_at, status) '
+          "VALUES (1, 1000, 'confirmed')",
+        );
+        schema.rawDatabase.execute(
+          'INSERT INTO trip_points (trip_id, seq, ts, lat, lon, speed_kmh) '
+          'VALUES (1, 0, 1000, 49.700, 9.000, 42.0)',
+        );
 
-      final db = AppDatabase(schema.newConnection());
-      addTearDown(db.close);
+        final db = AppDatabase(schema.newConnection());
+        addTearDown(db.close);
 
-      await verifier.migrateAndValidate(db, 8);
+        await verifier.migrateAndValidate(db, 8);
 
-      final rows = await db
-          .customSelect(
-            'SELECT lat, lon, speed_kmh, heading FROM trip_points',
-          )
-          .get();
-      expect(rows, hasLength(1));
-      // Pre-existing data survives.
-      expect(rows[0].read<double>('lat'), 49.700);
-      expect(rows[0].read<double>('lon'), 9.000);
-      expect(rows[0].read<double>('speed_kmh'), 42.0);
-      // New column is null on historical rows.
-      expect(rows[0].read<double?>('heading'), isNull);
-    });
+        final rows = await db
+            .customSelect(
+              'SELECT lat, lon, speed_kmh, heading FROM trip_points',
+            )
+            .get();
+        expect(rows, hasLength(1));
+        // Pre-existing data survives.
+        expect(rows[0].read<double>('lat'), 49.700);
+        expect(rows[0].read<double>('lon'), 9.000);
+        expect(rows[0].read<double>('speed_kmh'), 42.0);
+        // New column is null on historical rows.
+        expect(rows[0].read<double?>('heading'), isNull);
+      },
+    );
   });
 }

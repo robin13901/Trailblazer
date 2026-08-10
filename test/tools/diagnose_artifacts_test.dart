@@ -37,7 +37,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:maplibre_gl/maplibre_gl.dart' show LatLng;
 import 'package:sqlite3/sqlite3.dart';
 
-final String _exportPath = Platform.environment['TRAILBLAZER_EXPORT'] ??
+final String _exportPath =
+    Platform.environment['TRAILBLAZER_EXPORT'] ??
     r'C:\tmp\trailblazer_live.trailblazer';
 
 void main() {
@@ -94,8 +95,10 @@ void main() {
             accuracyMeters:
                 (p['accuracy_meters'] as num?)?.toDouble() ?? double.nan,
             speedKmh: (p['speed_kmh'] as num?)?.toDouble() ?? 0.0,
-            ts: DateTime.fromMillisecondsSinceEpoch((p['ts'] as int) * 1000,
-                isUtc: true),
+            ts: DateTime.fromMillisecondsSinceEpoch(
+              (p['ts'] as int) * 1000,
+              isUtc: true,
+            ),
           ),
       ];
       final ways = parseAndFilterTiles(
@@ -127,9 +130,11 @@ void main() {
       final spansMostOfWay = pct > 80 && fullM > 60;
       final oneInterval = union.length == 1;
       final flag = (spansMostOfWay && oneInterval) ? '  <-- full-span' : '';
-      print('${entry.key} | ${way.highwayClass} | '
-          '${drivenM.toStringAsFixed(0)} / ${fullM.toStringAsFixed(0)} '
-          '(${pct.toStringAsFixed(0)}%) | ${way.name ?? "-"}$flag');
+      print(
+        '${entry.key} | ${way.highwayClass} | '
+        '${drivenM.toStringAsFixed(0)} / ${fullM.toStringAsFixed(0)} '
+        '(${pct.toStringAsFixed(0)}%) | ${way.name ?? "-"}$flag',
+      );
       if (flag.isNotEmpty) {
         flagged.add('${entry.key} (${way.highwayClass}, ${way.name ?? "-"})');
       }
@@ -171,7 +176,9 @@ void main() {
     //  (2) per driven way, which endpoint nodes are shared with ANOTHER driven
     //      way (bridging) vs shared with none (dangling leaf)?
     //  (3) confirm start node = 0m, end node = fullLength.
-    print('\n===== NODE-GRAPH FEASIBILITY: driven-way nodeId availability =====');
+    print(
+      '\n===== NODE-GRAPH FEASIBILITY: driven-way nodeId availability =====',
+    );
     final drivenWayIds = unionByWay.keys.toSet();
     var withIds = 0;
     var withoutIds = 0;
@@ -187,8 +194,10 @@ void main() {
         withIds++;
       }
     }
-    print('driven ways: ${drivenWayIds.length} | with nodeIds(len==geom): '
-        '$withIds | empty nodeIds: $withoutIds | len-mismatch: $idLenMismatch');
+    print(
+      'driven ways: ${drivenWayIds.length} | with nodeIds(len==geom): '
+      '$withIds | empty nodeIds: $withoutIds | len-mismatch: $idLenMismatch',
+    );
 
     // Build node -> set of DRIVEN wayIds that list that node (endpoints ONLY,
     // i.e. first & last node id — that is all the resolver needs to stitch).
@@ -207,9 +216,13 @@ void main() {
       }
     }
 
-    print('\n===== NODE-GRAPH FEASIBILITY: per-driven-way endpoint topology ===');
-    print('wayId | name | startNode shared? | endNode shared? '
-        '| fullM | classification');
+    print(
+      '\n===== NODE-GRAPH FEASIBILITY: per-driven-way endpoint topology ===',
+    );
+    print(
+      'wayId | name | startNode shared? | endNode shared? '
+      '| fullM | classification',
+    );
     var bridging = 0;
     var danglingBoth = 0;
     var danglingOne = 0;
@@ -223,12 +236,12 @@ void main() {
       // OR the endpoint node lies mid-way on another driven way (endpoint->mid).
       final startEndpointShared =
           (endpointNodeToDrivenWays[startId]?.difference({wid}).isNotEmpty) ??
-              false;
+          false;
       final startMidShared =
           (anyNodeToDrivenWays[startId]?.difference({wid}).isNotEmpty) ?? false;
       final endEndpointShared =
           (endpointNodeToDrivenWays[endId]?.difference({wid}).isNotEmpty) ??
-              false;
+          false;
       final endMidShared =
           (anyNodeToDrivenWays[endId]?.difference({wid}).isNotEmpty) ?? false;
       final startShared = startEndpointShared || startMidShared;
@@ -245,25 +258,33 @@ void main() {
         cls = 'LEAF(one end dangling)';
         danglingOne++;
       }
-      print('$wid | ${w.name ?? "-"} | start=$startShared | end=$endShared '
-          '| ${fullM.toStringAsFixed(0)}m | $cls');
+      print(
+        '$wid | ${w.name ?? "-"} | start=$startShared | end=$endShared '
+        '| ${fullM.toStringAsFixed(0)}m | $cls',
+      );
     }
-    print('summary: bridging=$bridging leaf-one-dangling=$danglingOne '
-        'isolated=$danglingBoth');
+    print(
+      'summary: bridging=$bridging leaf-one-dangling=$danglingOne '
+      'isolated=$danglingBoth',
+    );
 
     // (3) Confirm the endpoint-meter mapping the resolver relies on: a way's
     //     FIRST node id corresponds to 0m and its LAST node id to fullLength.
     //     _metersFromWayStart accumulates from geometry[0]; interval start/end
     //     are meters from geometry[0]. So start node = 0, end node = full.
-    print('\n===== NODE-GRAPH FEASIBILITY: endpoint-meter sanity (first 5) ====');
+    print(
+      '\n===== NODE-GRAPH FEASIBILITY: endpoint-meter sanity (first 5) ====',
+    );
     var shown = 0;
     for (final wid in drivenWayIds) {
       final w = allWaysById[wid];
       if (w == null || w.geometry.length < 2) continue;
       final fullM = _fullLen(w.geometry);
-      print('$wid: firstNode=${w.nodeIds.isNotEmpty ? w.nodeIds.first : "-"}'
-          ' -> 0.0m | lastNode=${w.nodeIds.isNotEmpty ? w.nodeIds.last : "-"}'
-          ' -> ${fullM.toStringAsFixed(1)}m (geom pts=${w.geometry.length})');
+      print(
+        '$wid: firstNode=${w.nodeIds.isNotEmpty ? w.nodeIds.first : "-"}'
+        ' -> 0.0m | lastNode=${w.nodeIds.isNotEmpty ? w.nodeIds.last : "-"}'
+        ' -> ${fullM.toStringAsFixed(1)}m (geom pts=${w.geometry.length})',
+      );
       if (++shown >= 5) break;
     }
 
@@ -279,17 +300,21 @@ void main() {
       if (drivenM >= 25) continue;
       final union = unionIntervals(entry.value);
       final fullM = _fullLen(w.geometry);
-      print('  ${entry.key} | ${w.highwayClass} | ${w.name ?? "-"} | '
-          'drivenM=${drivenM.toStringAsFixed(1)} fullM=${fullM.toStringAsFixed(0)} '
-          '| intervals=${union.map((i) => "[${i.startMeters.toStringAsFixed(0)}"
-              "..${i.endMeters.toStringAsFixed(0)}]").join(",")}');
+      print(
+        '  ${entry.key} | ${w.highwayClass} | ${w.name ?? "-"} | '
+        'drivenM=${drivenM.toStringAsFixed(1)} fullM=${fullM.toStringAsFixed(0)} '
+        '| intervals=${union.map((i) => "[${i.startMeters.toStringAsFixed(0)}"
+            "..${i.endMeters.toStringAsFixed(0)}]").join(",")}',
+      );
     }
 
     // Over-draw detector: a way painted ≥80% whose MIDPOINT is far (>30 m) from
     // every raw GPS fix was not actually driven through its middle — it was
     // extended (connector full-span) or matched off a tangential pass.
-    print('\n===== OVER-DRAW candidates (painted ≥80%, midpoint >30m from any '
-        'raw fix) =====');
+    print(
+      '\n===== OVER-DRAW candidates (painted ≥80%, midpoint >30m from any '
+      'raw fix) =====',
+    );
     for (final entry in unionByWay.entries) {
       final way = allWaysById[entry.key];
       if (way == null || way.geometry.length < 2) continue;
@@ -300,16 +325,20 @@ void main() {
       var minD = double.infinity;
       for (final fp in allFixPts) {
         final d = segmentLengthMeters(
-          aLat: mid.latitude, aLon: mid.longitude,
-          bLat: fp.latitude, bLon: fp.longitude,
+          aLat: mid.latitude,
+          aLon: mid.longitude,
+          bLat: fp.latitude,
+          bLon: fp.longitude,
         );
         if (d < minD) minD = d;
         if (minD < 5) break;
       }
       if (minD > 30) {
-        print('  ${entry.key} | ${way.highwayClass} | ${way.name ?? "-"} | '
-            '${drivenM.toStringAsFixed(0)}/${fullM.toStringAsFixed(0)}m | '
-            'midpoint ${minD.toStringAsFixed(0)}m from nearest raw fix');
+        print(
+          '  ${entry.key} | ${way.highwayClass} | ${way.name ?? "-"} | '
+          '${drivenM.toStringAsFixed(0)}/${fullM.toStringAsFixed(0)}m | '
+          'midpoint ${minD.toStringAsFixed(0)}m from nearest raw fix',
+        );
       }
     }
 
@@ -383,8 +412,11 @@ void main() {
     } else {
       for (final fp in allFixPts) {
         final d = segmentLengthMeters(
-            aLat: seedLat, aLon: seedLon,
-            bLat: fp.latitude, bLon: fp.longitude);
+          aLat: seedLat,
+          aLon: seedLon,
+          bLat: fp.latitude,
+          bLon: fp.longitude,
+        );
         if (d < dSeed) {
           dSeed = d;
           probeLat = fp.latitude;
@@ -393,16 +425,21 @@ void main() {
       }
     }
     const probeRadiusM = 200.0;
-    print('\n===== ROUNDABOUT PROBE @ ($probeLat,$probeLon) '
-        '(centered on Am Hundsrück way $kAmHundsruckWayId), '
-        'radius ${probeRadiusM.toStringAsFixed(0)}m =====');
+    print(
+      '\n===== ROUNDABOUT PROBE @ ($probeLat,$probeLon) '
+      '(centered on Am Hundsrück way $kAmHundsruckWayId), '
+      'radius ${probeRadiusM.toStringAsFixed(0)}m =====',
+    );
 
     double nearestFixTo(LatLng p) {
       var m = double.infinity;
       for (final fp in allFixPts) {
         final d = segmentLengthMeters(
-            aLat: p.latitude, aLon: p.longitude,
-            bLat: fp.latitude, bLon: fp.longitude);
+          aLat: p.latitude,
+          aLon: p.longitude,
+          bLat: fp.latitude,
+          bLon: fp.longitude,
+        );
         if (d < m) m = d;
       }
       return m;
@@ -410,11 +447,16 @@ void main() {
 
     final localWayIds = <int>[];
     for (final w in allWaysById.values) {
-      final near = w.geometry.any((p) =>
-          segmentLengthMeters(
-              aLat: p.latitude, aLon: p.longitude,
-              bLat: probeLat, bLon: probeLon) <=
-          probeRadiusM);
+      final near = w.geometry.any(
+        (p) =>
+            segmentLengthMeters(
+              aLat: p.latitude,
+              aLon: p.longitude,
+              bLat: probeLat,
+              bLon: probeLon,
+            ) <=
+            probeRadiusM,
+      );
       if (near) localWayIds.add(w.wayId);
     }
     localWayIds.sort();
@@ -424,8 +466,10 @@ void main() {
     final endNodeOf = <int, int>{};
     final startGapOf = <int, double>{}; // metres from way-start to first iv
     final endGapOf = <int, double>{}; // metres from last iv to way-end
-    print('wayId | painted | class | oneway | drivenM/fullM(%) | intervals | '
-        'startGap endGap | nearestFix(s/m/e) | isRoundabout | name');
+    print(
+      'wayId | painted | class | oneway | drivenM/fullM(%) | intervals | '
+      'startGap endGap | nearestFix(s/m/e) | isRoundabout | name',
+    );
     for (final id in localWayIds) {
       final way = allWaysById[id]!;
       final geom = way.geometry;
@@ -435,8 +479,9 @@ void main() {
       final drivenM = painted ? drivenLengthMeters(unionByWay[id]!) : 0.0;
       final pct = fullM > 0 ? drivenM / fullM * 100 : 0.0;
       final startGap = union.isEmpty ? double.nan : union.first.startMeters;
-      final endGap =
-          union.isEmpty ? double.nan : (fullM - union.last.endMeters);
+      final endGap = union.isEmpty
+          ? double.nan
+          : (fullM - union.last.endMeters);
       final hasIds = way.nodeIds.length == geom.length && geom.length >= 2;
       if (hasIds) {
         startNodeOf[id] = way.nodeIds.first;
@@ -452,22 +497,29 @@ void main() {
       final ivStr = union.isEmpty
           ? '-'
           : union
-              .map((iv) => '[${iv.startMeters.toStringAsFixed(0)}..'
-                  '${iv.endMeters.toStringAsFixed(0)}]')
-              .join(',');
-      print('$id | ${painted ? "YES" : "no "} | ${way.highwayClass} | '
-          '${way.oneway.name} | ${drivenM.toStringAsFixed(0)}/'
-          '${fullM.toStringAsFixed(0)}(${pct.toStringAsFixed(0)}%) | $ivStr | '
-          '${startGap.isNaN ? "-" : startGap.toStringAsFixed(0)} '
-          '${endGap.isNaN ? "-" : endGap.toStringAsFixed(0)} | '
-          '${nearestFixTo(geom.first).toStringAsFixed(0)}/'
-          '${nearestFixTo(geom[geom.length ~/ 2]).toStringAsFixed(0)}/'
-          '${nearestFixTo(geom.last).toStringAsFixed(0)} | '
-          '${closed ? "LOOP" : "-"} | ${way.name ?? "-"}');
+                .map(
+                  (iv) =>
+                      '[${iv.startMeters.toStringAsFixed(0)}..'
+                      '${iv.endMeters.toStringAsFixed(0)}]',
+                )
+                .join(',');
+      print(
+        '$id | ${painted ? "YES" : "no "} | ${way.highwayClass} | '
+        '${way.oneway.name} | ${drivenM.toStringAsFixed(0)}/'
+        '${fullM.toStringAsFixed(0)}(${pct.toStringAsFixed(0)}%) | $ivStr | '
+        '${startGap.isNaN ? "-" : startGap.toStringAsFixed(0)} '
+        '${endGap.isNaN ? "-" : endGap.toStringAsFixed(0)} | '
+        '${nearestFixTo(geom.first).toStringAsFixed(0)}/'
+        '${nearestFixTo(geom[geom.length ~/ 2]).toStringAsFixed(0)}/'
+        '${nearestFixTo(geom.last).toStringAsFixed(0)} | '
+        '${closed ? "LOOP" : "-"} | ${way.name ?? "-"}',
+      );
     }
 
     // (b) local ways with a raw fix <=20m but NOT painted (dropped by matcher).
-    print('\n----- (b) local ways driven-near (fix<=20m) but NOT painted -----');
+    print(
+      '\n----- (b) local ways driven-near (fix<=20m) but NOT painted -----',
+    );
     var droppedNear = 0;
     for (final id in localWayIds) {
       if (unionByWay.containsKey(id)) continue;
@@ -479,16 +531,20 @@ void main() {
       }
       if (minD <= 20) {
         droppedNear++;
-        print('  DROPPED $id | ${way.highwayClass} | ${way.oneway.name} | '
-            'fullM ${_fullLen(way.geometry).toStringAsFixed(0)} | '
-            'nearestFix ${minD.toStringAsFixed(0)}m | ${way.name ?? "-"}');
+        print(
+          '  DROPPED $id | ${way.highwayClass} | ${way.oneway.name} | '
+          'fullM ${_fullLen(way.geometry).toStringAsFixed(0)} | '
+          'nearestFix ${minD.toStringAsFixed(0)}m | ${way.name ?? "-"}',
+        );
       }
     }
     print('  (dropped-near count: $droppedNear)');
 
     // (a) painted neighbours sharing a node id, with the gap at the shared node.
-    print('\n----- (a) painted neighbours sharing an ENDPOINT node id; gap at '
-        'that node (own-way 20m snap cannot stitch across two ways) -----');
+    print(
+      '\n----- (a) painted neighbours sharing an ENDPOINT node id; gap at '
+      'that node (own-way 20m snap cannot stitch across two ways) -----',
+    );
     final paintedLocal = localWayIds.where(unionByWay.containsKey).toList();
     var stitchGaps = 0;
     for (var i = 0; i < paintedLocal.length; i++) {
@@ -498,13 +554,14 @@ void main() {
         final bS = startNodeOf[b], bE = endNodeOf[b];
         void consider(String lbl, int? an, double ag, int? bn, double bg) {
           if (an == null || bn == null || an != bn) return;
-          final worst =
-              [ag, bg].where((x) => !x.isNaN).fold(0.0, math.max);
+          final worst = [ag, bg].where((x) => !x.isNaN).fold(0.0, math.max);
           final flag = worst > 20 ? '  <-- GAP >20m (snap CANNOT close)' : '';
           if (worst > 20) stitchGaps++;
-          print('  node $an ($a.$lbl): gapA '
-              '${ag.isNaN ? "-" : ag.toStringAsFixed(0)}m gapB '
-              '${bg.isNaN ? "-" : bg.toStringAsFixed(0)}m$flag');
+          print(
+            '  node $an ($a.$lbl): gapA '
+            '${ag.isNaN ? "-" : ag.toStringAsFixed(0)}m gapB '
+            '${bg.isNaN ? "-" : bg.toStringAsFixed(0)}m$flag',
+          );
         }
 
         final aSG = startGapOf[a] ?? double.nan;
@@ -520,7 +577,9 @@ void main() {
     print('  (shared-node stitch gaps >20m: $stitchGaps)');
 
     // (c) resolver clip on local painted ways: does it drop segments?
-    print('\n----- (c) resolver clip (20m snap) output vs union, local ways ---');
+    print(
+      '\n----- (c) resolver clip (20m snap) output vs union, local ways ---',
+    );
     var clipDrops = 0;
     for (final id in paintedLocal) {
       final way = allWaysById[id]!;
@@ -528,10 +587,12 @@ void main() {
         final seg = _clip(way.geometry, iv.startMeters, iv.endMeters, 20);
         final drop = seg.length < 2;
         if (drop) clipDrops++;
-        print('  $id iv[${iv.startMeters.toStringAsFixed(0)}..'
-            '${iv.endMeters.toStringAsFixed(0)}] -> ${seg.length}pts, '
-            '${_fullLen(seg).toStringAsFixed(0)}m'
-            '${drop ? "  <-- DROPPED (<2pts)" : ""}');
+        print(
+          '  $id iv[${iv.startMeters.toStringAsFixed(0)}..'
+          '${iv.endMeters.toStringAsFixed(0)}] -> ${seg.length}pts, '
+          '${_fullLen(seg).toStringAsFixed(0)}m'
+          '${drop ? "  <-- DROPPED (<2pts)" : ""}',
+        );
       }
     }
     print('  (clip drops: $clipDrops)');
@@ -545,12 +606,20 @@ void main() {
     // parallel-Landstraße signature). This names the wayIds + oneway tags at
     // each spot for the baseline.
     // ========================================================================
-    void probeDefect(String label, double seedLat, double seedLon,
-        double radiusM) {
+    void probeDefect(
+      String label,
+      double seedLat,
+      double seedLon,
+      double radiusM,
+    ) {
       var pLat = seedLat, pLon = seedLon, dBest = double.infinity;
       for (final fp in allFixPts) {
         final d = segmentLengthMeters(
-            aLat: seedLat, aLon: seedLon, bLat: fp.latitude, bLon: fp.longitude);
+          aLat: seedLat,
+          aLon: seedLon,
+          bLat: fp.latitude,
+          bLon: fp.longitude,
+        );
         if (d < dBest) {
           dBest = d;
           pLat = fp.latitude;
@@ -561,8 +630,11 @@ void main() {
         var m = double.infinity;
         for (final fp in allFixPts) {
           final d = segmentLengthMeters(
-              aLat: p.latitude, aLon: p.longitude,
-              bLat: fp.latitude, bLon: fp.longitude);
+            aLat: p.latitude,
+            aLon: p.longitude,
+            bLat: fp.latitude,
+            bLon: fp.longitude,
+          );
           if (d < m) m = d;
         }
         return m;
@@ -570,18 +642,28 @@ void main() {
 
       final local = <int>[];
       for (final w in allWaysById.values) {
-        final near = w.geometry.any((p) =>
-            segmentLengthMeters(
-                aLat: p.latitude, aLon: p.longitude, bLat: pLat, bLon: pLon) <=
-            radiusM);
+        final near = w.geometry.any(
+          (p) =>
+              segmentLengthMeters(
+                aLat: p.latitude,
+                aLon: p.longitude,
+                bLat: pLat,
+                bLon: pLon,
+              ) <=
+              radiusM,
+        );
         if (near) local.add(w.wayId);
       }
       local.sort();
-      print('\n===== DEFECT PROBE $label @ ($pLat,$pLon) '
-          'snap=${dBest.toStringAsFixed(0)}m radius=${radiusM.toStringAsFixed(0)}m '
-          '(${local.length} local ways) =====');
-      print('wayId | painted | class | oneway | drivenM/fullM(%) | '
-          'nearestFix(start/mid/end) | ref/name');
+      print(
+        '\n===== DEFECT PROBE $label @ ($pLat,$pLon) '
+        'snap=${dBest.toStringAsFixed(0)}m radius=${radiusM.toStringAsFixed(0)}m '
+        '(${local.length} local ways) =====',
+      );
+      print(
+        'wayId | painted | class | oneway | drivenM/fullM(%) | '
+        'nearestFix(start/mid/end) | ref/name',
+      );
       for (final id in local) {
         final w = allWaysById[id]!;
         final geom = w.geometry;
@@ -589,16 +671,20 @@ void main() {
         final painted = unionByWay.containsKey(id);
         final drivenM = painted ? drivenLengthMeters(unionByWay[id]!) : 0.0;
         final pct = fullM > 0 ? drivenM / fullM * 100 : 0.0;
-        print('$id | ${painted ? "YES" : "no "} | ${w.highwayClass} | '
-            '${w.oneway.name} | ${drivenM.toStringAsFixed(0)}/'
-            '${fullM.toStringAsFixed(0)}(${pct.toStringAsFixed(0)}%) | '
-            '${nearestFix(geom.first).toStringAsFixed(0)}/'
-            '${nearestFix(geom[geom.length ~/ 2]).toStringAsFixed(0)}/'
-            '${nearestFix(geom.last).toStringAsFixed(0)} | ${w.name ?? "-"}');
+        print(
+          '$id | ${painted ? "YES" : "no "} | ${w.highwayClass} | '
+          '${w.oneway.name} | ${drivenM.toStringAsFixed(0)}/'
+          '${fullM.toStringAsFixed(0)}(${pct.toStringAsFixed(0)}%) | '
+          '${nearestFix(geom.first).toStringAsFixed(0)}/'
+          '${nearestFix(geom[geom.length ~/ 2]).toStringAsFixed(0)}/'
+          '${nearestFix(geom.last).toStringAsFixed(0)} | ${w.name ?? "-"}',
+        );
       }
       // Parallel-carriageway signature: a way driven-near (fix<=25m) but NOT
       // painted while a neighbour IS painted = the matched-wrong-lane defect.
-      print('  -- driven-near (fix<=25m) but NOT painted (wrong-lane cands) --');
+      print(
+        '  -- driven-near (fix<=25m) but NOT painted (wrong-lane cands) --',
+      );
       var dropped = 0;
       for (final id in local) {
         if (unionByWay.containsKey(id)) continue;
@@ -610,9 +696,11 @@ void main() {
         }
         if (minD <= 25) {
           dropped++;
-          print('    DROPPED $id | ${w.highwayClass} | ${w.oneway.name} | '
-              'fullM ${_fullLen(w.geometry).toStringAsFixed(0)} | '
-              'nearestFix ${minD.toStringAsFixed(0)}m | ${w.name ?? "-"}');
+          print(
+            '    DROPPED $id | ${w.highwayClass} | ${w.oneway.name} | '
+            'fullM ${_fullLen(w.geometry).toStringAsFixed(0)} | '
+            'nearestFix ${minD.toStringAsFixed(0)}m | ${w.name ?? "-"}',
+          );
         }
       }
       print('    (dropped-near count: $dropped)');
@@ -647,10 +735,14 @@ void main() {
     final renderedWayIds = rendered.map((c) => c.wayId).toSet();
 
     const namedThorns = [
-      948405611, 23216865, 25157794, 194941556, 109061179, 194941543,
+      948405611,
+      23216865,
+      25157794,
+      194941556,
+      109061179,
+      194941543,
     ];
-    final survivingThorns =
-        namedThorns.where(renderedWayIds.contains).toList();
+    final survivingThorns = namedThorns.where(renderedWayIds.contains).toList();
     print('named thorns still rendered: $survivingThorns (want [])');
 
     // Recompute the bridge classification to tell legit short bridging
@@ -658,7 +750,9 @@ void main() {
     final endpointNodes = <int, Set<int>>{};
     for (final wid in unionByWay.keys) {
       final w = allWaysById[wid];
-      if (w == null || w.nodeIds.length != w.geometry.length || w.nodeIds.isEmpty) {
+      if (w == null ||
+          w.nodeIds.length != w.geometry.length ||
+          w.nodeIds.isEmpty) {
         continue;
       }
       endpointNodes.putIfAbsent(w.nodeIds.first, () => {}).add(wid);
@@ -666,11 +760,15 @@ void main() {
     }
     bool bridgesNet(int wid) {
       final w = allWaysById[wid];
-      if (w == null || w.nodeIds.length != w.geometry.length || w.nodeIds.isEmpty) {
+      if (w == null ||
+          w.nodeIds.length != w.geometry.length ||
+          w.nodeIds.isEmpty) {
         return false;
       }
-      final a = endpointNodes[w.nodeIds.first]?.difference({wid}).isNotEmpty ?? false;
-      final b = endpointNodes[w.nodeIds.last]?.difference({wid}).isNotEmpty ?? false;
+      final a =
+          endpointNodes[w.nodeIds.first]?.difference({wid}).isNotEmpty ?? false;
+      final b =
+          endpointNodes[w.nodeIds.last]?.difference({wid}).isNotEmpty ?? false;
       return a && b;
     }
 
@@ -687,32 +785,43 @@ void main() {
         }
       }
     }
-    print('rendered segments <25m: bridging(kept, legit)=$shortBridge | '
-        'NON-bridging(potential thorns)=$shortNonBridge ids=$shortNonBridgeIds');
+    print(
+      'rendered segments <25m: bridging(kept, legit)=$shortBridge | '
+      'NON-bridging(potential thorns)=$shortNonBridge ids=$shortNonBridgeIds',
+    );
 
     // Roundabout connector 868553172 (73m tertiary_link): must bridge + draw.
     const connector = 868553172;
     final connGeom = geomById[connector];
     if (connGeom != null) {
-      final connRendered =
-          rendered.where((c) => c.wayId == connector).toList();
+      final connRendered = rendered.where((c) => c.wayId == connector).toList();
       final drawnLen = connRendered.fold<double>(
-          0, (a, c) => a + _fullLen(c.geometry));
-      print('connector $connector: rendered=${connRendered.isNotEmpty} '
-          'drawnLen=${drawnLen.toStringAsFixed(0)}m / '
-          'full=${_fullLen(connGeom).toStringAsFixed(0)}m');
+        0,
+        (a, c) => a + _fullLen(c.geometry),
+      );
+      print(
+        'connector $connector: rendered=${connRendered.isNotEmpty} '
+        'drawnLen=${drawnLen.toStringAsFixed(0)}m / '
+        'full=${_fullLen(connGeom).toStringAsFixed(0)}m',
+      );
     } else {
       print('connector $connector: not in driven set this run');
     }
-    print('total rendered segments: ${rendered.length} '
-        '(distinct ways: ${renderedWayIds.length})');
+    print(
+      'total rendered segments: ${rendered.length} '
+      '(distinct ways: ${renderedWayIds.length})',
+    );
   });
 }
 
 /// Local copy of reconstructWaySubsegment's clip so the diagnostic can measure
 /// the isolate output without importing render deps.
 List<LatLng> _clip(
-    List<LatLng> geometry, double startMeters, double endMeters, double snap) {
+  List<LatLng> geometry,
+  double startMeters,
+  double endMeters,
+  double snap,
+) {
   if (geometry.length < 2) return const [];
   var lo = math.min(startMeters, endMeters);
   var hi = math.max(startMeters, endMeters);
@@ -725,18 +834,30 @@ List<LatLng> _clip(
   var cumulative = 0.0;
   for (var i = 0; i < geometry.length - 1; i++) {
     final a = geometry[i], b = geometry[i + 1];
-    final segLen =
-        haversineMeters(a.latitude, a.longitude, b.latitude, b.longitude);
+    final segLen = haversineMeters(
+      a.latitude,
+      a.longitude,
+      b.latitude,
+      b.longitude,
+    );
     final segStart = cumulative, segEnd = cumulative + segLen;
     if (segLen > 0 && segEnd >= lo && segStart <= hi) {
       final tStart = ((lo - segStart) / segLen).clamp(0.0, 1.0);
       final tEnd = ((hi - segStart) / segLen).clamp(0.0, 1.0);
       if (result.isEmpty) {
-        result.add(LatLng(a.latitude + (b.latitude - a.latitude) * tStart,
-            a.longitude + (b.longitude - a.longitude) * tStart));
+        result.add(
+          LatLng(
+            a.latitude + (b.latitude - a.latitude) * tStart,
+            a.longitude + (b.longitude - a.longitude) * tStart,
+          ),
+        );
       }
-      result.add(LatLng(a.latitude + (b.latitude - a.latitude) * tEnd,
-          a.longitude + (b.longitude - a.longitude) * tEnd));
+      result.add(
+        LatLng(
+          a.latitude + (b.latitude - a.latitude) * tEnd,
+          a.longitude + (b.longitude - a.longitude) * tEnd,
+        ),
+      );
     }
     cumulative = segEnd;
   }
@@ -747,7 +868,11 @@ double _fullLen(List<LatLng> g) {
   var t = 0.0;
   for (var i = 0; i < g.length - 1; i++) {
     t += haversineMeters(
-        g[i].latitude, g[i].longitude, g[i + 1].latitude, g[i + 1].longitude);
+      g[i].latitude,
+      g[i].longitude,
+      g[i + 1].latitude,
+      g[i + 1].longitude,
+    );
   }
   return t;
 }

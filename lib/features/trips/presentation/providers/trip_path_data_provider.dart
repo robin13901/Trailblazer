@@ -45,8 +45,10 @@ import 'package:maplibre_gl/maplibre_gl.dart';
 /// The `FutureProviderFamily` concrete type is internal to Riverpod, so the
 /// type is left inferred.
 // ignore: specify_nonobvious_property_types
-final tripDetailDataProvider =
-    FutureProvider.family<TripDetailData, int>((ref, tripId) async {
+final tripDetailDataProvider = FutureProvider.family<TripDetailData, int>((
+  ref,
+  tripId,
+) async {
   final db = ref.watch(appDatabaseProvider);
   return loadTripDetailData(
     tripId: tripId,
@@ -156,8 +158,9 @@ Future<TripDetailData> loadTripDetailData({
   for (final id in matchedWayIds) {
     totalLength += _polylineLengthMeters(wayById[id]!.geometry);
   }
-  final fraction =
-      totalLength > 0 ? (drivenLength / totalLength).clamp(0.0, 1.0) : null;
+  final fraction = totalLength > 0
+      ? (drivenLength / totalLength).clamp(0.0, 1.0)
+      : null;
 
   return TripDetailData(
     item: item,

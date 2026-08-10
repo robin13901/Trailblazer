@@ -12,13 +12,13 @@ import 'package:flutter_test/flutter_test.dart';
 
 /// One Overpass `way` element with the given id + geometry (list of [lat,lon]).
 Map<String, dynamic> _way(int id, List<List<double>> pts) => {
-      'type': 'way',
-      'id': id,
-      'geometry': [
-        for (final p in pts) {'lat': p[0], 'lon': p[1]},
-      ],
-      'tags': {'highway': 'residential'},
-    };
+  'type': 'way',
+  'id': id,
+  'geometry': [
+    for (final p in pts) {'lat': p[0], 'lon': p[1]},
+  ],
+  'tags': {'highway': 'residential'},
+};
 
 /// Gzip a synthetic Overpass envelope wrapping [ways].
 List<int> _gzTile(List<Map<String, dynamic>> ways) {
@@ -27,12 +27,12 @@ List<int> _gzTile(List<Map<String, dynamic>> ways) {
 }
 
 GpsFix _fix(double lat, double lon) => GpsFix(
-      lat: lat,
-      lon: lon,
-      accuracyMeters: 5,
-      speedKmh: 50,
-      ts: DateTime.fromMillisecondsSinceEpoch(0),
-    );
+  lat: lat,
+  lon: lon,
+  accuracyMeters: 5,
+  speedKmh: 50,
+  ts: DateTime.fromMillisecondsSinceEpoch(0),
+);
 
 const _wideBbox = LatLonBbox(minLat: 49, minLon: 8, maxLat: 50, maxLon: 10);
 
@@ -40,7 +40,11 @@ void main() {
   group('parseAndFilterTiles', () {
     test('empty input → empty output', () {
       expect(
-        parseAndFilterTiles(gzippedTiles: const [], tileBboxes: const [], fixes: const []),
+        parseAndFilterTiles(
+          gzippedTiles: const [],
+          tileBboxes: const [],
+          fixes: const [],
+        ),
         isEmpty,
       );
     });
@@ -86,20 +90,23 @@ void main() {
       expect(kept.map((w) => w.wayId), [7]);
     });
 
-    test('empty fixes → keeps all deduped, bbox-clipped ways (passthrough)', () {
-      final tile = _gzTile([
-        _way(1, [
-          [49.5, 9],
-          [49.51, 9.01],
-        ]),
-      ]);
-      final kept = parseAndFilterTiles(
-        gzippedTiles: [tile],
-        tileBboxes: [_wideBbox],
-        fixes: const [],
-      );
-      expect(kept.map((w) => w.wayId), [1]);
-    });
+    test(
+      'empty fixes → keeps all deduped, bbox-clipped ways (passthrough)',
+      () {
+        final tile = _gzTile([
+          _way(1, [
+            [49.5, 9],
+            [49.51, 9.01],
+          ]),
+        ]);
+        final kept = parseAndFilterTiles(
+          gzippedTiles: [tile],
+          tileBboxes: [_wideBbox],
+          fixes: const [],
+        );
+        expect(kept.map((w) => w.wayId), [1]);
+      },
+    );
 
     test('bbox clip drops a way entirely outside the tile bbox', () {
       final fixes = [_fix(49.5, 9)];
@@ -113,7 +120,12 @@ void main() {
       final kept = parseAndFilterTiles(
         gzippedTiles: [tile],
         tileBboxes: [
-          const LatLonBbox(minLat: 49.49, minLon: 8.99, maxLat: 49.51, maxLon: 9.01),
+          const LatLonBbox(
+            minLat: 49.49,
+            minLon: 8.99,
+            maxLat: 49.51,
+            maxLon: 9.01,
+          ),
         ],
         fixes: fixes,
       );

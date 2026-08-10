@@ -47,8 +47,9 @@ void main() {
     expect(find.byIcon(Icons.check), findsOneWidget);
   });
 
-  testWidgets('tapping green calls select and moves selection indicator',
-      (tester) async {
+  testWidgets('tapping green calls select and moves selection indicator', (
+    tester,
+  ) async {
     // Use in-memory prefs so the notifier hydrates correctly.
     await tester.pumpWidget(_wrap(const CoverageColorSection()));
     await tester.pumpAndSettle();
@@ -68,13 +69,16 @@ void main() {
     expect(storedPreset, CoverageColorPreset.green);
   });
 
-  testWidgets('provider override: purple swatch renders as selected',
-      (tester) async {
+  testWidgets('provider override: purple swatch renders as selected', (
+    tester,
+  ) async {
     await tester.pumpWidget(
       _wrap(
         const CoverageColorSection(),
         overrides: [
-          coveragePresetValueProvider.overrideWithValue(CoverageColorPreset.purple),
+          coveragePresetValueProvider.overrideWithValue(
+            CoverageColorPreset.purple,
+          ),
         ],
       ),
     );

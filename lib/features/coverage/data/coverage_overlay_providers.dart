@@ -41,8 +41,9 @@ final drivenWayIntervalsDaoProvider = Provider<DrivenWayIntervalsDao>((ref) {
 
 /// Singleton [DrivenWayGeometryResolver] — parses cached tiles + clips driven
 /// ways to their union intervals on a compute isolate.
-final drivenWayGeometryResolverProvider =
-    Provider<DrivenWayGeometryResolver>((ref) {
+final drivenWayGeometryResolverProvider = Provider<DrivenWayGeometryResolver>((
+  ref,
+) {
   return DrivenWayGeometryResolver(
     intervalsDao: ref.watch(drivenWayIntervalsDaoProvider),
     waySource: ref.watch(wayCandidateSourceProvider),
@@ -80,8 +81,9 @@ final drivenWayIntervalsRevisionProvider = StreamProvider<int>((ref) {
 /// the union bbox value is unchanged — 2026-07-30 dedup fix). The resolver
 /// parses + clips on a compute isolate, so no heavy work runs on the UI isolate
 /// here. Yields [CoverageOverlayData.empty] when there are no trips.
-final coverageOverlayDataProvider =
-    StreamProvider<CoverageOverlayData>((ref) async* {
+final coverageOverlayDataProvider = StreamProvider<CoverageOverlayData>((
+  ref,
+) async* {
   final boundsAsync = ref.watch(tripsUnionBoundsProvider);
   // Watch the interval revision so a same-bbox re-match still re-resolves. We
   // only need the dependency edge, not the value — reading it registers the

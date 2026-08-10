@@ -57,26 +57,27 @@ void main() {
     });
 
     test(
-        'overpass_way_cache accepts inserts on the composite (z,x,y) primary key',
-        () async {
-      final connection = await verifier.startAt(2);
-      final db = AppDatabase(connection);
-      addTearDown(db.close);
+      'overpass_way_cache accepts inserts on the composite (z,x,y) primary key',
+      () async {
+        final connection = await verifier.startAt(2);
+        final db = AppDatabase(connection);
+        addTearDown(db.close);
 
-      await verifier.migrateAndValidate(db, 3);
+        await verifier.migrateAndValidate(db, 3);
 
-      await db.customStatement(
-        'INSERT INTO overpass_way_cache '
-        '(tile_z, tile_x, tile_y, fetched_at, way_count, payload_gzip, '
-        'payload_bytes) '
-        "VALUES (12, 100, 200, strftime('%s', 'now'), 5, X'0102', 2)",
-      );
-      final rows = await db
-          .customSelect('SELECT * FROM overpass_way_cache')
-          .get();
-      expect(rows, hasLength(1));
-      expect(rows.first.read<int>('tile_z'), 12);
-      expect(rows.first.read<int>('way_count'), 5);
-    });
+        await db.customStatement(
+          'INSERT INTO overpass_way_cache '
+          '(tile_z, tile_x, tile_y, fetched_at, way_count, payload_gzip, '
+          'payload_bytes) '
+          "VALUES (12, 100, 200, strftime('%s', 'now'), 5, X'0102', 2)",
+        );
+        final rows = await db
+            .customSelect('SELECT * FROM overpass_way_cache')
+            .get();
+        expect(rows, hasLength(1));
+        expect(rows.first.read<int>('tile_z'), 12);
+        expect(rows.first.read<int>('way_count'), 5);
+      },
+    );
   });
 }

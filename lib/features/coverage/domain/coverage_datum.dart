@@ -22,9 +22,7 @@ class CoverageDatum {
   });
 
   /// Convenience constructor for an undriven or below-floor way.
-  const CoverageDatum.undriven()
-      : fraction = 0.0,
-        isFull = false;
+  const CoverageDatum.undriven() : fraction = 0.0, isFull = false;
 
   /// Coverage fraction in [0.0, 1.0].
   final double fraction;

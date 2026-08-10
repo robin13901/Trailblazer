@@ -44,9 +44,8 @@ class CoverageColorSection extends ConsumerWidget {
                 selected: isSelected,
                 button: true,
                 child: GestureDetector(
-                  onTap: () => ref
-                      .read(coveragePresetProvider.notifier)
-                      .select(preset),
+                  onTap: () =>
+                      ref.read(coveragePresetProvider.notifier).select(preset),
                   child: SizedBox(
                     // 44dp minimum tap target (accessibility).
                     width: 44,
@@ -60,13 +59,13 @@ class CoverageColorSection extends ConsumerWidget {
                           shape: BoxShape.circle,
                           border: isSelected
                               ? Border.all(
-                                  color: Theme.of(context).colorScheme.onSurface,
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.onSurface,
                                   width: 2.5,
                                 )
                               : Border.all(
-                                  color: Theme.of(context)
-                                      .colorScheme
-                                      .onSurface
+                                  color: Theme.of(context).colorScheme.onSurface
                                       .withValues(alpha: 0.2),
                                 ),
                         ),
@@ -74,7 +73,10 @@ class CoverageColorSection extends ConsumerWidget {
                             ? Icon(
                                 Icons.check,
                                 size: 18,
-                                color: ThemeData.estimateBrightnessForColor(color) ==
+                                color:
+                                    ThemeData.estimateBrightnessForColor(
+                                          color,
+                                        ) ==
                                         Brightness.dark
                                     ? Colors.white
                                     : Colors.black,

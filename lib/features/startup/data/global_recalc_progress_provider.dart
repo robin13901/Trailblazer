@@ -115,5 +115,5 @@ class GlobalRecalcNotifier extends Notifier<GlobalRecalcState?> {
 /// Provider exposing the one-time global recalc progress. Null when idle.
 final globalRecalcProgressProvider =
     NotifierProvider<GlobalRecalcNotifier, GlobalRecalcState?>(
-  GlobalRecalcNotifier.new,
-);
+      GlobalRecalcNotifier.new,
+    );

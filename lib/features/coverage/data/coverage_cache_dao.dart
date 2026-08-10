@@ -55,8 +55,9 @@ class CoverageCacheDao extends DatabaseAccessor<AppDatabase> {
 
   /// Point-read; null when the row does not exist.
   Future<CoverageCacheData?> getByRegionId(String regionId) {
-    return (select(_table)..where((r) => r.regionId.equals(regionId)))
-        .getSingleOrNull();
+    return (select(
+      _table,
+    )..where((r) => r.regionId.equals(regionId))).getSingleOrNull();
   }
 
   /// Write the REAL total road length (meters) computed by
@@ -105,12 +106,11 @@ class CoverageCacheDao extends DatabaseAccessor<AppDatabase> {
   /// `RegionTotalLengthService` still needs to process — each drives a
   /// per-region spinner in the browser until its real total lands.
   Future<List<CoverageCacheData>> getRegionsNeedingRealTotal() {
-    return (select(_table)
-          ..where(
-            (r) =>
-                r.drivenLengthM.isBiggerThanValue(0) &
-                r.realTotalLengthM.isNull(),
-          ))
+    return (select(_table)..where(
+          (r) =>
+              r.drivenLengthM.isBiggerThanValue(0) &
+              r.realTotalLengthM.isNull(),
+        ))
         .get();
   }
 
@@ -131,9 +131,9 @@ class CoverageCacheDao extends DatabaseAccessor<AppDatabase> {
   /// Phase-8 region browser. Names/levels are resolved from AdminRegionLookup
   /// by the caller (no region_name column — RESEARCH.md line 227).
   Future<List<CoverageCacheData>> getAllWithCoverage() {
-    return (select(_table)
-          ..where((r) => r.drivenLengthM.isBiggerThanValue(0)))
-        .get();
+    return (select(
+      _table,
+    )..where((r) => r.drivenLengthM.isBiggerThanValue(0))).get();
   }
 
   /// Reactive version of [getAllWithCoverage]. Re-emits on ANY write to
@@ -143,9 +143,9 @@ class CoverageCacheDao extends DatabaseAccessor<AppDatabase> {
   /// totals land and progress climbs. Drift table-write invalidation is the
   /// mechanism (same as TripsDao's watch* streams), not value-diffing.
   Stream<List<CoverageCacheData>> watchAllWithCoverage() {
-    return (select(_table)
-          ..where((r) => r.drivenLengthM.isBiggerThanValue(0)))
-        .watch();
+    return (select(
+      _table,
+    )..where((r) => r.drivenLengthM.isBiggerThanValue(0))).watch();
   }
 
   /// Bump `invalidation_gen` by 1 without touching lengths — Phase-8

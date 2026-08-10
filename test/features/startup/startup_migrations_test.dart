@@ -61,15 +61,15 @@ class _FakeLocationPermissionNotifier extends AsyncNotifier<PermissionStatus>
 /// path actually ran before the banner cleared.
 class _ErrRecomputeService extends CoverageComputeService {
   _ErrRecomputeService(AppDatabase db)
-      : super(
-          intervalsDao: DrivenWayIntervalsDao(db),
-          waySource: FixtureWayCandidateSource(ways: const []),
-          regionLookup: AdminRegionLookup(),
-          cacheDao: CoverageCacheDao(db),
-          tripsDao: TripsDao(db),
-          totalsLookup: RegionTotalsLookup(),
-          compute: (tiles, bboxes, already) async => const [],
-        );
+    : super(
+        intervalsDao: DrivenWayIntervalsDao(db),
+        waySource: FixtureWayCandidateSource(ways: const []),
+        regionLookup: AdminRegionLookup(),
+        cacheDao: CoverageCacheDao(db),
+        tripsDao: TripsDao(db),
+        totalsLookup: RegionTotalsLookup(),
+        compute: (tiles, bboxes, already) async => const [],
+      );
 
   int recomputeCalls = 0;
 
@@ -103,11 +103,13 @@ void main() {
         overrides: [
           appDatabaseProvider.overrideWithValue(db),
           coverageComputeServiceProvider.overrideWithValue(errService),
-          locationPermissionProvider
-              .overrideWith(_FakeLocationPermissionNotifier.new),
+          locationPermissionProvider.overrideWith(
+            _FakeLocationPermissionNotifier.new,
+          ),
           permissionServiceProvider.overrideWithValue(FakePermissionService()),
-          backgroundGeolocationFacadeProvider
-              .overrideWithValue(FakeBackgroundGeolocationFacade()),
+          backgroundGeolocationFacadeProvider.overrideWithValue(
+            FakeBackgroundGeolocationFacade(),
+          ),
         ],
       );
       addTearDown(container.dispose);
@@ -122,8 +124,11 @@ void main() {
       await tester.pumpAndSettle(const Duration(seconds: 1));
 
       // The Err-returning recompute ran exactly once (coverage phase reached).
-      expect(errService.recomputeCalls, 1,
-          reason: 'the coverage-recompute migration must have run and failed');
+      expect(
+        errService.recomputeCalls,
+        1,
+        reason: 'the coverage-recompute migration must have run and failed',
+      );
 
       // FINALLY GUARANTEE: despite the Err, the banner state is back to null.
       expect(

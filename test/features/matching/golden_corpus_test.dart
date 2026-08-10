@@ -26,12 +26,13 @@ void main() {
     return;
   }
 
-  final tripDirs = corporaDir
-      .listSync()
-      .whereType<Directory>()
-      .where((d) => File('${d.path}/gps_trace.json').existsSync())
-      .toList()
-    ..sort((a, b) => a.path.compareTo(b.path));
+  final tripDirs =
+      corporaDir
+          .listSync()
+          .whereType<Directory>()
+          .where((d) => File('${d.path}/gps_trace.json').existsSync())
+          .toList()
+        ..sort((a, b) => a.path.compareTo(b.path));
 
   if (tripDirs.isEmpty) {
     test('golden corpus: no fixtures (skipped)', () {}, skip: true);
@@ -61,7 +62,8 @@ void main() {
       expect(
         actualIds,
         equals(expectedIds),
-        reason: 'golden trip $slug — wayId sequence mismatch\n'
+        reason:
+            'golden trip $slug — wayId sequence mismatch\n'
             'expected: $expectedIds\nactual:   $actualIds',
       );
     });
@@ -80,8 +82,7 @@ List<GpsFix> _loadGpsTrace(Directory dir) {
         (m) => GpsFix(
           lat: (m['lat'] as num).toDouble(),
           lon: (m['lon'] as num).toDouble(),
-          accuracyMeters:
-              (m['accuracy'] as num?)?.toDouble() ?? double.nan,
+          accuracyMeters: (m['accuracy'] as num?)?.toDouble() ?? double.nan,
           speedKmh: (m['speedKmh'] as num?)?.toDouble() ?? 0.0,
           ts: DateTime.parse(m['ts'] as String),
           headingDegrees: (m['heading'] as num?)?.toDouble(),

@@ -54,25 +54,25 @@ class _NullMapControllerNotifier extends MapControllerNotifier {
 }
 
 AdminRegion _region() => const AdminRegion(
-      osmId: 1,
-      adminLevel: 8,
-      name: 'Test',
-      bboxMinLat: 48,
-      bboxMinLon: 11,
-      bboxMaxLat: 49,
-      bboxMaxLon: 12,
-      polygons: [
-        [
-          [
-            [48.0, 11.0],
-            [48.0, 12.0],
-            [49.0, 12.0],
-            [49.0, 11.0],
-            [48.0, 11.0],
-          ],
-        ],
+  osmId: 1,
+  adminLevel: 8,
+  name: 'Test',
+  bboxMinLat: 48,
+  bboxMinLon: 11,
+  bboxMaxLat: 49,
+  bboxMaxLon: 12,
+  polygons: [
+    [
+      [
+        [48.0, 11.0],
+        [48.0, 12.0],
+        [49.0, 12.0],
+        [49.0, 11.0],
+        [48.0, 11.0],
       ],
-    );
+    ],
+  ],
+);
 
 Future<_FakeRegionOutlineApplier> _pump(
   WidgetTester tester, {
@@ -95,8 +95,8 @@ Future<_FakeRegionOutlineApplier> _pump(
 }
 
 ProviderContainer _container(WidgetTester tester) => ProviderScope.containerOf(
-      tester.element(find.byType(RegionOutlineBridge)),
-    );
+  tester.element(find.byType(RegionOutlineBridge)),
+);
 
 void main() {
   group('RegionOutlineBridge', () {
@@ -111,8 +111,9 @@ void main() {
       );
     });
 
-    testWidgets('show → addOrUpdate with light neutral hex in dark mode',
-        (tester) async {
+    testWidgets('show → addOrUpdate with light neutral hex in dark mode', (
+      tester,
+    ) async {
       final fake = await _pump(tester, brightness: Brightness.dark);
       _container(tester).read(regionOutlineProvider.notifier).show(_region());
       await tester.pump();
@@ -123,8 +124,9 @@ void main() {
       expect(adds.single.fillHex, equals(kRegionOutlineFillDarkMode));
     });
 
-    testWidgets('show → addOrUpdate with dark neutral hex in light mode',
-        (tester) async {
+    testWidgets('show → addOrUpdate with dark neutral hex in light mode', (
+      tester,
+    ) async {
       final fake = await _pump(tester, brightness: Brightness.light);
       _container(tester).read(regionOutlineProvider.notifier).show(_region());
       await tester.pump();
@@ -137,8 +139,8 @@ void main() {
 
     testWidgets('clear → remove', (tester) async {
       final fake = await _pump(tester, brightness: Brightness.dark);
-      final notifier =
-          _container(tester).read(regionOutlineProvider.notifier)..show(_region());
+      final notifier = _container(tester).read(regionOutlineProvider.notifier)
+        ..show(_region());
       await tester.pump();
       notifier.clear();
       await tester.pump();
@@ -146,8 +148,9 @@ void main() {
       expect(fake.calls.whereType<_Remove>(), hasLength(1));
     });
 
-    testWidgets('style-load tick re-adds while a region is set (Pitfall 1)',
-        (tester) async {
+    testWidgets('style-load tick re-adds while a region is set (Pitfall 1)', (
+      tester,
+    ) async {
       final fake = await _pump(tester, brightness: Brightness.dark);
       final container = _container(tester);
       container.read(regionOutlineProvider.notifier).show(_region());
@@ -165,8 +168,9 @@ void main() {
       );
     });
 
-    testWidgets('style-load tick does NOT add when no region is set',
-        (tester) async {
+    testWidgets('style-load tick does NOT add when no region is set', (
+      tester,
+    ) async {
       final fake = await _pump(tester, brightness: Brightness.dark);
       _container(tester).read(mapStyleLoadedTickProvider.notifier).bump();
       await tester.pump();

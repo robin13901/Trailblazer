@@ -42,9 +42,9 @@ class CoverageInvalidator {
     required CoverageCacheDao cacheDao,
     required AdminRegionLookup regionLookup,
     required TripsDao tripsDao,
-  })  : _cacheDao = cacheDao,
-        _regionLookup = regionLookup,
-        _tripsDao = tripsDao;
+  }) : _cacheDao = cacheDao,
+       _regionLookup = regionLookup,
+       _tripsDao = tripsDao;
 
   final CoverageCacheDao _cacheDao;
   final AdminRegionLookup _regionLookup;
@@ -137,7 +137,8 @@ class CoverageInvalidator {
     // (yet) expose a getById method, and adding one here would require
     // touching a file outside this plan's ownership manifest.
     final db = _tripsDao.attachedDatabase;
-    return (db.select(db.trips)..where((t) => t.id.equals(tripId)))
-        .getSingleOrNull();
+    return (db.select(
+      db.trips,
+    )..where((t) => t.id.equals(tripId))).getSingleOrNull();
   }
 }

@@ -33,23 +33,22 @@ class _FakeInboxRepository implements TripsInboxRepository {
 
   // Not exercised by these tests.
   @override
-  dynamic noSuchMethod(Invocation invocation) =>
-      super.noSuchMethod(invocation);
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
 TripListItem _item(int id, TripStatus status) => TripListItem(
-      id: id,
-      status: status,
-      startedAt: DateTime(2026, 7, 9, 10),
-      endedAt: DateTime(2026, 7, 9, 11),
-      distanceMeters: 1000,
-      durationSeconds: 3600,
-      startLat: 52,
-      startLon: 13,
-      endLat: 52.1,
-      endLon: 13.1,
-      intervalCount: 3,
-    );
+  id: id,
+  status: status,
+  startedAt: DateTime(2026, 7, 9, 10),
+  endedAt: DateTime(2026, 7, 9, 11),
+  distanceMeters: 1000,
+  durationSeconds: 3600,
+  startLat: 52,
+  startLon: 13,
+  endLat: 52.1,
+  endLon: 13.1,
+  intervalCount: 3,
+);
 
 void main() {
   late _FakeInboxRepository fake;
@@ -71,24 +70,26 @@ void main() {
     await fake.inFlight.close();
   });
 
-  test('inboxTripsProvider re-emits when fake stream pushes new list',
-      () async {
-    final sub = container.listen(inboxTripsProvider, (_, _) {});
-    addTearDown(sub.close);
+  test(
+    'inboxTripsProvider re-emits when fake stream pushes new list',
+    () async {
+      final sub = container.listen(inboxTripsProvider, (_, _) {});
+      addTearDown(sub.close);
 
-    expect(container.read(inboxTripsProvider).isLoading, isTrue);
+      expect(container.read(inboxTripsProvider).isLoading, isTrue);
 
-    fake.inbox.add([_item(1, TripStatus.matched)]);
-    await container.read(inboxTripsProvider.future);
-    expect(container.read(inboxTripsProvider).value, hasLength(1));
+      fake.inbox.add([_item(1, TripStatus.matched)]);
+      await container.read(inboxTripsProvider.future);
+      expect(container.read(inboxTripsProvider).value, hasLength(1));
 
-    fake.inbox.add([
-      _item(1, TripStatus.matched),
-      _item(2, TripStatus.matched),
-    ]);
-    await Future<void>.delayed(Duration.zero);
-    expect(container.read(inboxTripsProvider).value, hasLength(2));
-  });
+      fake.inbox.add([
+        _item(1, TripStatus.matched),
+        _item(2, TripStatus.matched),
+      ]);
+      await Future<void>.delayed(Duration.zero);
+      expect(container.read(inboxTripsProvider).value, hasLength(2));
+    },
+  );
 
   test('historyTripsProvider re-emits', () async {
     final sub = container.listen(historyTripsProvider, (_, _) {});
@@ -131,17 +132,19 @@ void main() {
     expect(state.error, isA<StateError>());
   });
 
-  test('late subscriber sees latest cached value (broadcast behavior)',
-      () async {
-    final sub = container.listen(inFlightCountProvider, (_, _) {});
-    addTearDown(sub.close);
+  test(
+    'late subscriber sees latest cached value (broadcast behavior)',
+    () async {
+      final sub = container.listen(inFlightCountProvider, (_, _) {});
+      addTearDown(sub.close);
 
-    fake.inFlight.add(7);
-    await Future<void>.delayed(Duration.zero);
-    expect(container.read(inFlightCountProvider).value, 7);
+      fake.inFlight.add(7);
+      await Future<void>.delayed(Duration.zero);
+      expect(container.read(inFlightCountProvider).value, 7);
 
-    // A late reader (new keepAlive read) sees the cached AsyncData, not a
-    // fresh loading state, because the provider is already subscribed.
-    expect(container.read(inFlightCountProvider).value, 7);
-  });
+      // A late reader (new keepAlive read) sees the cached AsyncData, not a
+      // fresh loading state, because the provider is already subscribed.
+      expect(container.read(inFlightCountProvider).value, 7);
+    },
+  );
 }

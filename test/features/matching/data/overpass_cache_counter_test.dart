@@ -27,7 +27,11 @@ import 'package:http/testing.dart';
 
 // ─── helpers (mirrors overpass_way_candidate_source_test.dart) ──────────────
 
-String _syntheticJson({required int wayId, required double lat, required double lon}) {
+String _syntheticJson({
+  required int wayId,
+  required double lat,
+  required double lon,
+}) {
   return jsonEncode({
     'version': 0.6,
     'generator': 'test',
@@ -46,10 +50,10 @@ String _syntheticJson({required int wayId, required double lat, required double 
 }
 
 http.Response _okJson(String body) => http.Response.bytes(
-      utf8.encode(body),
-      200,
-      headers: {'content-type': 'application/json; charset=utf-8'},
-    );
+  utf8.encode(body),
+  200,
+  headers: {'content-type': 'application/json; charset=utf-8'},
+);
 
 Uint8List _gzipUtf8(String s) =>
     Uint8List.fromList(gzip.encode(utf8.encode(s)));
@@ -95,45 +99,48 @@ void main() {
       expect(source.cacheHitRate, isNull);
     });
 
-    test('all-cache-hit: cacheHits > 0, cacheMisses == 0, rate == 1.0',
-        () async {
-      const tileMath = TileBboxMath();
-      // Seed every tile that the bbox touches.
-      final tiles = tileMath.bboxToZ12Tiles(
-        _lat - _half,
-        _lon - _half,
-        _lat + _half,
-        _lon + _half,
-      );
-      for (final t in tiles) {
-        await cacheDao.put(
-          z: t.z,
-          x: t.x,
-          y: t.y,
-          payloadGzip:
-              _gzipUtf8(_syntheticJson(wayId: t.x, lat: _lat, lon: _lon)),
-          wayCount: 1,
+    test(
+      'all-cache-hit: cacheHits > 0, cacheMisses == 0, rate == 1.0',
+      () async {
+        const tileMath = TileBboxMath();
+        // Seed every tile that the bbox touches.
+        final tiles = tileMath.bboxToZ12Tiles(
+          _lat - _half,
+          _lon - _half,
+          _lat + _half,
+          _lon + _half,
         );
-      }
+        for (final t in tiles) {
+          await cacheDao.put(
+            z: t.z,
+            x: t.x,
+            y: t.y,
+            payloadGzip: _gzipUtf8(
+              _syntheticJson(wayId: t.x, lat: _lat, lon: _lon),
+            ),
+            wayCount: 1,
+          );
+        }
 
-      final source = OverpassWayCandidateSource(
-        client: _stubClient((_) async {
-          fail('network should not be hit — everything is pre-cached');
-        }),
-        cacheDao: cacheDao,
-      );
+        final source = OverpassWayCandidateSource(
+          client: _stubClient((_) async {
+            fail('network should not be hit — everything is pre-cached');
+          }),
+          cacheDao: cacheDao,
+        );
 
-      await source.fetchWaysInBbox(
-        minLat: _lat - _half,
-        minLon: _lon - _half,
-        maxLat: _lat + _half,
-        maxLon: _lon + _half,
-      );
+        await source.fetchWaysInBbox(
+          minLat: _lat - _half,
+          minLon: _lon - _half,
+          maxLat: _lat + _half,
+          maxLon: _lon + _half,
+        );
 
-      expect(source.cacheHits, greaterThan(0));
-      expect(source.cacheMisses, 0);
-      expect(source.cacheHitRate, 1.0);
-    });
+        expect(source.cacheHits, greaterThan(0));
+        expect(source.cacheMisses, 0);
+        expect(source.cacheHitRate, 1.0);
+      },
+    );
 
     test('all-miss: cacheMisses > 0, cacheHits == 0, rate == 0.0', () async {
       // Cache is empty — every tile is a miss and must be fetched.
@@ -141,7 +148,9 @@ void main() {
       final source = OverpassWayCandidateSource(
         client: _stubClient((req) async {
           fetchCalls++;
-          return _okJson(_syntheticJson(wayId: fetchCalls, lat: _lat, lon: _lon));
+          return _okJson(
+            _syntheticJson(wayId: fetchCalls, lat: _lat, lon: _lon),
+          );
         }),
         cacheDao: cacheDao,
       );
@@ -207,8 +216,16 @@ void main() {
         return;
       }
 
-      expect(source.cacheHits, greaterThan(0), reason: 'first tile was pre-seeded');
-      expect(source.cacheMisses, greaterThan(0), reason: 'remaining tiles needed fetch');
+      expect(
+        source.cacheHits,
+        greaterThan(0),
+        reason: 'first tile was pre-seeded',
+      );
+      expect(
+        source.cacheMisses,
+        greaterThan(0),
+        reason: 'remaining tiles needed fetch',
+      );
       final rate = source.cacheHitRate;
       expect(rate, isNotNull);
       expect(rate, greaterThan(0.0));

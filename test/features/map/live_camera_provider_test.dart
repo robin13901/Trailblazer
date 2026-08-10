@@ -17,7 +17,9 @@ void main() {
     });
 
     test('update() with a CameraPosition sets lat/lon/zoom', () {
-      container.read(liveCameraProvider.notifier).update(
+      container
+          .read(liveCameraProvider.notifier)
+          .update(
             const CameraPosition(target: LatLng(50.5, 9.4), zoom: 13),
           );
 
@@ -28,25 +30,32 @@ void main() {
       expect(live.zoom, 13);
     });
 
-    test('two updates with the same position produce equal LiveCamera values', () {
-      const pos = CameraPosition(target: LatLng(50.5, 9.4), zoom: 13);
+    test(
+      'two updates with the same position produce equal LiveCamera values',
+      () {
+        const pos = CameraPosition(target: LatLng(50.5, 9.4), zoom: 13);
 
-      container.read(liveCameraProvider.notifier).update(pos);
-      final first = container.read(liveCameraProvider);
+        container.read(liveCameraProvider.notifier).update(pos);
+        final first = container.read(liveCameraProvider);
 
-      container.read(liveCameraProvider.notifier).update(pos);
-      final second = container.read(liveCameraProvider);
+        container.read(liveCameraProvider.notifier).update(pos);
+        final second = container.read(liveCameraProvider);
 
-      expect(first, equals(second));
-      expect(first.hashCode, equals(second.hashCode));
-    });
+        expect(first, equals(second));
+        expect(first.hashCode, equals(second.hashCode));
+      },
+    );
 
     test('a second update with a different zoom replaces the state', () {
-      container.read(liveCameraProvider.notifier).update(
+      container
+          .read(liveCameraProvider.notifier)
+          .update(
             const CameraPosition(target: LatLng(50.5, 9.4), zoom: 13),
           );
 
-      container.read(liveCameraProvider.notifier).update(
+      container
+          .read(liveCameraProvider.notifier)
+          .update(
             const CameraPosition(target: LatLng(50.5, 9.4), zoom: 15),
           );
 
@@ -55,12 +64,15 @@ void main() {
       expect(live!.zoom, 15);
     });
 
-    test('LiveCamera value equality holds (same values, separate instances)', () {
-      const a = LiveCamera(latitude: 50.5, longitude: 9.4, zoom: 13);
-      const b = LiveCamera(latitude: 50.5, longitude: 9.4, zoom: 13);
-      expect(a, equals(b));
-      expect(a.hashCode, equals(b.hashCode));
-    });
+    test(
+      'LiveCamera value equality holds (same values, separate instances)',
+      () {
+        const a = LiveCamera(latitude: 50.5, longitude: 9.4, zoom: 13);
+        const b = LiveCamera(latitude: 50.5, longitude: 9.4, zoom: 13);
+        expect(a, equals(b));
+        expect(a.hashCode, equals(b.hashCode));
+      },
+    );
 
     test('LiveCamera instances with different latitude are not equal', () {
       const a = LiveCamera(latitude: 50.5, longitude: 9.4, zoom: 13);

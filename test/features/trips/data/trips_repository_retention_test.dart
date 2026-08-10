@@ -85,21 +85,23 @@ void main() {
   // ── retention sentinel: Duration(days: 30) ────────────────────────────────
 
   group('sweepRawGpsRetention — 30-day retention sentinel', () {
-    test('deletes points for trips whose intervals are ALL > 30 days old',
-        () async {
-      final now = DateTime(2026, 7, 13, 12);
-      final oldTripId = await seedTrip();
-      await seedPoints(oldTripId, count: 4);
-      // Only interval is 40 days old — eligible.
-      await seedInterval(oldTripId, now.subtract(const Duration(days: 40)));
+    test(
+      'deletes points for trips whose intervals are ALL > 30 days old',
+      () async {
+        final now = DateTime(2026, 7, 13, 12);
+        final oldTripId = await seedTrip();
+        await seedPoints(oldTripId, count: 4);
+        // Only interval is 40 days old — eligible.
+        await seedInterval(oldTripId, now.subtract(const Duration(days: 40)));
 
-      final result = await repo.sweepRawGpsRetention(
-        now: now,
-      );
-      expect(result.isOk, isTrue);
-      result.when(ok: (n) => expect(n, 4), err: (_) => fail('Expected Ok'));
-      expect(await pointCount(oldTripId), 0);
-    });
+        final result = await repo.sweepRawGpsRetention(
+          now: now,
+        );
+        expect(result.isOk, isTrue);
+        result.when(ok: (n) => expect(n, 4), err: (_) => fail('Expected Ok'));
+        expect(await pointCount(oldTripId), 0);
+      },
+    );
 
     test('keeps points for trips with a recent interval', () async {
       final now = DateTime(2026, 7, 13, 12);
@@ -124,8 +126,7 @@ void main() {
 
       final recentTripId = await seedTrip();
       await seedPoints(recentTripId, count: 2);
-      await seedInterval(
-          recentTripId, now.subtract(const Duration(days: 10)));
+      await seedInterval(recentTripId, now.subtract(const Duration(days: 10)));
 
       final result = await repo.sweepRawGpsRetention(
         now: now,
@@ -163,7 +164,10 @@ void main() {
       // Recent trip (matched just 1 second ago — still eligible with zero).
       final recentTripId = await seedTrip();
       await seedPoints(recentTripId, count: 2);
-      await seedInterval(recentTripId, now.subtract(const Duration(seconds: 1)));
+      await seedInterval(
+        recentTripId,
+        now.subtract(const Duration(seconds: 1)),
+      );
 
       final result = await repo.sweepRawGpsRetention(
         retention: Duration.zero,

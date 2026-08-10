@@ -88,10 +88,12 @@ class _RegionOutlineBridgeState extends ConsumerState<RegionOutlineBridge> {
     final controller = ref.read(mapControllerProvider);
     final applier = ref.read(regionOutlineApplierProvider);
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final borderHex =
-        isDark ? kRegionOutlineBorderDarkMode : kRegionOutlineBorderLightMode;
-    final fillHex =
-        isDark ? kRegionOutlineFillDarkMode : kRegionOutlineFillLightMode;
+    final borderHex = isDark
+        ? kRegionOutlineBorderDarkMode
+        : kRegionOutlineBorderLightMode;
+    final fillHex = isDark
+        ? kRegionOutlineFillDarkMode
+        : kRegionOutlineFillLightMode;
     _dispatch(
       () => applier.addOrUpdate(
         controller,
@@ -110,8 +112,14 @@ class _RegionOutlineBridgeState extends ConsumerState<RegionOutlineBridge> {
   }
 
   void _dispatch(Future<void> Function() action, String label) {
-    unawaited(action().catchError((Object e, StackTrace st) {
-      _log.warning('RegionOutlineBridge: $label threw — map kept stable.', e, st);
-    }));
+    unawaited(
+      action().catchError((Object e, StackTrace st) {
+        _log.warning(
+          'RegionOutlineBridge: $label threw — map kept stable.',
+          e,
+          st,
+        );
+      }),
+    );
   }
 }

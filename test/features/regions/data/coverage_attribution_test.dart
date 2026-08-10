@@ -47,107 +47,111 @@ Uint8List _gzTile(List<WayCandidate> ways) {
 
 /// A level-8 region: WEST half [lon 9.17..9.195].
 AdminRegion _regionWest() => const AdminRegion(
-      osmId: 111,
-      adminLevel: 8,
-      name: 'West',
-      bboxMinLat: 49.78,
-      bboxMinLon: 9.17,
-      bboxMaxLat: 49.82,
-      bboxMaxLon: 9.195,
-      polygons: [
-        [
-          [
-            [49.78, 9.17],
-            [49.82, 9.17],
-            [49.82, 9.195],
-            [49.78, 9.195],
-            [49.78, 9.17],
-          ],
-        ],
+  osmId: 111,
+  adminLevel: 8,
+  name: 'West',
+  bboxMinLat: 49.78,
+  bboxMinLon: 9.17,
+  bboxMaxLat: 49.82,
+  bboxMaxLon: 9.195,
+  polygons: [
+    [
+      [
+        [49.78, 9.17],
+        [49.82, 9.17],
+        [49.82, 9.195],
+        [49.78, 9.195],
+        [49.78, 9.17],
       ],
-    );
+    ],
+  ],
+);
 
 /// A level-8 region: EAST half [lon 9.195..9.22].
 AdminRegion _regionEast() => const AdminRegion(
-      osmId: 222,
-      adminLevel: 8,
-      name: 'East',
-      bboxMinLat: 49.78,
-      bboxMinLon: 9.195,
-      bboxMaxLat: 49.82,
-      bboxMaxLon: 9.22,
-      polygons: [
-        [
-          [
-            [49.78, 9.195],
-            [49.82, 9.195],
-            [49.82, 9.22],
-            [49.78, 9.22],
-            [49.78, 9.195],
-          ],
-        ],
+  osmId: 222,
+  adminLevel: 8,
+  name: 'East',
+  bboxMinLat: 49.78,
+  bboxMinLon: 9.195,
+  bboxMaxLat: 49.82,
+  bboxMaxLon: 9.22,
+  polygons: [
+    [
+      [
+        [49.78, 9.195],
+        [49.82, 9.195],
+        [49.82, 9.22],
+        [49.78, 9.22],
+        [49.78, 9.195],
       ],
-    );
+    ],
+  ],
+);
 
 /// A single level-8 region covering the whole test square.
 AdminRegion _regionLevel8({int osmId = 151999}) => AdminRegion(
-      osmId: osmId,
-      adminLevel: 8,
-      name: 'Kleinheubach',
-      bboxMinLat: 49.78,
-      bboxMinLon: 9.17,
-      bboxMaxLat: 49.82,
-      bboxMaxLon: 9.22,
-      polygons: const [
-        [
-          [
-            [49.78, 9.17],
-            [49.82, 9.17],
-            [49.82, 9.22],
-            [49.78, 9.22],
-            [49.78, 9.17],
-          ],
-        ],
+  osmId: osmId,
+  adminLevel: 8,
+  name: 'Kleinheubach',
+  bboxMinLat: 49.78,
+  bboxMinLon: 9.17,
+  bboxMaxLat: 49.82,
+  bboxMaxLon: 9.22,
+  polygons: const [
+    [
+      [
+        [49.78, 9.17],
+        [49.82, 9.17],
+        [49.82, 9.22],
+        [49.78, 9.22],
+        [49.78, 9.17],
       ],
-    );
+    ],
+  ],
+);
 
 AdminRegion _regionLevel2({int osmId = 51477}) => AdminRegion(
-      osmId: osmId,
-      adminLevel: 2,
-      name: 'Deutschland',
-      bboxMinLat: 47,
-      bboxMinLon: 5,
-      bboxMaxLat: 55.1,
-      bboxMaxLon: 15.1,
-      polygons: const [
-        [
-          [
-            [47.0, 5.0],
-            [55.1, 5.0],
-            [55.1, 15.1],
-            [47.0, 15.1],
-            [47.0, 5.0],
-          ],
-        ],
+  osmId: osmId,
+  adminLevel: 2,
+  name: 'Deutschland',
+  bboxMinLat: 47,
+  bboxMinLon: 5,
+  bboxMaxLat: 55.1,
+  bboxMaxLon: 15.1,
+  polygons: const [
+    [
+      [
+        [47.0, 5.0],
+        [55.1, 5.0],
+        [55.1, 15.1],
+        [47.0, 15.1],
+        [47.0, 5.0],
       ],
-    );
+    ],
+  ],
+);
 
 /// 3-point vertical way inside `_regionLevel8` (all at lon 9.190).
 WayCandidate _fixtureWay({int wayId = 100001}) => WayCandidate(
-      wayId: wayId,
-      highwayClass: 'residential',
-      geometry: const [
-        LatLng(49.799, 9.190),
-        LatLng(49.800, 9.190),
-        LatLng(49.801, 9.190),
-      ],
-    );
+  wayId: wayId,
+  highwayClass: 'residential',
+  geometry: const [
+    LatLng(49.799, 9.190),
+    LatLng(49.800, 9.190),
+    LatLng(49.801, 9.190),
+  ],
+);
 
 double _len(List<LatLng> g) {
   var total = 0.0;
   for (var i = 0; i < g.length - 1; i++) {
-    total +=
-        haversineMeters(g[i].latitude, g[i].longitude, g[i + 1].latitude, g[i + 1].longitude);
+    total += haversineMeters(
+      g[i].latitude,
+      g[i].longitude,
+      g[i + 1].latitude,
+      g[i + 1].longitude,
+    );
   }
   return total;
 }
@@ -160,7 +164,9 @@ void main() {
         regionsByLevel: {
           8: [_regionLevel8()],
         },
-        gzippedTiles: [_gzTile([way])],
+        gzippedTiles: [
+          _gzTile([way]),
+        ],
         tileBboxes: const [_bbox],
       );
 
@@ -174,8 +180,7 @@ void main() {
       expect(r.rangeEndM, closeTo(_len(way.geometry), 0.01));
     });
 
-    test(
-        'boundary-crossing way splits length across two regions with '
+    test('boundary-crossing way splits length across two regions with '
         'correct meter-ranges', () {
       // Horizontal way from lon 9.18 (west) → 9.21 (east) at fixed lat.
       const way = WayCandidate(
@@ -192,7 +197,9 @@ void main() {
         regionsByLevel: {
           8: [_regionWest(), _regionEast()],
         },
-        gzippedTiles: [_gzTile([way])],
+        gzippedTiles: [
+          _gzTile([way]),
+        ],
         tileBboxes: const [_bbox],
       );
 
@@ -222,7 +229,9 @@ void main() {
         regionsByLevel: {
           8: [_regionLevel8()],
         },
-        gzippedTiles: [_gzTile([way])],
+        gzippedTiles: [
+          _gzTile([way]),
+        ],
         tileBboxes: const [_bbox],
         alreadyAttributedWayIds: {way.wayId},
       );
@@ -236,11 +245,16 @@ void main() {
           2: [_regionLevel2()],
           8: [_regionLevel8()],
         },
-        gzippedTiles: [_gzTile([way])],
+        gzippedTiles: [
+          _gzTile([way]),
+        ],
         tileBboxes: const [_bbox],
       );
-      expect(rows.any((r) => r.regionId == '51477'), isFalse,
-          reason: 'level-2 Deutschland must never be attributed');
+      expect(
+        rows.any((r) => r.regionId == '51477'),
+        isFalse,
+        reason: 'level-2 Deutschland must never be attributed',
+      );
       expect(rows.any((r) => r.regionId == '151999'), isTrue);
     });
 
@@ -265,7 +279,9 @@ void main() {
         regionsByLevel: {
           8: [_regionLevel8()],
         },
-        gzippedTiles: [_gzTile([way])],
+        gzippedTiles: [
+          _gzTile([way]),
+        ],
         tileBboxes: const [
           LatLonBbox(minLat: 9, minLon: 9, maxLat: 11, maxLon: 11),
         ],

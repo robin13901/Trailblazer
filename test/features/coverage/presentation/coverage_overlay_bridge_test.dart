@@ -88,8 +88,7 @@ class _FakeCoverageOverlayApplier implements CoverageOverlayApplier {
 
 /// Controllable Notifier that wraps a mutable [CoverageColorPreset] so tests
 /// can update it synchronously without SharedPreferences.
-class _FakeCoveragePresetNotifier
-    extends AsyncNotifier<CoverageColorPreset>
+class _FakeCoveragePresetNotifier extends AsyncNotifier<CoverageColorPreset>
     implements CoveragePresetNotifier {
   @override
   Future<CoverageColorPreset> build() async => CoverageColorPreset.amber;
@@ -114,8 +113,7 @@ class _NullMapControllerNotifier extends MapControllerNotifier {
 /// A [StreamController] exposed to tests so they can push new
 /// [CoverageOverlayData] values and simulate the "trip confirmed" reactive
 /// update path.
-final _dataStreamController =
-    StreamController<CoverageOverlayData>.broadcast();
+final _dataStreamController = StreamController<CoverageOverlayData>.broadcast();
 
 /// A second distinct-reference empty CoverageOverlayData for re-emit tests.
 ///
@@ -139,7 +137,10 @@ final _distinctEmptyData = CoverageOverlayData(<CoverageWay>[]);
   Widget widget,
   _FakeCoverageOverlayApplier fake,
   ProviderContainer container,
-}) _buildTestScope({CoverageColorPreset initialPreset = CoverageColorPreset.amber}) {
+})
+_buildTestScope({
+  CoverageColorPreset initialPreset = CoverageColorPreset.amber,
+}) {
   final fake = _FakeCoverageOverlayApplier();
 
   final container = ProviderContainer(
@@ -152,8 +153,7 @@ final _distinctEmptyData = CoverageOverlayData(<CoverageWay>[]);
       coveragePresetProvider.overrideWith(_FakeCoveragePresetNotifier.new),
       coveragePresetValueProvider.overrideWithValue(initialPreset),
       // Null controller — no live MapLibre; fake records calls regardless.
-      mapControllerProvider
-          .overrideWith(_NullMapControllerNotifier.new),
+      mapControllerProvider.overrideWith(_NullMapControllerNotifier.new),
     ],
   );
 
@@ -232,10 +232,12 @@ void main() {
         await tester.pump();
         await tester.pump();
 
-        final applyCountAfterBump =
-            fake.calls.whereType<_ApplyCall>().length;
-        expect(applyCountAfterBump, greaterThan(0),
-            reason: 'expected at least one apply after bump + initial data');
+        final applyCountAfterBump = fake.calls.whereType<_ApplyCall>().length;
+        expect(
+          applyCountAfterBump,
+          greaterThan(0),
+          reason: 'expected at least one apply after bump + initial data',
+        );
 
         // Emit new coverage data — simulates a trip being confirmed.
         // Use a distinct-reference instance so Riverpod's equality check
@@ -246,8 +248,7 @@ void main() {
         await tester.pump();
         await tester.pump();
 
-        final applyCountAfterReemit =
-            fake.calls.whereType<_ApplyCall>().length;
+        final applyCountAfterReemit = fake.calls.whereType<_ApplyCall>().length;
         expect(
           applyCountAfterReemit,
           greaterThan(applyCountAfterBump),
@@ -272,10 +273,12 @@ void main() {
         await tester.pump();
         await tester.pump();
 
-        final applyCountAfterBump =
-            fake.calls.whereType<_ApplyCall>().length;
-        expect(applyCountAfterBump, greaterThan(0),
-            reason: 'expected at least one apply after bump');
+        final applyCountAfterBump = fake.calls.whereType<_ApplyCall>().length;
+        expect(
+          applyCountAfterBump,
+          greaterThan(0),
+          reason: 'expected at least one apply after bump',
+        );
 
         // Change preset to green (update both async and sync providers).
         unawaited(
@@ -288,20 +291,21 @@ void main() {
           coverageOverlayDataProvider.overrideWith(
             (ref) => _dataStreamController.stream,
           ),
-          coveragePresetProvider
-              .overrideWith(_FakeCoveragePresetNotifier.new),
-          coveragePresetValueProvider
-              .overrideWithValue(CoverageColorPreset.green),
-          mapControllerProvider
-              .overrideWith(_NullMapControllerNotifier.new),
+          coveragePresetProvider.overrideWith(_FakeCoveragePresetNotifier.new),
+          coveragePresetValueProvider.overrideWithValue(
+            CoverageColorPreset.green,
+          ),
+          mapControllerProvider.overrideWith(_NullMapControllerNotifier.new),
         ]);
         await tester.pump();
         await tester.pump(); // allow unawaited updateColors to complete
 
-        final applyCountAfterPresetChange =
-            fake.calls.whereType<_ApplyCall>().length;
-        final updateColorsCalls =
-            fake.calls.whereType<_UpdateColorsCall>().toList();
+        final applyCountAfterPresetChange = fake.calls
+            .whereType<_ApplyCall>()
+            .length;
+        final updateColorsCalls = fake.calls
+            .whereType<_UpdateColorsCall>()
+            .toList();
 
         // No additional apply() — updateColors was used instead.
         expect(
@@ -311,9 +315,13 @@ void main() {
               'preset change after source is added must call updateColors, '
               'not a second full apply()',
         );
-        expect(updateColorsCalls, isNotEmpty,
-            reason: 'updateColors() must be called on preset change '
-                'when source is already added');
+        expect(
+          updateColorsCalls,
+          isNotEmpty,
+          reason:
+              'updateColors() must be called on preset change '
+              'when source is already added',
+        );
         expect(updateColorsCalls.last.preset, CoverageColorPreset.green);
       },
     );
