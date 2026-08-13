@@ -86,39 +86,79 @@ class DrivenWayGeometryResolver {
         }
       }
 
-      // 2. Fetch RAW gzipped tiles for the union bbox (no parse on this
-      //    isolate). cacheOnly:false so that tiles evicted from the 50 MB LRU
-      //    cache (e.g. after a fresh install with a backup import) are re-fetched
-      //    from the network. Previously cacheOnly:true caused gaps in the coverage
-      //    line whenever a driven way's tile was no longer in the cache. The fetch
-      //    is still cache-first (network only for actual misses) and restricted to
-      //    the union bbox, so it doesn't over-fetch. throwOnError:false ensures a
-      //    flaky Overpass call degrades to a partial overlay rather than emptying
-      //    it entirely.
-      final rawTiles = await _waySource.fetchRawTilesInBbox(
+      // 2. Fetch RAW gzipped tiles — two-pass strategy:
+      //    PASS A (cacheOnly:true): instant, no network. May leave some ways
+      //    without geometry if their tiles were LRU-evicted (e.g. after a fresh
+      //    install + backup import). We clip whatever we have and return it
+      //    immediately so the map shows *something* without waiting for network.
+      //    PASS B (cacheOnly:false): if any driven ways were missing from the
+      //    cache, re-fetch the union bbox allowing network hits for the missing
+      //    tiles, then re-clip and return the complete result.
+      //    This two-pass approach keeps the original instant-render behaviour for
+      //    the common case (warm cache after a normal drive) while still
+      //    recovering after a fresh install without a multi-minute wait before
+      //    anything appears.
+      final cachedTiles = await _waySource.fetchRawTilesInBbox(
         minLat: unionBounds.southwest.latitude,
         minLon: unionBounds.southwest.longitude,
         maxLat: unionBounds.northeast.latitude,
         maxLon: unionBounds.northeast.longitude,
         throwOnError: false,
-        // cacheOnly intentionally left false (the default): after a fresh install
-        // + backup import the tile cache is empty; cacheOnly:true would leave the
-        // overlay blank. Cache-first fetch: network is only hit for actual misses.
+        cacheOnly: true,
       );
-      if (rawTiles.isEmpty) {
-        _log.fine('resolve: no cached tiles for bbox — returning empty');
-        return CoverageOverlayData.empty;
-      }
 
-      // 3. Parse + filter-to-driven-set + clip on a compute() isolate. Peak
-      //    memory is bounded to the driven wayId set, never the full bbox.
-      final payload = _ClipPayload(
-        gzippedTiles: [for (final t in rawTiles) t.payloadGzip],
+      // Clip using cached tiles only (may have geometry gaps).
+      final payloadCached = _ClipPayload(
+        gzippedTiles: [for (final t in cachedTiles) t.payloadGzip],
         unionByWayId: unionByWayId,
       );
-      final clipped = await compute(_clipCoverageIsolate, payload);
+      final clippedCached = cachedTiles.isEmpty
+          ? <CoverageWay>[]
+          : await compute(_clipCoverageIsolate, payloadCached);
 
-      _log.info('resolve: ${clipped.length} clipped driven segments');
+      // Count how many driven ways have no geometry from the cache.
+      final cachedWayIds = <int>{};
+      if (cachedTiles.isNotEmpty) {
+        for (final way in clippedCached) {
+          cachedWayIds.add(way.wayId);
+        }
+      }
+      final missingCount =
+          unionByWayId.keys.where((id) => !cachedWayIds.contains(id)).length;
+
+      if (missingCount == 0 && cachedTiles.isNotEmpty) {
+        // All ways resolved from cache — done, no network needed.
+        _log.info('resolve: ${clippedCached.length} segments (all cached)');
+        return CoverageOverlayData(clippedCached);
+      }
+
+      // Pass B: some ways had no cached geometry — re-fetch allowing network.
+      _log.info(
+        'resolve: $missingCount/${unionByWayId.length} ways missing from '
+        'cache — re-fetching with network',
+      );
+      final fullTiles = await _waySource.fetchRawTilesInBbox(
+        minLat: unionBounds.southwest.latitude,
+        minLon: unionBounds.southwest.longitude,
+        maxLat: unionBounds.northeast.latitude,
+        maxLon: unionBounds.northeast.longitude,
+        throwOnError: false,
+        // cacheOnly defaults to false — fetch missing tiles from network.
+      );
+      if (fullTiles.isEmpty) {
+        _log.fine('resolve: no tiles after network fetch — returning cached');
+        return cachedTiles.isEmpty
+            ? CoverageOverlayData.empty
+            : CoverageOverlayData(clippedCached);
+      }
+
+      final payloadFull = _ClipPayload(
+        gzippedTiles: [for (final t in fullTiles) t.payloadGzip],
+        unionByWayId: unionByWayId,
+      );
+      final clipped = await compute(_clipCoverageIsolate, payloadFull);
+
+      _log.info('resolve: ${clipped.length} clipped driven segments (network)');
       return CoverageOverlayData(clipped);
     } on DomainError catch (e, st) {
       _log.warning('resolve: DomainError — degrading to empty', e, st);
