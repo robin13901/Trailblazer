@@ -30,6 +30,7 @@ import 'package:auto_explore/core/db/daos/driven_way_intervals_dao.dart';
 import 'package:auto_explore/features/coverage/data/coverage_overlay_data.dart';
 import 'package:auto_explore/features/coverage/data/driven_way_geometry_resolver.dart';
 import 'package:auto_explore/features/matching/data/matching_providers.dart';
+import 'package:auto_explore/features/startup/data/global_recalc_progress_provider.dart';
 import 'package:auto_explore/features/trips/data/trips_repository_providers.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:maplibre_gl/maplibre_gl.dart' show LatLngBounds;
@@ -44,9 +45,12 @@ final drivenWayIntervalsDaoProvider = Provider<DrivenWayIntervalsDao>((ref) {
 final drivenWayGeometryResolverProvider = Provider<DrivenWayGeometryResolver>((
   ref,
 ) {
+  final notifier = ref.read(globalRecalcProgressProvider.notifier);
   return DrivenWayGeometryResolver(
     intervalsDao: ref.watch(drivenWayIntervalsDaoProvider),
     waySource: ref.watch(wayCandidateSourceProvider),
+    onNetworkFetchStart: notifier.startOverlayFetch,
+    onNetworkFetchDone: notifier.clearOverlayFetch,
   );
 });
 

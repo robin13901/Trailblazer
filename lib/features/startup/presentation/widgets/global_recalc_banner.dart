@@ -36,6 +36,7 @@ class GlobalRecalcBanner extends ConsumerWidget {
     );
 
     final isRematching = state.phase == GlobalRecalcPhase.rematching;
+    final isOverlayFetch = state.phase == GlobalRecalcPhase.overlayFetching;
     final hasCount = state.total > 0;
     final value = hasCount ? state.done / state.total : null;
 
@@ -44,6 +45,8 @@ class GlobalRecalcBanner extends ConsumerWidget {
       title = hasCount
           ? 'Neuberechnung … Fahrt ${state.done}/${state.total}'
           : 'Neuberechnung …';
+    } else if (isOverlayFetch) {
+      title = 'Kartenlinie wird geladen …';
     } else {
       title = hasCount
           ? 'Abdeckung wird neu berechnet … ${state.done}/${state.total}'

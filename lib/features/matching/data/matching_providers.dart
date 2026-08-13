@@ -23,6 +23,7 @@ import 'package:auto_explore/features/matching/data/trip_match_coordinator.dart'
 import 'package:auto_explore/features/matching/data/trip_road_fetch_coordinator.dart';
 import 'package:auto_explore/features/matching/data/way_candidate_source.dart';
 import 'package:auto_explore/features/regions/data/coverage_compute_providers.dart';
+import 'package:auto_explore/features/startup/data/global_recalc_progress_provider.dart';
 import 'package:auto_explore/features/trips/data/trips_dao.dart';
 import 'package:auto_explore/features/trips/data/trips_repository_providers.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -124,6 +125,7 @@ final tripRoadFetchCoordinatorProvider = Provider<TripRoadFetchCoordinator>((
 /// never break matching.
 final tripMatchCoordinatorProvider = Provider<TripMatchCoordinator>((ref) {
   final computeService = ref.watch(coverageComputeServiceProvider);
+  final recalcNotifier = ref.read(globalRecalcProgressProvider.notifier);
   final log = Logger('matching_providers');
 
   return TripMatchCoordinator(
@@ -148,17 +150,21 @@ final tripMatchCoordinatorProvider = Provider<TripMatchCoordinator>((ref) {
       // DOWN (non-monotonic; observed Kleinheubach 34.1% → 23.2%). The full
       // recompute() rebuilds every region from the all-trips union and is
       // known-correct/monotonic. Heavier, but fire-and-forget, once per match.
+      recalcNotifier.startRecomputing();
       unawaited(
-        computeService.recompute().then((result) {
-          result.when(
-            ok: (rows) => log.fine(
-              'auto-recompute after trip $tripId: $rows regions written',
-            ),
-            err: (e) => log.warning(
-              'auto-recompute after trip $tripId failed: $e',
-            ),
-          );
-        }),
+        computeService
+            .recompute(onProgress: recalcNotifier.updateRecomputing)
+            .then((result) {
+              recalcNotifier.clear();
+              result.when(
+                ok: (rows) => log.fine(
+                  'auto-recompute after trip $tripId: $rows regions written',
+                ),
+                err: (e) => log.warning(
+                  'auto-recompute after trip $tripId failed: $e',
+                ),
+              );
+            }),
       );
     },
   );

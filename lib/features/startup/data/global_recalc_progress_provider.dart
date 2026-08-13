@@ -18,6 +18,11 @@ enum GlobalRecalcPhase {
 
   /// Rebuilding the coverage cache from the (re-matched) intervals.
   recomputing,
+
+  /// Fetching missing Overpass tiles to complete the coverage line overlay
+  /// (Pass B of DrivenWayGeometryResolver — fires only when tiles were
+  /// LRU-evicted, e.g. after a fresh install + backup import).
+  overlayFetching,
 }
 
 /// Immutable snapshot of the global recalc progress.
@@ -109,6 +114,18 @@ class GlobalRecalcNotifier extends Notifier<GlobalRecalcState?> {
   /// Clear the banner — the migration is done (or had nothing to do).
   void clear() {
     state = null;
+  }
+
+  /// Enter the overlay-fetch phase (Pass B of DrivenWayGeometryResolver).
+  /// Shows a spinner while missing Overpass tiles are re-fetched.
+  void startOverlayFetch() {
+    state = const GlobalRecalcState(phase: GlobalRecalcPhase.overlayFetching);
+  }
+
+  /// Clear only if still in the overlayFetching phase (guard so a concurrent
+  /// migration clear doesn't accidentally re-show the banner).
+  void clearOverlayFetch() {
+    if (state?.phase == GlobalRecalcPhase.overlayFetching) state = null;
   }
 }
 

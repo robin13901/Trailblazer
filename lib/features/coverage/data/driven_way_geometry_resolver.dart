@@ -45,11 +45,17 @@ class DrivenWayGeometryResolver {
   DrivenWayGeometryResolver({
     required DrivenWayIntervalsDao intervalsDao,
     required WayCandidateSource waySource,
+    void Function()? onNetworkFetchStart,
+    void Function()? onNetworkFetchDone,
   }) : _intervalsDao = intervalsDao,
-       _waySource = waySource;
+       _waySource = waySource,
+       _onNetworkFetchStart = onNetworkFetchStart,
+       _onNetworkFetchDone = onNetworkFetchDone;
 
   final DrivenWayIntervalsDao _intervalsDao;
   final WayCandidateSource _waySource;
+  final void Function()? _onNetworkFetchStart;
+  final void Function()? _onNetworkFetchDone;
 
   static final _log = Logger('DrivenWayGeometryResolver');
 
@@ -137,6 +143,7 @@ class DrivenWayGeometryResolver {
         'resolve: $missingCount/${unionByWayId.length} ways missing from '
         'cache — re-fetching with network',
       );
+      _onNetworkFetchStart?.call();
       final fullTiles = await _waySource.fetchRawTilesInBbox(
         minLat: unionBounds.southwest.latitude,
         minLon: unionBounds.southwest.longitude,
@@ -146,6 +153,7 @@ class DrivenWayGeometryResolver {
         // cacheOnly defaults to false — fetch missing tiles from network.
       );
       if (fullTiles.isEmpty) {
+        _onNetworkFetchDone?.call();
         _log.fine('resolve: no tiles after network fetch — returning cached');
         return cachedTiles.isEmpty
             ? CoverageOverlayData.empty
@@ -157,6 +165,7 @@ class DrivenWayGeometryResolver {
         unionByWayId: unionByWayId,
       );
       final clipped = await compute(_clipCoverageIsolate, payloadFull);
+      _onNetworkFetchDone?.call();
 
       _log.info('resolve: ${clipped.length} clipped driven segments (network)');
       return CoverageOverlayData(clipped);
