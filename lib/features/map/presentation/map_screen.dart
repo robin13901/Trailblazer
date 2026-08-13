@@ -268,8 +268,8 @@ class MapScreen extends ConsumerWidget {
             // insets keep it off the settings / align-north buttons.
             const Positioned(
               top: _chromeRowTopInset + 56 + _chromeGap,
-              left: 64,
-              right: 64,
+              left: 40,
+              right: 40,
               child: SafeArea(child: Center(child: GlobalRecalcBanner())),
             ),
 

@@ -40,24 +40,22 @@ class GlobalRecalcBanner extends ConsumerWidget {
     final hasCount = state.total > 0;
     final value = hasCount ? state.done / state.total : null;
 
-    final String title;
+    final String label;
+    final String? countLine;
     if (isRematching) {
-      title = hasCount
-          ? 'Neuberechnung … Fahrt ${state.done}/${state.total}'
-          : 'Neuberechnung …';
+      label = 'Neuberechnung …';
+      countLine = hasCount ? 'Fahrt ${state.done} / ${state.total}' : null;
     } else if (isOverlayFetch) {
-      title = hasCount
-          ? 'Kartenlinie wird geladen … ${state.done}/${state.total}'
-          : 'Kartenlinie wird geladen …';
+      label = 'Kartenlinie wird geladen …';
+      countLine = hasCount ? 'Kachel ${state.done} / ${state.total}' : null;
     } else {
-      title = hasCount
-          ? 'Abdeckung wird neu berechnet … ${state.done}/${state.total}'
-          : 'Abdeckung wird neu berechnet …';
+      label = 'Abdeckung wird neu berechnet …';
+      countLine = hasCount ? '${state.done} / ${state.total} Kacheln' : null;
     }
 
     return Semantics(
       liveRegion: true,
-      label: title,
+      label: countLine != null ? '$label $countLine' : label,
       child: GlassPill(
         overMap: true,
         padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 18),
@@ -66,7 +64,7 @@ class GlobalRecalcBanner extends ConsumerWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Text(
-              title,
+              label,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               textAlign: TextAlign.center,
@@ -74,6 +72,17 @@ class GlobalRecalcBanner extends ConsumerWidget {
                 fontWeight: FontWeight.w600,
               ),
             ),
+            if (countLine != null) ...[
+              const SizedBox(height: 2),
+              Text(
+                countLine,
+                maxLines: 1,
+                textAlign: TextAlign.center,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
+                ),
+              ),
+            ],
             const SizedBox(height: 6),
             ClipRRect(
               borderRadius: BorderRadius.circular(4),
