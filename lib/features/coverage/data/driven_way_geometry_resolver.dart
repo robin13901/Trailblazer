@@ -87,19 +87,23 @@ class DrivenWayGeometryResolver {
       }
 
       // 2. Fetch RAW gzipped tiles for the union bbox (no parse on this
-      //    isolate). cacheOnly:true → this overlay is a DISPLAY pass over
-      //    geometry the matcher already fetched; it must NEVER fire network
-      //    fetches for the off-corridor tiles in a long trip's wide union bbox.
-      //    Awaiting those (throttled) Overpass fetches here left the overlay
-      //    empty — nothing drawn after a long drive (2026-07-21 fix). All
-      //    driven ways are already cached, so cacheOnly loses no geometry.
+      //    isolate). cacheOnly:false so that tiles evicted from the 50 MB LRU
+      //    cache (e.g. after a fresh install with a backup import) are re-fetched
+      //    from the network. Previously cacheOnly:true caused gaps in the coverage
+      //    line whenever a driven way's tile was no longer in the cache. The fetch
+      //    is still cache-first (network only for actual misses) and restricted to
+      //    the union bbox, so it doesn't over-fetch. throwOnError:false ensures a
+      //    flaky Overpass call degrades to a partial overlay rather than emptying
+      //    it entirely.
       final rawTiles = await _waySource.fetchRawTilesInBbox(
         minLat: unionBounds.southwest.latitude,
         minLon: unionBounds.southwest.longitude,
         maxLat: unionBounds.northeast.latitude,
         maxLon: unionBounds.northeast.longitude,
         throwOnError: false,
-        cacheOnly: true,
+        // cacheOnly intentionally left false (the default): after a fresh install
+        // + backup import the tile cache is empty; cacheOnly:true would leave the
+        // overlay blank. Cache-first fetch: network is only hit for actual misses.
       );
       if (rawTiles.isEmpty) {
         _log.fine('resolve: no cached tiles for bbox — returning empty');
