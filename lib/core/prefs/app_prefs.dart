@@ -174,7 +174,13 @@ class AppPrefs {
   /// (A66) and closes the in-town turn gaps (Geislitz/Kleinheubach); this bump
   /// forces one clip-per-region rebuild so coverage_cache reflects the corrected
   /// driven set (dropped false-positive km + newly-closed gaps).
-  static const int kCurrentCoverageRecomputeVersion = 8;
+  /// `9` = 2026-08-13 fix LRU-eviction blind spot in Stage-1 attribution: the
+  /// recompute now fetches tiles from the network when they are not in the 50 MB
+  /// LRU cache (cacheOnly:false), so new regions driven after a long gap (where
+  /// trip tiles were evicted before recompute ran) are no longer stuck at 0%.
+  /// Forces one clean clip-per-region rebuild to attribute any previously-missed
+  /// ways from trips 32/33 and similar drives.
+  static const int kCurrentCoverageRecomputeVersion = 9;
 
   /// Version stamp of the last stuck-fetch recovery migration applied to this
   /// device. Bumped when a one-shot recovery of trips parked by an Overpass

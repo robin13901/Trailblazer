@@ -192,11 +192,13 @@ class CoverageComputeService {
       // STAGE 1: ensure durable attribution for any NEW driven ways.
       // ---------------------------------------------------------------------
       // Only the ways not already clipped need geometry + a polygon pass. We
-      // fetch RAW cached tiles for the union bbox (cacheOnly:true → never fires
-      // network for off-corridor tiles) and let the worker skip the ways it has
-      // already attributed. If the tile cache has been evicted for a new way,
-      // that way simply isn't attributed this pass — but every PREVIOUSLY
-      // attributed way survives (rows are durable), so coverage never regresses.
+      // fetch RAW tiles for the union bbox — cacheOnly:false so that ways whose
+      // tiles were LRU-evicted after matching (50 MB budget) still get attributed.
+      // Previously cacheOnly:true silently skipped evicted tiles, leaving new
+      // regions permanently at 0 % until a full rematch migration. throwOnError
+      // stays false: a network hiccup skips those tiles this pass but leaves
+      // previously-attributed ways intact (STAGE 2 is eviction-proof from the
+      // durable attribution rows).
       final alreadyAttributed = await _attribution.getAttributedWayIds();
 
       final rawTiles = await _waySource.fetchRawTilesInBbox(
@@ -205,7 +207,8 @@ class CoverageComputeService {
         maxLat: bounds.northeast.latitude,
         maxLon: bounds.northeast.longitude,
         throwOnError: false,
-        cacheOnly: true,
+        // cacheOnly intentionally left false (the default): LRU-evicted tiles
+        // for new ways must be re-fetched so new regions are not stuck at 0%.
       );
 
       // Clip the new ways off the UI thread, dispatched in TILE CHUNKS so we can

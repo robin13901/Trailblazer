@@ -106,10 +106,16 @@ Uint8List _gzTile(List<WayCandidate> ways) {
 /// Fake WayCandidateSource — returns a fixed way list. Its raw-tiles path
 /// gzips those ways into one tile (so STAGE-1 clip runs) unless [emptyRawTiles]
 /// is set (to exercise the eviction-proof STAGE-2-only path).
+///
+/// Records the `cacheOnly` flag passed to `fetchRawTilesInBbox` so tests can
+/// assert that recompute() passes cacheOnly:false (the LRU-eviction fix).
 class _FixedWayCandidateSource implements WayCandidateSource {
   _FixedWayCandidateSource(this.ways, {this.emptyRawTiles = false});
   final List<WayCandidate> ways;
   final bool emptyRawTiles;
+
+  /// Last cacheOnly value received by fetchRawTilesInBbox. Null before first call.
+  bool? lastCacheOnly;
 
   @override
   Future<List<WayCandidate>> fetchWaysInBbox({
@@ -134,6 +140,7 @@ class _FixedWayCandidateSource implements WayCandidateSource {
     bool cacheOnly = false,
     void Function(int done, int total)? onTileProgress,
   }) async {
+    lastCacheOnly = cacheOnly;
     if (emptyRawTiles || ways.isEmpty) return const [];
     return [
       RawTilePayload(
@@ -353,8 +360,10 @@ void main() {
 
   // Builds a service whose off-isolate STAGE-1 runner is the REAL clip
   // (computeCoverageAttribution) over the provided regionsByLevel. STAGE-2 (DB
-  // aggregation) runs unchanged inside the service.
-  CoverageComputeService buildService({
+  // aggregation) runs unchanged inside the service. Returns the source alongside
+  // the service so tests can inspect recorded call arguments (e.g. cacheOnly).
+  ({CoverageComputeService service, _FixedWayCandidateSource source})
+  buildServiceWithSource({
     required Map<int, AdminRegion?> byLevel,
     List<WayCandidate> ways = const [],
     _FakeRegionTotalsLookup? totalsLookup,
@@ -365,9 +374,13 @@ void main() {
       for (final e in byLevel.entries)
         if (e.value != null) e.key: [e.value!],
     };
-    return CoverageComputeService(
+    final waySource = _FixedWayCandidateSource(
+      ways,
+      emptyRawTiles: emptyRawTiles,
+    );
+    final service = CoverageComputeService(
       intervalsDao: intervalsDao,
-      waySource: _FixedWayCandidateSource(ways, emptyRawTiles: emptyRawTiles),
+      waySource: waySource,
       regionLookup: _FakeAdminRegionLookup(byLevel),
       cacheDao: cacheDao,
       tripsDao: tripsDao,
@@ -381,7 +394,20 @@ void main() {
             alreadyAttributedWayIds: alreadyAttributedWayIds,
           ),
     );
+    return (service: service, source: waySource);
   }
+
+  CoverageComputeService buildService({
+    required Map<int, AdminRegion?> byLevel,
+    List<WayCandidate> ways = const [],
+    _FakeRegionTotalsLookup? totalsLookup,
+    bool emptyRawTiles = false,
+  }) => buildServiceWithSource(
+    byLevel: byLevel,
+    ways: ways,
+    totalsLookup: totalsLookup,
+    emptyRawTiles: emptyRawTiles,
+  ).service;
 
   group('CoverageComputeService.recompute', () {
     test(
@@ -880,5 +906,34 @@ void main() {
       );
       expect(events, contains((1, 1)));
     });
+
+    // -----------------------------------------------------------------------
+    // Regression: recompute() must pass cacheOnly:false to fetchRawTilesInBbox
+    // so that LRU-evicted tiles for new ways are re-fetched from the network.
+    // Before the fix, cacheOnly:true silently skipped evicted tiles and left
+    // new regions permanently at 0% coverage (trips 32/33 bug, 2026-08-13).
+    // -----------------------------------------------------------------------
+    test(
+      'Stage-1 tile fetch uses cacheOnly:false so evicted tiles are re-fetched',
+      () async {
+        final tripId = await _seedMatchedTrip(db);
+        await _seedInterval(db, tripId: tripId, wayId: 100001);
+
+        final (:service, :source) = buildServiceWithSource(
+          byLevel: {4: null, 6: null, 8: _regionLevel8(), 9: null, 10: null},
+          ways: [_fixtureWay()],
+        );
+
+        await service.recompute();
+
+        expect(
+          source.lastCacheOnly,
+          isFalse,
+          reason:
+              'recompute Stage-1 must not restrict to cache-only so that '
+              'LRU-evicted tiles for new regions are re-fetched',
+        );
+      },
+    );
   });
 }
