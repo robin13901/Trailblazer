@@ -48,6 +48,45 @@
 	<!-- ==== file_picker: allows FileType.custom document picking (e.g. .trailblazer) ==== -->
 	<key>LSSupportsOpeningDocumentsInPlace</key>
 	<true/>
+	<!-- Declare the custom .trailblazer UTI so iOS knows this app owns it.
+	     Without UTImportedTypeDeclarations the file appears greyed-out in the
+	     document picker even when FileType.custom + allowedExtensions is set. -->
+	<key>UTImportedTypeDeclarations</key>
+	<array>
+		<dict>
+			<key>UTTypeIdentifier</key>
+			<string>com.okfbuddy.trailblazer-backup</string>
+			<key>UTTypeDescription</key>
+			<string>Trailblazer Backup</string>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.data</string>
+				<string>public.database</string>
+			</array>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>trailblazer</string>
+				</array>
+			</dict>
+		</dict>
+	</array>
+	<!-- Register the document type so the app can be offered as a handler when
+	     the user taps a .trailblazer file in Files / Mail / AirDrop. -->
+	<key>CFBundleDocumentTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeName</key>
+			<string>Trailblazer Backup</string>
+			<key>LSHandlerRank</key>
+			<string>Owner</string>
+			<key>LSItemContentTypes</key>
+			<array>
+				<string>com.okfbuddy.trailblazer-backup</string>
+			</array>
+		</dict>
+	</array>
 	<!-- ==== Trailblazer permission strings ==== -->
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Trailblazer records your route while you drive to show which roads you've explored.</string>
