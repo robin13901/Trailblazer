@@ -123,7 +123,10 @@ class AppPrefs {
   /// (closes the gap + drops the wrong paint). A/F use NO speed heuristic and no
   /// static road-class prior (both explicitly rejected). Re-match rebuilds every
   /// stored trip under the corrected matcher. Paired with the recompute bump.
-  static const int kCurrentMatcherRematchVersion = 11;
+  /// `12` = 2026-08-13 force full re-match + recompute on fresh install after
+  /// importing a backup, so all trips are processed under the current matcher
+  /// and coverage_cache is fully rebuilt from scratch.
+  static const int kCurrentMatcherRematchVersion = 12;
 
   /// Version stamp of the last coverage-cache recompute migration applied to
   /// this device. Bumped whenever `coverage_cache` needs a one-shot
@@ -180,7 +183,9 @@ class AppPrefs {
   /// trip tiles were evicted before recompute ran) are no longer stuck at 0%.
   /// Forces one clean clip-per-region rebuild to attribute any previously-missed
   /// ways from trips 32/33 and similar drives.
-  static const int kCurrentCoverageRecomputeVersion = 9;
+  /// `10` = 2026-08-13 paired with rematch v12: force full recompute after
+  /// re-match so coverage_cache is rebuilt from the freshly rewritten intervals.
+  static const int kCurrentCoverageRecomputeVersion = 10;
 
   /// Version stamp of the last stuck-fetch recovery migration applied to this
   /// device. Bumped when a one-shot recovery of trips parked by an Overpass
