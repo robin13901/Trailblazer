@@ -46,7 +46,9 @@ class GlobalRecalcBanner extends ConsumerWidget {
           ? 'Neuberechnung … Fahrt ${state.done}/${state.total}'
           : 'Neuberechnung …';
     } else if (isOverlayFetch) {
-      title = 'Kartenlinie wird geladen …';
+      title = hasCount
+          ? 'Kartenlinie wird geladen … ${state.done}/${state.total}'
+          : 'Kartenlinie wird geladen …';
     } else {
       title = hasCount
           ? 'Abdeckung wird neu berechnet … ${state.done}/${state.total}'

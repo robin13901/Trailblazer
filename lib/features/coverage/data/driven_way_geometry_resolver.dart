@@ -47,15 +47,18 @@ class DrivenWayGeometryResolver {
     required WayCandidateSource waySource,
     void Function()? onNetworkFetchStart,
     void Function()? onNetworkFetchDone,
+    void Function(int done, int total)? onNetworkFetchProgress,
   }) : _intervalsDao = intervalsDao,
        _waySource = waySource,
        _onNetworkFetchStart = onNetworkFetchStart,
-       _onNetworkFetchDone = onNetworkFetchDone;
+       _onNetworkFetchDone = onNetworkFetchDone,
+       _onNetworkFetchProgress = onNetworkFetchProgress;
 
   final DrivenWayIntervalsDao _intervalsDao;
   final WayCandidateSource _waySource;
   final void Function()? _onNetworkFetchStart;
   final void Function()? _onNetworkFetchDone;
+  final void Function(int done, int total)? _onNetworkFetchProgress;
 
   static final _log = Logger('DrivenWayGeometryResolver');
 
@@ -150,6 +153,7 @@ class DrivenWayGeometryResolver {
         maxLat: unionBounds.northeast.latitude,
         maxLon: unionBounds.northeast.longitude,
         throwOnError: false,
+        onTileProgress: _onNetworkFetchProgress,
         // cacheOnly defaults to false — fetch missing tiles from network.
       );
       if (fullTiles.isEmpty) {

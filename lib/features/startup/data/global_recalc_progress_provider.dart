@@ -122,6 +122,15 @@ class GlobalRecalcNotifier extends Notifier<GlobalRecalcState?> {
     state = const GlobalRecalcState(phase: GlobalRecalcPhase.overlayFetching);
   }
 
+  /// Update tile-fetch progress (done/total tile count) during Pass B.
+  void updateOverlayFetch(int done, int total) {
+    state = GlobalRecalcState(
+      phase: GlobalRecalcPhase.overlayFetching,
+      done: done,
+      total: total,
+    );
+  }
+
   /// Clear only if still in the overlayFetching phase (guard so a concurrent
   /// migration clear doesn't accidentally re-show the banner).
   void clearOverlayFetch() {

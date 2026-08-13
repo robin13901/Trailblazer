@@ -51,6 +51,7 @@ final drivenWayGeometryResolverProvider = Provider<DrivenWayGeometryResolver>((
     waySource: ref.watch(wayCandidateSourceProvider),
     onNetworkFetchStart: notifier.startOverlayFetch,
     onNetworkFetchDone: notifier.clearOverlayFetch,
+    onNetworkFetchProgress: notifier.updateOverlayFetch,
   );
 });
 
