@@ -20,6 +20,7 @@ import 'dart:convert';
 import 'dart:io' show gzip;
 
 import 'package:auto_explore/core/db/app_database.dart';
+import 'package:auto_explore/core/db/daos/coverage_line_cache_dao.dart';
 import 'package:auto_explore/core/db/daos/driven_way_intervals_dao.dart';
 import 'package:auto_explore/features/coverage/data/coverage_overlay_data.dart';
 import 'package:auto_explore/features/coverage/data/driven_way_geometry_resolver.dart';
@@ -44,6 +45,11 @@ class _FakeWayCandidateSource implements WayCandidateSource {
   _FakeWayCandidateSource(this.ways);
 
   final List<WayCandidate> ways;
+
+  /// Number of times fetchRawTilesInBbox was called — lets DB-first tests
+  /// assert the resolver did NOT touch the tile source when the durable blob
+  /// was fresh.
+  int rawFetchCalls = 0;
 
   Uint8List _gzippedEnvelope() {
     final elements = [
@@ -84,6 +90,7 @@ class _FakeWayCandidateSource implements WayCandidateSource {
     bool cacheOnly = false,
     void Function(int done, int total)? onTileProgress,
   }) async {
+    rawFetchCalls++;
     if (ways.isEmpty) return const [];
     return [
       RawTilePayload(
@@ -191,12 +198,14 @@ void main() {
   late DrivenWayIntervalsDao intervalsDao;
   late TripsDao tripsDao;
   late TripsInboxDao inboxDao;
+  late CoverageLineCacheDao lineCacheDao;
 
   setUp(() async {
     db = AppDatabase(NativeDatabase.memory());
     intervalsDao = DrivenWayIntervalsDao(db);
     tripsDao = TripsDao(db);
     inboxDao = TripsInboxDao(db);
+    lineCacheDao = CoverageLineCacheDao(db);
     // Trigger beforeOpen PRAGMAs (foreign_keys=ON etc.).
     await db.customSelect('SELECT 1').getSingle();
   });
@@ -458,6 +467,127 @@ void main() {
               'ensuring the overlay stays live even for intervals-only mutations '
               '(e.g. Phase-8 background backfill or re-match).',
         );
+      },
+    );
+  });
+
+  // -------------------------------------------------------------------------
+  // Durable coverage-line cache (schema v9) — DB-first fast path + persist.
+  // -------------------------------------------------------------------------
+  group('DrivenWayGeometryResolver durable line cache', () {
+    test(
+      'first resolve computes + persists the line blob keyed to the revision',
+      () async {
+        final trip = await _seedMatchedTrip(tripsDao);
+        await _seedInterval(
+          intervalsDao,
+          tripId: trip,
+          wayId: 42,
+          startMeters: 0,
+          endMeters: 222,
+        );
+
+        final source = _FakeWayCandidateSource([_straightWay(42)]);
+        final resolver = DrivenWayGeometryResolver(
+          intervalsDao: intervalsDao,
+          waySource: source,
+          lineCacheDao: lineCacheDao,
+        );
+
+        final result = await resolver.resolve(_dummyBounds);
+        expect(result.ways, hasLength(1));
+
+        // Blob was persisted against the current revision.
+        final row = await lineCacheDao.getRow();
+        expect(row, isNotNull);
+        expect(row!.intervalsRevision, await intervalsDao.getRevision());
+        expect(row.linesJson, contains('"id":42'));
+      },
+    );
+
+    test(
+      'second resolve (same revision) reads the blob and does NOT touch tiles',
+      () async {
+        final trip = await _seedMatchedTrip(tripsDao);
+        await _seedInterval(
+          intervalsDao,
+          tripId: trip,
+          wayId: 42,
+          startMeters: 0,
+          endMeters: 222,
+        );
+
+        // First resolver computes + persists.
+        final source1 = _FakeWayCandidateSource([_straightWay(42)]);
+        final r1 = DrivenWayGeometryResolver(
+          intervalsDao: intervalsDao,
+          waySource: source1,
+          lineCacheDao: lineCacheDao,
+        );
+        await r1.resolve(_dummyBounds);
+
+        // A FRESH resolver (simulating an app restart) with a source that would
+        // throw if touched — the blob must satisfy resolve() without any fetch.
+        final source2 = _FakeWayCandidateSource([_straightWay(42)]);
+        final r2 = DrivenWayGeometryResolver(
+          intervalsDao: intervalsDao,
+          waySource: source2,
+          lineCacheDao: lineCacheDao,
+        );
+
+        final result = await r2.resolve(_dummyBounds);
+        expect(result.ways, hasLength(1));
+        expect(result.ways.first.wayId, 42);
+        expect(
+          source2.rawFetchCalls,
+          0,
+          reason: 'fresh revision blob must be served without touching tiles',
+        );
+      },
+    );
+
+    test(
+      'a new drive (revision advances) invalidates the blob → recompute',
+      () async {
+        final trip = await _seedMatchedTrip(tripsDao);
+        await _seedInterval(
+          intervalsDao,
+          tripId: trip,
+          wayId: 42,
+          startMeters: 0,
+          endMeters: 222,
+        );
+
+        final source = _FakeWayCandidateSource([_straightWay(42)]);
+        final resolver = DrivenWayGeometryResolver(
+          intervalsDao: intervalsDao,
+          waySource: source,
+          lineCacheDao: lineCacheDao,
+        );
+        await resolver.resolve(_dummyBounds);
+        final callsAfterFirst = source.rawFetchCalls;
+        expect(callsAfterFirst, greaterThan(0));
+
+        // New drive on a different way → revision advances → blob stale.
+        await _seedInterval(
+          intervalsDao,
+          tripId: trip,
+          wayId: 43,
+          startMeters: 0,
+          endMeters: 222,
+        );
+        // Extend the source so the new way resolves too.
+        source.ways.add(_straightWay(43));
+
+        await resolver.resolve(_dummyBounds);
+        expect(
+          source.rawFetchCalls,
+          greaterThan(callsAfterFirst),
+          reason: 'a stale revision must re-fetch + recompute',
+        );
+
+        final row = await lineCacheDao.getRow();
+        expect(row!.intervalsRevision, await intervalsDao.getRevision());
       },
     );
   });

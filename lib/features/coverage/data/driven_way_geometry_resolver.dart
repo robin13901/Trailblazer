@@ -22,8 +22,10 @@
 import 'dart:convert';
 import 'dart:io' show gzip;
 
+import 'package:auto_explore/core/db/daos/coverage_line_cache_dao.dart';
 import 'package:auto_explore/core/db/daos/driven_way_intervals_dao.dart';
 import 'package:auto_explore/core/errors/domain_error.dart';
+import 'package:auto_explore/features/coverage/data/coverage_line_codec.dart';
 import 'package:auto_explore/features/coverage/data/coverage_overlay_data.dart';
 import 'package:auto_explore/features/coverage/domain/coverage_datum.dart';
 import 'package:auto_explore/features/coverage/domain/interval_union.dart';
@@ -45,20 +47,39 @@ class DrivenWayGeometryResolver {
   DrivenWayGeometryResolver({
     required DrivenWayIntervalsDao intervalsDao,
     required WayCandidateSource waySource,
+    CoverageLineCacheDao? lineCacheDao,
     void Function()? onNetworkFetchStart,
     void Function()? onNetworkFetchDone,
     void Function(int done, int total)? onNetworkFetchProgress,
   }) : _intervalsDao = intervalsDao,
        _waySource = waySource,
+       _lineCacheDao = lineCacheDao,
        _onNetworkFetchStart = onNetworkFetchStart,
        _onNetworkFetchDone = onNetworkFetchDone,
        _onNetworkFetchProgress = onNetworkFetchProgress;
 
   final DrivenWayIntervalsDao _intervalsDao;
   final WayCandidateSource _waySource;
+
+  /// Durable clipped-line blob cache (schema v9). Optional so existing tests
+  /// that don't exercise the cache need not supply it. When present, [resolve]
+  /// reads the blob first (instant, no tile access) and persists freshly
+  /// computed lines back to it.
+  final CoverageLineCacheDao? _lineCacheDao;
+
   final void Function()? _onNetworkFetchStart;
   final void Function()? _onNetworkFetchDone;
   final void Function(int done, int total)? _onNetworkFetchProgress;
+
+  /// One-shot guard: Pass B (network tile backfill) runs at most ONCE per
+  /// resolver instance (= per app session). Without this, driven ways that can
+  /// never be resolved from OSM (deleted ways, permanently-empty tiles, tiles
+  /// Overpass keeps failing) would re-trigger a full network re-fetch on EVERY
+  /// resolve() call — so every app launch showed the "Kartenlinie wird geladen"
+  /// banner again and it got stuck at N/M forever. After one attempt we accept
+  /// the cached geometry as final for this session; a genuinely new drive
+  /// creates a fresh resolver (provider rebuild) which re-arms the guard.
+  bool _networkBackfillAttempted = false;
 
   static final _log = Logger('DrivenWayGeometryResolver');
 
@@ -69,6 +90,27 @@ class DrivenWayGeometryResolver {
   /// Never throws — degrades to [CoverageOverlayData.empty] on any error.
   Future<CoverageOverlayData> resolve(LatLngBounds unionBounds) async {
     try {
+      // 0. DURABLE-CACHE FAST PATH (schema v9): if a stored line blob exists and
+      //    was computed against the CURRENT driven_way_intervals revision, decode
+      //    and return it — a single DB read, no tile access, no network, immune
+      //    to LRU eviction. This is the common path on every app launch. The
+      //    blob is only recomputed (steps 1+ below) when a new drive advances the
+      //    revision, and the fresh result is persisted back at the end.
+      final currentRevision = await _intervalsDao.getRevision();
+      if (_lineCacheDao != null) {
+        final cached = await _lineCacheDao.getRow();
+        if (cached != null && cached.intervalsRevision == currentRevision) {
+          final ways = decodeCoverageLine(cached.linesJson);
+          if (ways.isNotEmpty) {
+            _log.info(
+              'resolve: ${ways.length} segments from durable cache '
+              '(rev $currentRevision)',
+            );
+            return CoverageOverlayData(ways);
+          }
+        }
+      }
+
       // 1. Read all driven intervals (way-centric, across all trips) and group
       //    by wayId, merging overlapping passes into disjoint union intervals.
       //    Unioning across ALL trips is what dedupes a road driven N times into
@@ -136,10 +178,29 @@ class DrivenWayGeometryResolver {
           unionByWayId.keys.where((id) => !cachedWayIds.contains(id)).length;
 
       if (missingCount == 0 && cachedTiles.isNotEmpty) {
-        // All ways resolved from cache — done, no network needed.
+        // All ways resolved from cache — done, no network needed. Persist the
+        // clipped line so future launches read it directly (fast path above).
+        await _persist(clippedCached, currentRevision);
         _log.info('resolve: ${clippedCached.length} segments (all cached)');
         return CoverageOverlayData(clippedCached);
       }
+
+      // Pass B guard: attempt the network backfill at most ONCE per session.
+      // Driven ways that can never be resolved from OSM (deleted ways,
+      // permanently-empty/failing tiles) would otherwise re-trigger a full
+      // network re-fetch on every resolve. After one attempt we accept the
+      // cached geometry as final for this session and DO persist it (so the
+      // durable blob at least holds what we could resolve, and the fast path
+      // skips the re-fetch next launch — the revision matches).
+      if (_networkBackfillAttempted) {
+        await _persist(clippedCached, currentRevision);
+        _log.info(
+          'resolve: ${clippedCached.length} segments (network backfill already '
+          'attempted this session — using cached)',
+        );
+        return CoverageOverlayData(clippedCached);
+      }
+      _networkBackfillAttempted = true;
 
       // Pass B: some ways had no cached geometry — re-fetch allowing network.
       _log.info(
@@ -159,6 +220,8 @@ class DrivenWayGeometryResolver {
       if (fullTiles.isEmpty) {
         _onNetworkFetchDone?.call();
         _log.fine('resolve: no tiles after network fetch — returning cached');
+        // Persist what we have so the fast path skips the re-fetch next launch.
+        await _persist(clippedCached, currentRevision);
         return cachedTiles.isEmpty
             ? CoverageOverlayData.empty
             : CoverageOverlayData(clippedCached);
@@ -171,6 +234,9 @@ class DrivenWayGeometryResolver {
       final clipped = await compute(_clipCoverageIsolate, payloadFull);
       _onNetworkFetchDone?.call();
 
+      // Persist the freshly clipped line so subsequent launches read it
+      // directly (durable, eviction-proof) instead of re-fetching tiles.
+      await _persist(clipped, currentRevision);
       _log.info('resolve: ${clipped.length} clipped driven segments (network)');
       return CoverageOverlayData(clipped);
     } on DomainError catch (e, st) {
@@ -183,6 +249,24 @@ class DrivenWayGeometryResolver {
         st,
       );
       return CoverageOverlayData.empty;
+    }
+  }
+
+  /// Persist [ways] as the durable coverage-line blob keyed to [revision].
+  /// No-op when no cache DAO is wired (unit tests). Never throws — a persistence
+  /// hiccup must not break the render path; the line still returns to the caller.
+  Future<void> _persist(List<CoverageWay> ways, int revision) async {
+    final dao = _lineCacheDao;
+    if (dao == null) return;
+    try {
+      await dao.put(
+        linesJson: encodeCoverageLine(ways),
+        intervalsRevision: revision,
+      );
+      // A cache-write hiccup must never break rendering.
+      // ignore: avoid_catches_without_on_clauses
+    } catch (e, st) {
+      _log.warning('resolve: durable line persist failed: $e', e, st);
     }
   }
 }

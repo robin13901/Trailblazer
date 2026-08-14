@@ -26,6 +26,7 @@
 // All plain Provider / StreamProvider — no @Riverpod codegen (STATE 01-01).
 
 import 'package:auto_explore/core/db/app_database_providers.dart';
+import 'package:auto_explore/core/db/daos/coverage_line_cache_dao.dart';
 import 'package:auto_explore/core/db/daos/driven_way_intervals_dao.dart';
 import 'package:auto_explore/features/coverage/data/coverage_overlay_data.dart';
 import 'package:auto_explore/features/coverage/data/driven_way_geometry_resolver.dart';
@@ -40,6 +41,11 @@ final drivenWayIntervalsDaoProvider = Provider<DrivenWayIntervalsDao>((ref) {
   return DrivenWayIntervalsDao(ref.watch(appDatabaseProvider));
 });
 
+/// Singleton [CoverageLineCacheDao] — durable clipped-line blob cache (v9).
+final coverageLineCacheDaoProvider = Provider<CoverageLineCacheDao>((ref) {
+  return CoverageLineCacheDao(ref.watch(appDatabaseProvider));
+});
+
 /// Singleton [DrivenWayGeometryResolver] — parses cached tiles + clips driven
 /// ways to their union intervals on a compute isolate.
 final drivenWayGeometryResolverProvider = Provider<DrivenWayGeometryResolver>((
@@ -49,6 +55,7 @@ final drivenWayGeometryResolverProvider = Provider<DrivenWayGeometryResolver>((
   return DrivenWayGeometryResolver(
     intervalsDao: ref.watch(drivenWayIntervalsDaoProvider),
     waySource: ref.watch(wayCandidateSourceProvider),
+    lineCacheDao: ref.watch(coverageLineCacheDaoProvider),
     onNetworkFetchStart: notifier.startOverlayFetch,
     onNetworkFetchDone: notifier.clearOverlayFetch,
     onNetworkFetchProgress: notifier.updateOverlayFetch,
@@ -78,22 +85,40 @@ final drivenWayIntervalsRevisionProvider = StreamProvider<int>((ref) {
   return ref.watch(drivenWayIntervalsDaoProvider).watchRevision();
 });
 
+/// Reactive revision of the durable coverage-line blob — re-emits whenever the
+/// `coverage_line_cache` row is (re)written. [coverageOverlayDataProvider]
+/// watches this so a blob written by a background persist (e.g. right after a
+/// match) repaints the overlay live, even if it observes the write before the
+/// interval-revision edge settles. The value itself is not used — only the
+/// dependency edge.
+final coverageLineCacheRevisionProvider =
+    StreamProvider<int>((ref) {
+      return ref
+          .watch(coverageLineCacheDaoProvider)
+          .watchRow()
+          .map((row) => row?.intervalsRevision ?? 0);
+    });
+
 /// Reactive coverage overlay data for the map: each driven OSM way clipped to
 /// its driven union interval(s), deduped per wayId across all trips.
 ///
 /// Re-resolves whenever [tripsUnionBoundsProvider] emits (bbox change) OR
 /// [drivenWayIntervalsRevisionProvider] advances (any interval write, even when
-/// the union bbox value is unchanged — 2026-07-30 dedup fix). The resolver
-/// parses + clips on a compute isolate, so no heavy work runs on the UI isolate
-/// here. Yields [CoverageOverlayData.empty] when there are no trips.
+/// the union bbox value is unchanged — 2026-07-30 dedup fix) OR the durable
+/// line blob is rewritten ([coverageLineCacheRevisionProvider]). The resolver
+/// reads the durable blob first (instant), falling back to parse+clip on a
+/// compute isolate, so no heavy work runs on the UI isolate here. Yields
+/// [CoverageOverlayData.empty] when there are no trips.
 final coverageOverlayDataProvider = StreamProvider<CoverageOverlayData>((
   ref,
 ) async* {
   final boundsAsync = ref.watch(tripsUnionBoundsProvider);
-  // Watch the interval revision so a same-bbox re-match still re-resolves. We
-  // only need the dependency edge, not the value — reading it registers the
-  // watch; a changed revision re-runs this body.
-  ref.watch(drivenWayIntervalsRevisionProvider);
+  // Watch the interval revision so a same-bbox re-match still re-resolves, and
+  // the durable-blob revision so a background persist repaints live. We only
+  // need the dependency edges, not the values — a change re-runs this body.
+  ref
+    ..watch(drivenWayIntervalsRevisionProvider)
+    ..watch(coverageLineCacheRevisionProvider);
   final bounds = boundsAsync.value;
   if (bounds == null) {
     yield CoverageOverlayData.empty;

@@ -82,6 +82,17 @@ class DrivenWayIntervalsDao extends DatabaseAccessor<AppDatabase>
     ).watchSingle().map((row) => row.read<int>('rev'));
   }
 
+  /// One-shot read of the current revision (same expression as [watchRevision]).
+  /// Used by the durable coverage-line cache to decide whether the stored blob
+  /// is still current without re-clipping geometry.
+  Future<int> getRevision() async {
+    final row = await customSelect(
+      'SELECT COALESCE(MAX(id), 0) + COUNT(*) AS rev FROM driven_way_intervals',
+      readsFrom: {drivenWayIntervals},
+    ).getSingle();
+    return row.read<int>('rev');
+  }
+
   /// Returns a deduplicated list of all driven way IDs, sorted ascending.
   ///
   /// Convenience query when only the set of wayIds is needed (e.g. to

@@ -1,10 +1,12 @@
 import 'package:auto_explore/core/db/converters/trip_status_converter.dart';
+import 'package:auto_explore/core/db/daos/coverage_line_cache_dao.dart';
 import 'package:auto_explore/core/db/daos/driven_way_intervals_dao.dart';
 import 'package:auto_explore/core/db/daos/overpass_way_cache_dao.dart';
 import 'package:auto_explore/core/db/daos/pending_road_fetches_dao.dart';
 import 'package:auto_explore/core/db/daos/way_region_attribution_dao.dart';
 import 'package:auto_explore/core/db/tables/app_prefs_table.dart';
 import 'package:auto_explore/core/db/tables/coverage_cache_table.dart';
+import 'package:auto_explore/core/db/tables/coverage_line_cache_table.dart';
 import 'package:auto_explore/core/db/tables/driven_intervals_table.dart';
 import 'package:auto_explore/core/db/tables/overpass_way_cache_table.dart';
 import 'package:auto_explore/core/db/tables/pending_road_fetches_table.dart';
@@ -43,19 +45,21 @@ WHERE EXISTS (SELECT 1 FROM trip_points WHERE trip_id = trips.id)''';
     OverpassWayCache,
     PendingRoadFetches,
     WayRegionAttribution,
+    CoverageLineCache,
   ],
   daos: [
     DrivenWayIntervalsDao,
     OverpassWayCacheDao,
     PendingRoadFetchesDao,
     WayRegionAttributionDao,
+    CoverageLineCacheDao,
   ],
 )
 class AppDatabase extends _$AppDatabase {
   AppDatabase([QueryExecutor? executor]) : super(executor ?? _openConnection());
 
   @override
-  int get schemaVersion => 8;
+  int get schemaVersion => 9;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -160,6 +164,16 @@ class AppDatabase extends _$AppDatabase {
         // convention even though neither is destructive.
         await m.addColumn(tripPoints, tripPoints.heading);
         await m.createTable(wayRegionAttribution);
+      }
+      if (from < 9 && to >= 9) {
+        // v9 (2026-08-13): durable coverage-LINE geometry cache. The rendered
+        // clipped line was re-parsed from the volatile 50 MB LRU tile cache on
+        // every resolve; the ~144-tile union bbox never fit, so the line was
+        // permanently gappy. `coverage_line_cache` stores the clipped line as
+        // one JSON blob, computed once at match/re-match and read instantly on
+        // launch — eviction-proof, like way_region_attribution for the %-math.
+        // Purely additive; guarded `to >= 9` per the destructive-step convention.
+        await m.createTable(coverageLineCache);
       }
     },
     beforeOpen: (details) async {
