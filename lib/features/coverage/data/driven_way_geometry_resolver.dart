@@ -186,12 +186,9 @@ class DrivenWayGeometryResolver {
       }
 
       // Pass B guard: attempt the network backfill at most ONCE per session.
-      // Driven ways that can never be resolved from OSM (deleted ways,
-      // permanently-empty/failing tiles) would otherwise re-trigger a full
-      // network re-fetch on every resolve. After one attempt we accept the
-      // cached geometry as final for this session and DO persist it (so the
-      // durable blob at least holds what we could resolve, and the fast path
-      // skips the re-fetch next launch — the revision matches).
+      // The guard is set AFTER a successful persist (not before the fetch) so
+      // that a crash during the fetch (OOM, background kill) does not leave the
+      // guard armed for the next launch — the next launch will simply try again.
       if (_networkBackfillAttempted) {
         await _persist(clippedCached, currentRevision);
         _log.info(
@@ -200,7 +197,6 @@ class DrivenWayGeometryResolver {
         );
         return CoverageOverlayData(clippedCached);
       }
-      _networkBackfillAttempted = true;
 
       // Pass B: some ways had no cached geometry — re-fetch allowing network.
       _log.info(
@@ -222,11 +218,17 @@ class DrivenWayGeometryResolver {
         _log.fine('resolve: no tiles after network fetch — returning cached');
         // Persist what we have so the fast path skips the re-fetch next launch.
         await _persist(clippedCached, currentRevision);
+        _networkBackfillAttempted = true;
         return cachedTiles.isEmpty
             ? CoverageOverlayData.empty
             : CoverageOverlayData(clippedCached);
       }
 
+      // Clip in one pass using all fetched tiles — same as Pass A but with the
+      // now-complete tile set. Peak RAM is bounded by the LRU cache size for
+      // warm-cache launches; on a cold-cache first-launch the recompute startup
+      // migration fills the cache first (kCurrentCoverageRecomputeVersion bump),
+      // so this path should rarely receive more than a handful of miss-tiles.
       final payloadFull = _ClipPayload(
         gzippedTiles: [for (final t in fullTiles) t.payloadGzip],
         unionByWayId: unionByWayId,
@@ -236,13 +238,19 @@ class DrivenWayGeometryResolver {
 
       // Persist the freshly clipped line so subsequent launches read it
       // directly (durable, eviction-proof) instead of re-fetching tiles.
+      // Only arm the one-shot guard AFTER a successful persist — a crash
+      // during the clip/persist leaves the guard clear so the next launch
+      // retries rather than silently skipping the backfill.
       await _persist(clipped, currentRevision);
+      _networkBackfillAttempted = true;
       _log.info('resolve: ${clipped.length} clipped driven segments (network)');
       return CoverageOverlayData(clipped);
     } on DomainError catch (e, st) {
+      _onNetworkFetchDone?.call(); // ensure banner clears even on error
       _log.warning('resolve: DomainError — degrading to empty', e, st);
       return CoverageOverlayData.empty;
     } on Object catch (e, st) {
+      _onNetworkFetchDone?.call(); // ensure banner clears even on error
       _log.warning(
         'resolve: unexpected error — degrading to empty',
         DomainError.wrap(e, st),

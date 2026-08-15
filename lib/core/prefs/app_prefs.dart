@@ -185,7 +185,12 @@ class AppPrefs {
   /// ways from trips 32/33 and similar drives.
   /// `10` = 2026-08-13 paired with rematch v12: force full recompute after
   /// re-match so coverage_cache is rebuilt from the freshly rewritten intervals.
-  static const int kCurrentCoverageRecomputeVersion = 10;
+  /// `11` = 2026-08-14 force recompute after durable line cache OOM-fix: the
+  /// Stage-1 recompute refills the Overpass tile cache so the overlay resolver's
+  /// Pass A finds all driven ways without a network fetch, building the durable
+  /// blob from cached tiles (no OOM risk). Fixes the crash-recovery scenario
+  /// where the blob was never written.
+  static const int kCurrentCoverageRecomputeVersion = 11;
 
   /// Version stamp of the last stuck-fetch recovery migration applied to this
   /// device. Bumped when a one-shot recovery of trips parked by an Overpass
