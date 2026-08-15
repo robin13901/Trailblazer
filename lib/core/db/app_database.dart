@@ -1,5 +1,6 @@
 import 'package:auto_explore/core/db/converters/trip_status_converter.dart';
 import 'package:auto_explore/core/db/daos/coverage_line_cache_dao.dart';
+import 'package:auto_explore/core/db/daos/driven_way_geometry_dao.dart';
 import 'package:auto_explore/core/db/daos/driven_way_intervals_dao.dart';
 import 'package:auto_explore/core/db/daos/overpass_way_cache_dao.dart';
 import 'package:auto_explore/core/db/daos/pending_road_fetches_dao.dart';
@@ -8,6 +9,7 @@ import 'package:auto_explore/core/db/tables/app_prefs_table.dart';
 import 'package:auto_explore/core/db/tables/coverage_cache_table.dart';
 import 'package:auto_explore/core/db/tables/coverage_line_cache_table.dart';
 import 'package:auto_explore/core/db/tables/driven_intervals_table.dart';
+import 'package:auto_explore/core/db/tables/driven_way_geometry_table.dart';
 import 'package:auto_explore/core/db/tables/overpass_way_cache_table.dart';
 import 'package:auto_explore/core/db/tables/pending_road_fetches_table.dart';
 import 'package:auto_explore/core/db/tables/trip_points_table.dart';
@@ -46,6 +48,7 @@ WHERE EXISTS (SELECT 1 FROM trip_points WHERE trip_id = trips.id)''';
     PendingRoadFetches,
     WayRegionAttribution,
     CoverageLineCache,
+    DrivenWayGeometry,
   ],
   daos: [
     DrivenWayIntervalsDao,
@@ -53,13 +56,14 @@ WHERE EXISTS (SELECT 1 FROM trip_points WHERE trip_id = trips.id)''';
     PendingRoadFetchesDao,
     WayRegionAttributionDao,
     CoverageLineCacheDao,
+    DrivenWayGeometryDao,
   ],
 )
 class AppDatabase extends _$AppDatabase {
   AppDatabase([QueryExecutor? executor]) : super(executor ?? _openConnection());
 
   @override
-  int get schemaVersion => 9;
+  int get schemaVersion => 10;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -174,6 +178,15 @@ class AppDatabase extends _$AppDatabase {
         // launch — eviction-proof, like way_region_attribution for the %-math.
         // Purely additive; guarded `to >= 9` per the destructive-step convention.
         await m.createTable(coverageLineCache);
+      }
+      if (from < 10 && to >= 10) {
+        // v10 (2026-08-15): durable per-way OSM geometry cache. Resolving
+        // the coverage line previously required the 50 MB LRU tile cache to
+        // hold all driven-way tiles simultaneously (~144 tiles, ~47 MB), which
+        // was never possible — LRU eviction caused permanent gaps. The raw OSM
+        // geometry (static, ~4 MB for all ways) is now stored once per way at
+        // match time and read directly by the resolver — no tiles, no network.
+        await m.createTable(drivenWayGeometry);
       }
     },
     beforeOpen: (details) async {

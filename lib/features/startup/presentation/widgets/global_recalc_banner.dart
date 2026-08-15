@@ -37,6 +37,8 @@ class GlobalRecalcBanner extends ConsumerWidget {
 
     final isRematching = state.phase == GlobalRecalcPhase.rematching;
     final isOverlayFetch = state.phase == GlobalRecalcPhase.overlayFetching;
+    final isGeometryBackfill =
+        state.phase == GlobalRecalcPhase.geometryBackfill;
     final hasCount = state.total > 0;
     final value = hasCount ? state.done / state.total : null;
 
@@ -47,6 +49,9 @@ class GlobalRecalcBanner extends ConsumerWidget {
       countLine = hasCount ? 'Fahrt ${state.done} / ${state.total}' : null;
     } else if (isOverlayFetch) {
       label = 'Kartenlinie wird geladen …';
+      countLine = hasCount ? 'Kachel ${state.done} / ${state.total}' : null;
+    } else if (isGeometryBackfill) {
+      label = 'Kartendaten werden geladen …';
       countLine = hasCount ? 'Kachel ${state.done} / ${state.total}' : null;
     } else {
       label = 'Abdeckung wird neu berechnet …';

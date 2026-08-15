@@ -8,11 +8,16 @@
 // CoverageComputeService directly.
 
 import 'dart:async';
+import 'dart:convert';
+import 'dart:io' show gzip;
 
 import 'package:auto_explore/core/db/app_database.dart';
+import 'package:auto_explore/core/db/daos/driven_way_geometry_dao.dart';
 import 'package:auto_explore/core/db/daos/driven_way_intervals_dao.dart';
+import 'package:auto_explore/features/coverage/data/driven_way_geometry_codec.dart';
 import 'package:auto_explore/features/matching/data/match_job.dart';
 import 'package:auto_explore/features/matching/data/matcher_isolate.dart';
+import 'package:auto_explore/features/matching/data/overpass_response_parser.dart';
 import 'package:auto_explore/features/matching/data/tile_bbox_math.dart';
 import 'package:auto_explore/features/matching/data/way_candidate_source.dart';
 import 'package:auto_explore/features/matching/domain/driven_way_interval_draft.dart';
@@ -60,6 +65,7 @@ class TripMatchCoordinator {
     required TripsDao tripsDao,
     required TripsRepository tripsRepository,
     required DrivenWayIntervalsDao intervalsDao,
+    DrivenWayGeometryDao? geometryDao,
     MatchProgressSink? progressSink,
     MatchProgressClearSink? progressClearSink,
     OnIntervalsLandedCallback? onIntervalsLanded,
@@ -68,6 +74,7 @@ class TripMatchCoordinator {
        _tripsDao = tripsDao,
        _tripsRepository = tripsRepository,
        _intervalsDao = intervalsDao,
+       _geometryDao = geometryDao,
        _progressSink = progressSink,
        _progressClearSink = progressClearSink,
        _onIntervalsLanded = onIntervalsLanded;
@@ -77,6 +84,12 @@ class TripMatchCoordinator {
   final TripsDao _tripsDao;
   final TripsRepository _tripsRepository;
   final DrivenWayIntervalsDao _intervalsDao;
+
+  /// Durable per-way geometry cache (v10). Optional so existing tests that
+  /// don't wire it up need not supply it — geometry persistence is a no-op
+  /// when null, the overlay backfill covers the missing rows.
+  final DrivenWayGeometryDao? _geometryDao;
+
   final MatchProgressSink? _progressSink;
   final MatchProgressClearSink? _progressClearSink;
   final OnIntervalsLandedCallback? _onIntervalsLanded;
@@ -216,6 +229,10 @@ class TripMatchCoordinator {
         },
       );
       await _writeIntervals(tripId, result.intervals);
+      // Cache the raw OSM geometry for all driven ways while the corridor
+      // tiles are still fresh in the LRU cache. This is the only time we
+      // reliably have all needed tiles in memory without a network fetch.
+      unawaited(_cacheWayGeometry(result.intervals, rawTiles));
       await _tripsRepository.transitionToMatched(tripId);
       _progressSink?.call(tripId, 1);
       _clearProgress(tripId);
@@ -487,6 +504,8 @@ class TripMatchCoordinator {
     // one-shot cosmetic reprocess.
     await _intervalsDao.deleteByTrip(tripId);
     await _writeIntervals(tripId, result.intervals);
+    // Cache geometry for any new ways introduced by the re-match (tiles frish).
+    unawaited(_cacheWayGeometry(result.intervals, rawTiles));
     // Surface the per-trip pill to 100% then clear it, mirroring the
     // onTripReadyForMatching completion path so a re-matching trip shows its
     // live % on the Trips-tab _StatusPill and drives the focus-pill pulse.
@@ -497,5 +516,55 @@ class TripMatchCoordinator {
       '(was reprocessed)',
     );
     return true;
+  }
+
+  /// Extracts OSM geometry + node IDs for the driven ways in [intervals] from
+  /// the freshly-cached [rawTiles] and persists them to [DrivenWayGeometryDao].
+  ///
+  /// Called fire-and-forget after _writeIntervals so the corridor tiles are
+  /// still warm in the LRU cache. Only NEW wayIds (not already in the geometry
+  /// table) are written — existing rows are never overwritten (geometry is
+  /// static). Errors are logged and swallowed; a missed write is recovered by
+  /// the startup backfill migration.
+  Future<void> _cacheWayGeometry(
+    List<DrivenWayIntervalDraft> intervals,
+    List<RawTilePayload> rawTiles,
+  ) async {
+    final dao = _geometryDao;
+    if (dao == null || intervals.isEmpty || rawTiles.isEmpty) return;
+    try {
+      final needed = intervals.map((d) => d.wayId).toSet();
+      final already = await dao.getCachedWayIds();
+      final missing = needed.difference(already);
+      if (missing.isEmpty) return;
+
+      const parser = OverpassResponseParser();
+      final rows = <DrivenWayGeometryCompanion>[];
+      final seen = <int>{};
+      for (final t in rawTiles) {
+        final rawJson = utf8.decode(gzip.decode(t.payloadGzip));
+        for (final w in parser.parseWays(rawJson)) {
+          if (!missing.contains(w.wayId)) continue;
+          if (!seen.add(w.wayId)) continue;
+          rows.add(
+            DrivenWayGeometryCompanion.insert(
+              wayId: Value(w.wayId),
+              geometryJson: encodeWayGeometry(w.geometry),
+              nodeIdsJson: Value(encodeNodeIds(w.nodeIds)),
+            ),
+          );
+          if (rows.length == missing.length) break;
+        }
+        if (rows.length == missing.length) break;
+      }
+      await dao.upsertBatch(rows);
+      _log.fine(
+        '_cacheWayGeometry: ${rows.length}/${missing.length} new ways cached',
+      );
+      // Geometry caching is best-effort — a miss is recovered by the backfill.
+      // ignore: avoid_catches_without_on_clauses
+    } catch (e, st) {
+      _log.warning('_cacheWayGeometry failed (backfill will recover): $e', e, st);
+    }
   }
 }

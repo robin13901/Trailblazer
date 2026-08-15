@@ -1,14 +1,18 @@
 import 'dart:async';
 
 import 'package:auto_explore/core/db/app_database_providers.dart';
+import 'package:auto_explore/core/db/daos/driven_way_geometry_dao.dart';
+import 'package:auto_explore/core/db/daos/driven_way_intervals_dao.dart';
 import 'package:auto_explore/core/errors/result.dart';
 import 'package:auto_explore/core/prefs/app_prefs.dart';
 import 'package:auto_explore/core/routing/app_router.dart';
 import 'package:auto_explore/core/theme/app_theme.dart';
 import 'package:auto_explore/features/coverage/data/coverage_overlay_providers.dart';
+import 'package:auto_explore/features/coverage/data/way_geometry_backfill_service.dart';
 import 'package:auto_explore/features/matching/data/matching_providers.dart';
 import 'package:auto_explore/features/regions/data/coverage_compute_providers.dart';
 import 'package:auto_explore/features/startup/data/global_recalc_progress_provider.dart';
+import 'package:auto_explore/features/trips/data/trips_dao.dart';
 import 'package:auto_explore/features/trips/data/trips_repository_providers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -54,16 +58,11 @@ class _AppState extends ConsumerState<App> with WidgetsBindingObserver {
   Future<void> _runStartupMigrations() async {
     try {
       await _runStuckFetchRecoveryMigrationIfNeeded();
-      // Re-match returns true when it actually reprocessed trips this launch;
-      // that forces the recompute below to run even if its own version stamp is
-      // already current (repaired intervals MUST be reflected in coverage_cache).
       final rematched = await _runMatcherRematchMigrationIfNeeded();
       await _runCoverageRecomputeMigrationIfNeeded(force: rematched);
+      // Way-geometry backfill runs AFTER recompute so the tile cache is warm.
+      await _runWayGeometryBackfillIfNeeded();
     } finally {
-      // Whichever path ran — success OR throw — the one-time global recalc is
-      // now finished, so ALWAYS clear the app-wide banner (in a finally) so a
-      // stalled/failed recompute can never strand the "Abdeckung wird neu
-      // berechnet …" banner spinning forever (2026-07-26 stuck-banner fix).
       ref.read(globalRecalcProgressProvider.notifier).clear();
     }
   }
@@ -229,6 +228,46 @@ class _AppState extends ConsumerState<App> with WidgetsBindingObserver {
       // ignore: avoid_catches_without_on_clauses
     } catch (e, st) {
       _log.warning('stuck-fetch recovery failed (will retry): $e', e, st);
+    }
+  }
+
+  /// One-shot backfill: populate driven_way_geometry for all existing trips
+  /// that were matched before schema v10. Runs once, stamped via prefs.
+  Future<void> _runWayGeometryBackfillIfNeeded() async {
+    final prefs = ref.read(appPrefsProvider);
+    try {
+      final applied = await prefs.getWayGeometryBackfillVersion() ?? 0;
+      if (applied >= AppPrefs.kCurrentWayGeometryBackfillVersion) return;
+      _log.info(
+        'way-geometry backfill: applied=$applied '
+        'current=${AppPrefs.kCurrentWayGeometryBackfillVersion} — starting',
+      );
+      final recalc = ref.read(globalRecalcProgressProvider.notifier)
+        ..startGeometryBackfill();
+      final db = ref.read(appDatabaseProvider);
+      final service = WayGeometryBackfillService(
+        intervalsDao: DrivenWayIntervalsDao(db),
+        geometryDao: DrivenWayGeometryDao(db),
+        waySource: ref.read(wayCandidateSourceProvider),
+        tripsDao: TripsDao(db),
+      );
+      final result = await service.run(
+        onProgress: recalc.updateGeometryBackfill,
+      );
+      if (result case Ok(value: final written)) {
+        await prefs.setWayGeometryBackfillVersion(
+          AppPrefs.kCurrentWayGeometryBackfillVersion,
+        );
+        _log.info('way-geometry backfill: done ($written ways written)');
+      } else {
+        _log.warning(
+          'way-geometry backfill returned Err — will retry next launch',
+        );
+      }
+      // Catches all throwables: a geometry backfill must never crash startup.
+      // ignore: avoid_catches_without_on_clauses
+    } catch (e, st) {
+      _log.warning('way-geometry backfill failed (will retry): $e', e, st);
     }
   }
 

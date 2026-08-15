@@ -1,124 +1,85 @@
 // Trailblazer coverage overlay providers.
 //
-// 2026-07-18 (clipped-geometry rework): the persistent coverage overlay is
-// rendered from `driven_way_intervals` — each driven OSM way CLIPPED to the
-// sub-interval(s) actually driven, deduped per wayId across ALL trips (see
-// DrivenWayGeometryResolver). This replaces the per-trip snapped-GPS-chord line
-// (`trips.coverage_path_json`), which drew straight chords between snapped fixes
-// (triangles/fans/zigzags at junctions) and one polyline PER TRIP (N drives of a
-// road = N overlapping lines). The clipped-way model draws the road's true OSM
-// shape, once per way — no chord artifacts, natural cross-trip dedup.
+// 2026-07-18 (clipped-geometry rework): rendered from driven_way_intervals.
+// 2026-08-15 (v10 durable geometry): resolver reads from driven_way_geometry
+// table instead of the volatile Overpass tile cache — no network on render.
 //
 // Live-refresh chain:
-//   match/re-match writes driven_way_intervals
-//     → TripsDao.watchUnionBbox() re-emits (readsFrom: {trips, drivenWayIntervals})
-//       AND drivenWayIntervalsRevisionProvider advances (monotonic MAX(id)+COUNT)
-//     → coverageOverlayDataProvider re-resolves (parse+clip on a compute isolate)
+//   match writes driven_way_intervals + driven_way_geometry rows
+//     → drivenWayIntervalsRevisionProvider advances
+//     → drivenWayGeometryRevisionProvider advances (new way rows added)
+//     → coverageOverlayDataProvider re-resolves (clip on compute isolate)
 //     → CoverageOverlayBridge re-applies the GeoJSON overlay
-//
-// The revision edge (2026-07-30) exists because watchUnionBbox() emits a
-// LatLngBounds with VALUE equality: a trip driven WITHIN the existing union
-// bbox re-emits an EQUAL bounds, which Riverpod deduplicates — so before this
-// fix the overlay only repainted after an app restart (the coverage % still
-// updated, as it watches coverage_cache directly). The strictly-monotonic
-// revision guarantees the observed dependency changes on every interval write.
 //
 // All plain Provider / StreamProvider — no @Riverpod codegen (STATE 01-01).
 
 import 'package:auto_explore/core/db/app_database_providers.dart';
 import 'package:auto_explore/core/db/daos/coverage_line_cache_dao.dart';
+import 'package:auto_explore/core/db/daos/driven_way_geometry_dao.dart';
 import 'package:auto_explore/core/db/daos/driven_way_intervals_dao.dart';
 import 'package:auto_explore/features/coverage/data/coverage_overlay_data.dart';
 import 'package:auto_explore/features/coverage/data/driven_way_geometry_resolver.dart';
-import 'package:auto_explore/features/matching/data/matching_providers.dart';
-import 'package:auto_explore/features/startup/data/global_recalc_progress_provider.dart';
 import 'package:auto_explore/features/trips/data/trips_repository_providers.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:maplibre_gl/maplibre_gl.dart' show LatLngBounds;
 
-/// Singleton [DrivenWayIntervalsDao] — plain `Provider<T>` per STATE 01-01.
+/// Singleton [DrivenWayIntervalsDao].
 final drivenWayIntervalsDaoProvider = Provider<DrivenWayIntervalsDao>((ref) {
   return DrivenWayIntervalsDao(ref.watch(appDatabaseProvider));
 });
 
-/// Singleton [CoverageLineCacheDao] — durable clipped-line blob cache (v9).
+/// Singleton [CoverageLineCacheDao] — kept for schema v9 compatibility;
+/// no longer actively written by the resolver in v10.
 final coverageLineCacheDaoProvider = Provider<CoverageLineCacheDao>((ref) {
   return CoverageLineCacheDao(ref.watch(appDatabaseProvider));
 });
 
-/// Singleton [DrivenWayGeometryResolver] — parses cached tiles + clips driven
-/// ways to their union intervals on a compute isolate.
+/// Singleton [DrivenWayGeometryDao] — durable per-way OSM geometry (v10).
+final drivenWayGeometryDaoProvider = Provider<DrivenWayGeometryDao>((ref) {
+  return DrivenWayGeometryDao(ref.watch(appDatabaseProvider));
+});
+
+/// Singleton [DrivenWayGeometryResolver] — clips driven ways to their union
+/// intervals using geometry from the durable DB table (no network).
 final drivenWayGeometryResolverProvider = Provider<DrivenWayGeometryResolver>((
   ref,
 ) {
-  final notifier = ref.read(globalRecalcProgressProvider.notifier);
   return DrivenWayGeometryResolver(
     intervalsDao: ref.watch(drivenWayIntervalsDaoProvider),
-    waySource: ref.watch(wayCandidateSourceProvider),
-    lineCacheDao: ref.watch(coverageLineCacheDaoProvider),
-    onNetworkFetchStart: notifier.startOverlayFetch,
-    onNetworkFetchDone: notifier.clearOverlayFetch,
-    onNetworkFetchProgress: notifier.updateOverlayFetch,
+    geometryDao: ref.watch(drivenWayGeometryDaoProvider),
   );
 });
 
 /// Reactive stream of the union bounding-box of all matched/confirmed trips.
-///
-/// Emits `null` when no trips with bbox columns exist. Its `readsFrom` set
-/// includes `drivenWayIntervals`, so it re-emits whenever intervals are written
-/// (a new match / re-match) — the reactive trigger for the overlay.
 final tripsUnionBoundsProvider = StreamProvider<LatLngBounds?>((ref) {
   return ref.watch(tripsDaoProvider).watchUnionBbox();
 });
 
-/// Strictly-monotonic revision of `driven_way_intervals` — advances on EVERY
-/// interval write (insert / delete / re-match).
-///
-/// **Why (2026-07-30):** [tripsUnionBoundsProvider] emits a `LatLngBounds` with
-/// VALUE equality. A trip driven WITHIN the already-covered union bbox re-emits
-/// an EQUAL bounds, which Riverpod's `ref.watch` deduplicates — so the overlay
-/// `async*` below never re-resolved and freshly matched roads only appeared
-/// after an app restart. [coverageOverlayDataProvider] additionally watches
-/// this revision so the observed dependency ALWAYS changes on an interval
-/// write, forcing a re-resolve regardless of whether the bbox moved.
+/// Strictly-monotonic revision of `driven_way_intervals`.
+/// Re-runs coverageOverlayDataProvider on every interval write.
 final drivenWayIntervalsRevisionProvider = StreamProvider<int>((ref) {
   return ref.watch(drivenWayIntervalsDaoProvider).watchRevision();
 });
 
-/// Reactive revision of the durable coverage-line blob — re-emits whenever the
-/// `coverage_line_cache` row is (re)written. [coverageOverlayDataProvider]
-/// watches this so a blob written by a background persist (e.g. right after a
-/// match) repaints the overlay live, even if it observes the write before the
-/// interval-revision edge settles. The value itself is not used — only the
-/// dependency edge.
-final coverageLineCacheRevisionProvider =
-    StreamProvider<int>((ref) {
-      return ref
-          .watch(coverageLineCacheDaoProvider)
-          .watchRow()
-          .map((row) => row?.intervalsRevision ?? 0);
-    });
+/// Row count of `driven_way_geometry` — advances whenever new way geometry
+/// is added (e.g. after a match or backfill). Triggers overlay re-resolve
+/// so newly cached ways appear live without an app restart.
+final drivenWayGeometryRevisionProvider = StreamProvider<int>((ref) {
+  return ref.watch(drivenWayGeometryDaoProvider).watchRevision();
+});
 
-/// Reactive coverage overlay data for the map: each driven OSM way clipped to
-/// its driven union interval(s), deduped per wayId across all trips.
+/// Reactive coverage overlay data for the map.
 ///
-/// Re-resolves whenever [tripsUnionBoundsProvider] emits (bbox change) OR
-/// [drivenWayIntervalsRevisionProvider] advances (any interval write, even when
-/// the union bbox value is unchanged — 2026-07-30 dedup fix) OR the durable
-/// line blob is rewritten ([coverageLineCacheRevisionProvider]). The resolver
-/// reads the durable blob first (instant), falling back to parse+clip on a
-/// compute isolate, so no heavy work runs on the UI isolate here. Yields
-/// [CoverageOverlayData.empty] when there are no trips.
+/// Re-resolves on interval writes ([drivenWayIntervalsRevisionProvider]) OR
+/// geometry additions ([drivenWayGeometryRevisionProvider]). The resolver
+/// reads geometry from the durable DB table — instant, no network.
 final coverageOverlayDataProvider = StreamProvider<CoverageOverlayData>((
   ref,
 ) async* {
   final boundsAsync = ref.watch(tripsUnionBoundsProvider);
-  // Watch the interval revision so a same-bbox re-match still re-resolves, and
-  // the durable-blob revision so a background persist repaints live. We only
-  // need the dependency edges, not the values — a change re-runs this body.
   ref
     ..watch(drivenWayIntervalsRevisionProvider)
-    ..watch(coverageLineCacheRevisionProvider);
+    ..watch(drivenWayGeometryRevisionProvider);
   final bounds = boundsAsync.value;
   if (bounds == null) {
     yield CoverageOverlayData.empty;

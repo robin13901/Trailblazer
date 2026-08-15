@@ -196,6 +196,16 @@ class AppPrefs {
   /// the resolver can rebuild the correct complete line blob from scratch.
   static const int kCurrentCoverageRecomputeVersion = 12;
 
+  /// Version stamp for the one-shot driven_way_geometry backfill migration
+  /// (schema v10). Bumped when existing trips need their way geometries
+  /// populated from the Overpass tile cache.
+  static const String kWayGeometryBackfillVersion =
+      'way_geometry_backfill_version';
+
+  /// `1` = 2026-08-15 initial backfill: populate driven_way_geometry for all
+  /// existing trips (fetches tiles from Overpass if not already cached).
+  static const int kCurrentWayGeometryBackfillVersion = 1;
+
   /// Version stamp of the last stuck-fetch recovery migration applied to this
   /// device. Bumped when a one-shot recovery of trips parked by an Overpass
   /// outage is needed (reset the pending-fetch backoff + purge poisoned 0-way
@@ -240,6 +250,14 @@ class AppPrefs {
   /// so a failed run retries on the next launch.
   Future<void> setCoverageRecomputeVersion(int version) =>
       _prefs.setInt(kCoverageRecomputeVersion, version);
+
+  /// The way-geometry backfill version already applied on this device.
+  Future<int?> getWayGeometryBackfillVersion() =>
+      _prefs.getInt(kWayGeometryBackfillVersion);
+
+  /// Records [version] as the way-geometry backfill applied on this device.
+  Future<void> setWayGeometryBackfillVersion(int version) =>
+      _prefs.setInt(kWayGeometryBackfillVersion, version);
 
   /// The stuck-fetch recovery version already applied on this device, or null
   /// when it has never run.

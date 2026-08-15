@@ -13,6 +13,7 @@ import 'dart:async';
 import 'package:auto_explore/core/db/app_database_providers.dart';
 import 'package:auto_explore/core/db/daos/driven_way_intervals_dao.dart';
 import 'package:auto_explore/core/db/daos/overpass_way_cache_dao.dart';
+import 'package:auto_explore/features/coverage/data/coverage_overlay_providers.dart';
 import 'package:auto_explore/features/matching/data/connectivity_seam.dart';
 import 'package:auto_explore/features/matching/data/match_progress_provider.dart';
 import 'package:auto_explore/features/matching/data/matcher_isolate.dart';
@@ -134,6 +135,7 @@ final tripMatchCoordinatorProvider = Provider<TripMatchCoordinator>((ref) {
     tripsDao: TripsDao(ref.watch(appDatabaseProvider)),
     tripsRepository: ref.watch(tripsRepositoryProvider),
     intervalsDao: DrivenWayIntervalsDao(ref.watch(appDatabaseProvider)),
+    geometryDao: ref.watch(drivenWayGeometryDaoProvider),
     progressSink: (tripId, frac) =>
         ref.read(matchProgressProvider.notifier).update(tripId, frac),
     progressClearSink: (tripId) =>

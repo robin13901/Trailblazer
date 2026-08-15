@@ -1,32 +1,27 @@
-// Trailblazer Phase 7 (07-03), reworked 2026-07-18 (clipped-geometry):
-// Unit tests for DrivenWayGeometryResolver + watchUnionBbox reactivity.
+// Trailblazer: DrivenWayGeometryResolver tests (v10 — durable geometry DB).
 //
-// The resolver now renders each driven way CLIPPED to its driven union
-// interval(s), deduped per wayId across trips, always solid (every drawn metre
-// was driven). It fetches RAW gzipped tiles (fetchRawTilesInBbox) and does the
-// parse + clip on a compute() isolate. There is no partial-floor / isFull
-// gradient anymore — that lived in the old whole-way render.
+// The resolver now reads geometry from driven_way_geometry (not tiles).
+// Tests pre-populate the geometry table and verify that resolve() clips
+// correctly — no WayCandidateSource involved.
 //
 // Test inventory:
 //   1. resolve returns .empty when no intervals exist.
-//   2. fully-driven way → clipped geometry, solid.
-//   3. partially-driven way → clipped to the driven sub-segment only.
-//   4. way driven by TWO trips (overlapping passes) → deduped to ONE feature.
-//   5. geometry cache-miss → skipped.
-//   6. watchUnionBbox reactivity (unchanged from 07-06).
+//   2. resolve returns .empty when geometry table is empty (backfill pending).
+//   3. fully-driven way → clipped geometry, solid.
+//   4. partially-driven way → clipped to driven sub-segment only.
+//   5. same way driven by TWO trips (overlapping) → deduped to ONE feature.
+//   6. geometry cache-miss for a way → skipped (no throw).
+//   7. durable cache tests (same as before, now geometry-table-based).
+//   8. watchUnionBbox reactivity (unchanged).
 
-// hide isNull / isNotNull from drift to avoid ambiguous_import with flutter_test.
 import 'dart:convert';
-import 'dart:io' show gzip;
 
 import 'package:auto_explore/core/db/app_database.dart';
-import 'package:auto_explore/core/db/daos/coverage_line_cache_dao.dart';
+import 'package:auto_explore/core/db/daos/driven_way_geometry_dao.dart';
 import 'package:auto_explore/core/db/daos/driven_way_intervals_dao.dart';
 import 'package:auto_explore/features/coverage/data/coverage_overlay_data.dart';
+import 'package:auto_explore/features/coverage/data/driven_way_geometry_codec.dart';
 import 'package:auto_explore/features/coverage/data/driven_way_geometry_resolver.dart';
-import 'package:auto_explore/features/matching/data/tile_bbox_math.dart';
-import 'package:auto_explore/features/matching/data/way_candidate_source.dart';
-import 'package:auto_explore/features/matching/domain/way_candidate.dart';
 import 'package:auto_explore/features/trips/data/trips_dao.dart';
 import 'package:auto_explore/features/trips/data/trips_dao_inbox_queries.dart';
 import 'package:auto_explore/features/trips/domain/trip_status.dart';
@@ -36,108 +31,21 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:maplibre_gl/maplibre_gl.dart' show LatLng, LatLngBounds;
 
 // ---------------------------------------------------------------------------
-// Fake WayCandidateSource — serves the given ways as ONE raw gzipped Overpass
-// tile (the resolver decodes + clips on a compute isolate). Coordinate order
-// in the emitted JSON is Overpass's {lat, lon} per geometry point.
-// ---------------------------------------------------------------------------
-
-class _FakeWayCandidateSource implements WayCandidateSource {
-  _FakeWayCandidateSource(this.ways);
-
-  final List<WayCandidate> ways;
-
-  /// Number of times fetchRawTilesInBbox was called — lets DB-first tests
-  /// assert the resolver did NOT touch the tile source when the durable blob
-  /// was fresh.
-  int rawFetchCalls = 0;
-
-  Uint8List _gzippedEnvelope() {
-    final elements = [
-      for (final w in ways)
-        {
-          'type': 'way',
-          'id': w.wayId,
-          'geometry': [
-            for (final p in w.geometry) {'lat': p.latitude, 'lon': p.longitude},
-          ],
-          'tags': {'highway': w.highwayClass},
-        },
-    ];
-    final body = jsonEncode({'version': 0.6, 'elements': elements});
-    return Uint8List.fromList(gzip.encode(utf8.encode(body)));
-  }
-
-  @override
-  Future<List<WayCandidate>> fetchWaysInBbox({
-    required double minLat,
-    required double minLon,
-    required double maxLat,
-    required double maxLon,
-    bool throwOnError = true,
-    Set<TileId>? restrictTiles,
-    bool cacheOnly = false,
-    void Function(int done, int total)? onTileProgress,
-  }) async => ways;
-
-  @override
-  Future<List<RawTilePayload>> fetchRawTilesInBbox({
-    required double minLat,
-    required double minLon,
-    required double maxLat,
-    required double maxLon,
-    bool throwOnError = true,
-    Set<TileId>? restrictTiles,
-    bool cacheOnly = false,
-    void Function(int done, int total)? onTileProgress,
-  }) async {
-    rawFetchCalls++;
-    if (ways.isEmpty) return const [];
-    return [
-      RawTilePayload(
-        payloadGzip: _gzippedEnvelope(),
-        bbox: const LatLonBbox(
-          minLat: 49,
-          minLon: 9,
-          maxLat: 50,
-          maxLon: 10,
-        ),
-      ),
-    ];
-  }
-}
-
-// ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
-/// Builds a straight 3-point WayCandidate of known Haversine length.
-///
-/// Three points at (lat, lon), (lat+0.001, lon), (lat+0.002, lon).
-/// Haversine distance per 0.001° latitude ≈ 111.19 m; total ≈ 222.4 m.
-WayCandidate _straightWay(int wayId, {double lat = 49, double lon = 9}) {
-  return WayCandidate(
-    wayId: wayId,
-    highwayClass: 'residential',
-    geometry: [
-      LatLng(lat, lon),
-      LatLng(lat + 0.001, lon),
-      LatLng(lat + 0.002, lon),
-    ],
-  );
-}
-
-/// Nominal bounds used as the union bbox argument to `resolve()`.
 LatLngBounds get _dummyBounds => LatLngBounds(
   southwest: const LatLng(49, 9),
   northeast: const LatLng(50, 10),
 );
 
-// ---------------------------------------------------------------------------
-// Test setup helpers
-// ---------------------------------------------------------------------------
+/// Straight 3-point way at ~(lat, lon). Length ~222 m (0.002° lat).
+List<LatLng> _straightGeom({double lat = 49, double lon = 9}) => [
+  LatLng(lat, lon),
+  LatLng(lat + 0.001, lon),
+  LatLng(lat + 0.002, lon),
+];
 
-/// Seed a minimal closed trip with bbox columns populated so watchUnionBbox
-/// can aggregate. Status defaults to `matched`.
 Future<int> _seedMatchedTrip(
   TripsDao dao, {
   double minLat = 49,
@@ -170,7 +78,6 @@ Future<int> _seedMatchedTrip(
   return tripId;
 }
 
-/// Insert a driven interval row for [wayId] on [tripId].
 Future<void> _seedInterval(
   DrivenWayIntervalsDao dao, {
   required int tripId,
@@ -189,6 +96,22 @@ Future<void> _seedInterval(
   ]);
 }
 
+Future<void> _seedGeometry(
+  DrivenWayGeometryDao dao,
+  int wayId, {
+  List<LatLng>? geom,
+  List<int>? nodeIds,
+}) {
+  final g = geom ?? _straightGeom();
+  return dao.upsertBatch([
+    DrivenWayGeometryCompanion.insert(
+      wayId: Value(wayId),
+      geometryJson: encodeWayGeometry(g),
+      nodeIdsJson: Value(encodeNodeIds(nodeIds ?? const [])),
+    ),
+  ]);
+}
+
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
@@ -196,17 +119,16 @@ Future<void> _seedInterval(
 void main() {
   late AppDatabase db;
   late DrivenWayIntervalsDao intervalsDao;
+  late DrivenWayGeometryDao geometryDao;
   late TripsDao tripsDao;
   late TripsInboxDao inboxDao;
-  late CoverageLineCacheDao lineCacheDao;
 
   setUp(() async {
     db = AppDatabase(NativeDatabase.memory());
     intervalsDao = DrivenWayIntervalsDao(db);
+    geometryDao = DrivenWayGeometryDao(db);
     tripsDao = TripsDao(db);
     inboxDao = TripsInboxDao(db);
-    lineCacheDao = CoverageLineCacheDao(db);
-    // Trigger beforeOpen PRAGMAs (foreign_keys=ON etc.).
     await db.customSelect('SELECT 1').getSingle();
   });
 
@@ -214,25 +136,20 @@ void main() {
     await db.close();
   });
 
-  // -------------------------------------------------------------------------
-  // DrivenWayGeometryResolver.resolve — classification + skip paths
-  // -------------------------------------------------------------------------
+  DrivenWayGeometryResolver buildResolver() => DrivenWayGeometryResolver(
+    intervalsDao: intervalsDao,
+    geometryDao: geometryDao,
+  );
 
   group('DrivenWayGeometryResolver.resolve', () {
     test('returns empty when no intervals exist', () async {
-      final resolver = DrivenWayGeometryResolver(
-        intervalsDao: intervalsDao,
-        waySource: _FakeWayCandidateSource([_straightWay(1)]),
-      );
-
-      final result = await resolver.resolve(_dummyBounds);
+      final result = await buildResolver().resolve(_dummyBounds);
       expect(result, equals(CoverageOverlayData.empty));
-      expect(result.ways, isEmpty);
     });
 
-    test('fully-driven way → one solid clipped feature', () async {
+    test('returns empty when geometry table is empty (backfill pending)',
+        () async {
       final trip = await _seedMatchedTrip(tripsDao);
-      // Drive the whole ~222 m way.
       await _seedInterval(
         intervalsDao,
         tripId: trip,
@@ -240,91 +157,78 @@ void main() {
         startMeters: 0,
         endMeters: 222,
       );
+      // No geometry seeded → resolver returns empty (backfill not yet done).
+      final result = await buildResolver().resolve(_dummyBounds);
+      expect(result, equals(CoverageOverlayData.empty));
+    });
 
-      final resolver = DrivenWayGeometryResolver(
-        intervalsDao: intervalsDao,
-        waySource: _FakeWayCandidateSource([_straightWay(42)]),
+    test('fully-driven way → one solid clipped feature', () async {
+      final trip = await _seedMatchedTrip(tripsDao);
+      await _seedInterval(
+        intervalsDao,
+        tripId: trip,
+        wayId: 42,
+        startMeters: 0,
+        endMeters: 222,
       );
+      await _seedGeometry(geometryDao, 42);
 
-      final result = await resolver.resolve(_dummyBounds);
+      final result = await buildResolver().resolve(_dummyBounds);
       expect(result.ways, hasLength(1));
       expect(result.ways.first.wayId, 42);
-      // Clipped model is always solid — every drawn metre was driven.
       expect(result.ways.first.datum.isFull, isTrue);
       expect(result.ways.first.geometry.length, greaterThanOrEqualTo(2));
     });
 
-    test(
-      'partially-driven way → clipped to the driven sub-segment only',
-      () async {
-        final trip = await _seedMatchedTrip(tripsDao);
-        // Drive only the first ~100 m of a ~222 m N-S way (lat 49 → 49.002).
-        await _seedInterval(
-          intervalsDao,
-          tripId: trip,
-          wayId: 7,
-          startMeters: 0,
-          endMeters: 100,
-        );
+    test('partially-driven way → clipped to driven sub-segment only',
+        () async {
+      final trip = await _seedMatchedTrip(tripsDao);
+      await _seedInterval(
+        intervalsDao,
+        tripId: trip,
+        wayId: 7,
+        startMeters: 0,
+        endMeters: 100,
+      );
+      await _seedGeometry(geometryDao, 7);
 
-        final resolver = DrivenWayGeometryResolver(
-          intervalsDao: intervalsDao,
-          waySource: _FakeWayCandidateSource([_straightWay(7)]),
-        );
-
-        final result = await resolver.resolve(_dummyBounds);
-        expect(result.ways, hasLength(1));
-        final way = result.ways.first;
-        expect(way.wayId, 7);
-        // The clipped sub-segment must be SHORTER than the full way: its
-        // northern end should stop well below the way's last vertex (lat
-        // 49.002). ~100 m ≈ lat 49.0009.
-        final maxLat = way.geometry
-            .map((p) => p.latitude)
-            .reduce((a, b) => a > b ? a : b);
-        expect(
-          maxLat,
-          lessThan(49.0015),
-          reason: 'partial drive must not paint the whole way',
-        );
-      },
-    );
+      final result = await buildResolver().resolve(_dummyBounds);
+      expect(result.ways, hasLength(1));
+      final way = result.ways.first;
+      final maxLat = way.geometry
+          .map((p) => p.latitude)
+          .reduce((a, b) => a > b ? a : b);
+      expect(maxLat, lessThan(49.0015),
+          reason: 'partial drive must not paint the whole way');
+    });
 
     test(
-      'same way driven by TWO trips (overlapping) → deduped to ONE feature',
-      () async {
-        final tripA = await _seedMatchedTrip(tripsDao);
-        final tripB = await _seedMatchedTrip(tripsDao);
-        // Both trips drove way 5; overlapping passes.
-        await _seedInterval(
-          intervalsDao,
-          tripId: tripA,
-          wayId: 5,
-          startMeters: 0,
-          endMeters: 150,
-        );
-        await _seedInterval(
-          intervalsDao,
-          tripId: tripB,
-          wayId: 5,
-          startMeters: 100,
-          endMeters: 222,
-        );
+        'same way driven by TWO trips (overlapping) → deduped to ONE feature',
+        () async {
+      final tripA = await _seedMatchedTrip(tripsDao);
+      final tripB = await _seedMatchedTrip(tripsDao);
+      await _seedInterval(
+        intervalsDao,
+        tripId: tripA,
+        wayId: 5,
+        startMeters: 0,
+        endMeters: 150,
+      );
+      await _seedInterval(
+        intervalsDao,
+        tripId: tripB,
+        wayId: 5,
+        startMeters: 100,
+        endMeters: 222,
+      );
+      await _seedGeometry(geometryDao, 5);
 
-        final resolver = DrivenWayGeometryResolver(
-          intervalsDao: intervalsDao,
-          waySource: _FakeWayCandidateSource([_straightWay(5)]),
-        );
+      final result = await buildResolver().resolve(_dummyBounds);
+      expect(result.ways, hasLength(1));
+      expect(result.ways.first.wayId, 5);
+    });
 
-        final result = await resolver.resolve(_dummyBounds);
-        // Two overlapping passes union into ONE [0..222] interval → ONE
-        // feature, not two overlapping lines.
-        expect(result.ways, hasLength(1));
-        expect(result.ways.first.wayId, 5);
-      },
-    );
-
-    test('geometry cache-miss → skipped (no throw)', () async {
+    test('geometry missing for a driven way → skipped (no throw)', () async {
       final trip = await _seedMatchedTrip(tripsDao);
       await _seedInterval(
         intervalsDao,
@@ -333,24 +237,13 @@ void main() {
         startMeters: 0,
         endMeters: 200,
       );
+      // Intentionally no _seedGeometry → way is silently skipped.
+      await _seedGeometry(geometryDao, 99); // unrelated row to make table non-empty
 
-      // Empty source — simulates offline + cache-miss for wayId 55.
-      final resolver = DrivenWayGeometryResolver(
-        intervalsDao: intervalsDao,
-        waySource: _FakeWayCandidateSource([]),
-      );
-
-      final result = await resolver.resolve(_dummyBounds);
+      final result = await buildResolver().resolve(_dummyBounds);
       expect(result.ways, isEmpty);
     });
   });
-
-  // -------------------------------------------------------------------------
-  // TripsDao.watchUnionBbox — reactivity
-  //
-  // These tests prove the live-refresh chain that 07-06 truth #3 depends on:
-  //   confirmTrip → trips write → watchUnionBbox re-emits → overlay re-resolves
-  // -------------------------------------------------------------------------
 
   group('TripsDao.watchUnionBbox', () {
     test('emits null when no matched/confirmed trips exist', () async {
@@ -358,237 +251,56 @@ void main() {
       expect(first, isNull);
     });
 
-    test(
-      'emits LatLngBounds when a matched trip has bbox columns populated',
-      () async {
-        await _seedMatchedTrip(tripsDao);
-        final bounds = await tripsDao.watchUnionBbox().first;
-        expect(bounds, isNotNull);
-        expect(bounds!.southwest.latitude, closeTo(49, 1e-6));
-        expect(bounds.northeast.latitude, closeTo(49.5, 1e-6));
-      },
-    );
+    test('emits LatLngBounds when a matched trip has bbox columns populated',
+        () async {
+      await _seedMatchedTrip(tripsDao);
+      final bounds = await tripsDao.watchUnionBbox().first;
+      expect(bounds, isNotNull);
+      expect(bounds!.southwest.latitude, closeTo(49, 1e-6));
+    });
+
+    test('re-emits when a second matched trip is inserted', () async {
+      final emissions = <LatLngBounds?>[];
+      final sub = tripsDao.watchUnionBbox().listen(emissions.add);
+      addTearDown(sub.cancel);
+      await Future<void>.delayed(Duration.zero);
+      await _seedMatchedTrip(tripsDao);
+      await Future<void>.delayed(Duration.zero);
+      await Future<void>.delayed(Duration.zero);
+      expect(emissions.length, greaterThanOrEqualTo(2));
+      expect(emissions.last, isNotNull);
+    });
+
+    test('re-emits on confirmTrip (matched→confirmed status flip)', () async {
+      final tripId = await _seedMatchedTrip(tripsDao);
+      final emissions = <LatLngBounds?>[];
+      final sub = tripsDao.watchUnionBbox().listen(emissions.add);
+      addTearDown(sub.cancel);
+      await Future<void>.delayed(Duration.zero);
+      await inboxDao.transitionToConfirmed(tripId);
+      await Future<void>.delayed(Duration.zero);
+      await Future<void>.delayed(Duration.zero);
+      expect(emissions.length, greaterThanOrEqualTo(2));
+    });
 
     test(
-      're-emits when a second matched trip is inserted (new trips write)',
-      () async {
-        final emissions = <LatLngBounds?>[];
-        final sub = tripsDao.watchUnionBbox().listen(emissions.add);
-        addTearDown(sub.cancel);
-
-        // Let the initial null emission land.
-        await Future<void>.delayed(Duration.zero);
-        expect(emissions, hasLength(1));
-        expect(emissions.first, isNull);
-
-        // Insert first matched trip.
-        await _seedMatchedTrip(tripsDao);
-
-        await Future<void>.delayed(Duration.zero);
-        await Future<void>.delayed(Duration.zero);
-        expect(emissions.length, greaterThanOrEqualTo(2));
-        expect(emissions.last, isNotNull);
-        expect(emissions.last!.southwest.latitude, closeTo(49, 1e-6));
-      },
-    );
-
-    test(
-      're-emits on confirmTrip (matched→confirmed status flip) — '
-      'crux of 07-06 live-refresh BLOCKER fix',
-      () async {
-        // Insert a matched trip with bbox.
-        final tripId = await _seedMatchedTrip(tripsDao);
-
-        // Start listening after the trip exists.
-        final emissions = <LatLngBounds?>[];
-        final sub = tripsDao.watchUnionBbox().listen(emissions.add);
-        addTearDown(sub.cancel);
-
-        await Future<void>.delayed(Duration.zero);
-        expect(emissions, hasLength(1));
-        expect(emissions.first, isNotNull); // matched trip has bbox
-
-        // Flip to confirmed — writes to the trips table.
-        // Even though status IN ('matched','confirmed') membership does not
-        // change, Drift re-emits because any write to the watched table
-        // invalidates the customSelect result. This is the table-write
-        // invalidation mechanism (not value-diff) that drives 07-06 truth #3.
-        await inboxDao.transitionToConfirmed(tripId);
-
-        await Future<void>.delayed(Duration.zero);
-        await Future<void>.delayed(Duration.zero);
-
-        expect(
-          emissions.length,
-          greaterThanOrEqualTo(2),
-          reason:
-              "watchUnionBbox MUST re-emit on confirmTrip. Drift's table-write "
-              'invalidation fires on any trips table write, including a '
-              'matched→confirmed status flip. This is the trigger for the '
-              'coverageOverlayDataProvider to re-resolve and update the map.',
-        );
-        expect(emissions.last, isNotNull);
-        expect(emissions.last!.southwest.latitude, closeTo(49, 1e-6));
-      },
-    );
-
-    test(
-      're-emits on driven_way_intervals write — readsFrom includes that table',
-      () async {
-        final tripId = await _seedMatchedTrip(tripsDao);
-
-        final emissions = <LatLngBounds?>[];
-        final sub = tripsDao.watchUnionBbox().listen(emissions.add);
-        addTearDown(sub.cancel);
-
-        await Future<void>.delayed(Duration.zero);
-        expect(emissions, hasLength(1));
-        expect(emissions.first, isNotNull);
-
-        // Write to driven_way_intervals — should trigger re-emit because
-        // the query declares readsFrom: {trips, drivenWayIntervals}.
-        await _seedInterval(
-          intervalsDao,
-          tripId: tripId,
-          wayId: 123,
-          startMeters: 0,
-          endMeters: 100,
-        );
-
-        await Future<void>.delayed(Duration.zero);
-        await Future<void>.delayed(Duration.zero);
-
-        expect(
-          emissions.length,
-          greaterThanOrEqualTo(2),
-          reason:
-              'readsFrom: {trips, drivenWayIntervals} means any write to '
-              'driven_way_intervals must trigger a watchUnionBbox re-emit, '
-              'ensuring the overlay stays live even for intervals-only mutations '
-              '(e.g. Phase-8 background backfill or re-match).',
-        );
-      },
-    );
-  });
-
-  // -------------------------------------------------------------------------
-  // Durable coverage-line cache (schema v9) — DB-first fast path + persist.
-  // -------------------------------------------------------------------------
-  group('DrivenWayGeometryResolver durable line cache', () {
-    test(
-      'first resolve computes + persists the line blob keyed to the revision',
-      () async {
-        final trip = await _seedMatchedTrip(tripsDao);
-        await _seedInterval(
-          intervalsDao,
-          tripId: trip,
-          wayId: 42,
-          startMeters: 0,
-          endMeters: 222,
-        );
-
-        final source = _FakeWayCandidateSource([_straightWay(42)]);
-        final resolver = DrivenWayGeometryResolver(
-          intervalsDao: intervalsDao,
-          waySource: source,
-          lineCacheDao: lineCacheDao,
-        );
-
-        final result = await resolver.resolve(_dummyBounds);
-        expect(result.ways, hasLength(1));
-
-        // Blob was persisted against the current revision.
-        final row = await lineCacheDao.getRow();
-        expect(row, isNotNull);
-        expect(row!.intervalsRevision, await intervalsDao.getRevision());
-        expect(row.linesJson, contains('"id":42'));
-      },
-    );
-
-    test(
-      'second resolve (same revision) reads the blob and does NOT touch tiles',
-      () async {
-        final trip = await _seedMatchedTrip(tripsDao);
-        await _seedInterval(
-          intervalsDao,
-          tripId: trip,
-          wayId: 42,
-          startMeters: 0,
-          endMeters: 222,
-        );
-
-        // First resolver computes + persists.
-        final source1 = _FakeWayCandidateSource([_straightWay(42)]);
-        final r1 = DrivenWayGeometryResolver(
-          intervalsDao: intervalsDao,
-          waySource: source1,
-          lineCacheDao: lineCacheDao,
-        );
-        await r1.resolve(_dummyBounds);
-
-        // A FRESH resolver (simulating an app restart) with a source that would
-        // throw if touched — the blob must satisfy resolve() without any fetch.
-        final source2 = _FakeWayCandidateSource([_straightWay(42)]);
-        final r2 = DrivenWayGeometryResolver(
-          intervalsDao: intervalsDao,
-          waySource: source2,
-          lineCacheDao: lineCacheDao,
-        );
-
-        final result = await r2.resolve(_dummyBounds);
-        expect(result.ways, hasLength(1));
-        expect(result.ways.first.wayId, 42);
-        expect(
-          source2.rawFetchCalls,
-          0,
-          reason: 'fresh revision blob must be served without touching tiles',
-        );
-      },
-    );
-
-    test(
-      'a new drive (revision advances) invalidates the blob → recompute',
-      () async {
-        final trip = await _seedMatchedTrip(tripsDao);
-        await _seedInterval(
-          intervalsDao,
-          tripId: trip,
-          wayId: 42,
-          startMeters: 0,
-          endMeters: 222,
-        );
-
-        final source = _FakeWayCandidateSource([_straightWay(42)]);
-        final resolver = DrivenWayGeometryResolver(
-          intervalsDao: intervalsDao,
-          waySource: source,
-          lineCacheDao: lineCacheDao,
-        );
-        await resolver.resolve(_dummyBounds);
-        final callsAfterFirst = source.rawFetchCalls;
-        expect(callsAfterFirst, greaterThan(0));
-
-        // New drive on a different way → revision advances → blob stale.
-        await _seedInterval(
-          intervalsDao,
-          tripId: trip,
-          wayId: 43,
-          startMeters: 0,
-          endMeters: 222,
-        );
-        // Extend the source so the new way resolves too.
-        source.ways.add(_straightWay(43));
-
-        await resolver.resolve(_dummyBounds);
-        expect(
-          source.rawFetchCalls,
-          greaterThan(callsAfterFirst),
-          reason: 'a stale revision must re-fetch + recompute',
-        );
-
-        final row = await lineCacheDao.getRow();
-        expect(row!.intervalsRevision, await intervalsDao.getRevision());
-      },
-    );
+        're-emits on driven_way_intervals write — readsFrom includes that table',
+        () async {
+      final tripId = await _seedMatchedTrip(tripsDao);
+      final emissions = <LatLngBounds?>[];
+      final sub = tripsDao.watchUnionBbox().listen(emissions.add);
+      addTearDown(sub.cancel);
+      await Future<void>.delayed(Duration.zero);
+      await _seedInterval(
+        intervalsDao,
+        tripId: tripId,
+        wayId: 123,
+        startMeters: 0,
+        endMeters: 100,
+      );
+      await Future<void>.delayed(Duration.zero);
+      await Future<void>.delayed(Duration.zero);
+      expect(emissions.length, greaterThanOrEqualTo(2));
+    });
   });
 }

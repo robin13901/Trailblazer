@@ -23,6 +23,10 @@ enum GlobalRecalcPhase {
   /// (Pass B of DrivenWayGeometryResolver — fires only when tiles were
   /// LRU-evicted, e.g. after a fresh install + backup import).
   overlayFetching,
+
+  /// One-shot backfill of durable per-way OSM geometry (schema v10).
+  /// Fires once on first launch after the v10 upgrade.
+  geometryBackfill,
 }
 
 /// Immutable snapshot of the global recalc progress.
@@ -135,6 +139,22 @@ class GlobalRecalcNotifier extends Notifier<GlobalRecalcState?> {
   /// migration clear doesn't accidentally re-show the banner).
   void clearOverlayFetch() {
     if (state?.phase == GlobalRecalcPhase.overlayFetching) state = null;
+  }
+
+  /// Enter the geometry-backfill phase (schema v10 one-shot migration).
+  void startGeometryBackfill() {
+    state = const GlobalRecalcState(
+      phase: GlobalRecalcPhase.geometryBackfill,
+    );
+  }
+
+  /// Update geometry-backfill progress (tile-coarse done/total).
+  void updateGeometryBackfill(int done, int total) {
+    state = GlobalRecalcState(
+      phase: GlobalRecalcPhase.geometryBackfill,
+      done: done,
+      total: total,
+    );
   }
 }
 
