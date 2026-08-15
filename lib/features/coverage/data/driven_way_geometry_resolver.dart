@@ -189,11 +189,14 @@ class DrivenWayGeometryResolver {
       // The guard is set AFTER a successful persist (not before the fetch) so
       // that a crash during the fetch (OOM, background kill) does not leave the
       // guard armed for the next launch — the next launch will simply try again.
+      // IMPORTANT: do NOT persist the incomplete clippedCached result here —
+      // that would overwrite a previously-written complete blob with a partial
+      // one. Instead just return what we have for this render pass; the complete
+      // blob written by the first Pass B invocation is already in the DB.
       if (_networkBackfillAttempted) {
-        await _persist(clippedCached, currentRevision);
         _log.info(
           'resolve: ${clippedCached.length} segments (network backfill already '
-          'attempted this session — using cached)',
+          'attempted this session — using cached result)',
         );
         return CoverageOverlayData(clippedCached);
       }
