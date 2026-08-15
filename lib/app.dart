@@ -5,6 +5,7 @@ import 'package:auto_explore/core/errors/result.dart';
 import 'package:auto_explore/core/prefs/app_prefs.dart';
 import 'package:auto_explore/core/routing/app_router.dart';
 import 'package:auto_explore/core/theme/app_theme.dart';
+import 'package:auto_explore/features/coverage/data/coverage_overlay_providers.dart';
 import 'package:auto_explore/features/matching/data/matching_providers.dart';
 import 'package:auto_explore/features/regions/data/coverage_compute_providers.dart';
 import 'package:auto_explore/features/startup/data/global_recalc_progress_provider.dart';
@@ -135,6 +136,16 @@ class _AppState extends ConsumerState<App> with WidgetsBindingObserver {
         'current=${AppPrefs.kCurrentCoverageRecomputeVersion} '
         'force=$force — recomputing',
       );
+      // Invalidate the durable line blob so the resolver does not serve a
+      // stale/partial one while the recompute is refilling the tile cache.
+      // The blob is rebuilt fresh by the overlay resolver after recompute().
+      try {
+        await ref.read(coverageLineCacheDaoProvider).deleteAll();
+        // A blob-clear hiccup must never abort startup.
+        // ignore: avoid_catches_without_on_clauses
+      } catch (e) {
+        _log.warning('coverage-recompute migration: blob clear failed: $e');
+      }
       // Switch the app-wide banner to the coverage-rebuild phase ("Abdeckung
       // wird neu berechnet …"). Cleared in _runStartupMigrations after this
       // returns.

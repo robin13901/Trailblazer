@@ -190,7 +190,11 @@ class AppPrefs {
   /// Pass A finds all driven ways without a network fetch, building the durable
   /// blob from cached tiles (no OOM risk). Fixes the crash-recovery scenario
   /// where the blob was never written.
-  static const int kCurrentCoverageRecomputeVersion = 11;
+  /// `12` = 2026-08-15 force recompute to clear a partially-written durable
+  /// line blob: the previous Pass-B guard bug persisted an incomplete Pass-A
+  /// result over the complete blob. This recompute refills the tile cache so
+  /// the resolver can rebuild the correct complete line blob from scratch.
+  static const int kCurrentCoverageRecomputeVersion = 12;
 
   /// Version stamp of the last stuck-fetch recovery migration applied to this
   /// device. Bumped when a one-shot recovery of trips parked by an Overpass
