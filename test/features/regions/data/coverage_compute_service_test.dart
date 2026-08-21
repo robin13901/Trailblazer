@@ -488,14 +488,24 @@ void main() {
     test(
       'un-driven way → totalLengthM > 0, drivenLengthM == 0, not in coverage',
       () async {
-        await _seedMatchedTrip(db);
-        // No interval seeded for wayId 100001 → driven == 0.
+        final tripId = await _seedMatchedTrip(db);
+        await _seedInterval(db, tripId: tripId, wayId: 100001);
 
         final service = buildService(
           byLevel: {4: null, 6: null, 8: _regionLevel8(), 9: null, 10: null},
           ways: [_fixtureWay()],
         );
 
+        // First pass: attributes the way (Stage 1). Attribution is durable.
+        await service.recompute();
+
+        // Remove the interval to simulate "way known but not driven".
+        await (db.delete(db.drivenWayIntervals)
+              ..where((t) => t.wayId.equals(100001)))
+            .go();
+
+        // Second pass: missingWayIds empty → Stage 1 skipped (fast-path).
+        // Stage 2 reads the durable attribution row → total > 0, driven == 0.
         final result = await service.recompute();
         expect(result.when(ok: (v) => v, err: (_) => -1), 1);
 
@@ -504,7 +514,6 @@ void main() {
         expect(row, isNotNull);
         expect(row!.totalLengthM, greaterThan(0));
         expect(row.drivenLengthM, 0);
-
         expect(await cacheDao.getAllWithCoverage(), isEmpty);
       },
     );

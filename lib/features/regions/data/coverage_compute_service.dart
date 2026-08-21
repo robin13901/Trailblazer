@@ -191,75 +191,96 @@ class CoverageComputeService {
       // ---------------------------------------------------------------------
       // STAGE 1: ensure durable attribution for any NEW driven ways.
       // ---------------------------------------------------------------------
-      // Only the ways not already clipped need geometry + a polygon pass. We
-      // fetch RAW tiles for the union bbox — cacheOnly:false so that ways whose
-      // tiles were LRU-evicted after matching (50 MB budget) still get attributed.
-      // Previously cacheOnly:true silently skipped evicted tiles, leaving new
-      // regions permanently at 0 % until a full rematch migration. throwOnError
-      // stays false: a network hiccup skips those tiles this pass but leaves
-      // previously-attributed ways intact (STAGE 2 is eviction-proof from the
-      // durable attribution rows).
+      // Fast-path: if every driven way is already attributed, skip the tile
+      // fetch entirely and go straight to Stage 2. This is the common case
+      // after the first recompute — the union-bbox fetch (which can hit
+      // Overpass for LRU-evicted tiles) was the 1-2 min delay observed after
+      // normal trip-stops. The fast-path makes the post-trip recompute a
+      // pure DB aggregation (~ms) when no new ways need clipping.
       final alreadyAttributed = await _attribution.getAttributedWayIds();
+      final allDrivenWayIds =
+          (await _intervalsDao.getDistinctWayIds()).toSet();
+      final missingWayIds = allDrivenWayIds.difference(alreadyAttributed);
 
-      final rawTiles = await _waySource.fetchRawTilesInBbox(
-        minLat: bounds.southwest.latitude,
-        minLon: bounds.southwest.longitude,
-        maxLat: bounds.northeast.latitude,
-        maxLon: bounds.northeast.longitude,
-        throwOnError: false,
-        // cacheOnly intentionally left false (the default): LRU-evicted tiles
-        // for new ways must be re-fetched so new regions are not stuck at 0%.
-      );
-
-      // Clip the new ways off the UI thread, dispatched in TILE CHUNKS so we can
-      // report a determinate done/total between chunks (per-way progress can't
-      // cross the isolate boundary cheaply — hence tile-coarse). Empty tiles →
-      // no new rows (STAGE 2 still runs over whatever is already attributed —
-      // eviction-proof) and a single 1/1 so the banner never sits at 0%.
-      final totalTiles = rawTiles.length;
-      if (totalTiles == 0) {
+      if (missingWayIds.isEmpty) {
+        // Nothing new to clip — Stage 1 is a no-op.
         reportProgress(1, 1);
+        _log.fine(
+          'recompute: all ${allDrivenWayIds.length} driven ways already '
+          'attributed — skipping Stage 1 tile fetch',
+        );
       } else {
-        final newRows = <WayRegionAttributionRow>[];
-        // Ways already attributed by an EARLIER chunk in THIS pass must also be
-        // skipped by later chunks (a way can span tile boundaries), so grow the
-        // skip set as rows land.
-        final skip = <int>{...alreadyAttributed};
-        reportProgress(0, totalTiles);
-        for (
-          var start = 0;
-          start < totalTiles;
-          start += _kProgressTilesPerChunk
-        ) {
-          final end = math.min(start + _kProgressTilesPerChunk, totalTiles);
-          final chunk = rawTiles.sublist(start, end);
-          final chunkRows = await _compute(
-            [for (final t in chunk) t.payloadGzip],
-            [for (final t in chunk) t.bbox],
-            skip,
-          );
-          for (final r in chunkRows) {
-            newRows.add(r);
-            skip.add(r.wayId);
-          }
-          reportProgress(end, totalTiles);
-        }
+        // Fetch RAW tiles for the union bbox — cacheOnly:false so that ways
+        // whose tiles were LRU-evicted after matching still get attributed.
+        // throwOnError stays false: a network hiccup skips those tiles this
+        // pass but leaves previously-attributed ways intact (Stage 2 is
+        // eviction-proof from the durable attribution rows).
+        _log.fine(
+          'recompute: ${missingWayIds.length} new ways need attribution '
+          '(${alreadyAttributed.length} already cached)',
+        );
+        final rawTiles = await _waySource.fetchRawTilesInBbox(
+          minLat: bounds.southwest.latitude,
+          minLon: bounds.southwest.longitude,
+          maxLat: bounds.northeast.latitude,
+          maxLon: bounds.northeast.longitude,
+          throwOnError: false,
+          // cacheOnly intentionally left false (the default): LRU-evicted
+          // tiles for new ways must be re-fetched so new regions are not
+          // stuck at 0%.
+        );
 
-        if (newRows.isNotEmpty) {
-          final now = DateTime.now();
-          await _attribution.upsertBatch([
-            for (final r in newRows)
-              WayRegionAttributionCompanion.insert(
-                wayId: r.wayId,
-                regionId: r.regionId,
-                adminLevel: r.adminLevel,
-                rangeStartM: r.rangeStartM,
-                rangeEndM: r.rangeEndM,
-                computedAt: Value(now),
-              ),
-          ]);
+        // Clip the new ways off the UI thread, dispatched in TILE CHUNKS so
+        // we can report a determinate done/total between chunks (per-way
+        // progress can't cross the isolate boundary cheaply — hence
+        // tile-coarse). Empty tiles → no new rows (STAGE 2 still runs over
+        // whatever is already attributed — eviction-proof) and a single 1/1
+        // so the banner is never left at 0%.
+        final totalTiles = rawTiles.length;
+        if (totalTiles == 0) {
+          reportProgress(1, 1);
+        } else {
+          final newRows = <WayRegionAttributionRow>[];
+          // Ways already attributed by an EARLIER chunk in THIS pass must
+          // also be skipped by later chunks (a way can span tile boundaries),
+          // so grow the skip set as rows land.
+          final skip = <int>{...alreadyAttributed};
+          reportProgress(0, totalTiles);
+          for (
+            var start = 0;
+            start < totalTiles;
+            start += _kProgressTilesPerChunk
+          ) {
+            final end = math.min(start + _kProgressTilesPerChunk, totalTiles);
+            final chunk = rawTiles.sublist(start, end);
+            final chunkRows = await _compute(
+              [for (final t in chunk) t.payloadGzip],
+              [for (final t in chunk) t.bbox],
+              skip,
+            );
+            for (final r in chunkRows) {
+              newRows.add(r);
+              skip.add(r.wayId);
+            }
+            reportProgress(end, totalTiles);
+          }
+
+          if (newRows.isNotEmpty) {
+            final now = DateTime.now();
+            await _attribution.upsertBatch([
+              for (final r in newRows)
+                WayRegionAttributionCompanion.insert(
+                  wayId: r.wayId,
+                  regionId: r.regionId,
+                  adminLevel: r.adminLevel,
+                  rangeStartM: r.rangeStartM,
+                  rangeEndM: r.rangeEndM,
+                  computedAt: Value(now),
+                ),
+            ]);
+          }
         }
-      }
+      } // end else (missingWayIds.isNotEmpty)
 
       // ---------------------------------------------------------------------
       // STAGE 2: pure DB aggregation on the MAIN isolate (eviction-proof +
