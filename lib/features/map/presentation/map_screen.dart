@@ -90,6 +90,12 @@ class MapScreen extends ConsumerWidget {
     // overlap (both can be visible at once). On-device feedback 2026-07-22.
     final outlineActive = ref.watch(regionOutlineProvider) != null;
 
+    // Bottom spacing for the nav-pill / FAB row. Previously a full SafeArea
+    // bottom inset + _navRowBottomInset; halved on-device feedback 2026-10-18
+    // so the pill sits closer to the bottom edge.
+    final bottomSafeInset = MediaQuery.viewPaddingOf(context).bottom;
+    final navRowBottomPadding = (bottomSafeInset + _navRowBottomInset) / 2;
+
     return Scaffold(
       // UI-06: no AppBar.
       body: Stack(
@@ -327,21 +333,19 @@ class MapScreen extends ConsumerWidget {
               left: 0,
               right: 0,
               bottom: 0,
-              child: SafeArea(
-                child: Padding(
-                  padding: const EdgeInsets.only(bottom: _navRowBottomInset),
-                  child: _BottomChrome(
-                    navShell: navigationShell != null
-                        ? BottomNavShell(
-                            currentIndex: currentIndex,
-                            onTap: navigationShell!.goBranch,
-                            overMap: isMapTab,
-                          )
-                        : const _LocalBottomNav(),
-                    showFab: isMapTab,
-                    showRecenter: isMapTab,
-                    showPanel: isMapTab,
-                  ),
+              child: Padding(
+                padding: EdgeInsets.only(bottom: navRowBottomPadding),
+                child: _BottomChrome(
+                  navShell: navigationShell != null
+                      ? BottomNavShell(
+                          currentIndex: currentIndex,
+                          onTap: navigationShell!.goBranch,
+                          overMap: isMapTab,
+                        )
+                      : const _LocalBottomNav(),
+                  showFab: isMapTab,
+                  showRecenter: isMapTab,
+                  showPanel: isMapTab,
                 ),
               ),
             ),

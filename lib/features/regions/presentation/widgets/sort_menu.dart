@@ -73,6 +73,10 @@ class _SortMenuOverlay extends ConsumerWidget {
           targetAnchor: Alignment.bottomRight,
           followerAnchor: Alignment.topRight,
           offset: const Offset(0, 8),
+          // Hide the panel until the link's layer is attached. Without this the
+          // first frame paints it at the unlinked origin (top-left) before the
+          // follower snaps to the icon — the brief open flicker (2026-10-18).
+          showWhenUnlinked: false,
           child: SizedBox(
             width: 260,
             child: GlassPill(
