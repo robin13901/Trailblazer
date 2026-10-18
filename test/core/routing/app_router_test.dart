@@ -62,7 +62,7 @@ void main() {
 
     // Splash resolved into onboarding page 1 (3-page permission ladder).
     expect(
-      find.textContaining('Standort während der Nutzung von OKF Buddy'),
+      find.textContaining('Standort während der Nutzung von Trailblazer'),
       findsOneWidget,
     );
 
@@ -88,7 +88,7 @@ void main() {
     // MapScreen is active — BottomNavShell is the Dart-only landmark.
     expect(find.byType(BottomNavShell), findsOneWidget);
     expect(
-      find.textContaining('Standort während der Nutzung von OKF Buddy'),
+      find.textContaining('Standort während der Nutzung von Trailblazer'),
       findsNothing,
     );
   });
@@ -118,7 +118,7 @@ void main() {
 
     expect(find.byType(BottomNavShell), findsOneWidget);
     expect(
-      find.textContaining('Standort während der Nutzung von OKF Buddy'),
+      find.textContaining('Standort während der Nutzung von Trailblazer'),
       findsNothing,
     );
   });

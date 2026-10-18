@@ -62,7 +62,7 @@ class FgbBackgroundGeolocationFacade implements BackgroundGeolocationFacade {
           // Android FGS notification (iOS shows the blue location bar; text is
           // not customisable on iOS — this config is Android-only in effect)
           notification: bg.Notification(
-            title: 'OKF Buddy',
+            title: 'Trailblazer',
             text: 'Aufnahme · 00:00 · 0,0 km · — km/h',
             channelName: 'Fahrtaufzeichnung',
             channelId: 'trailblazer.tracking',
@@ -168,7 +168,7 @@ class FgbBackgroundGeolocationFacade implements BackgroundGeolocationFacade {
   Future<void> setNotificationText(String text) async {
     await bg.BackgroundGeolocation.setConfig(
       bg.Config(
-        notification: bg.Notification(title: 'OKF Buddy', text: text),
+        notification: bg.Notification(title: 'Trailblazer', text: text),
       ),
     );
   }

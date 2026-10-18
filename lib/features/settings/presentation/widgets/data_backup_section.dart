@@ -43,7 +43,7 @@ class _DataBackupSectionState extends ConsumerState<DataBackupSection> {
               .read(filePlatformProvider)
               .shareFile(
                 value,
-                subject: 'OKF Buddy Backup',
+                subject: 'Trailblazer Backup',
               );
           if (!mounted) return;
           messenger.showSnackBar(

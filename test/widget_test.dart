@@ -58,7 +58,7 @@ void main() {
 
     // First launch (empty prefs) -> onboarding page 1 (3-page permission ladder).
     expect(
-      find.textContaining('Standort während der Nutzung von OKF Buddy'),
+      find.textContaining('Standort während der Nutzung von Trailblazer'),
       findsOneWidget,
     );
 
@@ -83,7 +83,7 @@ void main() {
     // Map shell (StatefulShellRoute) is active — BottomNavShell is visible.
     expect(find.byType(BottomNavShell), findsOneWidget);
     expect(
-      find.textContaining('Standort während der Nutzung von OKF Buddy'),
+      find.textContaining('Standort während der Nutzung von Trailblazer'),
       findsNothing,
     );
   });
