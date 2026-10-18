@@ -14,8 +14,6 @@
 //   7. durable cache tests (same as before, now geometry-table-based).
 //   8. watchUnionBbox reactivity (unchanged).
 
-import 'dart:convert';
-
 import 'package:auto_explore/core/db/app_database.dart';
 import 'package:auto_explore/core/db/daos/driven_way_geometry_dao.dart';
 import 'package:auto_explore/core/db/daos/driven_way_intervals_dao.dart';

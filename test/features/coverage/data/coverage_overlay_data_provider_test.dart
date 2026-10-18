@@ -21,11 +21,11 @@
 
 import 'package:auto_explore/core/db/app_database.dart';
 import 'package:auto_explore/core/db/app_database_providers.dart';
+import 'package:auto_explore/core/db/daos/driven_way_geometry_dao.dart';
 import 'package:auto_explore/core/db/daos/driven_way_intervals_dao.dart';
 import 'package:auto_explore/features/coverage/data/coverage_overlay_data.dart';
 import 'package:auto_explore/features/coverage/data/coverage_overlay_providers.dart';
 import 'package:auto_explore/features/coverage/data/driven_way_geometry_resolver.dart';
-import 'package:auto_explore/features/matching/data/way_candidate_source.dart';
 import 'package:auto_explore/features/trips/data/trips_dao.dart';
 import 'package:auto_explore/features/trips/domain/trip_status.dart';
 import 'package:drift/drift.dart' hide isNotNull, isNull;
@@ -43,7 +43,7 @@ import 'package:maplibre_gl/maplibre_gl.dart' show LatLngBounds;
 class _CountingResolver extends DrivenWayGeometryResolver {
   _CountingResolver({
     required super.intervalsDao,
-    required super.waySource,
+    required super.geometryDao,
   });
 
   int resolveCalls = 0;
@@ -112,11 +112,13 @@ Future<void> _seedInterval(
 void main() {
   late AppDatabase db;
   late DrivenWayIntervalsDao intervalsDao;
+  late DrivenWayGeometryDao geometryDao;
   late TripsDao tripsDao;
 
   setUp(() async {
     db = AppDatabase(NativeDatabase.memory());
     intervalsDao = DrivenWayIntervalsDao(db);
+    geometryDao = DrivenWayGeometryDao(db);
     tripsDao = TripsDao(db);
     await db.customSelect('SELECT 1').getSingle();
   });
@@ -129,9 +131,9 @@ void main() {
   ({ProviderContainer container, _CountingResolver resolver}) wire() {
     final resolver = _CountingResolver(
       intervalsDao: intervalsDao,
-      // waySource is never invoked (resolve() is overridden) — but the base
-      // ctor requires one; the real provider's source is irrelevant here.
-      waySource: _UnusedWaySource(),
+      // geometryDao is never read (resolve() is overridden) — but the base
+      // ctor requires one; the real provider's geometry source is irrelevant.
+      geometryDao: geometryDao,
     );
     final container = ProviderContainer(
       overrides: [
@@ -245,11 +247,4 @@ void main() {
       expect(resolver.resolveCalls, 0);
     },
   );
-}
-
-// Minimal stand-in; resolve() is overridden so no method here is ever called.
-class _UnusedWaySource implements WayCandidateSource {
-  @override
-  Object noSuchMethod(Invocation invocation) =>
-      throw UnimplementedError('waySource must not be used in this test');
 }
