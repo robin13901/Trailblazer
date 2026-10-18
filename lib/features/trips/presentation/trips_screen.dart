@@ -25,8 +25,12 @@ class TripsScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // `bottom: false` so the history list reaches the physical bottom edge
+    // (under the floating nav pill) instead of stopping at the home-indicator
+    // inset; the list's bottom padding keeps the last trip clear of the pill.
     return const Scaffold(
       body: SafeArea(
+        bottom: false,
         child: Column(
           children: [
             MatchingQueuePill(),
@@ -48,10 +52,12 @@ class _HistoryList extends ConsumerWidget {
     return history.when(
       data: (items) {
         if (items.isEmpty) return const HistoryEmptyState();
+        final bottomInset = MediaQuery.paddingOf(context).bottom;
         return ListView.builder(
-          // Reserve space for the nav pill layered on top (Stack sibling),
-          // so the last trip clears it instead of scrolling underneath.
-          padding: const EdgeInsets.only(bottom: kBottomNavClearance),
+          // Reserve space for the nav pill layered on top (Stack sibling), so
+          // the last trip clears it. Includes the home-indicator inset since
+          // the Scaffold uses SafeArea(bottom: false).
+          padding: EdgeInsets.only(bottom: kBottomNavClearance + bottomInset),
           itemCount: items.length,
           itemBuilder: (context, i) => HistoryRow(item: items[i]),
         );

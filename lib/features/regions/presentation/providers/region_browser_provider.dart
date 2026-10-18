@@ -46,7 +46,7 @@ enum RegionSortCriterion {
 /// German label shown in the sort menu for each criterion.
 extension RegionSortCriterionLabel on RegionSortCriterion {
   String get label => switch (this) {
-    RegionSortCriterion.percent => 'Prozent',
+    RegionSortCriterion.percent => 'Abdeckung',
     RegionSortCriterion.totalKm => 'Gesamtkilometer',
     RegionSortCriterion.drivenKm => 'Gefahrene Kilometer',
     RegionSortCriterion.score => 'Score',

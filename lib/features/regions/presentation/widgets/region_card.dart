@@ -39,11 +39,17 @@ class RegionCard extends StatelessWidget {
   const RegionCard({
     required this.region,
     required this.onTap,
+    this.trailingText,
     super.key,
   });
 
   final RegionCoverage region;
   final VoidCallback onTap;
+
+  /// Overrides the right-hand value. Defaults to the coverage percent label;
+  /// the region browser passes the one-decimal score here when the active sort
+  /// is "Score" (user request 2026-10-18) so the shown value matches the sort.
+  final String? trailingText;
 
   @override
   Widget build(BuildContext context) {
@@ -90,9 +96,11 @@ class RegionCard extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 12),
-            // Coverage percentage — always shown; no spinner state (Plan 10-04).
+            // Right-hand value — coverage % by default, or the score when the
+            // browser sorts by score (Plan 10-04 + 2026-10-18). Same style for
+            // both so the column reads consistently.
             Text(
-              region.percentLabel,
+              trailingText ?? region.percentLabel,
               style: theme.textTheme.titleMedium?.copyWith(
                 fontWeight: FontWeight.w600,
                 color: colorScheme.primary,

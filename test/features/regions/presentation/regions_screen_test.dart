@@ -183,10 +183,31 @@ void main() {
       await tester.tap(find.byIcon(Icons.sort));
       await tester.pumpAndSettle();
 
-      expect(find.text('Prozent'), findsOneWidget);
+      expect(find.text('Abdeckung'), findsOneWidget);
       expect(find.text('Gesamtkilometer'), findsOneWidget);
       expect(find.text('Gefahrene Kilometer'), findsOneWidget);
       expect(find.text('Score'), findsOneWidget);
+    });
+
+    testWidgets('selecting Score shows the score value instead of percent', (
+      tester,
+    ) async {
+      await tester.pumpWidget(_buildApp(regions: _kRegions));
+      await tester.pumpAndSettle();
+
+      // Percent is shown by default.
+      expect(find.text('60,0 %'), findsOneWidget);
+
+      // Open the menu and pick Score.
+      await tester.tap(find.byIcon(Icons.sort));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Score'));
+      await tester.pumpAndSettle();
+
+      // Percent labels are gone; the score (one decimal) is shown instead.
+      // Kleinheubach: 60 % of 0.6 km → 0.6 × 0.6 = 0.36 → "0,4".
+      expect(find.text('60,0 %'), findsNothing);
+      expect(find.text('0,4'), findsOneWidget);
     });
   });
 }

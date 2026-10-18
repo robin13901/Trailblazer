@@ -16,6 +16,7 @@ import 'package:auto_explore/features/regions/domain/region_coverage.dart';
 import 'package:auto_explore/features/regions/presentation/providers/region_browser_provider.dart';
 import 'package:auto_explore/features/regions/presentation/widgets/region_card.dart';
 import 'package:auto_explore/features/regions/presentation/widgets/region_detail_sheet.dart';
+import 'package:auto_explore/features/regions/presentation/widgets/sort_menu.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -29,8 +30,14 @@ class RegionsScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // `bottom: false` lets the list scroll all the way to the physical bottom
+    // edge (under the floating nav pill, iOS-style) instead of stopping at the
+    // home-indicator inset — the list's own bottom padding keeps the last card
+    // clear of the pill (see _RegionList). This removes the dead strip the user
+    // reported below the last row (2026-10-18).
     return const Scaffold(
       body: SafeArea(
+        bottom: false,
         child: Column(
           children: [
             _SearchBar(),
@@ -43,8 +50,8 @@ class RegionsScreen extends ConsumerWidget {
   }
 }
 
-/// Top bar: the search field plus the sort-attribute menu and the
-/// ascending/descending toggle (user request 2026-10-18).
+/// Top bar: the search field plus the ascending/descending toggle and the
+/// glass sort-attribute menu (user request 2026-10-18).
 class _SearchBar extends StatelessWidget {
   const _SearchBar();
 
@@ -57,37 +64,9 @@ class _SearchBar extends StatelessWidget {
           Expanded(child: _SearchField()),
           SizedBox(width: 4),
           _SortDirectionButton(),
-          _SortMenuButton(),
+          SortMenuButton(),
         ],
       ),
-    );
-  }
-}
-
-/// Icon + popup menu to pick the sort attribute (Prozent / Gesamtkilometer /
-/// Gefahrene Kilometer / Score). The active criterion is check-marked.
-class _SortMenuButton extends ConsumerWidget {
-  const _SortMenuButton();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final current = ref.watch(
-      regionSortProvider.select((sort) => sort.criterion),
-    );
-    return PopupMenuButton<RegionSortCriterion>(
-      icon: const Icon(Icons.sort),
-      tooltip: 'Sortieren nach',
-      initialValue: current,
-      onSelected: (value) =>
-          ref.read(regionSortProvider.notifier).criterion = value,
-      itemBuilder: (context) => [
-        for (final criterion in RegionSortCriterion.values)
-          CheckedPopupMenuItem<RegionSortCriterion>(
-            value: criterion,
-            checked: criterion == current,
-            child: Text(criterion.label),
-          ),
-      ],
     );
   }
 }
@@ -198,15 +177,25 @@ class _RegionList extends ConsumerWidget {
     if (list.isEmpty) {
       return _EmptyState(queryIsEmpty: searchQuery.trim().isEmpty);
     }
+    final criterion = ref.watch(
+      regionSortProvider.select((sort) => sort.criterion),
+    );
+    // With the Scaffold's `SafeArea(bottom: false)` the list extends to the
+    // physical bottom edge, so the pill clearance must also cover the
+    // home-indicator inset (previously handled by SafeArea). The last card
+    // still parks just above the floating pill.
+    final bottomInset = MediaQuery.paddingOf(context).bottom;
     return ListView.builder(
-      // Reserve space for the nav pill layered on top (Stack sibling), so the
-      // last region card clears it instead of scrolling underneath.
-      padding: const EdgeInsets.only(bottom: kBottomNavClearance),
+      padding: EdgeInsets.only(bottom: kBottomNavClearance + bottomInset),
       itemCount: list.length,
       itemBuilder: (context, i) {
         final region = list[i];
         return RegionCard(
           region: region,
+          // Show the score (one decimal) when sorting by score, else the %.
+          trailingText: criterion == RegionSortCriterion.score
+              ? region.scoreLabel
+              : null,
           onTap: () => showRegionDetailSheet(context, ref, region),
         );
       },
