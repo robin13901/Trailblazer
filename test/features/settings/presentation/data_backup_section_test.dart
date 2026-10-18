@@ -59,7 +59,7 @@ void main() {
     // ── Test 2: Restore confirm path ──────────────────────────────────────────
 
     testWidgets(
-      'restore confirm path: pick → confirm → restore called + SnackBar',
+      'restore confirm path: pick → confirm → restore staged + restart dialog',
       (tester) async {
         final fakeBackup = FakeBackupService();
         final fakeFile = FakeFilePlatform()
@@ -81,8 +81,9 @@ void main() {
         // restore() was called with the picked path.
         expect(fakeBackup.restoredPaths, contains('/fake/backup.trailblazer'));
 
-        // Success SnackBar is visible.
-        expect(find.text('Backup wiederhergestellt'), findsOneWidget);
+        // Restart-required dialog is shown (swap happens on next launch).
+        expect(find.text('Backup vorgemerkt'), findsOneWidget);
+        expect(find.textContaining('nächsten Start'), findsOneWidget);
       },
     );
 

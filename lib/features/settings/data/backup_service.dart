@@ -9,22 +9,22 @@ import 'package:auto_explore/features/settings/domain/backup_validation_result.d
 ///
 /// ### Restore contract
 ///
-/// [restore] performs the full wipe-and-swap sequence internally:
+/// [restore] does NOT swap the live database in-place. Doing so would require
+/// closing the running Drift DB while the app still holds active `.watch()`
+/// subscriptions, which deadlocks. Instead [restore]:
 ///
 /// 1. Validates the incoming file (rejects corrupt/foreign/newer-schema files
-///    **before** the live DB is touched).
-/// 2. Takes a safety snapshot of the current DB (`VACUUM INTO` to temp dir).
-/// 3. Closes the live Drift database (`db.close()`).
-/// 4. Deletes `app_db.sqlite`, `app_db.sqlite-wal`, `app_db.sqlite-shm`.
-/// 5. Copies the backup file to the DB location.
-/// 6. Calls `ref.invalidate(appDatabaseProvider)` — Riverpod schedules the
-///    rebuild for the **next frame** (not synchronously). Any code that reads
-///    `appDatabaseProvider` immediately after this call in the same frame will
-///    see a closed/stale provider.
+///    **before** anything is written).
+/// 2. **Stages** the validated file as a pending restore in the documents
+///    directory. The live DB is left completely untouched.
 ///
-/// **Callers must navigate away or show a "Restoring…" loading state after
-/// calling [restore] — do NOT read the database synchronously in the same
-/// frame.**
+/// The actual swap happens on the **next app launch**, before the database is
+/// opened, via `applyPendingRestoreIfAny` in `main()` (see
+/// `restore_staging.dart`). With no open connections the swap is instant and
+/// cannot deadlock.
+///
+/// **Callers must tell the user to restart the app** after a successful
+/// [restore] — the restored data only becomes active on the next launch.
 abstract interface class BackupService {
   /// Creates a single-file backup in a temp directory and returns its path.
   ///
@@ -40,12 +40,13 @@ abstract interface class BackupService {
   /// rejected. Never throws; SQLite exceptions are caught and wrapped.
   Future<BackupValidationResult> validateBackup(String path);
 
-  /// Performs a full wipe-and-swap restore from [path].
+  /// Validates [path] and stages it as a pending restore for the next launch.
   ///
-  /// The live database is closed, replaced by the backup, and the provider is
-  /// invalidated. See the class-level restore contract for timing details.
+  /// The live database is **not** modified. On success the caller must prompt
+  /// the user to restart the app; the staged file is swapped in at launch (see
+  /// the class-level restore contract).
   ///
-  /// Returns [Err] if [path] fails validation or if any I/O step fails. The
-  /// live DB is **never modified** if validation fails.
+  /// Returns [Err] if [path] fails validation or if staging I/O fails. The
+  /// live DB is **never modified** in any case.
   Future<Result<void>> restore(String path);
 }

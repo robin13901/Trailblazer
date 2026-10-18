@@ -7,11 +7,13 @@ import 'package:auto_explore/core/theme/liquid_glass_settings.dart';
 import 'package:auto_explore/features/map/data/last_known_location.dart';
 import 'package:auto_explore/features/map/data/tile_provider_config.dart';
 import 'package:auto_explore/features/map/presentation/providers/map_style_provider.dart';
+import 'package:auto_explore/features/settings/data/restore_staging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:logging/logging.dart';
 import 'package:maplibre_gl/maplibre_gl.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 final _log = Logger('main');
@@ -51,6 +53,21 @@ Future<void> main() async {
     _log.severe('PlatformDispatcher.onError', wrapped, stack);
     return true; // Prevent OS-level crash.
   };
+
+  // Apply a pending backup restore (if one was staged in Settings) BEFORE the
+  // database is ever opened. The DB opens lazily on the first
+  // appDatabaseProvider read; doing the file swap here — with no open Drift
+  // connections — avoids the live-close deadlock that an in-place restore hits.
+  // Best-effort: any failure keeps the current DB and the app still boots.
+  try {
+    final docsDir = await getApplicationDocumentsDirectory();
+    final applied = await applyPendingRestoreIfAny(docsDir.path);
+    if (applied) {
+      _log.info('Pending backup restore applied on launch.');
+    }
+  } on Object catch (e, st) {
+    _log.severe('Pending restore swap failed (keeping current DB)', e, st);
+  }
 
   // Initialise the Riverpod container before the first frame.
   // The container is passed to UncontrolledProviderScope so the same instance

@@ -75,9 +75,9 @@ class _DataBackupSectionState extends ConsumerState<DataBackupSection> {
       builder: (dialogContext) => AlertDialog(
         title: const Text('Alle Daten ersetzen?'),
         content: const Text(
-          'Beim Wiederherstellen werden alle aktuellen Fahrten, Abdeckungs- '
-          'und Einstellungsdaten DAUERHAFT durch den Inhalt dieses Backups '
-          'ersetzt. Dies kann nicht rückgängig gemacht werden.',
+          'Beim nächsten Start der App werden alle aktuellen Fahrten, '
+          'Abdeckungs- und Einstellungsdaten DAUERHAFT durch den Inhalt '
+          'dieses Backups ersetzt. Dies kann nicht rückgängig gemacht werden.',
         ),
         actions: [
           TextButton(
@@ -98,33 +98,51 @@ class _DataBackupSectionState extends ConsumerState<DataBackupSection> {
     if (confirmed != true) return;
     if (!mounted) return;
 
-    // Step 3 — show restoring progress state.
+    // Step 3 — show restoring progress state while the file is staged.
     setState(() => _restoring = true);
+    final Result<void> result;
     try {
-      // Step 4 — perform the restore.
-      final r = await ref.read(backupServiceProvider).restore(path);
-      if (!mounted) return;
-
-      switch (r) {
-        case Ok():
-          // appDatabaseProvider was invalidated inside restore(); dependents
-          // rebuild on the next frame. Show feedback and let the tree refresh.
-          messenger.showSnackBar(
-            const SnackBar(content: Text('Backup wiederhergestellt')),
-          );
-        case Err(:final error):
-          // Validation or I/O failed — live DB is intact (safety-snapshot
-          // contract in BackupService).
-          messenger.showSnackBar(
-            SnackBar(
-              content: Text(
-                'Wiederherstellung fehlgeschlagen: ${error.message}',
-              ),
-            ),
-          );
-      }
+      // Step 4 — stage the restore (validated + copied; live DB untouched).
+      result = await ref.read(backupServiceProvider).restore(path);
     } finally {
+      // Clear the spinner BEFORE any follow-up dialog — an active
+      // CircularProgressIndicator never lets the frame settle.
       if (mounted) setState(() => _restoring = false);
+    }
+    if (!mounted) return;
+
+    switch (result) {
+      case Ok():
+        // The swap happens on the next launch (restore_staging.dart). iOS
+        // offers no clean programmatic restart, so we instruct the user to
+        // relaunch manually.
+        await showDialog<void>(
+          context: context,
+          builder: (dialogContext) => AlertDialog(
+            title: const Text('Backup vorgemerkt'),
+            content: const Text(
+              'Das Backup wird beim nächsten Start der App eingespielt.\n\n'
+              'Schließe die App jetzt vollständig (über den App-Umschalter) '
+              'und öffne sie erneut.',
+            ),
+            actions: [
+              FilledButton(
+                onPressed: () => Navigator.of(dialogContext).pop(),
+                child: const Text('Verstanden'),
+              ),
+            ],
+          ),
+        );
+      case Err(:final error):
+        // Validation or staging failed — live DB is intact (nothing was
+        // touched; the swap only runs at launch on a valid staged file).
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text(
+              'Wiederherstellung fehlgeschlagen: ${error.message}',
+            ),
+          ),
+        );
     }
   }
 

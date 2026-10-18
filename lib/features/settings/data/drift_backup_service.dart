@@ -5,6 +5,7 @@ import 'package:auto_explore/core/db/app_database_providers.dart';
 import 'package:auto_explore/core/errors/domain_error.dart';
 import 'package:auto_explore/core/errors/result.dart';
 import 'package:auto_explore/features/settings/data/backup_service.dart';
+import 'package:auto_explore/features/settings/data/restore_staging.dart';
 import 'package:auto_explore/features/settings/domain/backup_validation_result.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path/path.dart' as p;
@@ -16,11 +17,7 @@ import 'package:sqlite3/sqlite3.dart';
 const int kCurrentSchemaVersion = 10;
 
 /// Tables required to exist for a Trailblazer backup to be considered valid.
-const Set<String> _requiredTables = {
-  'trips',
-  'trip_points',
-  'driven_way_intervals',
-};
+const Set<String> _requiredTables = kRequiredBackupTables;
 
 /// Concrete backup/restore implementation backed by Drift + raw SQLite.
 ///
@@ -28,10 +25,10 @@ const Set<String> _requiredTables = {
 /// Uses `package:sqlite3` directly for validation to avoid triggering Drift
 /// migration machinery on an untrusted file.
 ///
-/// **IMPORTANT:** Does not cache an [AppDatabase] reference — reads
-/// [appDatabaseProvider] via `Ref.read()` on each call so that after a
-/// restore the implementation automatically uses the freshly rebuilt provider
-/// (avoids Pitfall 8: stale closed-DB reference).
+/// **Restore is deferred to the next launch** ([restore] stages the file; the
+/// swap happens in `main()` via `restore_staging.dart`). This avoids closing
+/// the live DB while the app holds active Drift watch-streams — an in-place
+/// live swap deadlocks on `db.close()`.
 class DriftBackupService implements BackupService {
   const DriftBackupService(this._ref);
 
@@ -75,13 +72,17 @@ class DriftBackupService implements BackupService {
     try {
       db = sqlite3.open(path, mode: OpenMode.readOnly);
 
-      // 1. SQLite file integrity.
-      final integrityRows = db.select('PRAGMA integrity_check');
+      // 1. SQLite file integrity. `quick_check` instead of the exhaustive
+      //    `integrity_check`: it catches corruption (bad pages, unreadable
+      //    b-trees) but skips the costly index cross-checks, so it stays fast
+      //    even on large (tens-of-MB) backups. A full integrity_check could
+      //    take minutes on-device for a GPS-point-heavy DB.
+      final integrityRows = db.select('PRAGMA quick_check');
       final integrityResult = integrityRows.isNotEmpty
           ? integrityRows.first.values.first! as String
           : '';
       if (integrityResult != 'ok') {
-        return BackupInvalid('integrity_check: $integrityResult');
+        return BackupInvalid('quick_check: $integrityResult');
       }
 
       // 2. Schema version check via user_version (Drift's version pragma).
@@ -122,48 +123,33 @@ class DriftBackupService implements BackupService {
 
   @override
   Future<Result<void>> restore(String path) async {
-    // Step 1: Validate BEFORE touching the live DB.
+    // Step 1: Validate BEFORE staging anything.
     final validation = await validateBackup(path);
     if (validation is BackupInvalid) {
       return Err(StorageError('Invalid backup: ${validation.reason}'));
     }
 
     try {
-      final tempDir = await getTemporaryDirectory();
-
-      // Step 2: Safety snapshot of the current DB.
-      // If anything goes wrong mid-swap the user still has their data here.
-      final safetyPath = p.join(tempDir.path, 'pre_restore_safety.trailblazer');
-      final currentDb = _ref.read(appDatabaseProvider);
-      await currentDb.customStatement('VACUUM INTO ?', [safetyPath]);
-
-      // Step 3: Close the live DB. MUST precede any file operation.
-      await currentDb.close();
-
-      // Step 4: Resolve the DB directory (drift_flutter uses documents dir).
+      // Step 2: Stage the validated backup for a swap at the NEXT launch.
+      //
+      // We deliberately do NOT close + swap the live DB here. The app holds
+      // many active Drift `.watch()` subscriptions (map, regions, trips); a
+      // live `db.close()` blocks until those drain, but they only tear down on
+      // provider invalidation AFTER the close — a deadlock that hangs the
+      // restore spinner forever. Instead `main()` swaps the staged file in
+      // before the DB is ever opened (see restore_staging.dart), where there
+      // are no open connections. The live DB is untouched until then.
       final docsDir = await getApplicationDocumentsDirectory();
-      final mainFile = File(p.join(docsDir.path, 'app_db.sqlite'));
-      final walFile = File('${mainFile.path}-wal');
-      final shmFile = File('${mainFile.path}-shm');
-
-      for (final f in [mainFile, walFile, shmFile]) {
-        if (f.existsSync()) f.deleteSync();
-      }
-
-      // Step 5: Copy backup to DB location.
-      await File(path).copy(mainFile.path);
-
-      // Step 6: Invalidate provider — Riverpod rebuilds on the NEXT FRAME.
-      // Callers must navigate away or show a loading state; do not read
-      // appDatabaseProvider synchronously in the same frame after this call.
-      _ref.invalidate(appDatabaseProvider);
-
+      await stagePendingRestore(
+        backupPath: path,
+        documentsDir: docsDir.path,
+      );
       return const Ok(null);
     } on DomainError catch (e) {
       return Err(e);
     } on FileSystemException catch (e, st) {
       return Err(
-        StorageError('Restore I/O failed: $e', cause: e, stackTrace: st),
+        StorageError('Restore staging I/O failed: $e', cause: e, stackTrace: st),
       );
     } on Object catch (e, st) {
       return Err(DatabaseError('Restore failed: $e', cause: e, stackTrace: st));
