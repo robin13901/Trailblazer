@@ -81,6 +81,16 @@ class RegionCoverage {
   double get drivenKm => drivenLengthM / 1000.0;
   double get totalKm => totalLengthM / 1000.0;
 
+  /// "Score" ranking value = coverage fraction × driven km (user spec
+  /// 2026-10-18). Example: 50 % of a region with 5 of 10 driven km →
+  /// 0.5 × 5 = 2.5. Rewards regions that are both well-covered AND long,
+  /// so a fully-driven short street scores below a half-driven long one.
+  /// This is the raw value used for sorting; [scoreLabel] rounds for display.
+  double get score => percent / 100.0 * drivenKm;
+
+  /// One-decimal German-format score, e.g. 2.5 -> "2,5".
+  String get scoreLabel => oneDecimalDe(score);
+
   @override
   bool operator ==(Object other) =>
       other is RegionCoverage &&

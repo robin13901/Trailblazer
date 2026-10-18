@@ -29,13 +29,13 @@ class RegionsScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return Scaffold(
+    return const Scaffold(
       body: SafeArea(
         child: Column(
           children: [
-            _SearchField(),
-            const Divider(height: 1),
-            const Expanded(child: _BrowserBody()),
+            _SearchBar(),
+            Divider(height: 1),
+            Expanded(child: _BrowserBody()),
           ],
         ),
       ),
@@ -43,7 +43,76 @@ class RegionsScreen extends ConsumerWidget {
   }
 }
 
+/// Top bar: the search field plus the sort-attribute menu and the
+/// ascending/descending toggle (user request 2026-10-18).
+class _SearchBar extends StatelessWidget {
+  const _SearchBar();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Padding(
+      padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Row(
+        children: [
+          Expanded(child: _SearchField()),
+          SizedBox(width: 4),
+          _SortDirectionButton(),
+          _SortMenuButton(),
+        ],
+      ),
+    );
+  }
+}
+
+/// Icon + popup menu to pick the sort attribute (Prozent / Gesamtkilometer /
+/// Gefahrene Kilometer / Score). The active criterion is check-marked.
+class _SortMenuButton extends ConsumerWidget {
+  const _SortMenuButton();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final current = ref.watch(
+      regionSortProvider.select((sort) => sort.criterion),
+    );
+    return PopupMenuButton<RegionSortCriterion>(
+      icon: const Icon(Icons.sort),
+      tooltip: 'Sortieren nach',
+      initialValue: current,
+      onSelected: (value) =>
+          ref.read(regionSortProvider.notifier).criterion = value,
+      itemBuilder: (context) => [
+        for (final criterion in RegionSortCriterion.values)
+          CheckedPopupMenuItem<RegionSortCriterion>(
+            value: criterion,
+            checked: criterion == current,
+            child: Text(criterion.label),
+          ),
+      ],
+    );
+  }
+}
+
+/// Toggle button whose arrow flips the sort direction: down = descending
+/// (highest first), up = ascending (lowest first).
+class _SortDirectionButton extends ConsumerWidget {
+  const _SortDirectionButton();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final descending = ref.watch(
+      regionSortProvider.select((sort) => sort.descending),
+    );
+    return IconButton(
+      icon: Icon(descending ? Icons.arrow_downward : Icons.arrow_upward),
+      tooltip: descending ? 'Absteigend' : 'Aufsteigend',
+      onPressed: () => ref.read(regionSortProvider.notifier).toggleDirection(),
+    );
+  }
+}
+
 class _SearchField extends ConsumerStatefulWidget {
+  const _SearchField();
+
   @override
   ConsumerState<_SearchField> createState() => _SearchFieldState();
 }
@@ -69,33 +138,30 @@ class _SearchFieldState extends ConsumerState<_SearchField> {
         _controller.text = next;
       }
     });
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: TextField(
-        controller: _controller,
-        textCapitalization: TextCapitalization.words,
-        decoration: InputDecoration(
-          hintText: 'Region suchen …',
-          prefixIcon: const Icon(Icons.search),
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide(
-              color: theme.colorScheme.outline.withValues(alpha: 0.5),
-            ),
-          ),
-          filled: true,
-          fillColor: theme.colorScheme.surfaceContainerHighest.withValues(
-            alpha: 0.5,
-          ),
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: 16,
-            vertical: 10,
+    return TextField(
+      controller: _controller,
+      textCapitalization: TextCapitalization.words,
+      decoration: InputDecoration(
+        hintText: 'Region suchen …',
+        prefixIcon: const Icon(Icons.search),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(
+            color: theme.colorScheme.outline.withValues(alpha: 0.5),
           ),
         ),
-        onChanged: (value) {
-          ref.read(regionSearchQueryProvider.notifier).query = value;
-        },
+        filled: true,
+        fillColor: theme.colorScheme.surfaceContainerHighest.withValues(
+          alpha: 0.5,
+        ),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 10,
+        ),
       ),
+      onChanged: (value) {
+        ref.read(regionSearchQueryProvider.notifier).query = value;
+      },
     );
   }
 }

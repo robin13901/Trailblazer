@@ -139,4 +139,54 @@ void main() {
 
     expect(find.textContaining('Keine Treffer'), findsOneWidget);
   });
+
+  group('sort controls (user spec 2026-10-18)', () {
+    testWidgets('sort icon + descending arrow render by default', (
+      tester,
+    ) async {
+      await tester.pumpWidget(_buildApp(regions: _kRegions));
+      await tester.pumpAndSettle();
+
+      expect(find.byIcon(Icons.sort), findsOneWidget);
+      // Default direction is descending (highest first).
+      expect(find.byIcon(Icons.arrow_downward), findsOneWidget);
+      expect(find.byIcon(Icons.arrow_upward), findsNothing);
+    });
+
+    testWidgets('tapping the direction button flips the arrow + reorders', (
+      tester,
+    ) async {
+      await tester.pumpWidget(_buildApp(regions: _kRegions));
+      await tester.pumpAndSettle();
+
+      // Default % descending: Kleinheubach (60) above Bayern (5).
+      expect(
+        tester.getTopLeft(find.text('Kleinheubach')).dy,
+        lessThan(tester.getTopLeft(find.text('Bayern')).dy),
+      );
+
+      await tester.tap(find.byIcon(Icons.arrow_downward));
+      await tester.pumpAndSettle();
+
+      // Now ascending: arrow flips and Bayern rises above Kleinheubach.
+      expect(find.byIcon(Icons.arrow_upward), findsOneWidget);
+      expect(
+        tester.getTopLeft(find.text('Bayern')).dy,
+        lessThan(tester.getTopLeft(find.text('Kleinheubach')).dy),
+      );
+    });
+
+    testWidgets('sort menu lists all four German criteria', (tester) async {
+      await tester.pumpWidget(_buildApp(regions: _kRegions));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byIcon(Icons.sort));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Prozent'), findsOneWidget);
+      expect(find.text('Gesamtkilometer'), findsOneWidget);
+      expect(find.text('Gefahrene Kilometer'), findsOneWidget);
+      expect(find.text('Score'), findsOneWidget);
+    });
+  });
 }

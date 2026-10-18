@@ -120,6 +120,55 @@ void main() {
       expect(rc.percent, 25.0);
     });
 
+    group('score (user spec 2026-10-18)', () {
+      test('is coverage fraction × driven km', () {
+        // 50 % of a 10 km region (5 of 10 km driven) → 0.5 × 5 = 2.5.
+        const half = RegionCoverage(
+          osmId: 1,
+          adminLevel: 8,
+          name: 'Halb',
+          drivenLengthM: 5000,
+          totalLengthM: 10000,
+        );
+        expect(half.score, closeTo(2.5, 1e-9));
+        expect(half.scoreLabel, '2,5');
+      });
+
+      test('is 0 when nothing driven', () {
+        const none = RegionCoverage(
+          osmId: 2,
+          adminLevel: 8,
+          name: 'Nichts',
+          drivenLengthM: 0,
+          totalLengthM: 10000,
+        );
+        expect(none.score, 0.0);
+        expect(none.scoreLabel, '0,0');
+      });
+
+      test('is 0 when total is 0 (percent guard holds)', () {
+        const empty = RegionCoverage(
+          osmId: 3,
+          adminLevel: 8,
+          name: 'Leer',
+          drivenLengthM: 100,
+          totalLengthM: 0,
+        );
+        expect(empty.score, 0.0);
+      });
+
+      test('equals driven km at full coverage', () {
+        const full = RegionCoverage(
+          osmId: 4,
+          adminLevel: 8,
+          name: 'Voll',
+          drivenLengthM: 8000,
+          totalLengthM: 8000,
+        );
+        expect(full.score, closeTo(8.0, 1e-9));
+      });
+    });
+
     group('equality', () {
       test('equal when osmId, drivenLengthM, totalLengthM match', () {
         const rc2 = RegionCoverage(

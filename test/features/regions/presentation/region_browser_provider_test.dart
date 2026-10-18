@@ -314,4 +314,94 @@ void main() {
       },
     );
   });
+
+  group('regionBrowserFilteredProvider sort (user spec 2026-10-18)', () {
+    // Three regions with distinct attributes so each criterion yields a
+    // recognisable order:
+    //   A 5001: 900/1000   → %=90.0  totalKm=1.0   drivenKm=0.9  score=0.81
+    //   B 5002: 5000/100000→ %=5.0   totalKm=100.0 drivenKm=5.0  score=0.25
+    //   C 5003: 300/500    → %=60.0  totalKm=0.5   drivenKm=0.3  score=0.18
+    Future<ProviderContainer> seed() async {
+      await _upsertRow(
+        db,
+        regionId: '5001',
+        drivenLengthM: 900,
+        totalLengthM: 1000,
+      );
+      await _upsertRow(
+        db,
+        regionId: '5002',
+        drivenLengthM: 5000,
+        totalLengthM: 100000,
+      );
+      await _upsertRow(
+        db,
+        regionId: '5003',
+        drivenLengthM: 300,
+        totalLengthM: 500,
+      );
+      final fakeLookup = _FakeLookup({
+        5001: _region(5001, 8, 'Alpha'),
+        5002: _region(5002, 8, 'Beta'),
+        5003: _region(5003, 8, 'Gamma'),
+      });
+      final container = ProviderContainer(
+        overrides: [
+          appDatabaseProvider.overrideWithValue(db),
+          adminRegionLookupProvider.overrideWithValue(fakeLookup),
+        ],
+      );
+      addTearDown(container.dispose);
+      final sub = container.listen(regionBrowserProvider, (_, _) {});
+      addTearDown(sub.close);
+      await _readList(container, until: (r) => r.length == 3);
+      return container;
+    }
+
+    List<int> ids(ProviderContainer c) =>
+        c.read(regionBrowserFilteredProvider).map((r) => r.osmId).toList();
+
+    test('default is coverage % descending', () async {
+      final container = await seed();
+      expect(ids(container), [5001, 5003, 5002]); // 90 > 60 > 5
+    });
+
+    test('totalKm descending', () async {
+      final container = await seed();
+      container.read(regionSortProvider.notifier).criterion =
+          RegionSortCriterion.totalKm;
+      expect(ids(container), [5002, 5001, 5003]); // 100 > 1 > 0.5
+    });
+
+    test('drivenKm descending', () async {
+      final container = await seed();
+      container.read(regionSortProvider.notifier).criterion =
+          RegionSortCriterion.drivenKm;
+      expect(ids(container), [5002, 5001, 5003]); // 5.0 > 0.9 > 0.3
+    });
+
+    test('score descending (fraction × driven km)', () async {
+      final container = await seed();
+      container.read(regionSortProvider.notifier).criterion =
+          RegionSortCriterion.score;
+      expect(ids(container), [5001, 5002, 5003]); // 0.81 > 0.25 > 0.18
+    });
+
+    test('toggleDirection reverses the order', () async {
+      final container = await seed();
+      container.read(regionSortProvider.notifier).toggleDirection();
+      // % ascending now.
+      expect(ids(container), [5002, 5003, 5001]); // 5 < 60 < 90
+    });
+
+    test('sort still applies under an active search query', () async {
+      final container = await seed();
+      // All three names contain 'a' (Alpha, Beta, Gamma): query 'a' keeps all.
+      container.read(regionSearchQueryProvider.notifier).query = 'a';
+      container.read(regionSortProvider.notifier).criterion =
+          RegionSortCriterion.score;
+      // Alpha starts-with 'a' → first; Beta/Gamma contain 'a', score-ordered.
+      expect(ids(container), [5001, 5002, 5003]);
+    });
+  });
 }

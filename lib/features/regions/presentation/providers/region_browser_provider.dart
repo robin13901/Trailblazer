@@ -21,6 +21,117 @@ import 'package:auto_explore/features/admin/data/admin_region_providers.dart';
 import 'package:auto_explore/features/coverage/data/coverage_providers.dart';
 import 'package:auto_explore/features/regions/domain/region_coverage.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:meta/meta.dart';
+
+// ---------------------------------------------------------------------------
+// Sort state (user request 2026-10-18)
+// ---------------------------------------------------------------------------
+
+/// Attribute the region browser list is ordered by. Default is [percent]
+/// (coverage), matching the original %-descending behaviour.
+enum RegionSortCriterion {
+  /// Coverage percentage (driven / total). The default.
+  percent,
+
+  /// Bundled/estimated total road length of the region.
+  totalKm,
+
+  /// Driven road length within the region.
+  drivenKm,
+
+  /// Coverage fraction × driven km — see [RegionCoverage.score].
+  score,
+}
+
+/// German label shown in the sort menu for each criterion.
+extension RegionSortCriterionLabel on RegionSortCriterion {
+  String get label => switch (this) {
+    RegionSortCriterion.percent => 'Prozent',
+    RegionSortCriterion.totalKm => 'Gesamtkilometer',
+    RegionSortCriterion.drivenKm => 'Gefahrene Kilometer',
+    RegionSortCriterion.score => 'Score',
+  };
+}
+
+/// Immutable sort selection: which [criterion] and whether [descending]
+/// (highest first — the default for every criterion).
+@immutable
+class RegionSort {
+  const RegionSort({
+    this.criterion = RegionSortCriterion.percent,
+    this.descending = true,
+  });
+
+  final RegionSortCriterion criterion;
+  final bool descending;
+
+  RegionSort copyWith({RegionSortCriterion? criterion, bool? descending}) =>
+      RegionSort(
+        criterion: criterion ?? this.criterion,
+        descending: descending ?? this.descending,
+      );
+
+  @override
+  bool operator ==(Object other) =>
+      other is RegionSort &&
+      other.criterion == criterion &&
+      other.descending == descending;
+
+  @override
+  int get hashCode => Object.hash(criterion, descending);
+}
+
+/// Holds the current sort selection for the region browser. Persists across
+/// tab switches (unlike the search query, which resets on leave) so the user's
+/// chosen ordering survives navigation.
+class RegionSortNotifier extends Notifier<RegionSort> {
+  @override
+  RegionSort build() => const RegionSort();
+
+  /// Current sort attribute (getter pairs with the setter to satisfy
+  /// `avoid_setters_without_getters`, mirroring [SearchQueryNotifier]).
+  RegionSortCriterion get criterion => state.criterion;
+
+  /// Change the sort attribute, keeping the current direction.
+  set criterion(RegionSortCriterion value) =>
+      state = state.copyWith(criterion: value);
+
+  /// Flip between ascending and descending, keeping the current attribute.
+  void toggleDirection() =>
+      state = state.copyWith(descending: !state.descending);
+}
+
+/// Provider for the current sort selection. Default: coverage % descending.
+final regionSortProvider = NotifierProvider<RegionSortNotifier, RegionSort>(
+  RegionSortNotifier.new,
+);
+
+/// The sort value for one region under a given criterion. Pure, synchronous.
+double _sortValue(RegionCoverage region, RegionSortCriterion criterion) =>
+    switch (criterion) {
+      RegionSortCriterion.percent => region.percent,
+      RegionSortCriterion.totalKm => region.totalKm,
+      RegionSortCriterion.drivenKm => region.drivenKm,
+      RegionSortCriterion.score => region.score,
+    };
+
+/// Returns a new list ordered by [sort]. Ties break on name ascending so the
+/// order is deterministic regardless of direction (only the primary attribute
+/// honours [RegionSort.descending]).
+List<RegionCoverage> _applySort(List<RegionCoverage> list, RegionSort sort) {
+  final out = [...list]
+    ..sort((a, b) {
+      final primary = _sortValue(
+        a,
+        sort.criterion,
+      ).compareTo(_sortValue(b, sort.criterion));
+      final directed = sort.descending ? -primary : primary;
+      if (directed != 0) return directed;
+      return a.name.toLowerCase().compareTo(b.name.toLowerCase());
+    });
+  return out;
+}
+
 
 // ---------------------------------------------------------------------------
 // Search query state
@@ -123,18 +234,22 @@ List<RegionCoverage> _buildRegionList(
   return out;
 }
 
-/// Derived provider that applies the fuzzy search on top of the loaded list.
-/// Pure-Dart ranking (RESEARCH lines 89-92):
-///   starts-with match ranks above contains-anywhere; empty query = full list.
-/// Each sub-list is already %-descending from [regionBrowserProvider].
+/// Derived provider that applies the active sort and the fuzzy search on top
+/// of the loaded list.
+///   1. Order the full list by [regionSortProvider] (default: % descending).
+///   2. If a query is present, keep name prefix-matches (starts-with) ahead of
+///      contains-anywhere matches — each group preserving the sort order from
+///      step 1 (RESEARCH lines 89-92). Empty query returns the sorted list.
 final regionBrowserFilteredProvider = Provider<List<RegionCoverage>>((ref) {
   final all =
       ref.watch(regionBrowserProvider).value ?? const <RegionCoverage>[];
+  final sort = ref.watch(regionSortProvider);
+  final sorted = _applySort(all, sort);
   final q = ref.watch(regionSearchQueryProvider).trim().toLowerCase();
-  if (q.isEmpty) return all;
+  if (q.isEmpty) return sorted;
   final starts = <RegionCoverage>[];
   final contains = <RegionCoverage>[];
-  for (final r in all) {
+  for (final r in sorted) {
     final n = r.name.toLowerCase();
     if (n.startsWith(q)) {
       starts.add(r);
@@ -142,5 +257,5 @@ final regionBrowserFilteredProvider = Provider<List<RegionCoverage>>((ref) {
       contains.add(r);
     }
   }
-  return [...starts, ...contains]; // ranked; each sub-list already %-desc
+  return [...starts, ...contains]; // ranked; each sub-list already sort-ordered
 });
