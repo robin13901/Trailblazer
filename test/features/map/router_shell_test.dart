@@ -1,6 +1,7 @@
 import 'package:auto_explore/app.dart';
 import 'package:auto_explore/core/db/app_database.dart';
 import 'package:auto_explore/core/db/app_database_providers.dart';
+import 'package:auto_explore/core/prefs/app_prefs.dart';
 import 'package:auto_explore/features/admin/data/admin_bundle_refresher.dart';
 import 'package:auto_explore/features/admin/data/admin_region_providers.dart';
 import 'package:auto_explore/features/coverage/data/coverage_overlay_providers.dart';
@@ -60,11 +61,13 @@ class _FakeAdminBundleRefresher implements AdminBundleRefresher {
 
 /// Stub [GlobalRecalcNotifier] that stays null so `GlobalRecalcBanner` renders
 /// nothing. The full [App] runs `_runStartupMigrations()` on the first frame,
-/// which flips this provider to a non-null "Neuberechnung …" state; that state
-/// renders an INDETERMINATE `LinearProgressIndicator` in the banner, whose
-/// forever-repeating animation makes `pumpAndSettle` never settle (the headless
-/// recompute never completes to clear it). Holding the state at null keeps the
-/// banner a `SizedBox.shrink()` — the migration's `start*/clear` calls no-op.
+/// which drives this provider to a non-null state via its `start*/update*`
+/// calls; a non-null state renders a `LinearProgressIndicator` in the banner
+/// (indeterminate while a phase is in flight) whose animation makes
+/// `pumpAndSettle` never settle (the headless recompute never completes to
+/// clear it). EVERY mutator is no-op'd so the state is provably held at null and
+/// the banner stays a `SizedBox.shrink()` regardless of which migration phase
+/// (rematch / recompute / tile-fetch / overlay / geometry-backfill) fires.
 class _NullGlobalRecalcNotifier extends GlobalRecalcNotifier {
   @override
   GlobalRecalcState? build() => null;
@@ -77,6 +80,24 @@ class _NullGlobalRecalcNotifier extends GlobalRecalcNotifier {
 
   @override
   void startRecomputing() {}
+
+  @override
+  void updateRecomputing(int done, int total) {}
+
+  @override
+  void startOverlayFetch() {}
+
+  @override
+  void updateOverlayFetch(int done, int total) {}
+
+  @override
+  void clearOverlayFetch() {}
+
+  @override
+  void startGeometryBackfill() {}
+
+  @override
+  void updateGeometryBackfill(int done, int total) {}
 
   @override
   void clear() {}
@@ -92,6 +113,25 @@ Future<void> pumpAppAtMapShell(WidgetTester tester) async {
       InMemorySharedPreferencesAsync.empty();
   final repo = OnboardingFlagRepository(SharedPreferencesAsync());
   await repo.markDone();
+
+  // Stamp every one-shot startup-migration version to current so
+  // App._runStartupMigrations() skips them all. Without this the stamps are
+  // absent (0/null) in the fresh in-memory prefs, so on the first frame EACH
+  // migration runs — the matcher re-match and coverage recompute spawn their
+  // background ISOLATES, whose open ReceivePorts keep `pumpAndSettle` from ever
+  // settling (10-minute timeout) and whose teardown leaves a pending timer.
+  // This routing test does not exercise migrations, so skipping them is correct.
+  final prefs = AppPrefs(SharedPreferencesAsync());
+  await prefs.setStuckFetchRecoveryVersion(
+    AppPrefs.kCurrentStuckFetchRecoveryVersion,
+  );
+  await prefs.setMatcherRematchVersion(AppPrefs.kCurrentMatcherRematchVersion);
+  await prefs.setCoverageRecomputeVersion(
+    AppPrefs.kCurrentCoverageRecomputeVersion,
+  );
+  await prefs.setWayGeometryBackfillVersion(
+    AppPrefs.kCurrentWayGeometryBackfillVersion,
+  );
 
   // In-memory DB so SettingsScreen (and its child sections) can render
   // without hitting the drift_flutter path_provider channel.
@@ -152,6 +192,17 @@ Future<void> pumpAppAtMapShell(WidgetTester tester) async {
         // cleanup timer on dispose. Override with an empty stream so no Drift
         // subscription is ever created here.
         drivenWayIntervalsRevisionProvider.overrideWith(
+          (ref) => const Stream.empty(),
+        ),
+        // drivenWayGeometryRevisionProvider (v10, 2026-08-15) is the second
+        // Drift .watch() that coverageOverlayDataProvider subscribes to
+        // (DrivenWayGeometryDao.watchRevision()). Same StreamQueryStore
+        // cleanup-timer trap as drivenWayIntervalsRevisionProvider above — it
+        // was added after this test's stub list and never mirrored here, so its
+        // Drift watch left a pending timer at teardown ("A Timer is still
+        // pending…"). Override with an empty stream so no Drift subscription is
+        // created.
+        drivenWayGeometryRevisionProvider.overrideWith(
           (ref) => const Stream.empty(),
         ),
         // FocusAreaPill → FocusPillNotifier.build() ref.listens

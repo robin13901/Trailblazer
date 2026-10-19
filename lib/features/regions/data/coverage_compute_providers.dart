@@ -64,6 +64,7 @@ final coverageComputeServiceProvider = Provider<CoverageComputeService>((ref) {
     tripsDao: ref.watch(tripsDaoProvider),
     totalsLookup: ref.watch(regionTotalsLookupProvider),
     attributionDao: WayRegionAttributionDao(ref.watch(appDatabaseProvider)),
+    geometryDao: ref.watch(drivenWayGeometryDaoProvider),
     compute: (gzippedTiles, tileBboxes, alreadyAttributedWayIds) =>
         isolate.computeAttribution(
           gzippedTiles: gzippedTiles,

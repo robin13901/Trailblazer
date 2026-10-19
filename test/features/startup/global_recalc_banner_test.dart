@@ -78,7 +78,7 @@ void main() {
         ),
       );
 
-      expect(find.textContaining('3/20'), findsOneWidget);
+      expect(find.textContaining('3 / 20'), findsOneWidget);
       expect(find.textContaining('Neuberechnung'), findsOneWidget);
 
       // Determinate bar: value is 3/20.
@@ -125,7 +125,7 @@ void main() {
         find.textContaining('Abdeckung wird neu berechnet'),
         findsOneWidget,
       );
-      expect(find.textContaining('4/10'), findsOneWidget);
+      expect(find.textContaining('4 / 10'), findsOneWidget);
 
       // Determinate bar: value is 4/10.
       final bar = tester.widget<LinearProgressIndicator>(

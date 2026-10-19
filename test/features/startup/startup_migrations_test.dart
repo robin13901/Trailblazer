@@ -74,7 +74,10 @@ class _ErrRecomputeService extends CoverageComputeService {
   int recomputeCalls = 0;
 
   @override
-  Future<Result<int>> recompute({CoverageRecomputeProgress? onProgress}) async {
+  Future<Result<int>> recompute({
+    CoverageRecomputeProgress? onProgress,
+    CoverageRecomputeProgress? onTileFetch,
+  }) async {
     recomputeCalls++;
     return const Err(UnknownError('simulated recompute failure'));
   }

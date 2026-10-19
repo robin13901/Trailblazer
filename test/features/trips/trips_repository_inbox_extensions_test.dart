@@ -167,6 +167,7 @@ class _NoopComputeService extends CoverageComputeService {
   @override
   Future<Result<int>> recompute({
     CoverageRecomputeProgress? onProgress,
+    CoverageRecomputeProgress? onTileFetch,
   }) async => const Ok(0);
 }
 

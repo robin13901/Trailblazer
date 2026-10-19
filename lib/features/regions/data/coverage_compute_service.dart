@@ -24,10 +24,12 @@
 //
 // Never throws — wraps at DomainError boundary and returns Err.
 
+import 'dart:convert';
 import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:auto_explore/core/db/app_database.dart';
+import 'package:auto_explore/core/db/daos/driven_way_geometry_dao.dart';
 import 'package:auto_explore/core/db/daos/driven_way_intervals_dao.dart';
 import 'package:auto_explore/core/db/daos/way_region_attribution_dao.dart';
 import 'package:auto_explore/core/errors/domain_error.dart';
@@ -107,6 +109,7 @@ class CoverageComputeService {
     required RegionTotalsLookup totalsLookup,
     required CoverageAttributionRunner compute,
     WayRegionAttributionDao? attributionDao,
+    DrivenWayGeometryDao? geometryDao,
     Future<void> Function()? ensureComputeReady,
     Logger? logger,
   }) : _intervalsDao = intervalsDao,
@@ -117,6 +120,7 @@ class CoverageComputeService {
        _totalsLookup = totalsLookup,
        _compute = compute,
        _attributionDao = attributionDao,
+       _geometryDao = geometryDao,
        _ensureComputeReady = ensureComputeReady,
        _log = logger ?? Logger('CoverageComputeService');
 
@@ -134,6 +138,16 @@ class CoverageComputeService {
 
   WayRegionAttributionDao get _attribution =>
       _attributionDao ?? WayRegionAttributionDao(_cacheDao.attachedDatabase);
+
+  /// Durable per-way OSM geometry cache (schema v10). Used to derive the
+  /// corridor tiles of NEW ways so the STAGE-1 fetch is scoped to them instead
+  /// of the whole all-trips union bbox. Optional for back-compat with tests
+  /// that override recompute; when null a dao is derived from the cache DAO's
+  /// attached database lazily.
+  final DrivenWayGeometryDao? _geometryDao;
+
+  DrivenWayGeometryDao get _geometry =>
+      _geometryDao ?? DrivenWayGeometryDao(_cacheDao.attachedDatabase);
 
   /// Off-isolate STAGE-1 clip runner (production: the compute isolate's
   /// `computeAttribution`; tests: a synchronous closure).
@@ -162,7 +176,17 @@ class CoverageComputeService {
   ///
   /// Error posture: never throws. Non-DomainError exceptions are wrapped via
   /// [DomainError.wrap] and returned as [Err].
-  Future<Result<int>> recompute({CoverageRecomputeProgress? onProgress}) async {
+  ///
+  /// [onTileFetch] — when supplied, is invoked as STAGE-1 fetches the raw
+  /// Overpass tiles for the new ways, with a rising `done` up to the count of
+  /// tiles in scope. This is the phase that STALLS on a cold tile cache (every
+  /// tile is a throttled network round-trip), so surfacing it as a determinate
+  /// `N/M` keeps the banner visibly alive instead of apparently frozen. No-op
+  /// (never called) on the fast-path where every way is already attributed.
+  Future<Result<int>> recompute({
+    CoverageRecomputeProgress? onProgress,
+    CoverageRecomputeProgress? onTileFetch,
+  }) async {
     void reportProgress(int done, int total) {
       if (onProgress == null) return;
       try {
@@ -171,6 +195,17 @@ class CoverageComputeService {
         // ignore: avoid_catches_without_on_clauses
       } catch (e, st) {
         _log.warning('recompute: onProgress threw: $e', e, st);
+      }
+    }
+
+    void reportTileFetch(int done, int total) {
+      if (onTileFetch == null) return;
+      try {
+        onTileFetch(done, total);
+        // A progress-UI hiccup must never abort the recompute.
+        // ignore: avoid_catches_without_on_clauses
+      } catch (e, st) {
+        _log.warning('recompute: onTileFetch threw: $e', e, st);
       }
     }
 
@@ -219,12 +254,46 @@ class CoverageComputeService {
           'recompute: ${missingWayIds.length} new ways need attribution '
           '(${alreadyAttributed.length} already cached)',
         );
+
+        // Scope the STAGE-1 fetch to the corridor tiles of the NEW ways only,
+        // derived from the durable `driven_way_geometry` cache. Without this,
+        // `fetchRawTilesInBbox` enumerates EVERY tile in the all-trips union
+        // bbox — dozens of never-driven tiles inside the bounding rectangle —
+        // and on a cold cache hangs awaiting each one's (throttled) Overpass
+        // fetch. This is the recurring full-bbox hang (2026-07-21); the rework
+        // on 2026-07-25 that split recompute into two stages dropped the
+        // corridor restriction that every OTHER fetch call site still applies.
+        //
+        // A way's geometry lives in exactly the tiles it passes through, so
+        // `tilesForPath(geometry)` (2 km along-segment sampling, well under a
+        // z12 tile width) covers every tile needed to clip it — no under-fetch.
+        // Falls back to the full bbox (restrictTiles:null) ONLY when no durable
+        // geometry exists for any new way, so attribution still proceeds (rare:
+        // geometry is written at match time and survives the backup, so it is
+        // normally present for freshly-driven ways).
+        final corridorTiles = await _tilesForWays(missingWayIds);
+        if (corridorTiles.isEmpty) {
+          _log.fine(
+            'recompute: no durable geometry for the new ways — falling back '
+            'to full union-bbox fetch',
+          );
+        }
+
+        // Fetch RAW tiles for the new ways' corridor — cacheOnly:false so that
+        // ways whose tiles were LRU-evicted after matching still get
+        // attributed. throwOnError stays false: a network hiccup skips those
+        // tiles this pass but leaves previously-attributed ways intact (Stage 2
+        // is eviction-proof from the durable attribution rows). onTileProgress
+        // surfaces the per-tile fetch as a determinate N/M so the banner never
+        // looks frozen while the (possibly cold) cache refills from Overpass.
         final rawTiles = await _waySource.fetchRawTilesInBbox(
           minLat: bounds.southwest.latitude,
           minLon: bounds.southwest.longitude,
           maxLat: bounds.northeast.latitude,
           maxLon: bounds.northeast.longitude,
           throwOnError: false,
+          restrictTiles: corridorTiles.isEmpty ? null : corridorTiles,
+          onTileProgress: reportTileFetch,
           // cacheOnly intentionally left false (the default): LRU-evicted
           // tiles for new ways must be re-fetched so new regions are not
           // stuck at 0%.
@@ -356,6 +425,38 @@ class CoverageComputeService {
           realTotal: _totalsLookup.totalFor(id),
         ),
     };
+  }
+
+  /// Union of the z12 tiles touched by the geometry of [wayIds], read from the
+  /// durable `driven_way_geometry` cache. Used to scope the STAGE-1 tile fetch
+  /// to just the corridor of NEW ways. Returns an empty set when no geometry is
+  /// available for any of the ways (caller falls back to the full bbox).
+  Future<Set<TileId>> _tilesForWays(Set<int> wayIds) async {
+    if (wayIds.isEmpty) return const <TileId>{};
+    const tileMath = TileBboxMath();
+    final tiles = <TileId>{};
+    for (final row in await _geometry.getAllRows()) {
+      if (!wayIds.contains(row.wayId)) continue;
+      final path = _parseGeometryPath(row.geometryJson);
+      if (path.isNotEmpty) tiles.addAll(tileMath.tilesForPath(path));
+    }
+    return tiles;
+  }
+
+  /// Parse a `[[lat,lon],…]` geometry JSON blob into the `(lat, lon)` record
+  /// list that [TileBboxMath.tilesForPath] consumes. Tolerant of int/double
+  /// JSON number encodings; skips malformed entries. Returns an empty list for
+  /// non-list or empty input.
+  List<({double lat, double lon})> _parseGeometryPath(String json) {
+    final decoded = jsonDecode(json);
+    if (decoded is! List) return const [];
+    final out = <({double lat, double lon})>[];
+    for (final p in decoded) {
+      if (p is List && p.length >= 2 && p[0] is num && p[1] is num) {
+        out.add((lat: (p[0] as num).toDouble(), lon: (p[1] as num).toDouble()));
+      }
+    }
+    return out;
   }
 
   /// Incremental recompute for a single trip (Phase 10 Decision 6 / OQ1-PERF).

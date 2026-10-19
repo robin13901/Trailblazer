@@ -107,8 +107,11 @@ Uint8List _gzTile(List<WayCandidate> ways) {
 /// gzips those ways into one tile (so STAGE-1 clip runs) unless [emptyRawTiles]
 /// is set (to exercise the eviction-proof STAGE-2-only path).
 ///
-/// Records the `cacheOnly` flag passed to `fetchRawTilesInBbox` so tests can
-/// assert that recompute() passes cacheOnly:false (the LRU-eviction fix).
+/// Records the `cacheOnly` flag and `restrictTiles` set passed to
+/// `fetchRawTilesInBbox` so tests can assert that recompute() passes
+/// cacheOnly:false (the LRU-eviction fix) and scopes the fetch to the new ways'
+/// corridor tiles (the full-bbox-hang fix). Invokes `onTileProgress` so the
+/// onTileFetch forwarding can be asserted.
 class _FixedWayCandidateSource implements WayCandidateSource {
   _FixedWayCandidateSource(this.ways, {this.emptyRawTiles = false});
   final List<WayCandidate> ways;
@@ -116,6 +119,14 @@ class _FixedWayCandidateSource implements WayCandidateSource {
 
   /// Last cacheOnly value received by fetchRawTilesInBbox. Null before first call.
   bool? lastCacheOnly;
+
+  /// Last restrictTiles value received by fetchRawTilesInBbox. Stays null until
+  /// the first call; distinguishes "never called" (null) from "called with no
+  /// restriction" via [restrictTilesCallCount].
+  Set<TileId>? lastRestrictTiles;
+
+  /// Number of times fetchRawTilesInBbox has been invoked.
+  int restrictTilesCallCount = 0;
 
   @override
   Future<List<WayCandidate>> fetchWaysInBbox({
@@ -141,8 +152,13 @@ class _FixedWayCandidateSource implements WayCandidateSource {
     void Function(int done, int total)? onTileProgress,
   }) async {
     lastCacheOnly = cacheOnly;
-    if (emptyRawTiles || ways.isEmpty) return const [];
-    return [
+    lastRestrictTiles = restrictTiles;
+    restrictTilesCallCount++;
+    if (emptyRawTiles || ways.isEmpty) {
+      onTileProgress?.call(0, 0);
+      return const [];
+    }
+    final tiles = [
       RawTilePayload(
         payloadGzip: _gzTile(ways),
         bbox: LatLonBbox(
@@ -153,6 +169,8 @@ class _FixedWayCandidateSource implements WayCandidateSource {
         ),
       ),
     ];
+    onTileProgress?.call(tiles.length, tiles.length);
+    return tiles;
   }
 }
 
@@ -329,6 +347,26 @@ Future<void> _seedInterval(
           startMeters: startMeters,
           endMeters: endMeters,
           matchedAt: Value(DateTime(2026, 7, 11, 9, 30)),
+        ),
+      );
+}
+
+/// Seed a durable geometry row for [wayId] in [db] so recompute() can derive
+/// the way's corridor tiles for the scoped STAGE-1 fetch.
+Future<void> _seedGeometry(
+  AppDatabase db,
+  int wayId,
+  List<LatLng> geometry,
+) {
+  final json = jsonEncode([
+    for (final p in geometry) [p.latitude, p.longitude],
+  ]);
+  return db
+      .into(db.drivenWayGeometry)
+      .insert(
+        DrivenWayGeometryCompanion.insert(
+          wayId: Value(wayId),
+          geometryJson: json,
         ),
       );
 }
@@ -944,5 +982,93 @@ void main() {
         );
       },
     );
+
+    // -----------------------------------------------------------------------
+    // Regression: recompute() must scope the Stage-1 fetch to the NEW ways'
+    // corridor tiles (derived from durable geometry), NOT the whole all-trips
+    // union bbox. Fetching the full rectangle on a cold cache enumerates dozens
+    // of never-driven tiles and hangs awaiting their throttled Overpass fetches
+    // (the recurring full-bbox hang; regressed in the 2026-07-25 two-stage
+    // rework, re-fixed 2026-10-19).
+    // -----------------------------------------------------------------------
+    test(
+      'Stage-1 fetch is scoped to the new ways corridor tiles (restrictTiles)',
+      () async {
+        final tripId = await _seedMatchedTrip(db);
+        await _seedInterval(db, tripId: tripId, wayId: 100001);
+        // Durable geometry for the new way → recompute can derive its tiles.
+        await _seedGeometry(db, 100001, _fixtureWay().geometry);
+
+        final (:service, :source) = buildServiceWithSource(
+          byLevel: {4: null, 6: null, 8: _regionLevel8(), 9: null, 10: null},
+          ways: [_fixtureWay()],
+        );
+
+        await service.recompute();
+
+        // The fetch was scoped (non-null) to exactly the tiles the fixture
+        // way's geometry touches — not a full-bbox fetch (null).
+        final expectedTiles = const TileBboxMath().tilesForPath([
+          for (final p in _fixtureWay().geometry)
+            (lat: p.latitude, lon: p.longitude),
+        ]);
+        expect(source.lastRestrictTiles, isNotNull);
+        expect(source.lastRestrictTiles, isNotEmpty);
+        expect(source.lastRestrictTiles, equals(expectedTiles));
+      },
+    );
+
+    // Fallback: with NO durable geometry for the new ways, recompute cannot
+    // derive a corridor, so it falls back to the full-bbox fetch
+    // (restrictTiles:null) rather than fetching nothing — attribution must
+    // still proceed.
+    test(
+      'no durable geometry → Stage-1 falls back to full-bbox (restrictTiles '
+      'null)',
+      () async {
+        final tripId = await _seedMatchedTrip(db);
+        await _seedInterval(db, tripId: tripId, wayId: 100001);
+        // Deliberately NO _seedGeometry call.
+
+        final (:service, :source) = buildServiceWithSource(
+          byLevel: {4: null, 6: null, 8: _regionLevel8(), 9: null, 10: null},
+          ways: [_fixtureWay()],
+        );
+
+        await service.recompute();
+
+        expect(source.restrictTilesCallCount, greaterThan(0));
+        expect(
+          source.lastRestrictTiles,
+          isNull,
+          reason:
+              'no geometry for the new ways → no corridor derivable → full '
+              'bbox fetch so attribution is not silently skipped',
+        );
+      },
+    );
+
+    // onTileFetch surfaces the Stage-1 per-tile fetch progress (the phase that
+    // stalls on a cold cache) so the banner shows a live N/M instead of a
+    // frozen-looking spinner.
+    test('recompute forwards Stage-1 tile fetch progress via onTileFetch', () async {
+      final tripId = await _seedMatchedTrip(db);
+      await _seedInterval(db, tripId: tripId, wayId: 100001);
+      await _seedGeometry(db, 100001, _fixtureWay().geometry);
+
+      final service = buildService(
+        byLevel: {4: null, 6: null, 8: _regionLevel8(), 9: null, 10: null},
+        ways: [_fixtureWay()],
+      );
+
+      final events = <(int, int)>[];
+      await service.recompute(
+        onTileFetch: (done, total) => events.add((done, total)),
+      );
+      // The fake reports (n, n) for its single returned tile.
+      expect(events, isNotEmpty);
+      expect(events.last.$1, events.last.$2);
+      expect(events.last.$2, greaterThan(0));
+    });
   });
 }

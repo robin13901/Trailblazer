@@ -228,11 +228,11 @@ class TripMatchCoordinator {
           }
         },
       );
-      await _writeIntervals(tripId, result.intervals);
-      // Cache the raw OSM geometry for all driven ways while the corridor
-      // tiles are still fresh in the LRU cache. This is the only time we
-      // reliably have all needed tiles in memory without a network fetch.
-      unawaited(_cacheWayGeometry(result.intervals, rawTiles));
+      // Writes intervals, caches the new ways' geometry while the corridor
+      // tiles are still fresh in the LRU cache (awaited so the auto-recompute
+      // can scope its fetch to them), then fires the recompute seam — all
+      // inside _writeIntervals.
+      await _writeIntervals(tripId, result.intervals, rawTiles);
       await _tripsRepository.transitionToMatched(tripId);
       _progressSink?.call(tripId, 1);
       _clearProgress(tripId);
@@ -272,6 +272,7 @@ class TripMatchCoordinator {
   Future<void> _writeIntervals(
     int tripId,
     List<DrivenWayIntervalDraft> drafts,
+    List<RawTilePayload> rawTiles,
   ) async {
     if (drafts.isEmpty) return;
     final companions = drafts
@@ -286,6 +287,15 @@ class TripMatchCoordinator {
         )
         .toList(growable: false);
     await _intervalsDao.insertBatch(companions);
+
+    // Cache the new ways' OSM geometry BEFORE firing the auto-recompute.
+    // recompute() derives its scoped STAGE-1 corridor tiles from
+    // `driven_way_geometry`; if the new ways' geometry is not yet persisted it
+    // falls back to a full union-bbox fetch, which hangs on a cold tile cache
+    // (the very symptom this ordering prevents). Awaited (previously
+    // fire-and-forget) purely to order it before the trigger — _cacheWayGeometry
+    // swallows its own errors, so this never throws and never blocks on failure.
+    await _cacheWayGeometry(drafts, rawTiles);
 
     // Auto recompute-only seam (Phase 10 Decision 6): fire-and-forget after
     // intervals land. Guarded against re-entrancy so a rapid sequence of
@@ -503,9 +513,9 @@ class TripMatchCoordinator {
     // next migration run (or a manual recompute) repairs — acceptable for a
     // one-shot cosmetic reprocess.
     await _intervalsDao.deleteByTrip(tripId);
-    await _writeIntervals(tripId, result.intervals);
-    // Cache geometry for any new ways introduced by the re-match (tiles frish).
-    unawaited(_cacheWayGeometry(result.intervals, rawTiles));
+    // Writes intervals + caches any new ways' geometry (awaited) before the
+    // recompute seam fires — see _writeIntervals.
+    await _writeIntervals(tripId, result.intervals, rawTiles);
     // Surface the per-trip pill to 100% then clear it, mirroring the
     // onTripReadyForMatching completion path so a re-matching trip shows its
     // live % on the Trips-tab _StatusPill and drives the focus-pill pulse.

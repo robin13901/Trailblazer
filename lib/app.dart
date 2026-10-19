@@ -157,6 +157,7 @@ class _AppState extends ConsumerState<App> with WidgetsBindingObserver {
           .read(coverageComputeServiceProvider)
           .recompute(
             onProgress: recalc.updateRecomputing,
+            onTileFetch: recalc.updateRecomputing,
           );
       // recompute() never throws — it returns Result. Only stamp on Ok so a
       // failed pass retries next launch. When only [force] triggered this (the

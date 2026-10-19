@@ -155,7 +155,14 @@ final tripMatchCoordinatorProvider = Provider<TripMatchCoordinator>((ref) {
       recalcNotifier.startRecomputing();
       unawaited(
         computeService
-            .recompute(onProgress: recalcNotifier.updateRecomputing)
+            .recompute(
+              // STAGE-1 tile fetch (the part that stalls on a cold cache) AND
+              // the clip both surface through the same recomputing banner as a
+              // determinate "N/M Kacheln", so the user sees it is still working
+              // rather than apparently frozen.
+              onProgress: recalcNotifier.updateRecomputing,
+              onTileFetch: recalcNotifier.updateRecomputing,
+            )
             .then((result) {
               recalcNotifier.clear();
               result.when(
