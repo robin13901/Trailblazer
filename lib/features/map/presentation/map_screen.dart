@@ -20,10 +20,12 @@ import 'package:auto_explore/features/map/presentation/widgets/trip_path_bridge.
 import 'package:auto_explore/features/map/presentation/widgets/trip_path_dismiss_chip.dart';
 import 'package:auto_explore/features/map/presentation/widgets/wakelock_sync.dart';
 import 'package:auto_explore/features/regions/presentation/providers/region_sheet_open_provider.dart';
+import 'package:auto_explore/features/regions/presentation/widgets/region_stats_fab.dart';
 import 'package:auto_explore/features/startup/presentation/widgets/global_recalc_banner.dart';
 import 'package:auto_explore/features/trips/domain/tracking_state.dart';
 import 'package:auto_explore/features/trips/presentation/providers/tracking_state_provider.dart';
 import 'package:auto_explore/features/trips/presentation/widgets/live_tracking_panel.dart';
+import 'package:auto_explore/features/trips/presentation/widgets/trip_stats_fab.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -80,6 +82,10 @@ class MapScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final currentIndex = navigationShell?.currentIndex ?? 0;
     final isMapTab = currentIndex == 0;
+    // The Trips tab (index 1) and Regions tab (index 2) each reuse the FAB
+    // slot for their own stats button.
+    final isTripsTab = currentIndex == 1;
+    final isRegionsTab = currentIndex == 2;
     // Hide the bottom nav pill while a region detail sheet is open so the
     // glass pill does not overlap the sheet card (on-device feedback
     // 2026-07-13).
@@ -344,6 +350,8 @@ class MapScreen extends ConsumerWidget {
                         )
                       : const _LocalBottomNav(),
                   showFab: isMapTab,
+                  showTripStats: isTripsTab,
+                  showStats: isRegionsTab,
                   showRecenter: isMapTab,
                   showPanel: isMapTab,
                 ),
@@ -401,12 +409,16 @@ class _BottomChrome extends StatelessWidget {
   const _BottomChrome({
     required this.navShell,
     required this.showFab,
+    required this.showTripStats,
+    required this.showStats,
     required this.showRecenter,
     required this.showPanel,
   });
 
   final Widget navShell;
   final bool showFab;
+  final bool showTripStats;
+  final bool showStats;
   final bool showRecenter;
   final bool showPanel;
 
@@ -450,7 +462,13 @@ class _BottomChrome extends StatelessWidget {
               SizedBox(
                 width: _fabSize,
                 height: _fabSize,
-                child: showFab ? const TripFab() : const SizedBox.shrink(),
+                child: showFab
+                    ? const TripFab()
+                    : showStats
+                    ? const RegionStatsFab()
+                    : showTripStats
+                    ? const TripStatsFab()
+                    : const SizedBox.shrink(),
               ),
             ],
           ),
