@@ -24,7 +24,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 /// Opens a draggable bottom sheet with aggregate statistics across the whole
 /// trip history list. Styled identically to the region + trip detail sheets.
 Future<void> showTripStatsSheet(BuildContext context, WidgetRef ref) async {
-  ref.read(regionSheetOpenProvider.notifier).isOpen = true;
+  // Capture the notifier up front. Opening the sheet flips
+  // regionSheetOpenProvider true, which makes MapScreen hide the whole bottom
+  // chrome — INCLUDING this sheet's trigger FAB. That disposes the FAB's
+  // WidgetRef, so reading the provider through `ref` again in `finally` would
+  // throw on a defunct ref and leave the flag stuck true (nav pill + button
+  // gone for good). The notifier instance is owned by the ProviderContainer and
+  // outlives the FAB, so calling it directly is safe.
+  final sheetOpen = ref.read(regionSheetOpenProvider.notifier)..isOpen = true;
   try {
     await showModalBottomSheet<void>(
       context: context,
@@ -38,7 +45,7 @@ Future<void> showTripStatsSheet(BuildContext context, WidgetRef ref) async {
       ),
     );
   } finally {
-    ref.read(regionSheetOpenProvider.notifier).isOpen = false;
+    sheetOpen.isOpen = false;
   }
 }
 
@@ -218,8 +225,7 @@ class _GlassStatsPanel extends ConsumerWidget {
                 // Averages section.
                 Text(
                   'Durchschnitt',
-                  style: theme.textTheme.titleSmall?.copyWith(
-                    color: colorScheme.onSurface.withValues(alpha: 0.6),
+                  style: theme.textTheme.headlineSmall?.copyWith(
                     fontWeight: FontWeight.w600,
                   ),
                 ),
