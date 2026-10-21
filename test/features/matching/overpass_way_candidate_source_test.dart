@@ -122,6 +122,49 @@ void main() {
       expect(await cacheDao.totalBytes(), greaterThan(0));
     });
 
+    test('persist:false fetches but never writes the shared cache', () async {
+      var calls = 0;
+      final client = buildClient((req) async {
+        calls++;
+        return okJson(
+          syntheticOverpassJson(
+            wayId: 1,
+            lat: centreLat,
+            lon: centreLon,
+          ),
+        );
+      });
+      final source = OverpassWayCandidateSource(
+        client: client,
+        cacheDao: cacheDao,
+      );
+
+      final ways = await source.fetchWaysInBbox(
+        minLat: centreLat - smallHalfLat,
+        minLon: centreLon - smallHalfLon,
+        maxLat: centreLat + smallHalfLat,
+        maxLon: centreLon + smallHalfLon,
+        persist: false,
+      );
+
+      expect(ways, hasLength(1));
+      expect(ways.first.wayId, 1);
+      expect(calls, 1);
+      // Nothing persisted — the shared driven-coverage cache is untouched.
+      expect(await cacheDao.totalBytes(), 0);
+
+      // A second persist:false fetch re-hits the network (cache stayed empty).
+      await source.fetchWaysInBbox(
+        minLat: centreLat - smallHalfLat,
+        minLon: centreLon - smallHalfLon,
+        maxLat: centreLat + smallHalfLat,
+        maxLon: centreLon + smallHalfLon,
+        persist: false,
+      );
+      expect(calls, 2);
+      expect(await cacheDao.totalBytes(), 0);
+    });
+
     test('second fetch for same bbox hits cache only', () async {
       var calls = 0;
       final client = buildClient((req) async {

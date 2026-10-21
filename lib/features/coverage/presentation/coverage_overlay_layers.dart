@@ -63,6 +63,12 @@ const String coverageSourceId = 'coverage_overlay';
 /// Line layer id — stable across style swaps and sessions.
 const String coverageLayerId = 'coverage_layer';
 
+/// GeoJSON source id for the on-demand UNDRIVEN-ways overlay (blue roads).
+const String undrivenSourceId = 'undriven_overlay';
+
+/// Line layer id for the on-demand UNDRIVEN-ways overlay (blue roads).
+const String undrivenLayerId = 'undriven_layer';
+
 // ---------------------------------------------------------------------------
 // Pure expression builder (Task 3 test seam)
 // ---------------------------------------------------------------------------
@@ -179,8 +185,28 @@ abstract class CoverageOverlayApplier {
 // ---------------------------------------------------------------------------
 
 /// Production [CoverageOverlayApplier] backed by a live [MapLibreMapController].
+///
+/// Parameterised by [sourceId] / [layerId] so the SAME implementation drives
+/// both the driven-coverage overlay (defaults) and a second independent
+/// undriven overlay (`undriven_overlay` / `undriven_layer`). [preferBelowLayerIds]
+/// lists layer ids to insert beneath, tried in order before the label/symbol
+/// heuristic — the undriven layer passes `[coverageLayerId]` so the orange
+/// driven line always draws on top of the blue undriven line.
 class MapLibreCoverageOverlayApplier implements CoverageOverlayApplier {
-  const MapLibreCoverageOverlayApplier();
+  const MapLibreCoverageOverlayApplier({
+    this.sourceId = coverageSourceId,
+    this.layerId = coverageLayerId,
+    this.preferBelowLayerIds = const [],
+  });
+
+  /// GeoJSON source id this applier owns.
+  final String sourceId;
+
+  /// Line layer id this applier owns.
+  final String layerId;
+
+  /// Layer ids to insert beneath (tried in order), before the label heuristic.
+  final List<String> preferBelowLayerIds;
 
   // -------------------------------------------------------------------------
   // CoverageOverlayApplier interface
@@ -203,16 +229,16 @@ class MapLibreCoverageOverlayApplier implements CoverageOverlayApplier {
     //    nothing but is present so belowLayerId insertion is unconditional
     //    (RESEARCH Pitfall 7).
     final fc = buildCoverageFeatureCollection(data.ways);
-    await controller.addGeoJsonSource(coverageSourceId, fc);
+    await controller.addGeoJsonSource(sourceId, fc);
 
     // 3. Discover the best below-label insertion point at runtime.
     //    MapTiler style layer IDs are not hardcoded — discover via getLayerIds.
-    final belowId = await _firstSymbolLayerId(controller);
+    final belowId = await _resolveBelowLayerId(controller);
 
     // 4. Add the line layer with data-driven paint expressions.
     await controller.addLineLayer(
-      coverageSourceId,
-      coverageLayerId,
+      sourceId,
+      layerId,
       _paint(preset, brightness),
       belowLayerId: belowId,
     );
@@ -232,7 +258,7 @@ class MapLibreCoverageOverlayApplier implements CoverageOverlayApplier {
     // By passing all intended values every time, we guarantee the layer
     // always has a complete, well-defined paint state after a recolor call.
     await controller.setLayerProperties(
-      coverageLayerId,
+      layerId,
       _paint(preset, brightness),
     );
   }
@@ -243,12 +269,12 @@ class MapLibreCoverageOverlayApplier implements CoverageOverlayApplier {
     // Remove layer before its source; swallow "not found" errors so the call
     // is idempotent — same pattern as MapLibreTripOverlayApplier.removeTripOverlay.
     try {
-      await controller.removeLayer(coverageLayerId);
+      await controller.removeLayer(layerId);
     } on Object {
       // Layer absent (first run, or already wiped by setStyle()) — ignore.
     }
     try {
-      await controller.removeSource(coverageSourceId);
+      await controller.removeSource(sourceId);
     } on Object {
       // Source absent — ignore.
     }
@@ -275,32 +301,32 @@ class MapLibreCoverageOverlayApplier implements CoverageOverlayApplier {
     );
   }
 
-  /// Discovers the first symbol/label layer ID in the current style by
-  /// calling `controller.getLayerIds()` and searching for known
-  /// naming patterns from the MapTiler dataviz style (RESEARCH open-Q4).
+  /// Resolves the layer id to insert the overlay beneath.
   ///
-  /// MapTiler dataviz label layers are named like 'Place labels',
-  /// 'Road labels', 'POI labels' — all contain 'label', 'place', or 'poi'
-  /// (case-insensitive). Returning this ID as `belowLayerId` inserts the
-  /// coverage lines above base road geometry but below text labels, so
-  /// road names remain legible on top of the orange coverage overlay.
+  /// First honours [preferBelowLayerIds] (tried in order) — the undriven layer
+  /// passes `[coverageLayerId]` so the orange driven line stays on top. Then
+  /// falls back to the first symbol/label layer so road names remain legible
+  /// over the overlay. Returns null (top of stack) if neither matches or the
+  /// lookup throws (pre-style-loaded race).
   ///
-  /// Falls back to null (top of stack) if:
-  ///   - No matching layer is found (custom style with different naming)
-  ///   - getLayerIds() throws (pre-style-loaded race, unsupported API)
-  ///
-  /// The heuristic is documented here rather than hardcoded because hosted
-  /// style layer IDs are discovered at runtime — they can change across
-  /// MapTiler style versions without a client-side update.
-  Future<String?> _firstSymbolLayerId(MapLibreMapController controller) async {
+  /// MapTiler dataviz label layers are named like 'Place labels', 'Road
+  /// labels', 'POI labels' — all contain 'label', 'place', or 'poi'
+  /// (case-insensitive). Hosted style layer IDs are discovered at runtime
+  /// because they can change across MapTiler style versions.
+  Future<String?> _resolveBelowLayerId(MapLibreMapController controller) async {
     try {
-      final ids = await controller.getLayerIds();
+      final ids = (await controller.getLayerIds())
+          .map((e) => e.toString())
+          .toList();
+      for (final pref in preferBelowLayerIds) {
+        if (ids.contains(pref)) return pref;
+      }
       for (final id in ids) {
-        final lower = id.toString().toLowerCase();
+        final lower = id.toLowerCase();
         if (lower.contains('label') ||
             lower.contains('place') ||
             lower.contains('poi')) {
-          return id.toString();
+          return id;
         }
       }
       return null;
@@ -322,4 +348,15 @@ class MapLibreCoverageOverlayApplier implements CoverageOverlayApplier {
 /// Mirrors `tripOverlayApplierProvider` in trip_overlay_layers.dart.
 final coverageOverlayApplierProvider = Provider<CoverageOverlayApplier>(
   (ref) => const MapLibreCoverageOverlayApplier(),
+);
+
+/// Provider for the UNDRIVEN-ways overlay applier — an independent source+layer
+/// (`undriven_overlay` / `undriven_layer`) inserted beneath the driven coverage
+/// layer so the orange driven line always wins at any overlap.
+final undrivenOverlayApplierProvider = Provider<CoverageOverlayApplier>(
+  (ref) => const MapLibreCoverageOverlayApplier(
+    sourceId: undrivenSourceId,
+    layerId: undrivenLayerId,
+    preferBelowLayerIds: [coverageLayerId],
+  ),
 );

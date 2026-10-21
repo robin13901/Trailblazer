@@ -115,6 +115,7 @@ class OverpassWayCandidateSource implements WayCandidateSource {
     Set<TileId>? restrictTiles,
     bool cacheOnly = false,
     void Function(int done, int total)? onTileProgress,
+    bool persist = true,
   }) async {
     final freshCached = await _collectFreshTiles(
       minLat: minLat,
@@ -125,6 +126,7 @@ class OverpassWayCandidateSource implements WayCandidateSource {
       restrictTiles: restrictTiles,
       cacheOnly: cacheOnly,
       onTileProgress: onTileProgress,
+      persist: persist,
     );
 
     // Decode every cached tile's payload, dedupe, and bbox-clip.
@@ -184,6 +186,13 @@ class OverpassWayCandidateSource implements WayCandidateSource {
   /// [fetchRawTilesInBbox]. Returns the fresh cache rows keyed by tile. No
   /// decoding happens here — only Drift reads and (bounded-concurrency)
   /// network fetches.
+  ///
+  /// [persist] controls whether freshly-fetched tiles are WRITTEN back to the
+  /// `OverpassWayCache` DB. `true` (default) = the normal matcher/recompute
+  /// behaviour. `false` = read the shared cache but never mutate it — freshly
+  /// fetched tiles are returned as in-memory rows only, discarded after use.
+  /// Used by the on-demand undriven-ways overlay so an ad-hoc region lookup
+  /// never pollutes (or evicts from) the driven-coverage tile cache.
   Future<Map<TileId, OverpassWayCacheData>> _collectFreshTiles({
     required double minLat,
     required double minLon,
@@ -193,6 +202,7 @@ class OverpassWayCandidateSource implements WayCandidateSource {
     Set<TileId>? restrictTiles,
     bool cacheOnly = false,
     void Function(int done, int total)? onTileProgress,
+    bool persist = true,
   }) async {
     var tiles = _tileMath.bboxToZ12Tiles(minLat, minLon, maxLat, maxLon);
     // Corridor restriction (2026-07-21): keep only tiles the trip path touches.
@@ -250,6 +260,7 @@ class OverpassWayCandidateSource implements WayCandidateSource {
             return null;
           },
           throwOnError: throwOnError,
+          persist: persist,
           onError: (e) => firstError ??= e,
           onFetched: (tile, row) {
             freshCached[tile] = row;
@@ -273,6 +284,7 @@ class OverpassWayCandidateSource implements WayCandidateSource {
     required bool throwOnError,
     required void Function(DomainError) onError,
     required void Function(TileId, OverpassWayCacheData) onFetched,
+    bool persist = true,
   }) async {
     while (true) {
       final tile = takeNext();
@@ -290,16 +302,33 @@ class OverpassWayCandidateSource implements WayCandidateSource {
         );
         final gzipBytes = Uint8List.fromList(gzip.encode(utf8.encode(rawJson)));
         final wayCount = _parser.parseWays(rawJson).length;
-        await _cacheDao.put(
-          z: tile.z,
-          x: tile.x,
-          y: tile.y,
-          payloadGzip: gzipBytes,
-          wayCount: wayCount,
-          now: _now(),
-        );
-        final row = await _cacheDao.getByTile(tile.z, tile.x, tile.y);
-        if (row != null) onFetched(tile, row);
+        if (persist) {
+          await _cacheDao.put(
+            z: tile.z,
+            x: tile.x,
+            y: tile.y,
+            payloadGzip: gzipBytes,
+            wayCount: wayCount,
+            now: _now(),
+          );
+          final row = await _cacheDao.getByTile(tile.z, tile.x, tile.y);
+          if (row != null) onFetched(tile, row);
+        } else {
+          // Read-only caller (undriven overlay): hand the freshly fetched tile
+          // back as an in-memory row WITHOUT touching the shared cache.
+          onFetched(
+            tile,
+            OverpassWayCacheData(
+              tileZ: tile.z,
+              tileX: tile.x,
+              tileY: tile.y,
+              fetchedAt: _now(),
+              wayCount: wayCount,
+              payloadGzip: gzipBytes,
+              payloadBytes: gzipBytes.length,
+            ),
+          );
+        }
       } on DomainError catch (e) {
         _log.warning('tile fetch failed: $tile — ${e.message}');
         onError(e);

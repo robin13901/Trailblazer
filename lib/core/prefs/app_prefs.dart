@@ -14,6 +14,12 @@ class AppPrefs {
   static const String kAdminBundleVersion = 'admin_bundle_version';
   static const String kCoveragePreset = 'coverage_preset';
 
+  /// User-chosen color preset for the on-demand UNDRIVEN-ways overlay (the blue
+  /// roads shown via the region detail sheet). Independent of [kCoveragePreset]
+  /// (driven roads) so the two can be told apart at a glance. Defaults to
+  /// [CoverageColorPreset.blue].
+  static const String kUndrivenPreset = 'undriven_preset';
+
   // ── SET-05: raw-GPS retention ─────────────────────────────────────────────
   //
   // Sentinel encoding:
@@ -294,6 +300,19 @@ class AppPrefs {
   /// Persists [p] as the user-chosen coverage color preset.
   Future<void> setCoveragePreset(CoverageColorPreset p) =>
       _prefs.setString(kCoveragePreset, p.name);
+
+  /// Returns the stored UNDRIVEN-ways color preset, defaulting to
+  /// [CoverageColorPreset.blue] when no value has been persisted yet.
+  Future<CoverageColorPreset> getUndrivenPreset() async {
+    final s = await _prefs.getString(kUndrivenPreset);
+    return s == null
+        ? CoverageColorPreset.blue
+        : CoverageColorPreset.fromString(s);
+  }
+
+  /// Persists [p] as the user-chosen undriven-ways color preset.
+  Future<void> setUndrivenPreset(CoverageColorPreset p) =>
+      _prefs.setString(kUndrivenPreset, p.name);
 
   // ── SET-05: raw-GPS retention ─────────────────────────────────────────────
 

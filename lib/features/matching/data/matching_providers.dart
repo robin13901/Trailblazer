@@ -83,6 +83,16 @@ final wayCandidateSourceProvider = Provider<WayCandidateSource>((ref) {
   );
 });
 
+/// The concrete [OverpassWayCandidateSource] behind [wayCandidateSourceProvider],
+/// or `null` when that provider has been overridden with a non-Overpass fake
+/// (tests). Callers that need the `persist:` option on `fetchWaysInBbox` (the
+/// read-only undriven overlay) use this; everything else uses the interface.
+final overpassWayCandidateSourceProvider =
+    Provider<OverpassWayCandidateSource?>((ref) {
+      final source = ref.watch(wayCandidateSourceProvider);
+      return source is OverpassWayCandidateSource ? source : null;
+    });
+
 /// Real connectivity check via `connectivity_plus`. Tests override this with
 /// a `FakeConnectivitySeam` under `test/helpers/`.
 final connectivitySeamProvider = Provider<ConnectivitySeam>(

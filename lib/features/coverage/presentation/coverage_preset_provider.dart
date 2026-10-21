@@ -50,3 +50,37 @@ final coveragePresetProvider =
 final coveragePresetValueProvider = Provider<CoverageColorPreset>(
   (ref) => ref.watch(coveragePresetProvider).value ?? CoverageColorPreset.amber,
 );
+
+// ---------------------------------------------------------------------------
+// UNDRIVEN-ways preset (the on-demand blue overlay)
+// ---------------------------------------------------------------------------
+
+/// Manages the user's chosen [CoverageColorPreset] for the UNDRIVEN-ways
+/// overlay, hydrating from [AppPrefs] on first access and persisting writes.
+///
+/// Independent of [CoveragePresetNotifier] (driven roads) so the two overlays
+/// can be told apart. Defaults to [CoverageColorPreset.blue].
+class UndrivenPresetNotifier extends AsyncNotifier<CoverageColorPreset> {
+  @override
+  Future<CoverageColorPreset> build() =>
+      ref.watch(appPrefsProvider).getUndrivenPreset();
+
+  /// Persists [preset] to [AppPrefs] and immediately updates the in-memory
+  /// state so the UI reacts without waiting for a rebuild.
+  Future<void> select(CoverageColorPreset preset) async {
+    await ref.read(appPrefsProvider).setUndrivenPreset(preset);
+    state = AsyncData(preset);
+  }
+}
+
+/// AsyncNotifierProvider for the undriven-ways color preset.
+final undrivenPresetProvider =
+    AsyncNotifierProvider<UndrivenPresetNotifier, CoverageColorPreset>(
+      UndrivenPresetNotifier.new,
+    );
+
+/// Synchronous convenience exposing the current undriven-ways
+/// [CoverageColorPreset], falling back to [CoverageColorPreset.blue].
+final undrivenPresetValueProvider = Provider<CoverageColorPreset>(
+  (ref) => ref.watch(undrivenPresetProvider).value ?? CoverageColorPreset.blue,
+);

@@ -1,4 +1,6 @@
 import 'package:auto_explore/features/coverage/presentation/coverage_overlay_bridge.dart';
+import 'package:auto_explore/features/coverage/presentation/undriven_fetch_banner.dart';
+import 'package:auto_explore/features/coverage/presentation/undriven_overlay_bridge.dart';
 import 'package:auto_explore/features/map/domain/follow_mode.dart';
 import 'package:auto_explore/features/map/presentation/providers/camera_state_provider.dart';
 import 'package:auto_explore/features/map/presentation/providers/location_permission_provider.dart';
@@ -163,6 +165,20 @@ class MapScreen extends ConsumerWidget {
             child: CoverageOverlayBridge(),
           ),
 
+          // Headless undriven-ways overlay bridge: paints the on-demand blue
+          // "roads I haven't driven" overlay for a region the user picked via
+          // the region detail sheet. Independent source+layer, inserted below
+          // the orange coverage layer. Zero-size Positioned OUTSIDE the isMapTab
+          // block (same pattern as CoverageOverlayBridge) so it re-adds after
+          // the map remounts on the return to the Map tab.
+          const Positioned(
+            top: 0,
+            left: 0,
+            width: 0,
+            height: 0,
+            child: UndrivenOverlayBridge(),
+          ),
+
           // Headless live dashed-trail bridge: paints the raw driven GPS path
           // as a dashed line while recording (provisional feedback), removed on
           // stop so the solid post-trip matched coverage takes over. Zero-size
@@ -283,6 +299,17 @@ class MapScreen extends ConsumerWidget {
               left: 40,
               right: 40,
               child: SafeArea(child: Center(child: GlobalRecalcBanner())),
+            ),
+
+            // On-demand undriven-ways fetch banner — same row as the recalc
+            // banner (the two never run at once: one is the startup migration,
+            // the other a user-triggered region lookup). Renders nothing when
+            // idle.
+            const Positioned(
+              top: _chromeRowTopInset + 56 + _chromeGap,
+              left: 40,
+              right: 40,
+              child: SafeArea(child: Center(child: UndrivenFetchBanner())),
             ),
 
             // Region-outline dismiss chip — centered just below the focus pill.

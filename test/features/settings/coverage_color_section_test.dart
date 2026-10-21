@@ -25,51 +25,78 @@ void main() {
         InMemorySharedPreferencesAsync.empty();
   });
 
-  testWidgets('renders 5 swatch semantics labels', (tester) async {
+  testWidgets('renders both swatch rows (driven + undriven)', (tester) async {
     await tester.pumpWidget(_wrap(const CoverageColorSection()));
     await tester.pumpAndSettle();
 
+    // Each preset appears twice — once in the driven row, once in the
+    // undriven row.
     for (final preset in CoverageColorPreset.values) {
       expect(
         find.bySemanticsLabel(preset.label),
-        findsOneWidget,
-        reason: '${preset.label} swatch should be present',
+        findsNWidgets(2),
+        reason: '${preset.label} swatch should appear in both rows',
       );
     }
   });
 
-  testWidgets('amber is selected by default', (tester) async {
-    await tester.pumpWidget(_wrap(const CoverageColorSection()));
-    await tester.pumpAndSettle();
-
-    // The selected swatch shows a check icon; unselected ones do not.
-    // Verify the check icon is present (1 = amber selected).
-    expect(find.byIcon(Icons.check), findsOneWidget);
-  });
-
-  testWidgets('tapping green calls select and moves selection indicator', (
+  testWidgets('defaults: amber (driven) + blue (undriven) selected', (
     tester,
   ) async {
-    // Use in-memory prefs so the notifier hydrates correctly.
     await tester.pumpWidget(_wrap(const CoverageColorSection()));
     await tester.pumpAndSettle();
 
-    // Tap the Green swatch.
-    await tester.tap(find.bySemanticsLabel('Grün'));
-    await tester.pumpAndSettle();
-
-    // Only one check icon should exist and it should be on green.
-    expect(find.byIcon(Icons.check), findsOneWidget);
-
-    // Verify that the provider state updated — read from the ProviderScope
-    // that wraps the tree.
-    final element = tester.element(find.byType(CoverageColorSection));
-    final container = ProviderScope.containerOf(element);
-    final storedPreset = container.read(coveragePresetProvider).value;
-    expect(storedPreset, CoverageColorPreset.green);
+    // Two check icons: one per row's selected swatch (amber + blue).
+    expect(find.byIcon(Icons.check), findsNWidgets(2));
   });
 
-  testWidgets('provider override: purple swatch renders as selected', (
+  testWidgets('tapping green in the driven row updates the driven preset', (
+    tester,
+  ) async {
+    await tester.pumpWidget(_wrap(const CoverageColorSection()));
+    await tester.pumpAndSettle();
+
+    // The driven row renders first, so .first is its "Grün" swatch.
+    await tester.tap(find.bySemanticsLabel('Grün').first);
+    await tester.pumpAndSettle();
+
+    final element = tester.element(find.byType(CoverageColorSection));
+    final container = ProviderScope.containerOf(element);
+    expect(
+      container.read(coveragePresetProvider).value,
+      CoverageColorPreset.green,
+    );
+    // Undriven preset is untouched (still default blue).
+    expect(
+      container.read(undrivenPresetProvider).value,
+      CoverageColorPreset.blue,
+    );
+  });
+
+  testWidgets('tapping red in the undriven row updates only the undriven preset', (
+    tester,
+  ) async {
+    await tester.pumpWidget(_wrap(const CoverageColorSection()));
+    await tester.pumpAndSettle();
+
+    // The undriven row renders second, so .last is its "Rot" swatch.
+    await tester.tap(find.bySemanticsLabel('Rot').last);
+    await tester.pumpAndSettle();
+
+    final element = tester.element(find.byType(CoverageColorSection));
+    final container = ProviderScope.containerOf(element);
+    expect(
+      container.read(undrivenPresetProvider).value,
+      CoverageColorPreset.red,
+    );
+    // Driven preset is untouched (still default amber).
+    expect(
+      container.read(coveragePresetProvider).value,
+      CoverageColorPreset.amber,
+    );
+  });
+
+  testWidgets('provider override: purple driven swatch renders as selected', (
     tester,
   ) async {
     await tester.pumpWidget(
@@ -84,7 +111,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    // Check icon present (purple selected), and only one.
-    expect(find.byIcon(Icons.check), findsOneWidget);
+    // Two check icons: purple (driven, overridden) + blue (undriven, default).
+    expect(find.byIcon(Icons.check), findsNWidgets(2));
   });
 }

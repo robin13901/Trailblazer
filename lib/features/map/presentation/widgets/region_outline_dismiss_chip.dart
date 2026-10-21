@@ -6,6 +6,7 @@
 // Hidden (renders nothing) when no outline is shown. Styled with GlassPill
 // (overMap: true) for visual consistency with the other map chrome.
 
+import 'package:auto_explore/features/coverage/data/undriven_overlay_providers.dart';
 import 'package:auto_explore/features/map/presentation/providers/region_outline_provider.dart';
 import 'package:auto_explore/features/map/presentation/widgets/glass_pill.dart';
 import 'package:flutter/material.dart';
@@ -27,7 +28,11 @@ class RegionOutlineDismissChip extends ConsumerWidget {
       label: 'Regionsumriss ausblenden',
       button: true,
       child: GestureDetector(
-        onTap: () => ref.read(regionOutlineProvider.notifier).clear(),
+        onTap: () {
+          // Hide the outline AND any on-demand undriven overlay shown with it.
+          ref.read(regionOutlineProvider.notifier).clear();
+          ref.read(undrivenOverlayControllerProvider.notifier).clear();
+        },
         child: GlassPill(
           overMap: true,
           padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 14),

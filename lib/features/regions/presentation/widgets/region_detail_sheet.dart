@@ -27,6 +27,7 @@ import 'dart:math' as math;
 import 'package:auto_explore/features/admin/data/admin_region.dart';
 import 'package:auto_explore/features/admin/data/admin_region_providers.dart';
 import 'package:auto_explore/features/coverage/data/coverage_overlay_providers.dart';
+import 'package:auto_explore/features/coverage/data/undriven_overlay_providers.dart';
 import 'package:auto_explore/features/map/domain/camera_state.dart';
 import 'package:auto_explore/features/map/domain/follow_mode.dart';
 import 'package:auto_explore/features/map/presentation/providers/camera_state_provider.dart';
@@ -93,12 +94,32 @@ class _RegionDetailContent extends ConsumerWidget {
           region: region,
           scrollController: scrollController,
           onJumpToMap: () => _handleJumpToMap(context, ref),
+          onShowUndriven: () => _handleShowUndriven(context, ref),
+          showUndrivenButton: region.adminLevel >= kUndrivenMinAdminLevel,
         );
       },
     );
   }
 
+  /// "Auf Karte anzeigen" — focus the region on the map. Clears any undriven
+  /// overlay (a plain jump shows only the driven coverage).
   void _handleJumpToMap(BuildContext context, WidgetRef ref) {
+    ref.read(undrivenOverlayControllerProvider.notifier).clear();
+    _focusRegionOnMap(context, ref);
+  }
+
+  /// "Ungefahrene Wege anzeigen" — kick off the on-demand undriven overlay for
+  /// this region, then focus the map (the blue roads render as they resolve).
+  void _handleShowUndriven(BuildContext context, WidgetRef ref) {
+    unawaited(
+      ref
+          .read(undrivenOverlayControllerProvider.notifier)
+          .showRegion(region.osmId),
+    );
+    _focusRegionOnMap(context, ref);
+  }
+
+  void _focusRegionOnMap(BuildContext context, WidgetRef ref) {
     // Look up the region polygon.
     final lookup = ref.read(adminRegionLookupProvider);
     final adm = lookup.regionByOsmId(region.osmId);
@@ -260,11 +281,18 @@ class _GlassDetailPanel extends StatelessWidget {
     required this.region,
     required this.scrollController,
     required this.onJumpToMap,
+    required this.onShowUndriven,
+    required this.showUndrivenButton,
   });
 
   final RegionCoverage region;
   final ScrollController scrollController;
   final VoidCallback onJumpToMap;
+  final VoidCallback onShowUndriven;
+
+  /// Whether to offer the "Ungefahrene Wege anzeigen" button — only for
+  /// Gemeinde/Ortsteil-level regions (coarser levels span too many tiles).
+  final bool showUndrivenButton;
 
   @override
   Widget build(BuildContext context) {
@@ -365,6 +393,19 @@ class _GlassDetailPanel extends StatelessWidget {
                     minimumSize: const Size.fromHeight(48),
                   ),
                 ),
+                // Show undriven roads (Gemeinde/Ortsteil only). Loads on-demand
+                // (fetched + computed, in-memory) and paints them in blue.
+                if (showUndrivenButton) ...[
+                  const SizedBox(height: 12),
+                  FilledButton.tonalIcon(
+                    onPressed: onShowUndriven,
+                    icon: const Icon(Icons.alt_route),
+                    label: const Text('Ungefahrene Wege anzeigen'),
+                    style: FilledButton.styleFrom(
+                      minimumSize: const Size.fromHeight(48),
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
