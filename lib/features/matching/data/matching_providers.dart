@@ -82,7 +82,7 @@ final overpassPoolProvider = Provider<OverpassPool>((ref) {
         endpoint: Uri.parse(
           'https://overpass.nextgis.com/$nextgisKey/api/interpreter',
         ),
-        maxSlots: 8,
+        maxSlots: 12,
       ),
   ];
   return OverpassPool(

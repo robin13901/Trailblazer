@@ -60,7 +60,6 @@ Future<void> showRegionDetailSheet(
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (_) => DraggableScrollableSheet(
-        initialChildSize: 0.4,
         maxChildSize: 0.85,
         builder: (ctx, scrollController) => _RegionDetailContent(
           region: region,
