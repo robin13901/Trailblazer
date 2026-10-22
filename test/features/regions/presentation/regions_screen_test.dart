@@ -31,6 +31,7 @@ const _kRegions = [
     name: 'Kleinheubach',
     drivenLengthM: 600,
     totalLengthM: 1000,
+    areaKm2: 0,
   ),
   RegionCoverage(
     osmId: 1002,
@@ -38,6 +39,7 @@ const _kRegions = [
     name: 'Ortsteil Süd',
     drivenLengthM: 200,
     totalLengthM: 1000,
+    areaKm2: 0,
   ),
   RegionCoverage(
     osmId: 1003,
@@ -45,6 +47,7 @@ const _kRegions = [
     name: 'Bayern',
     drivenLengthM: 50,
     totalLengthM: 1000,
+    areaKm2: 0,
   ),
 ];
 

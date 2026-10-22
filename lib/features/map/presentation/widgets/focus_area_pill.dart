@@ -218,6 +218,7 @@ class _FocusAreaPillState extends ConsumerState<FocusAreaPill>
       name: region.nameDe ?? region.name,
       drivenLengthM: row?.drivenLengthM ?? 0,
       totalLengthM: totalLengthM,
+      areaKm2: region.areaKm2,
     );
 
     await showRegionDetailSheet(context, ref, rc);

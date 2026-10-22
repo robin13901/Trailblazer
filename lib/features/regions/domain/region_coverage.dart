@@ -66,6 +66,7 @@ class RegionCoverage {
     required this.name,
     required this.drivenLengthM,
     required this.totalLengthM,
+    required this.areaKm2,
   });
 
   final int osmId;
@@ -73,6 +74,7 @@ class RegionCoverage {
   final String name;
   final double drivenLengthM;
   final double totalLengthM;
+  final double areaKm2;
 
   double get percent => coveragePercent(drivenLengthM, totalLengthM);
   String get percentLabel => formatPercent(percent);
@@ -80,6 +82,9 @@ class RegionCoverage {
   /// Driven kilometres, one decimal (CONTEXT.md line 50 — driven km + total km).
   double get drivenKm => drivenLengthM / 1000.0;
   double get totalKm => totalLengthM / 1000.0;
+
+  /// Geodesic area formatted for display, e.g. "323,4 km²" or "70.549 km²".
+  String get areaLabel => '${formatKm(areaKm2)} km²';
 
   /// "Score" ranking value = coverage fraction × driven km (user spec
   /// 2026-10-18). Example: 50 % of a region with 5 of 10 driven km →

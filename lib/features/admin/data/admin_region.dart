@@ -26,6 +26,7 @@ class AdminRegion {
     required this.bboxMaxLat,
     required this.bboxMaxLon,
     required this.polygons,
+    required this.areaKm2,
     this.nameDe,
   });
 
@@ -45,6 +46,9 @@ class AdminRegion {
   final double bboxMinLon;
   final double bboxMaxLat;
   final double bboxMaxLon;
+
+  /// Geodesic area in km², computed at bundle parse time.
+  final double areaKm2;
 
   /// MultiPolygon coordinates: outer ring at index 0, holes at index >0.
   /// Each `[lat, lon]` pair is a two-element `List<double>`.

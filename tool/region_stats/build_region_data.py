@@ -269,7 +269,13 @@ def write_admin_bundle(path: str, regions: dict[int, Region], scale: float) -> i
         coords = _to_multipolygon_coords(_simplify_for_output(r.geom, r.admin_level, scale))
         if coords is None:
             continue
-        props = {'osm_id': r.osm_id, 'admin_level': r.admin_level, 'name': r.name}
+        area_m2, _ = _geod.geometry_area_perimeter(r.geom)
+        props = {
+            'osm_id': r.osm_id,
+            'admin_level': r.admin_level,
+            'name': r.name,
+            'area_km2': round(abs(area_m2) / 1e6, 2),
+        }
         if r.name_de:
             props['name:de'] = r.name_de
         features.append({

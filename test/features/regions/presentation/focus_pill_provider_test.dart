@@ -86,6 +86,7 @@ AdminRegion _grebenhainRegion() => const AdminRegion(
       ],
     ],
   ],
+  areaKm2: 0,
 );
 
 /// Builds an in-memory AppDatabase and seeds a coverage_cache row for

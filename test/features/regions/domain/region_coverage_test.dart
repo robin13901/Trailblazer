@@ -102,6 +102,7 @@ void main() {
       name: 'Test Landkreis',
       drivenLengthM: 500,
       totalLengthM: 2000,
+      areaKm2: 0,
     );
 
     test('percentLabel is "25,0 %"', () {
@@ -129,6 +130,7 @@ void main() {
           name: 'Halb',
           drivenLengthM: 5000,
           totalLengthM: 10000,
+          areaKm2: 0,
         );
         expect(half.score, closeTo(2.5, 1e-9));
         expect(half.scoreLabel, '2,5');
@@ -141,6 +143,7 @@ void main() {
           name: 'Nichts',
           drivenLengthM: 0,
           totalLengthM: 10000,
+          areaKm2: 0,
         );
         expect(none.score, 0.0);
         expect(none.scoreLabel, '0,0');
@@ -153,6 +156,7 @@ void main() {
           name: 'Leer',
           drivenLengthM: 100,
           totalLengthM: 0,
+          areaKm2: 0,
         );
         expect(empty.score, 0.0);
       });
@@ -164,6 +168,7 @@ void main() {
           name: 'Voll',
           drivenLengthM: 8000,
           totalLengthM: 8000,
+          areaKm2: 0,
         );
         expect(full.score, closeTo(8.0, 1e-9));
       });
@@ -177,6 +182,7 @@ void main() {
           name: 'Other Name', // different name — does not affect equality
           drivenLengthM: 500,
           totalLengthM: 2000,
+          areaKm2: 0,
         );
         expect(rc, equals(rc2));
       });
@@ -188,6 +194,7 @@ void main() {
           name: 'Test Landkreis',
           drivenLengthM: 500,
           totalLengthM: 2000,
+          areaKm2: 0,
         );
         expect(rc, isNot(equals(rc3)));
       });
@@ -199,6 +206,7 @@ void main() {
           name: 'Test Landkreis',
           drivenLengthM: 600,
           totalLengthM: 2000,
+          areaKm2: 0,
         );
         expect(rc, isNot(equals(rc4)));
       });
@@ -210,6 +218,7 @@ void main() {
           name: 'Renamed',
           drivenLengthM: 500,
           totalLengthM: 2000,
+          areaKm2: 0,
         );
         expect(rc.hashCode, equals(rc5.hashCode));
       });
@@ -222,6 +231,7 @@ void main() {
         name: 'Deutschland',
         drivenLengthM: 0,
         totalLengthM: 0,
+        areaKm2: 0,
       );
 
       test('percent is 0 when totalLengthM is 0', () {
@@ -240,6 +250,7 @@ void main() {
         name: 'Overdriven Ort',
         drivenLengthM: 1500,
         totalLengthM: 1000,
+        areaKm2: 0,
       );
 
       test('percent is clamped to 100', () {

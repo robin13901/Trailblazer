@@ -256,6 +256,7 @@ AdminRegion _regionLevel8({int osmId = 151999}) => AdminRegion(
       ],
     ],
   ],
+  areaKm2: 0,
 );
 
 /// One AdminRegion at level 2 (Germany). Used to assert level 2 is excluded.
@@ -278,6 +279,7 @@ AdminRegion _regionLevel2({int osmId = 51477}) => AdminRegion(
       ],
     ],
   ],
+  areaKm2: 0,
 );
 
 /// Straight 3-point way at ~(49.80, 9.19) — inside `_regionLevel8`. Length
@@ -679,6 +681,7 @@ void main() {
               ],
             ],
           ],
+          areaKm2: 0,
         );
         const east = AdminRegion(
           osmId: 222,
@@ -699,6 +702,7 @@ void main() {
               ],
             ],
           ],
+          areaKm2: 0,
         );
         // Horizontal way crossing the boundary.
         const way = WayCandidate(

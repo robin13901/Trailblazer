@@ -57,6 +57,7 @@ AdminRegion _region(int osmId, int level, String name) => AdminRegion(
   bboxMaxLat: 0,
   bboxMaxLon: 0,
   polygons: const [],
+  areaKm2: 0,
 );
 
 void main() {

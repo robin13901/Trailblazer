@@ -22,6 +22,7 @@ AdminRegion _region() => const AdminRegion(
   bboxMaxLat: 49,
   bboxMaxLon: 12,
   polygons: [],
+  areaKm2: 0,
 );
 
 Future<void> _pump(WidgetTester tester) async {

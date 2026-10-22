@@ -78,6 +78,7 @@ AdminRegion _region(int osmId, int adminLevel, String name) => AdminRegion(
       ],
     ],
   ],
+  areaKm2: 0,
 );
 
 Future<void> _upsertRow(

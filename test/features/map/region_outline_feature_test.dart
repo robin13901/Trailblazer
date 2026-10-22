@@ -33,6 +33,7 @@ AdminRegion _region({
   bboxMaxLat: 1,
   bboxMaxLon: 1,
   polygons: polygons,
+  areaKm2: 0,
 );
 
 void main() {

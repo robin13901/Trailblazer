@@ -108,6 +108,7 @@ const _kTestRegion = AdminRegion(
   bboxMaxLat: 50.6,
   bboxMaxLon: 9.4,
   polygons: [],
+  areaKm2: 0,
 );
 
 /// A camera pointing at the test region's bbox centre, zoom 15 (-> level 10).

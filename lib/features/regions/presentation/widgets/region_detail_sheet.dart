@@ -383,6 +383,12 @@ class _GlassDetailPanel extends StatelessWidget {
                   value: formatKmStats(region.drivenKm, region.totalKm),
                   valueStyle: theme.textTheme.bodyLarge,
                 ),
+                const SizedBox(height: 12),
+                _StatRow(
+                  label: 'Fläche',
+                  value: region.areaLabel,
+                  valueStyle: theme.textTheme.bodyLarge,
+                ),
                 const SizedBox(height: 32),
                 // Jump-to-on-map.
                 FilledButton.icon(

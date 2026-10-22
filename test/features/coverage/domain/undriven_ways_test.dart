@@ -36,6 +36,7 @@ AdminRegion _rect({
     polygons: [
       [ring],
     ],
+    areaKm2: 0,
   );
 }
 

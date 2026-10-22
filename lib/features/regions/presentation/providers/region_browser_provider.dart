@@ -41,6 +41,9 @@ enum RegionSortCriterion {
 
   /// Coverage fraction × driven km — see [RegionCoverage.score].
   score,
+
+  /// Geodesic area of the region polygon in km².
+  area,
 }
 
 /// German label shown in the sort menu for each criterion.
@@ -50,6 +53,7 @@ extension RegionSortCriterionLabel on RegionSortCriterion {
     RegionSortCriterion.totalKm => 'Gesamtkilometer',
     RegionSortCriterion.drivenKm => 'Gefahrene Kilometer',
     RegionSortCriterion.score => 'Score',
+    RegionSortCriterion.area => 'Fläche',
   };
 }
 
@@ -113,6 +117,7 @@ double _sortValue(RegionCoverage region, RegionSortCriterion criterion) =>
       RegionSortCriterion.totalKm => region.totalKm,
       RegionSortCriterion.drivenKm => region.drivenKm,
       RegionSortCriterion.score => region.score,
+      RegionSortCriterion.area => region.areaKm2,
     };
 
 /// Returns a new list ordered by [sort]. Ties break on name ascending so the
@@ -226,6 +231,7 @@ List<RegionCoverage> _buildRegionList(
         name: region.nameDe ?? region.name,
         drivenLengthM: row.drivenLengthM,
         totalLengthM: totalLengthM,
+        areaKm2: region.areaKm2,
       ),
     );
   }

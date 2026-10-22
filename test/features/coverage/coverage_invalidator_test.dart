@@ -55,13 +55,12 @@ AdminRegion _region(int osmId, int level, String name) => AdminRegion(
   osmId: osmId,
   adminLevel: level,
   name: name,
-  // Bbox and polygons unused by CoverageInvalidator — the fake
-  // returns pre-canned regions without geometry checks.
   bboxMinLat: 0,
   bboxMinLon: 0,
   bboxMaxLat: 0,
   bboxMaxLon: 0,
   polygons: const [],
+  areaKm2: 0,
 );
 
 void main() {

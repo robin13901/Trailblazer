@@ -9,6 +9,7 @@
 
 import 'dart:convert';
 import 'dart:io' show gzip;
+import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:auto_explore/features/admin/data/admin_region.dart';
@@ -106,8 +107,7 @@ AdminRegion? regionFromFeature(Object? raw) {
   }
   if (polygons.isEmpty) return null;
 
-  var minLat = double.infinity;
-  var minLon = double.infinity;
+  var minLat = double.infinity;  var minLon = double.infinity;
   var maxLat = -double.infinity;
   var maxLon = -double.infinity;
   for (final poly in polygons) {
@@ -121,6 +121,15 @@ AdminRegion? regionFromFeature(Object? raw) {
     }
   }
 
+  // Prefer the bundled geodesic area (available after Python tool rebuild);
+  // fall back to the spherical-shoelace approximation (~0.3% error, sufficient
+  // for display). areaKm2 is never negative; 0.0 means degenerate geometry.
+  final bundledArea = props['area_km2'];
+  final areaKm2 =
+      bundledArea is num && bundledArea > 0
+          ? bundledArea.toDouble()
+          : _computeAreaKm2(polygons);
+
   return AdminRegion(
     osmId: osmId,
     adminLevel: adminLevel,
@@ -131,5 +140,35 @@ AdminRegion? regionFromFeature(Object? raw) {
     bboxMaxLat: maxLat,
     bboxMaxLon: maxLon,
     polygons: polygons,
+    areaKm2: areaKm2,
   );
+}
+
+/// Geodesic area in km² for a MultiPolygon. Outer rings add, holes subtract.
+/// Uses the spherical-shoelace (Chamberlain-Duquette) formula — ~0.3% error for
+/// Germany's polygon sizes, which is indistinguishable in the display.
+double _computeAreaKm2(List<List<List<List<double>>>> polygons) {
+  var totalM2 = 0.0;
+  for (final poly in polygons) {
+    if (poly.isEmpty) continue;
+    totalM2 += _ringAreaM2(poly.first);
+    for (var hole = 1; hole < poly.length; hole++) {
+      totalM2 -= _ringAreaM2(poly[hole]);
+    }
+  }
+  return (totalM2 / 1e6).abs();
+}
+
+/// Signed spherical-shoelace area in m² for one ring of `[lat, lon]` points.
+double _ringAreaM2(List<List<double>> ring) {
+  if (ring.length < 4) return 0;
+  const earthRadiusM = 6378137.0;
+  var sum = 0.0;
+  for (var i = 0; i < ring.length - 1; i++) {
+    final lat1 = ring[i][0] * math.pi / 180.0;
+    final lat2 = ring[i + 1][0] * math.pi / 180.0;
+    final dLon = (ring[i + 1][1] - ring[i][1]) * math.pi / 180.0;
+    sum += dLon * (2 + math.sin(lat1) + math.sin(lat2));
+  }
+  return sum * earthRadiusM * earthRadiusM / 4;
 }

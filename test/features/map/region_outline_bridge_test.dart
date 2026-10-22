@@ -72,6 +72,7 @@ AdminRegion _region() => const AdminRegion(
       ],
     ],
   ],
+  areaKm2: 0,
 );
 
 Future<_FakeRegionOutlineApplier> _pump(

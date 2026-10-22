@@ -65,6 +65,7 @@ AdminRegion _regionWest() => const AdminRegion(
       ],
     ],
   ],
+  areaKm2: 0,
 );
 
 /// A level-8 region: EAST half [lon 9.195..9.22].
@@ -87,6 +88,7 @@ AdminRegion _regionEast() => const AdminRegion(
       ],
     ],
   ],
+  areaKm2: 0,
 );
 
 /// A single level-8 region covering the whole test square.
@@ -109,6 +111,7 @@ AdminRegion _regionLevel8({int osmId = 151999}) => AdminRegion(
       ],
     ],
   ],
+  areaKm2: 0,
 );
 
 AdminRegion _regionLevel2({int osmId = 51477}) => AdminRegion(
@@ -130,6 +133,7 @@ AdminRegion _regionLevel2({int osmId = 51477}) => AdminRegion(
       ],
     ],
   ],
+  areaKm2: 0,
 );
 
 /// 3-point vertical way inside `_regionLevel8` (all at lon 9.190).

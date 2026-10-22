@@ -30,6 +30,7 @@ AdminRegion _region(List<List<double>> ring) {
     polygons: [
       [ring],
     ],
+    areaKm2: 0,
   );
 }
 
@@ -95,6 +96,7 @@ void main() {
         bboxMaxLat: 3,
         bboxMaxLon: 4,
         polygons: [],
+        areaKm2: 0,
       );
       final p = r.labelPoint;
       expect(p[0], 2); // (1+3)/2
@@ -131,6 +133,7 @@ void main() {
             ],
           ],
         ],
+        areaKm2: 0,
       );
       final p = r.labelPoint;
       // Should be in the big square (100..110), not the tiny one (0..1).
