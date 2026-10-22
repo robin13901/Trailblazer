@@ -51,7 +51,7 @@ const int kOverpassFetchConcurrency = 2;
 ///      clip we'd return roads outside the caller's bbox).
 class OverpassWayCandidateSource implements WayCandidateSource {
   OverpassWayCandidateSource({
-    required OverpassClient client,
+    required OverpassRawFetcher client,
     required OverpassWayCacheDao cacheDao,
     TileBboxMath tileMath = const TileBboxMath(),
     OverpassResponseParser parser = const OverpassResponseParser(),
@@ -64,7 +64,7 @@ class OverpassWayCandidateSource implements WayCandidateSource {
        _now = now,
        _fetchConcurrency = fetchConcurrency;
 
-  final OverpassClient _client;
+  final OverpassRawFetcher _client;
   final OverpassWayCacheDao _cacheDao;
   final TileBboxMath _tileMath;
   final OverpassResponseParser _parser;

@@ -28,6 +28,26 @@ import 'package:auto_explore/features/matching/data/overpass_response_parser.dar
 import 'package:auto_explore/features/matching/domain/way_candidate.dart';
 import 'package:http/http.dart' as http;
 
+/// Minimal interface for a component that can fetch raw Overpass tile JSON.
+///
+/// Implemented by `OverpassClient` (single-instance with retry/fallback) and
+/// `OverpassPool` (multi-instance with least-busy scheduling).
+abstract interface class OverpassRawFetcher {
+  Future<String> fetchRawJson({
+    required double minLat,
+    required double minLon,
+    required double maxLat,
+    required double maxLon,
+    int timeoutSeconds = 25,
+  });
+
+  /// Releases resources held by this fetcher.
+  ///
+  /// Callers that injected their own `http.Client` should manage its lifecycle
+  /// externally and call `close()` only when they own the client.
+  void close();
+}
+
 /// Default primary endpoint — the canonical Overpass server.
 final Uri kOverpassPrimaryEndpoint = Uri.parse(
   'https://overpass-api.de/api/interpreter',
@@ -42,7 +62,7 @@ final Uri kOverpassFallbackEndpoint = Uri.parse(
 );
 
 /// Overpass HTTP client with retry + endpoint-fallback logic.
-class OverpassClient {
+class OverpassClient implements OverpassRawFetcher {
   OverpassClient({
     http.Client? client,
     Uri? primaryEndpoint,
@@ -104,6 +124,7 @@ class OverpassClient {
   /// tile-cache write path) can persist the exact bytes without a
   /// re-encoding round-trip through the parser. Same retry/fallback
   /// contract as [fetchWaysInBbox].
+  @override
   Future<String> fetchRawJson({
     required double minLat,
     required double minLon,
@@ -278,6 +299,7 @@ class OverpassClient {
 
   /// Releases the underlying HTTP client. Callers who injected their own
   /// client should manage its lifecycle externally and NOT call this.
+  @override
   void close() => _client.close();
 
   static bool _isRetryableStatus(int code) =>

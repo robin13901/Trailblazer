@@ -18,6 +18,7 @@ import 'package:auto_explore/features/matching/data/connectivity_seam.dart';
 import 'package:auto_explore/features/matching/data/match_progress_provider.dart';
 import 'package:auto_explore/features/matching/data/matcher_isolate.dart';
 import 'package:auto_explore/features/matching/data/overpass_client.dart';
+import 'package:auto_explore/features/matching/data/overpass_pool.dart';
 import 'package:auto_explore/features/matching/data/overpass_way_candidate_source.dart';
 import 'package:auto_explore/features/matching/data/tile_bbox_math.dart';
 import 'package:auto_explore/features/matching/data/trip_match_coordinator.dart';
@@ -65,6 +66,16 @@ final overpassClientProvider = Provider<OverpassClient>((ref) {
   return client;
 });
 
+/// Multi-instance Overpass pool. Routes tile fetches across all three
+/// public key-less endpoints using least-busy scheduling.  See
+/// [kDefaultOverpassPoolEndpoints] for the slot budget.
+final overpassPoolProvider = Provider<OverpassPool>((ref) {
+  return OverpassPool(
+    endpoints: kDefaultOverpassPoolEndpoints,
+    httpClient: ref.watch(httpClientProvider),
+  );
+});
+
 /// Slippy tile-bbox math — pure functions, no I/O. Held as `const` at call
 /// sites; the provider is a thin indirection for tests that want to
 /// substitute a mock projection.
@@ -73,13 +84,15 @@ final tileBboxMathProvider = Provider<TileBboxMath>(
 );
 
 /// Runtime [WayCandidateSource] — cache-first via [OverpassWayCacheDao],
-/// network-fill via [OverpassClient]. Tests override with an in-memory
+/// network-fill via [OverpassPool]. Tests override with an in-memory
 /// implementation (see `test/helpers/fixture_way_candidate_source.dart`).
 final wayCandidateSourceProvider = Provider<WayCandidateSource>((ref) {
+  final pool = ref.watch(overpassPoolProvider);
   return OverpassWayCandidateSource(
-    client: ref.watch(overpassClientProvider),
+    client: pool,
     cacheDao: ref.watch(appDatabaseProvider).overpassWayCacheDao,
     tileMath: ref.watch(tileBboxMathProvider),
+    fetchConcurrency: pool.totalSlots,
   );
 });
 
