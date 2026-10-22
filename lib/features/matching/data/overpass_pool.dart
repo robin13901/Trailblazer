@@ -19,14 +19,19 @@ class OverpassEndpointConfig {
   final int maxSlots;
 }
 
-/// Default pool configuration covering all three public key-less instances.
+/// Default pool configuration.
+///
+/// Only instances that have been live-probed against the /api/interpreter
+/// path are included here. overpass.private.coffee is deliberately excluded:
+/// the interpreter path was unresponsive (30 s timeout) during the July 2026
+/// live probe (see overpass_client.dart header comment) and is not reliable
+/// enough for production tile fetching.
 ///
 /// Slot budgets:
-///  - overpass-api.de:          2 (FOSSGIS dispatcher hard-enforces this)
-///  - maps.mail.ru:             8 (rate_limit=0, 2×56 cores)
-///  - overpass.private.coffee:  8 (soft warning threshold only above 10)
+///  - overpass-api.de: 2 (FOSSGIS dispatcher hard-enforces this)
+///  - maps.mail.ru:    8 (rate_limit=0, 2×56 cores, confirmed working 2026-07-08)
 ///
-/// Total: 18 slots — roughly 9× the previous single-instance capacity.
+/// Total: 10 slots — 5× the previous single-instance capacity.
 final List<OverpassEndpointConfig> kDefaultOverpassPoolEndpoints = [
   OverpassEndpointConfig(
     endpoint: Uri.parse('https://overpass-api.de/api/interpreter'),
@@ -36,10 +41,6 @@ final List<OverpassEndpointConfig> kDefaultOverpassPoolEndpoints = [
     endpoint: Uri.parse(
       'https://maps.mail.ru/osm/tools/overpass/api/interpreter',
     ),
-    maxSlots: 8,
-  ),
-  OverpassEndpointConfig(
-    endpoint: Uri.parse('https://overpass.private.coffee/api/interpreter'),
     maxSlots: 8,
   ),
 ];
@@ -73,7 +74,7 @@ class OverpassPool implements OverpassRawFetcher {
     required List<OverpassEndpointConfig> endpoints,
     required http.Client httpClient,
     String userAgent = 'Trailblazer/0.1 (github.com/I551358/Trailblazer)',
-    Duration requestTimeout = const Duration(seconds: 60),
+    Duration requestTimeout = const Duration(seconds: 30),
     Duration throttleDuration = const Duration(seconds: 30),
     Duration deadCheckDuration = const Duration(minutes: 10),
     OverpassQueryBuilder queryBuilder = const OverpassQueryBuilder(),
