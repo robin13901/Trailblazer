@@ -1,3 +1,4 @@
+import 'package:auto_explore/features/coverage/data/undriven_fetch_progress_provider.dart';
 import 'package:auto_explore/features/coverage/presentation/coverage_overlay_bridge.dart';
 import 'package:auto_explore/features/coverage/presentation/undriven_fetch_banner.dart';
 import 'package:auto_explore/features/coverage/presentation/undriven_overlay_bridge.dart';
@@ -23,6 +24,7 @@ import 'package:auto_explore/features/map/presentation/widgets/trip_path_dismiss
 import 'package:auto_explore/features/map/presentation/widgets/wakelock_sync.dart';
 import 'package:auto_explore/features/regions/presentation/providers/region_sheet_open_provider.dart';
 import 'package:auto_explore/features/regions/presentation/widgets/region_stats_fab.dart';
+import 'package:auto_explore/features/startup/data/global_recalc_progress_provider.dart';
 import 'package:auto_explore/features/startup/presentation/widgets/global_recalc_banner.dart';
 import 'package:auto_explore/features/trips/domain/tracking_state.dart';
 import 'package:auto_explore/features/trips/presentation/providers/tracking_state_provider.dart';
@@ -52,6 +54,12 @@ const double _navRowBottomInset = 4;
 /// SafeArea already handles status-bar clearance; the extra 32 dp was
 /// cosmetic and visually asymmetric.
 const double _chromeRowTopInset = 12;
+
+/// Reserved vertical slot for a two-line GlassPill banner (label + count line
+/// + progress bar + 10 dp top/bottom padding ≈ 68–72 dp rendered). Used as
+/// the offset applied to the dismiss chips when a fetch banner is visible so
+/// they don't overlap it.
+const double _bannerSlotHeight = 80;
 
 /// Phase-2 Map screen — chrome overlays on top of the base [MapWidget].
 ///
@@ -97,6 +105,17 @@ class MapScreen extends ConsumerWidget {
     // outline is ALSO showing does it drop to the second row so the two don't
     // overlap (both can be visible at once). On-device feedback 2026-07-22.
     final outlineActive = ref.watch(regionOutlineProvider) != null;
+    // Whether a fetch banner is currently visible (undriven overlay load or
+    // the one-time startup recalc). Both banners occupy the same slot directly
+    // below the focus pill. When either is active the dismiss chips must be
+    // pushed further down to avoid overlapping the banner.
+    final bannerActive = ref.watch(undrivenFetchProgressProvider) != null ||
+        ref.watch(globalRecalcProgressProvider) != null;
+    // Base top position for the dismiss-chip row: immediately below the focus
+    // pill when idle, below the banner slot when a banner is showing.
+    final chipBaseTop = bannerActive
+        ? _chromeRowTopInset + 56 + _chromeGap + _bannerSlotHeight + _chromeGap
+        : _chromeRowTopInset + 56.0 + _chromeGap;
 
     // Bottom spacing for the nav-pill / FAB row. Previously a full SafeArea
     // bottom inset + _navRowBottomInset; halved on-device feedback 2026-10-18
@@ -312,19 +331,14 @@ class MapScreen extends ConsumerWidget {
               child: SafeArea(child: Center(child: UndrivenFetchBanner())),
             ),
 
-            // Region-outline dismiss chip — centered just below the focus pill.
-            // Only visible while a region boundary is drawn on the map (the
-            // chip renders nothing otherwise). Tapping it clears the outline.
-            //
-            // 56 dp clears the pill's height; the extra +12 (matching the
-            // chrome gap used elsewhere) keeps a small breathing gap so the
-            // chip doesn't sit flush against the pill (on-device feedback
-            // 2026-07-21).
-            const Positioned(
-              top: _chromeRowTopInset + 56 + _chromeGap,
+            // Region-outline dismiss chip — centered just below the focus pill
+            // (or below the fetch banner when one is active). Only visible while
+            // a region boundary is drawn on the map.
+            Positioned(
+              top: chipBaseTop,
               left: 0,
               right: 0,
-              child: SafeArea(child: Center(child: RegionOutlineDismissChip())),
+              child: const SafeArea(child: Center(child: RegionOutlineDismissChip())),
             ),
 
             // Trip-path dismiss chip — sits at the SAME position as the region
@@ -334,8 +348,8 @@ class MapScreen extends ConsumerWidget {
             // and a region outline can be drawn together).
             Positioned(
               top: outlineActive
-                  ? _chromeRowTopInset + 56 + _chromeGap + 40 + _chromeGap
-                  : _chromeRowTopInset + 56 + _chromeGap,
+                  ? chipBaseTop + 40 + _chromeGap
+                  : chipBaseTop,
               left: 0,
               right: 0,
               child: const SafeArea(
