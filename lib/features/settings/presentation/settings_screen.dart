@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:auto_explore/core/prefs/app_prefs.dart';
 import 'package:auto_explore/features/settings/presentation/widgets/about_section.dart';
+import 'package:auto_explore/features/settings/presentation/widgets/api_keys_section.dart';
 import 'package:auto_explore/features/settings/presentation/widgets/coverage_color_section.dart';
 import 'package:auto_explore/features/settings/presentation/widgets/data_backup_section.dart';
 import 'package:auto_explore/features/settings/presentation/widgets/permissions_section.dart';
@@ -70,6 +71,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           const Divider(height: 1),
           const _SectionHeader('Abdeckung'),
           const CoverageColorSection(),
+
+          // ── API keys ────────────────────────────────────────────────────
+          const Divider(height: 1),
+          const _SectionHeader('API-Keys'),
+          const ApiKeysSection(),
 
           // ── Permissions ─────────────────────────────────────────────────
           const Divider(height: 1),

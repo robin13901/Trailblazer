@@ -69,12 +69,51 @@ final overpassClientProvider = Provider<OverpassClient>((ref) {
 /// Multi-instance Overpass pool. Routes tile fetches across all three
 /// public key-less endpoints using least-busy scheduling.  See
 /// [kDefaultOverpassPoolEndpoints] for the slot budget.
+///
+/// When the user has stored a NextGIS API key (via the Settings screen),
+/// a third endpoint is appended at runtime — the key never touches source
+/// control, only the on-device SharedPreferences store.
 final overpassPoolProvider = Provider<OverpassPool>((ref) {
+  final nextgisKey = ref.watch(nextgisApiKeyProvider);
+  final endpoints = [
+    ...kDefaultOverpassPoolEndpoints,
+    if (nextgisKey.isNotEmpty)
+      OverpassEndpointConfig(
+        endpoint: Uri.parse(
+          'https://overpass.nextgis.com/$nextgisKey/api/interpreter',
+        ),
+        maxSlots: 8,
+      ),
+  ];
   return OverpassPool(
-    endpoints: kDefaultOverpassPoolEndpoints,
+    endpoints: endpoints,
     httpClient: ref.watch(httpClientProvider),
   );
 });
+
+/// The user's NextGIS Overpass API key, populated from the on-device
+/// SharedPreferences store at app startup (see App._loadNextGisKey).
+///
+/// Starts empty so the pool is always functional without NextGIS.
+/// App._loadNextGisKey updates this after the first frame.  The Settings
+/// screen writes directly to both SharedPreferences and this provider so the
+/// pool rebuilds immediately when the user saves or clears the key.
+final nextgisApiKeyProvider = NotifierProvider<NextGisKeyNotifier, String>(
+  NextGisKeyNotifier.new,
+);
+
+/// Manages the NextGIS Overpass API key in memory.
+///
+/// Starts empty; populated by App._loadNextGisKey on startup and updated
+/// by the Settings screen when the user saves or clears the key.
+class NextGisKeyNotifier extends Notifier<String> {
+  @override
+  String build() => '';
+
+  String get currentKey => state;
+
+  set currentKey(String value) => state = value;
+}
 
 /// Slippy tile-bbox math — pure functions, no I/O. Held as `const` at call
 /// sites; the provider is a thin indirection for tests that want to

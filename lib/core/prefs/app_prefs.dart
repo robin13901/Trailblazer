@@ -340,6 +340,14 @@ class AppPrefs {
   Future<void> setRawGpsRetentionDays(int? days) =>
       _prefs.setInt(kRawGpsRetentionDays, days ?? -1);
 
+  // ── API keys (never committed to source — stored on-device only) ─────────
+
+  /// SharedPreferences key for the user's NextGIS Overpass API key.
+  ///
+  /// Stored as a plain string.  The empty string and a missing key are both
+  /// treated as "not configured" by [getNextGisApiKey].
+  static const String kNextGisApiKey = 'nextgis_api_key';
+
   // ── SET-06: diagnostics HUD toggle ───────────────────────────────────────
 
   /// Whether the live diagnostics HUD overlay is enabled.
@@ -351,6 +359,26 @@ class AppPrefs {
   /// Persists the diagnostics-HUD toggle state.
   Future<void> setShowDiagnosticsHud({required bool show}) =>
       _prefs.setBool(kShowDiagnosticsHud, show);
+
+  // ── API keys ─────────────────────────────────────────────────────────────
+
+  /// Returns the user's NextGIS Overpass API key, or `null` when none has
+  /// been entered.  An empty string stored by an older write is also treated
+  /// as absent.
+  Future<String?> getNextGisApiKey() async {
+    final value = await _prefs.getString(kNextGisApiKey);
+    if (value == null || value.isEmpty) return null;
+    return value;
+  }
+
+  /// Persists [key] as the NextGIS Overpass API key.
+  ///
+  /// Pass an empty string (or call [clearNextGisApiKey]) to remove the key.
+  Future<void> setNextGisApiKey(String key) =>
+      _prefs.setString(kNextGisApiKey, key);
+
+  /// Removes the stored NextGIS API key.
+  Future<void> clearNextGisApiKey() => _prefs.remove(kNextGisApiKey);
 }
 
 /// Provider for the singleton [AppPrefs].

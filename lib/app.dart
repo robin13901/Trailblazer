@@ -36,6 +36,7 @@ class _AppState extends ConsumerState<App> with WidgetsBindingObserver {
     // never block startup; fire-and-forget. Each is guarded by its own prefs
     // version stamp so it runs exactly once per bump.
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      unawaited(_loadNextGisKey());
       unawaited(_runStartupMigrations());
     });
   }
@@ -64,6 +65,17 @@ class _AppState extends ConsumerState<App> with WidgetsBindingObserver {
       await _runWayGeometryBackfillIfNeeded();
     } finally {
       ref.read(globalRecalcProgressProvider.notifier).clear();
+    }
+  }
+
+  /// Loads the NextGIS Overpass API key from SharedPreferences into
+  /// [nextgisApiKeyProvider] so the pool includes the NextGIS endpoint from
+  /// the first tile fetch onwards. Runs fire-and-forget after the first frame.
+  Future<void> _loadNextGisKey() async {
+    final key = await ref.read(appPrefsProvider).getNextGisApiKey();
+    if (!mounted) return;
+    if (key != null && key.isNotEmpty) {
+      ref.read(nextgisApiKeyProvider.notifier).currentKey = key;
     }
   }
 
