@@ -196,7 +196,7 @@ class _GlassStatsPanel extends ConsumerWidget {
                 const SizedBox(height: 12),
                 _StatRow(
                   label: 'Gesamtscore',
-                  value: oneDecimalDe(summary.totalScore),
+                  value: summary.totalScore.round().toString(),
                   valueStyle: theme.textTheme.titleLarge?.copyWith(
                     fontWeight: FontWeight.w600,
                   ),
