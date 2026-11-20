@@ -42,6 +42,15 @@ jobs:
           flutter-version: 3.44.4
           cache: true
 
+      # Force the classic CocoaPods plugin path. Flutter 3.44.4's Swift Package
+      # Manager integration generates an umbrella package pinned to iOS 13, which
+      # SPM rejects because flutter_background_geolocation / TSBackgroundFetch
+      # require iOS 15 ("requires minimum platform version 15.0 ... but this
+      # target supports 13.0"). CocoaPods honours the Podfile platform (15.0)
+      # and the pods' own deployment targets, so the build links cleanly.
+      - name: Disable Swift Package Manager (use CocoaPods)
+        run: flutter config --no-enable-swift-package-manager
+
       - run: flutter pub get
 
       - name: Codegen (build_runner)
