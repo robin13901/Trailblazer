@@ -11,6 +11,7 @@ import 'package:auto_explore/features/coverage/data/coverage_overlay_providers.d
 import 'package:auto_explore/features/coverage/data/way_geometry_backfill_service.dart';
 import 'package:auto_explore/features/matching/data/matching_providers.dart';
 import 'package:auto_explore/features/regions/data/coverage_compute_providers.dart';
+import 'package:auto_explore/features/settings/data/auto_backup_service_provider.dart';
 import 'package:auto_explore/features/startup/data/global_recalc_progress_provider.dart';
 import 'package:auto_explore/features/trips/data/trips_dao.dart';
 import 'package:auto_explore/features/trips/data/trips_repository_providers.dart';
@@ -38,6 +39,11 @@ class _AppState extends ConsumerState<App> with WidgetsBindingObserver {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       unawaited(_loadNextGisKey());
       unawaited(_runStartupMigrations());
+      // Auto-backup runs as its own independent fire-and-forget — NOT inside
+      // _runStartupMigrations (which is awaited internally and tied to the
+      // recalc banner); a slow folder write must never sit behind the
+      // network-heavy re-match, nor delay it.
+      unawaited(_runAutoBackupIfDue());
     });
   }
 
@@ -304,6 +310,31 @@ class _AppState extends ConsumerState<App> with WidgetsBindingObserver {
       // Plan 09-03 (MMT-10): raw-GPS retention sweep using the persisted
       // window. Skip when the user has chosen "forever" (null retention).
       unawaited(_runRetentionSweepIfNeeded());
+      // Automatic backup check on resume too: the app is often brought back
+      // from the background rather than cold-started, so a launch-only check
+      // would rarely fire for frequent users. The due-check gates it to at
+      // most once per interval regardless of how often resume fires.
+      unawaited(_runAutoBackupIfDue());
+    }
+  }
+
+  /// Runs an automatic backup if enabled, a folder is set, and the interval
+  /// has elapsed. Fire-and-forget; logs and swallows all errors so a backup
+  /// hiccup never crashes startup/resume. The timestamp is stamped only on a
+  /// successful write (inside the service), so a failed or not-yet-due run
+  /// retries on the next qualifying launch/resume.
+  Future<void> _runAutoBackupIfDue() async {
+    try {
+      final result = await ref.read(autoBackupServiceProvider).runIfDue();
+      if (result case Err(:final error)) {
+        _log.warning(
+          'auto-backup skipped/failed (will retry): ${error.message}',
+        );
+      }
+      // Catches all throwables: an auto-backup hiccup must never crash the app.
+      // ignore: avoid_catches_without_on_clauses
+    } catch (e, st) {
+      _log.warning('auto-backup failed: $e', e, st);
     }
   }
 

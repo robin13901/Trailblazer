@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:auto_explore/core/prefs/app_prefs.dart';
 import 'package:auto_explore/features/settings/presentation/widgets/about_section.dart';
 import 'package:auto_explore/features/settings/presentation/widgets/api_keys_section.dart';
+import 'package:auto_explore/features/settings/presentation/widgets/auto_backup_section.dart';
 import 'package:auto_explore/features/settings/presentation/widgets/coverage_color_section.dart';
 import 'package:auto_explore/features/settings/presentation/widgets/data_backup_section.dart';
 import 'package:auto_explore/features/settings/presentation/widgets/permissions_section.dart';
@@ -64,6 +65,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           // ── Data & Backup ───────────────────────────────────────────────
           const _SectionHeader('Daten & Backup'),
           const DataBackupSection(),
+          const Divider(height: 1),
+          const AutoBackupSection(),
           const Divider(height: 1),
           const RawGpsRetentionSection(),
 

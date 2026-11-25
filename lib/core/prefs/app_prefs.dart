@@ -340,6 +340,30 @@ class AppPrefs {
   Future<void> setRawGpsRetentionDays(int? days) =>
       _prefs.setInt(kRawGpsRetentionDays, days ?? -1);
 
+  // ── Automatic backup to a user-chosen cloud folder (OneDrive) ────────────
+  //
+  // The feature writes a `.trailblazer` DB backup into a folder the user picks
+  // ONCE (intended to be a OneDrive-synced folder). The actual folder handle
+  // (iOS security-scoped bookmark / Android SAF tree-URI) lives NATIVELY in the
+  // `CloudBackupFolder` adapter; only the bookkeeping below is stored here.
+
+  /// Whether automatic backups are enabled. Defaults to `false`.
+  static const String kAutoBackupEnabled = 'auto_backup_enabled';
+
+  /// Timestamp of the last SUCCESSFUL automatic backup, stored as a UTC
+  /// ISO-8601 string (mirrors the only existing timestamp-in-prefs precedent,
+  /// `AdminBundleRefresher`). Absent → never backed up.
+  static const String kLastAutoBackupAt = 'last_auto_backup_at';
+
+  /// Backup interval in days. Defaults to `7` (weekly). Stored as a value so a
+  /// future settings control can change the cadence without a logic change.
+  static const String kAutoBackupIntervalDays = 'auto_backup_interval_days';
+
+  /// Display name of the chosen backup folder, for the settings subtitle only.
+  /// Advisory — `CloudBackupFolder.hasFolder()` is the source of truth. Written
+  /// when `pickFolder()` succeeds; absent → no folder chosen.
+  static const String kCloudBackupFolderName = 'cloud_backup_folder_name';
+
   // ── API keys (never committed to source — stored on-device only) ─────────
 
   /// SharedPreferences key for the user's NextGIS Overpass API key.
@@ -379,6 +403,55 @@ class AppPrefs {
 
   /// Removes the stored NextGIS API key.
   Future<void> clearNextGisApiKey() => _prefs.remove(kNextGisApiKey);
+
+  // ── Automatic backup ─────────────────────────────────────────────────────
+
+  /// Whether automatic backups are enabled. Defaults to `false` when the key
+  /// has never been written.
+  Future<bool> getAutoBackupEnabled() async =>
+      (await _prefs.getBool(kAutoBackupEnabled)) ?? false;
+
+  /// Persists the automatic-backup enabled toggle.
+  Future<void> setAutoBackupEnabled({required bool enabled}) =>
+      _prefs.setBool(kAutoBackupEnabled, enabled);
+
+  /// The timestamp of the last successful automatic backup (UTC), or `null`
+  /// when none has run yet. Parsed from the stored ISO-8601 string.
+  Future<DateTime?> getLastAutoBackupAt() async {
+    final s = await _prefs.getString(kLastAutoBackupAt);
+    if (s == null || s.isEmpty) return null;
+    return DateTime.tryParse(s);
+  }
+
+  /// Records [when] as the last successful automatic-backup timestamp, stored
+  /// as a UTC ISO-8601 string.
+  Future<void> setLastAutoBackupAt(DateTime when) =>
+      _prefs.setString(kLastAutoBackupAt, when.toUtc().toIso8601String());
+
+  /// The automatic-backup interval in days. Defaults to `7` (weekly) when the
+  /// key has never been written.
+  Future<int> getAutoBackupIntervalDays() async =>
+      (await _prefs.getInt(kAutoBackupIntervalDays)) ?? 7;
+
+  /// Persists the automatic-backup interval in days.
+  Future<void> setAutoBackupIntervalDays(int days) =>
+      _prefs.setInt(kAutoBackupIntervalDays, days);
+
+  /// The display name of the chosen backup folder, or `null` when none has
+  /// been chosen. Advisory only (see [kCloudBackupFolderName]).
+  Future<String?> getCloudBackupFolderName() async {
+    final value = await _prefs.getString(kCloudBackupFolderName);
+    if (value == null || value.isEmpty) return null;
+    return value;
+  }
+
+  /// Persists [name] as the chosen backup folder's display name.
+  Future<void> setCloudBackupFolderName(String name) =>
+      _prefs.setString(kCloudBackupFolderName, name);
+
+  /// Clears the stored backup folder display name (e.g. when access is lost).
+  Future<void> clearCloudBackupFolderName() =>
+      _prefs.remove(kCloudBackupFolderName);
 }
 
 /// Provider for the singleton [AppPrefs].

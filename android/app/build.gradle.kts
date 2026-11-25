@@ -42,3 +42,8 @@ android {
 flutter {
     source = "../.."
 }
+
+dependencies {
+    // DocumentFile — SAF tree-URI writes for the automatic cloud-folder backup.
+    implementation("androidx.documentfile:documentfile:1.0.1")
+}
