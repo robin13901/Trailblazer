@@ -46,6 +46,28 @@ post_install do |installer|
     target.build_configurations.each do |config|
       # Ensure every pod target is at least iOS 15.0 so FGB and friends link.
       config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '15.0'
+
+      # permission_handler_apple compiles each permission behind a
+      # `#if PERMISSION_<X>` macro. An undefined macro evaluates to 0, so the
+      # whole strategy is compiled OUT and the plugin reports that permission as
+      # `denied` even when the OS has granted it. Flutter's Swift Package Manager
+      # integration set these macros automatically (all permissions on), so the
+      # earlier SPM builds worked. Under CocoaPods we must set them explicitly or
+      # `Permission.locationAlways.status` returns `denied` despite iOS showing
+      # "Always" — which made the "Standort Immer aktivieren" banner appear.
+      # Enable exactly the permissions this app queries: location, notifications,
+      # and Motion & Fitness (sensors / activity recognition).
+      config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] ||= [
+        '$(inherited)',
+        # dart: [Permission.location] [Permission.locationAlways] [Permission.locationWhenInUse]
+        'PERMISSION_LOCATION=1',
+        # dart: [Permission.notification]
+        'PERMISSION_NOTIFICATIONS=1',
+        # dart: [Permission.sensors]
+        'PERMISSION_SENSORS=1',
+        # dart: [Permission.activityRecognition] (iOS Motion & Fitness)
+        'PERMISSION_MOTION=1',
+      ]
     end
   end
 end
